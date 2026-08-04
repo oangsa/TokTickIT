@@ -65,7 +65,7 @@ or would make the application more complete.
 Preserve the required high-level repository structure:
 
 ```text
-tokticket/
+toktickit/
 ├── client/
 ├── server/
 │   ├── prisma/
@@ -394,7 +394,7 @@ function TicketCard() {
 }
 ```
 
-Use descriptive names from the TokTicket domain.
+Use descriptive names from the TokTickIT domain.
 
 Avoid unexplained abbreviations.
 
