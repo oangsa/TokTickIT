@@ -1,15 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "node16",
-    "rootDir": "src",
-    "outDir": "dist",
-    "strict": true,
+    "module": "ES2022",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
+    "strict": true,
+    "outDir": "dist",
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "sourceMap": true
+    "types": ["node"]
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "src/generated"]
+  "include": ["src", "prisma", "tests"]
 }

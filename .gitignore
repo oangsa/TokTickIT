@@ -1,25 +1,15 @@
-# Dependencies
+# dependencies
 node_modules/
-
-# Build output
+# env & secrets
+.env
+*.env
+!.env.example
+.env.local
+# build output
 dist/
 build/
-*.tsbuildinfo
-
-# Coverage output
-coverage/
-
-# Environment
-.env
-.env.*
-!.env.example
-
-# Logs
+# prisma
+server/prisma/*.db
+# logs & OS
 *.log
-npm-debug.log*
-
-# Editor / OS
-.vscode/
-.idea/
 .DS_Store
-Thumbs.db

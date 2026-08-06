@@ -1,21 +1,19 @@
-# Lab 01 — Peer Review
+# Lab 1 — Peer Review Record  (fill this in)
 
-Fill this in only after an actual peer review happens on the Pull Request.
-Do not pre-fill reviewer names, dates, or outcomes.
+**Author:** <your name> — <student id> — GitHub: @<username>
+**Peer reviewer:** <partner name> — <student id> — GitHub: @<username>
 
-## Review record
+## Pull Requests I authored (reviewed by my partner)
+| PR | Branch | Reviewer verdict |
+|----|--------|------------------|
+|    | feature/1-project-foundation |  |
+|    | feature/2-health-check |  |
+|    | feature/3-category-seed |  |
+|    | feature/4-category-list |  |
 
-- **Pull Request:**
-- **Reviewer (GitHub handle):**
-- **Review date:**
-- **Review outcome:** approved / changes requested
+Reviewer comment I received: <...>
+How I responded: <...>
 
-## Findings
-
-| # | File / area | Finding | Resolution |
-|---|---|---|---|
-|   |             |         |            |
-
-## Follow-up
-
--
+## Pull Requests I reviewed for my partner
+My comment: <...>
+Partner's response: <...>

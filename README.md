@@ -1,89 +1,68 @@
 # TokTickIT
 
-This project is for CPE334 Software Engineer Course Lab.
+CPE334 Software Engineering — Lab 1.
 
 | Area | Stack |
 |---|---|
 | Frontend | React + TypeScript + Vite + Bootstrap (`client/`) |
 | Backend | Node.js + Express + TypeScript (`server/`) |
 | Database | PostgreSQL + Prisma (`server/prisma/`) |
-| Testing | Vitest + Supertest (`server/tests/`) |
+| Testing | Vitest + Supertest |
 
 ## Prerequisites
 
 - Node.js 20+ and npm
 - A running PostgreSQL instance
 
-## Frontend (`client/`)
-
-```bash
-cd client
-npm install
-npm run dev      # dev server
-npm run build    # type-check (tsc -b) + production build
-npm run lint
-```
-
 ## Backend (`server/`)
 
 ```bash
 cd server
 npm install
-npm run dev        # tsx watch, http://localhost:3000
-npm run build      # tsc -> dist/
-npm start          # run the build
-npm run typecheck  # type-checks src/ and tests/
+cp .env.example .env        # then edit DATABASE_URL
+npm run prisma:migrate      # prisma migrate dev
+npm run prisma:seed         # tsx prisma/seed.ts
+npm run dev                 # http://localhost:3000
+npm test                    # vitest run
 ```
 
-Lab 01 defines no routes yet — the server only starts.
-
-## PostgreSQL environment
-
-`DATABASE_URL` is read from `server/.env` (loaded by `server/prisma.config.ts`).
-Set `DIRECT_URL` as well when `DATABASE_URL` points at a connection pooler;
-Prisma migrations use it. `.env` is git-ignored — never commit real credentials.
+## Frontend (`client/`)
 
 ```bash
-cd server
-cp .env.example .env    # then edit DATABASE_URL
+cd client
+npm install
+cp .env.example .env        # VITE_API_URL, defaults to http://localhost:3000
+npm run dev                 # http://localhost:5173
+npm test                    # vitest run
 ```
 
-## Prisma
+## Lab 1 status
 
-```bash
-cd server
-npm run prisma:generate    # generate Prisma Client
-npx prisma migrate status  # non-destructive connectivity check
-```
+The scaffold is in place; Issues 2–4 are unimplemented on purpose. Each open
+item is marked `TODO(Issue N)` at the exact site it belongs:
 
-Add migrations with `npx prisma migrate dev` once the schema defines models.
-Do not run `prisma migrate reset` against a database with data.
+| Issue | Where |
+|---|---|
+| 2 — API health check | `server/src/app.ts`, `client/src/api.ts` |
+| 3 — Category model + seed | `server/prisma/schema.prisma`, `server/prisma/seed.ts` |
+| 4 — Category list + UI states | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
 
-Prisma 7 needs a driver adapter at runtime — `server/src/db.ts` exports the
-configured `prisma` client (`@prisma/adapter-pg` over `DATABASE_URL`). Import
-that instead of constructing `PrismaClient` yourself.
-
-## Tests
-
-```bash
-cd server
-npm test          # vitest run
-npm run test:watch
-```
-
-The Prisma connectivity test is skipped when `DATABASE_URL` is unset, so
-`npm test` works on a fresh clone without a database.
+Tests for Issues 2–4 are stubbed as `it.todo` / `describe.todo` in
+`server/tests/lab-01/` and `client/tests/lab-01/`. `GET /api/health` and the
+heading render test are worked examples — study them, then write the rest.
 
 ## Repository structure
 
 ```text
 toktickit/
 ├── client/            # React + TypeScript + Vite + Bootstrap
+│   ├── src/
+│   └── tests/lab-01/
 ├── server/
-│   ├── prisma/        # Prisma schema
+│   ├── prisma/        # schema + seed
 │   ├── src/           # Express application
-│   └── tests/lab-01/  # Lab 01 tests
-├── docs/lab-01/       # ai_use.md, reviewer.md
+│   └── tests/lab-01/
+├── docs/lab-01/       # ai_use.md, reviewer.md, tests.md
 ├── .gitignore
 └── README.md
 ```
