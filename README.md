@@ -38,18 +38,26 @@ npm test                    # vitest run
 
 ## Lab 1 status
 
-The scaffold is in place; Issues 2–4 are unimplemented on purpose. Each open
-item is marked `TODO(Issue N)` at the exact site it belongs:
+| Issue | Status | Where |
+|---|---|---|
+| 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
+| 3 — Category model + seed | Open | `server/prisma/schema.prisma`, `server/prisma/seed.ts` |
+| 4 — Category list + UI states | Open | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
 
-| Issue | Where |
-|---|---|
-| 2 — API health check | `server/src/app.ts`, `client/src/api.ts` |
-| 3 — Category model + seed | `server/prisma/schema.prisma`, `server/prisma/seed.ts` |
-| 4 — Category list + UI states | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
+Each open item is marked `TODO(Issue N)` at the exact site it belongs. Tests for
+Issues 3–4 are stubbed as `it.todo` / `describe.todo` in `server/tests/lab-01/`
+and `client/tests/lab-01/`.
 
-Tests for Issues 2–4 are stubbed as `it.todo` / `describe.todo` in
-`server/tests/lab-01/` and `client/tests/lab-01/`. `GET /api/health` and the
-heading render test are worked examples — study them, then write the rest.
+### Issue 2 — API health check
+
+```text
+GET /api/health  ->  200  {"status":"ok","service":"TokTickIT API"}
+```
+
+The client calls it from `checkSystem()` in `client/src/api.ts`; **Check System**
+on the React page shows `Backend status: Online`, or `Offline` with the reason
+when the request fails. Covered by `server/tests/lab-01/health.test.ts`
+(Supertest). Evidence in `docs/lab-01/tests.md`.
 
 ## Repository structure
 
