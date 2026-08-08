@@ -8,7 +8,6 @@ export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
-  void categories;
 
   async function handleCheck() {
     setState("loading");
@@ -24,7 +23,6 @@ export default function App() {
       );
       setState("error");
     }
-    // TODO(Issue 4): render the fetched categories in the success state.
   }
 
   return (
@@ -38,9 +36,22 @@ export default function App() {
       </button>
 
       {state === "success" && (
-        <p className="alert alert-success mt-3 mb-0">
-          Backend status: <strong>Online</strong>
-        </p>
+        <>
+          <p className="alert alert-success mt-3 mb-0">
+            Backend status: <strong>Online</strong>
+          </p>
+          <h2 className="h5 mt-4">Categories</h2>
+          <ul className="list-group">
+            {categories.length === 0 && (
+              <li className="list-group-item text-muted">No categories yet.</li>
+            )}
+            {categories.map((category) => (
+              <li key={category.id} className="list-group-item">
+                {category.name}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {state === "error" && (
@@ -48,8 +59,6 @@ export default function App() {
           Backend status: <strong>Offline</strong> — {errorMessage}
         </p>
       )}
-
-      {/* TODO(Issue 4): render the seeded categories inside the success state. */}
     </div>
   );
 }
