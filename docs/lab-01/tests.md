@@ -1,13 +1,62 @@
-# Lab 1 — Test Plan and Evidence  (fill this in)
+# Lab 1 — Test Plan and Evidence
 
 All test files live under server/tests/lab-01/ and client/tests/lab-01/.
 
 | # | Tool | Test | Result |
 |---|------|------|--------|
-| 1 | Supertest | GET /api/health returns 200, status=ok | |
-| 2 | Supertest | GET /api/categories returns 4 seeded categories in id order | |
-| 3 | Vitest | Heading renders | |
-| 4 | Vitest | Success state shows Online + category list | |
-| 5 | Vitest | Error state shows Offline + message | |
+| 1 | Supertest | GET /api/health returns 200, status=ok | Pass (Issue 2) |
+| 2 | Supertest | GET /api/categories returns 4 seeded categories in id order | Pending (Issue 4, `it.todo`) |
+| 3 | Vitest | Heading renders | Pass |
+| 4 | Vitest | Success state shows Online + category list | Pending (Issue 4, `it.todo`) |
+| 5 | Vitest | Error state shows Offline + message | Pending (Issue 4, `it.todo`) |
 
-Paste your passing terminal output / screenshot below.
+## Automated test output
+
+`cd server && npm test`
+
+```text
+ ↓ tests/lab-01/categories.test.ts (1 test | 1 skipped)
+ ✓ tests/lab-01/health.test.ts (1 test) 16ms
+
+ Test Files  1 passed | 1 skipped (2)
+      Tests  1 passed | 1 todo (2)
+```
+
+`cd client && npm test`
+
+```text
+ ✓ tests/lab-01/App.test.tsx (3 tests | 2 skipped) 21ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 2 todo (3)
+```
+
+Type checks: `npx tsc --noEmit` in `server/` and in `client/`, both exit 0.
+
+## Manual check — Issue 2 health check
+
+Run against the live server (`cd server && npm run dev`, http://localhost:3000):
+
+```text
+$ curl -i http://localhost:3000/api/health
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: *
+Content-Type: application/json; charset=utf-8
+
+{"status":"ok","service":"TokTickIT API"}
+```
+
+Killing the server and repeating the request gives curl exit code 7
+(connection refused) — the same failure the browser sees, which
+`checkSystem()` turns into `Cannot reach the TokTickIT API at <VITE_API_URL>.`
+
+Browser check of the two UI states — both confirmed:
+
+1. `cd client && npm run dev`, open http://localhost:5173 with the server up,
+   click **Check System** -> green alert `Backend status: Online`.
+2. Stop the server, click **Check System** again -> red alert
+   `Backend status: Offline — Cannot reach the TokTickIT API at
+   http://localhost:3000.`
+
+The path under test is React `handleCheck` -> `checkSystem()` in
+`client/src/api.ts` -> `GET /api/health` in `server/src/app.ts`.
