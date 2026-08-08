@@ -33,6 +33,53 @@ All test files live under server/tests/lab-01/ and client/tests/lab-01/.
 
 Type checks: `npx tsc --noEmit` in `server/` and in `client/`, both exit 0.
 
+## Manual check — Issue 3 category model and seed
+
+The seed has no automated test (Issue 4's Supertest case covers reading the
+categories back through the API). It was verified directly against the database.
+
+Migration applied by `npx prisma migrate dev --name add_category`:
+
+```text
+Applying migration `20260808064543_add_category`
+Your database is now in sync with your schema.
+```
+
+`server/prisma/migrations/20260808064543_add_category/migration.sql`:
+
+```sql
+CREATE TABLE "Category" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Category_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "Category_name_key" ON "Category"("name");
+```
+
+Idempotence — `npm run prisma:seed` run **twice** in a row, then the table read
+back with `prisma.category.findMany({ orderBy: { id: "asc" } })`:
+
+```text
+=== seed run 1 ===   Seeded 4 categories.
+=== seed run 2 ===   Seeded 4 categories.
+
+count: 4
+[
+  { id: 1, name: 'Account and Access', createdAt: 2026-08-08T06:45:52.237Z },
+  { id: 2, name: 'Hardware',           createdAt: 2026-08-08T06:45:52.521Z },
+  { id: 3, name: 'Software',           createdAt: 2026-08-08T06:45:52.807Z },
+  { id: 4, name: 'Network',            createdAt: 2026-08-08T06:45:53.082Z }
+]
+```
+
+Four rows after two runs, with the original `createdAt` values intact — the
+`upsert` on the unique `name` matched the existing rows instead of inserting.
+
+Credentials check: `git ls-files | grep -i env` lists only `client/.env.example`
+and `server/.env.example`; `git check-ignore -v server/.env` reports it ignored
+by `.gitignore:5 (*.env)`.
+
 ## Manual check — Issue 2 health check
 
 Run against the live server (`cd server && npm run dev`, http://localhost:3000):
