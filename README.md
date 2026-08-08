@@ -42,11 +42,7 @@ npm test                    # vitest run
 |---|---|---|
 | 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
 | 3 — Category model + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
-| 4 — Category list + UI states | Open | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
-
-Each open item is marked `TODO(Issue N)` at the exact site it belongs. Tests for
-Issues 3–4 are stubbed as `it.todo` / `describe.todo` in `server/tests/lab-01/`
-and `client/tests/lab-01/`.
+| 4 — Category list + UI states | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
 
 ### Issue 2 — API health check
 
@@ -73,6 +69,24 @@ Account and Access, Hardware, Software, Network
 `DIRECT_URL` in `.env` is the non-pooled connection `prisma migrate` uses; on a
 plain local PostgreSQL it is the same value as `DATABASE_URL`. Real credentials
 stay out of git — only `.env.example` is tracked. Evidence in `docs/lab-01/tests.md`.
+
+### Issue 4 — Category list + UI states
+
+```text
+GET /api/categories  ->  200  [{"id":1,"name":"Account and Access"}, …]
+```
+
+The route reads the table with `prisma.category.findMany` and returns `{ id, name }`
+ordered by `id`, so the list is stable between calls; a database failure answers
+`500 {"error":"Could not load categories."}` and keeps the details in the server
+log. `checkSystem()` fetches it after the health check, and **Check System**
+renders the returned names as a Bootstrap list group under the Online alert —
+`Loading…` on the disabled button while the two requests are in flight,
+`No categories yet.` when the table is empty, and the Offline alert with no list
+when either request fails. Covered by
+`server/tests/lab-01/categories.test.ts` (Supertest, needs a seeded database) and
+four cases in `client/tests/lab-01/App.test.tsx` (Vitest). Evidence in
+`docs/lab-01/tests.md`.
 
 ## Repository structure
 
