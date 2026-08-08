@@ -7,10 +7,6 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  // Pooled connections (pgbouncer) cannot run migrations; DIRECT_URL is the
-  // session-mode connection the migration engine uses.
-  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------
