@@ -23,6 +23,16 @@ export async function checkSystem(): Promise<SystemStatus> {
     throw new Error(`Backend health check failed (HTTP ${health.status})`);
   }
 
-  // TODO(Issue 4): fetch `${API_URL}/api/categories` and return the list.
-  return { online: true, categories: [] };
+  const response = await fetch(`${API_URL}/api/categories`).catch(() => {
+    throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
+  });
+  if (!response.ok) {
+    throw new Error(`Could not load categories (HTTP ${response.status})`);
+  }
+
+  const categories: Category[] = await response.json().catch(() => {
+    throw new Error("Could not read the categories response.");
+  });
+
+  return { online: true, categories };
 }
