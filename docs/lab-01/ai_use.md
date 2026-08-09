@@ -15,6 +15,7 @@
 | 8 | Implement Issue 4 from its acceptance criteria: `GET /api/categories` reading from PostgreSQL through Prisma, `{ id, name }` in a predictable order, a Supertest test, React rendering the API's categories instead of hard-coded ones, loading and error states, and a Vitest test for the list UI. | Accepted. `findMany` with `select` + `orderBy: { id: "asc" }`, a 500 branch that logs the Prisma error and returns a fixed message, the categories fetch in `checkSystem()`, and a Bootstrap list group in the success state. It started by checking the database and found my branch was still cut from before the Issue 3 merge, so it fast-forwarded onto `main` first — I had assumed the branch was current. It also added a loading-state test I had not stubbed. |
 | 9 | Update the Lab 1 docs for Issue 4. | Accepted. It ran the 500 branch for real against an unreachable `DATABASE_URL` rather than describing it, and wrote down that the Issue 4 UI was never click-tested in the browser instead of implying it had been. |
 | 10 | Review the Issue 4 branch against its acceptance criteria and the repo docs, then fix what it found. | Partly accepted. It re-ran both suites and both type checks rather than trusting `tests.md`, and re-triggered the 500 branch against `127.0.0.1:1` itself — all six criteria held. Took its guard on the unchecked `response.json()` parse (a malformed body was rendering a raw `SyntaxError` into the Offline alert) and the missing empty state that AGENTS.md §5 asks for. Rejected its suggestion to run the two fetches with `Promise.all`: it flips which error message wins for no visible gain. It also filled `reviewer.md`, which I had left as a template. |
+| 11 | Update the Lab 1 docs, especially `tests.md`. | Accepted. It noticed my branch was 11 commits behind `main` and rebased before writing anything, then re-ran everything the Prisma 7 upgrade could have invalidated — both suites, both type checks, the two curl requests, the 500 branch against `127.0.0.1:1`, and the seed twice — instead of copying the pre-upgrade numbers forward. It also answered the dependency-warning review comment with an actual `npm audit` breakdown instead of a claim, and pulled @kittipichcha's #9 review off GitHub rather than paraphrasing it from memory. |
 
 ## Reflection
 Prompts got better when they carried the Issue's acceptance criteria verbatim
@@ -30,4 +31,9 @@ had caught a pooled-connection problem in my own `.env` that I would not have
 found until `prisma migrate` failed. Issue 4 repeated that pattern from the
 other side — it read the database and my branch state before writing anything,
 and caught that the branch predated the Issue 3 merge, which would have left the
-new route calling a `Category` model that was not in the schema.
+new route calling a `Category` model that was not in the schema. That happened
+twice, so it is the real lesson: my local branch was stale again during the final
+docs pass, and evidence written from a stale checkout looks exactly like evidence
+written from a current one. The Prisma 7 upgrade landed after the Issue 3 and 4
+write-ups, so every database claim in `tests.md` had to be re-run before it could
+still be called evidence.
