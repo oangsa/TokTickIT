@@ -163,20 +163,44 @@ $ curl -s localhost:3000/api/categories
 ```
 
 Note the path. Two defects found while checking this, neither of them covered by
-any Issue's acceptance criteria and neither fixed here:
+any Issue's acceptance criteria. Both are fixed on `fix/build-output-paths`:
 
-1. **`npm start` is broken.** The script is `node dist/index.js`, but
-   `server/tsconfig.json` includes `prisma` and `tests` alongside `src`, so tsc
-   roots the output at the package and emits `dist/src/index.js`. `npm start`
-   fails with `MODULE_NOT_FOUND`. Fix is one line — point the script at
-   `dist/src/index.js`, or give tsc `"rootDir": "src"` and include only `src`.
-2. **`client && npm run build` writes JavaScript next to the sources.** The
+1. **`npm start` was broken.** The
+   script was `node dist/index.js`, but `server/tsconfig.json` includes
+   `prisma` and `tests` alongside `src`, so tsc roots the output at the package
+   and emits `dist/src/index.js`. `npm start` failed with `MODULE_NOT_FOUND`.
+   The fix is the one-line script change; `"rootDir": "src"` with a src-only
+   `include` was rejected because it would drop `prisma` and `tests` from the
+   `tsc` type check that `npm run build` currently performs. Verified after a
+   clean `rm -rf dist && npm run build`:
+
+   ```text
+   $ npm start
+   > node dist/src/index.js
+   TokTickIT API listening on http://localhost:3000
+   ```
+
+2. **`client && npm run build` wrote JavaScript next to the sources.** The
    script runs a bare `tsc` with neither `noEmit` nor `outDir` in
-   `client/tsconfig.json`, so it drops `src/App.js`, `src/api.js`, `src/main.js`,
-   `tests/setup.js` and `tests/lab-01/App.test.js` into the tree. Vite's real
-   output goes to `client/dist`, so those files are pure litter, and `.gitignore`
-   does not cover them. Fix is `"noEmit": true` in the client tsconfig — which is
-   also how `npm test` and the type check already run it.
+   `client/tsconfig.json`, so it dropped `src/App.js`, `src/api.js`,
+   `src/main.js`, `tests/setup.js` and `tests/lab-01/App.test.js` into the tree.
+   Vite's real output goes to `client/dist`, so those files were pure litter,
+   and `.gitignore` does not cover them. The fix is `"noEmit": true` in the
+   client tsconfig — which is also how `npm test` and the type check already run
+   it — so `tsc` in the build script is now a type check and Vite stays the only
+   thing that emits. The five stray files were deleted. Verified:
+
+   ```text
+   $ npm run build
+   ✓ 28 modules transformed.
+   dist/index.html                   0.39 kB
+   dist/assets/index-BL5QWnkG.css  231.14 kB
+   dist/assets/index-BQo7zBaG.js   145.49 kB
+   $ find src tests -name '*.js'
+   $ npm test
+   Test Files  1 passed (1)
+        Tests  5 passed (5)
+   ```
 
 ## Manual check — Issue 4 category list  (2026-08-08, before the Prisma 7 upgrade)
 
