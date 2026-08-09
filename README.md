@@ -67,8 +67,11 @@ Account and Access, Hardware, Software, Network
 ```
 
 `DIRECT_URL` in `.env` is the non-pooled connection `prisma migrate` uses; on a
-plain local PostgreSQL it is the same value as `DATABASE_URL`. Real credentials
-stay out of git — only `.env.example` is tracked. Evidence in `docs/lab-01/tests.md`.
+plain local PostgreSQL it is the same value as `DATABASE_URL`. Prisma 7 reads it
+from `server/prisma.config.ts` rather than from `schema.prisma`, and the running
+app connects separately through the `@prisma/adapter-pg` driver adapter in
+`server/src/prisma.ts`. Real credentials stay out of git — only `.env.example` is
+tracked. Evidence in `docs/lab-01/tests.md`.
 
 ### Issue 4 — Category list + UI states
 
@@ -96,6 +99,7 @@ toktickit/
 │   ├── src/
 │   └── tests/lab-01/
 ├── server/
+│   ├── prisma.config.ts  # Prisma 7 config: schema path, seed, migrate URL
 │   ├── prisma/        # schema + migrations + seed
 │   ├── src/           # Express application
 │   └── tests/lab-01/

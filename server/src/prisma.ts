@@ -1,4 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "./generated/prisma/client.js";
 
 // Lazy singleton: the client is created on first use, not at import time.
 // This keeps route modules and tests that don't touch the DB (e.g. /api/health)
@@ -6,6 +8,9 @@ import { PrismaClient } from "@prisma/client";
 let client: PrismaClient | null = null;
 
 export function getPrisma(): PrismaClient {
-  if (!client) client = new PrismaClient();
+  if (!client) {
+    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+    client = new PrismaClient({ adapter });
+  }
   return client;
 }

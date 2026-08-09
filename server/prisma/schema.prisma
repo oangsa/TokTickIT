@@ -1,12 +1,17 @@
 // Prisma schema — datasource and generator are pre-wired.
-// Your DATABASE_URL lives in server/.env (copy it from .env.example).
+// Your DATABASE_URL lives in server/.env (copy it from .env.example) and is
+// read by prisma.config.ts; Prisma 7 no longer takes `url` in this file.
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  // The generated files land under src/ and are compiled by tsc, so their
+  // internal imports need the .js extensions Node's ESM loader expects.
+  importFileExtension = "js"
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 // ---------------------------------------------------------------------------
