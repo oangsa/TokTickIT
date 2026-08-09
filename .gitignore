@@ -14,3 +14,5 @@ server/src/generated/
 # logs & OS
 *.log
 .DS_Store
+
+server/src/generated/
