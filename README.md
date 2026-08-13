@@ -51,7 +51,7 @@ GET /api/health  ->  200  {"status":"ok","service":"TokTickIT API"}
 ```
 
 The client calls it from `checkSystem()` in `client/src/api.ts`; **Check System**
-on the React page shows `Backend status: Online`, or `Offline` with the reason
+on the React page shows `Backend status: Online`, or `Backend status: Offline`
 when the request fails. Covered by `server/tests/lab-01/health.test.ts`
 (Supertest). Evidence in `docs/lab-01/tests.md`.
 
@@ -86,9 +86,12 @@ log. `checkSystem()` fetches it after the health check, and **Check System**
 renders the returned names as a Bootstrap list group under the Online alert —
 `Loading…` on the disabled button while the two requests are in flight,
 `No categories yet.` when the table is empty, and the Offline alert with no list
-when either request fails. Covered by
-`server/tests/lab-01/categories.test.ts` (Supertest, needs a seeded database) and
-four cases in `client/tests/lab-01/App.test.tsx` (Vitest). Evidence in
+when either request fails. Both fetches carry `AbortSignal.timeout(8000)`: a
+backend that refuses the connection fails fast on its own, but one that accepts
+the socket and never answers would otherwise leave the button on `Loading…`
+indefinitely. Covered by `server/tests/lab-01/categories.test.ts` (Supertest,
+needs a seeded database), four cases in `client/tests/lab-01/App.test.tsx` and
+the timeout case in `client/tests/lab-01/api.test.tsx` (Vitest). Evidence in
 `docs/lab-01/tests.md`.
 
 ## Repository structure
