@@ -1,5 +1,9 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { defineConfig, env } from "prisma/config";
+
+// dotenv/config only reads ".env"; this repo keeps its values in ".env.local".
+config({ path: [".env.local", ".env"] });
+
 
 // Prisma 7 reads the migration connection from here instead of schema.prisma.
 export default defineConfig({
