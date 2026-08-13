@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+# env & secrets
+.env
+*.env
+!.env.example
+.env.local
+# build output
+dist/
+build/
+# prisma
+server/prisma/*.db
+server/src/generated/
+# logs & OS
+*.log
+.DS_Store
+
+server/src/generated/
