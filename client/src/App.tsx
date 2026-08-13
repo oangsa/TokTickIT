@@ -7,7 +7,6 @@ type UiState = "idle" | "loading" | "success" | "error";
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
 
   async function handleCheck() {
     setState("loading");
@@ -15,12 +14,7 @@ export default function App() {
       const status = await checkSystem();
       setCategories(status.categories);
       setState("success");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not reach the TokTickIT API.",
-      );
+    } catch {
       setState("error");
     }
   }
@@ -56,7 +50,7 @@ export default function App() {
 
       {state === "error" && (
         <p className="alert alert-danger mt-3 mb-0">
-          Backend status: <strong>Offline</strong> — {errorMessage}
+          Backend status: <strong>Offline</strong>
         </p>
       )}
     </div>
