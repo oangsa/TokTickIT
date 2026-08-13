@@ -72,9 +72,6 @@ describe("App", () => {
     await userEvent.click(screen.getByRole("button", { name: /check system/i }));
 
     expect(await screen.findByText(/Offline/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Cannot reach the TokTickIT API at http:\/\/localhost:3000\./),
-    ).toBeInTheDocument();
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
 });

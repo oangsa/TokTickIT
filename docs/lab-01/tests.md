@@ -10,12 +10,15 @@ All test files live under server/tests/lab-01/ and client/tests/lab-01/.
 | 4 | Vitest | Success state shows Online + category list | Pass (Issue 4) |
 | 5 | Vitest | Loading state disables the button while the request is in flight | Pass (Issue 4) |
 | 6 | Vitest | Empty state shows "No categories yet." when the API returns none | Pass (Issue 4) |
-| 7 | Vitest | Error state shows Offline + message, and no category list | Pass (Issue 4) |
+| 7 | Vitest | Error state shows Offline, and no category list | Pass (Issue 4) |
+| 8 | Vitest | `checkSystem()` rejects instead of hanging when the backend never responds | Pass (2026-08-13 fix) |
 
-Test 2 hits the real database, so `server/.env` must carry a reachable
+Test 8 was added with the hung-backend fix on 2026-08-13; see the section at the
+end of this file for how the failure was reproduced. Test 2 hits the real
+database, so `server/.env` must carry a reachable
 `DATABASE_URL` (and `DIRECT_URL` for migrations) and the migration and seed must
-be applied first (`npm run prisma:migrate && npm run prisma:seed`). The other six
-tests need no database.
+be applied first (`npm run prisma:migrate && npm run prisma:seed`). The other
+seven tests need no database.
 
 ## Automated test output
 
@@ -145,6 +148,9 @@ are the gaps a reader should not assume are covered:
 3. **`prisma migrate dev` from an empty database under Prisma 7.** Only
    `migrate status` was re-run after the upgrade; the migration itself was
    applied on 2026-08-08 under Prisma 6.
+4. **The 8 s request timeout under Vitest.** Clicked through in a browser
+   (see the last section), but the automated coverage stubs `fetch` — `jsdom`
+   cannot run the real one, also explained there.
 
 ## Production build — two defects outside the Issue 2–4 criteria
 
@@ -315,7 +321,67 @@ Browser check of the two UI states — both confirmed:
    click **Check System** -> green alert `Backend status: Online`.
 2. Stop the server, click **Check System** again -> red alert
    `Backend status: Offline — Cannot reach the TokTickIT API at
-   http://localhost:3000.`
+   http://localhost:3000.` (The `— <reason>` suffix was removed on 2026-08-13,
+   see the last section; the alert now reads `Backend status: Offline`.)
 
 The path under test is React `handleCheck` -> `checkSystem()` in
 `client/src/api.ts` -> `GET /api/health` in `server/src/app.ts`.
+
+## Hung backend leaves the UI on `Loading…`  (2026-08-13, `58c70b5`)
+
+The Offline alert above only covers a backend that **refuses** the connection.
+A backend that is down without refusing — dropped packets, a tunnel or proxy
+holding the socket open, a server that accepted and then hung — never rejects
+`fetch`, so `handleCheck`'s `"loading"` state never advanced and the button
+stayed disabled. Reproduced with a TCP listener that accepts and writes nothing
+(`net.createServer(() => {})` on port 3000), against the pre-fix code:
+
+| Run | Backend | Result |
+|---|---|---|
+| E1 | nothing listening on `:3000` | rejects in 15 ms -> Offline alert |
+| E2 | accepts, never responds | `checkSystem()` still pending at 3000 ms |
+| E3 | accepts, never responds, full `App` | button `Loading…`, `disabled=true`, still at 3000 ms |
+| E4 | `checkSystem` mocked to reject | Offline alert |
+
+E1 and E4 rule out a broken error path — only the missing request timeout
+explains all four. Fix: `AbortSignal.timeout(8000)` on both fetches in
+`checkSystem()`; the existing `.catch()` already maps the abort to the Offline
+state, so `App.tsx` needed no new branch. The unused `errorMessage` state and
+the `— <reason>` suffix on the alert were dropped in the same commit.
+
+Regression test (`client/tests/lab-01/api.test.tsx`, test 8): `fetch` is stubbed
+with a promise that only ever settles on `signal`'s `abort` event, so removing
+the signal makes the test hang until Vitest's timeout. Verified in both
+directions — passes at 53 ms as committed, fails when the `signal` option is
+deleted from `api.ts`.
+
+`cd client && npm test`
+
+```text
+ ✓ tests/lab-01/api.test.tsx (1 test) 53ms
+ ✓ tests/lab-01/App.test.tsx (5 tests) 131ms
+
+ Test Files  2 passed (2)
+      Tests  6 passed (6)
+```
+
+Type checks: `npx tsc --noEmit` in `server/` and in `client/`, both exit 0.
+
+Browser check (2026-08-13): with `nc -l 3000` standing in for the hung backend —
+it accepts the connection and never answers — `npm run dev` and **Check System**
+at http://localhost:5173 ends on the red `Backend status: Offline` alert instead
+of staying on `Loading…`. This is the same trigger as E2/E3 above, which held the
+pre-fix build on `Loading…` indefinitely.
+
+Not verified: the fix cannot be exercised end-to-end under Vitest. In the `jsdom` environment
+`AbortSignal` comes from jsdom while `fetch` comes from Node's undici, so a real
+`fetch(url, { signal })` call is rejected by argument validation before any
+request goes out:
+
+```text
+TypeError: RequestInit: Expected signal ("AbortSignal {}") to be an instance of AbortSignal.
+```
+
+That is a test-environment realm mismatch, not a defect in the shipped code — a
+browser takes both from the same realm, as the click-through above confirms —
+but it is why test 8 stubs `fetch` instead of talking to a real socket.
