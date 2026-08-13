@@ -148,11 +148,9 @@ are the gaps a reader should not assume are covered:
 3. **`prisma migrate dev` from an empty database under Prisma 7.** Only
    `migrate status` was re-run after the upgrade; the migration itself was
    applied on 2026-08-08 under Prisma 6.
-4. **The 8 s request timeout against a real socket.** The pre-fix hang was
-   reproduced against a real TCP black hole, but the fixed code can only be
-   checked with a stubbed `fetch` — see the last section for why `jsdom` cannot
-   run the real one, and note the timeout has not been clicked through in a
-   browser.
+4. **The 8 s request timeout under Vitest.** Clicked through in a browser
+   (see the last section), but the automated coverage stubs `fetch` — `jsdom`
+   cannot run the real one, also explained there.
 
 ## Production build — two defects outside the Issue 2–4 criteria
 
@@ -369,8 +367,13 @@ deleted from `api.ts`.
 
 Type checks: `npx tsc --noEmit` in `server/` and in `client/`, both exit 0.
 
-Not verified: the fix has not been clicked through in a real browser, and it
-cannot be exercised end-to-end under Vitest either. In the `jsdom` environment
+Browser check (2026-08-13): with `nc -l 3000` standing in for the hung backend —
+it accepts the connection and never answers — `npm run dev` and **Check System**
+at http://localhost:5173 ends on the red `Backend status: Offline` alert instead
+of staying on `Loading…`. This is the same trigger as E2/E3 above, which held the
+pre-fix build on `Loading…` indefinitely.
+
+Not verified: the fix cannot be exercised end-to-end under Vitest. In the `jsdom` environment
 `AbortSignal` comes from jsdom while `fetch` comes from Node's undici, so a real
 `fetch(url, { signal })` call is rejected by argument validation before any
 request goes out:
@@ -380,5 +383,5 @@ TypeError: RequestInit: Expected signal ("AbortSignal {}") to be an instance of 
 ```
 
 That is a test-environment realm mismatch, not a defect in the shipped code — a
-browser takes both from the same realm — but it is why test 8 stubs `fetch`
-instead of talking to a real socket.
+browser takes both from the same realm, as the click-through above confirms —
+but it is why test 8 stubs `fetch` instead of talking to a real socket.
