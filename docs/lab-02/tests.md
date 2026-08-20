@@ -30,7 +30,10 @@ UI-xx
 RESP-xx
 VIS-xx
 E2E-xx
+DATA-xx
 ```
+
+`DATA-xx` identifies planned schema, migration, seed, or other non-automated delivery evidence. These rows are recorded separately because mocked API tests do not prove PostgreSQL deployment behavior.
 
 Initial `Final` value:
 
@@ -178,7 +181,27 @@ Responsive tests use behavioral/layout assertions.
 
 Visual tests capture screenshot evidence but do not require pixel-perfect screenshot-diff baselines. The Lab Sheet/sample screens are visual-direction references, not pixel-identical implementation templates.
 
-### 4.5 Deterministic Test Data
+### 4.5 Command Matrix
+
+Run commands from the package directory shown below. Final evidence must record the exact command, date, environment/database target, and result; these commands are not a claim that the planned Lab 2 tests already exist or pass.
+
+| Purpose | Directory | Command | Evidence requirement |
+| --- | --- | --- | --- |
+| Install backend dependencies | `server/` | `npm install` | Dependencies install without changing the approved stack. |
+| Apply Prisma migrations | `server/` | `npm run prisma:migrate` | Run against the designated Lab 2 PostgreSQL database using `DATABASE_URL` and `DIRECT_URL`; record migration output. |
+| Seed reference data | `server/` | `npm run prisma:seed` | Record the first run and an unchanged repeat run; verify no duplicate rows or audit-timestamp churn. |
+| Backend focused test | `server/` | `npm test -- tests/lab-02/<file>.test.ts` | Use for the owning Issue's focused test gate. |
+| Backend full test suite | `server/` | `npm test` | Record the complete Vitest/Supertest result. |
+| Backend typecheck/build | `server/` | `npm run build` | Record the TypeScript compilation result. |
+| Install frontend dependencies | `client/` | `npm install` | Dependencies install without adding another UI framework or state library. |
+| Frontend focused test | `client/` | `npm test -- tests/lab-02/<file>.test.tsx` | Use for the owning Issue's focused UI test gate. |
+| Frontend full test suite | `client/` | `npm test` | Record the complete Vitest/React Testing Library result. |
+| Frontend typecheck/build | `client/` | `npm run build` | Record the TypeScript and Vite build result. |
+| Lab 2 E2E/responsive/visual suite | repository root after #25 adds Playwright config | `npx playwright test e2e/lab-02` | Record browser, viewport, screenshots, traces, and result; do not claim runnable before the #25 test setup exists. |
+
+Do not run migration or seed commands against production data. Use a disposable or explicitly designated Lab 2 PostgreSQL database for fresh-database evidence.
+
+### 4.6 Deterministic Test Data
 
 Automated tests use deterministic fixtures/mocks. The standard fixture set should include at least:
 
@@ -319,6 +342,7 @@ IN
 | API-62 | API | AC-39 | Centralized error envelope and safe public content. | Representative 400/403/404/409/410/413/415/500 responses contain standard fields; validation details are array; no stack/SQL/Prisma/secrets/binary leakage. | tests/lab-02/error-contract.api.test.ts | Not Run |
 | API-63 | API | AC-40 | `X-Request-Id` propagation/generation. | Valid incoming UUID is echoed; missing/malformed gets generated UUID; success and error responses include resolved header. | tests/lab-02/error-contract.api.test.ts | Not Run |
 | API-64 | API | AC-40 | Request-correlation logging safety using mocked logger/spies. | Logs correlate request ID/method/route/status/safe error info; binary data, secrets, DB URL, and unnecessarily sensitive payload content are not logged. | tests/lab-02/error-contract.api.test.ts | Not Run |
+| API-65 | API | BR-74 | Ticket deletion route absence and default deletion state. | `DELETE /api/v1/tickets/:publicId` is not registered; a newly created Ticket has `deleted = false`. | tests/lab-02/create-ticket.api.test.ts | Not Run |
 
 ## 8. Planned UI Tests
 
@@ -505,6 +529,19 @@ Because automated API tests mock Prisma and do not connect to a real PostgreSQL 
 - client/server build and typecheck commands pass;
 - no required planned test is skipped, disabled, or commented out;
 - logs and public responses remain free of secrets, database URLs, Attachment binary data, raw SQL, and unsafe stack details.
+
+### 15.1 Explicit Business-Rule Evidence
+
+The following rules previously had only generic Definition-of-Done wording. Each now has an explicit proof ID and final-result slot.
+
+| Rule | Evidence IDs | Required proof | Final |
+| --- | --- | --- | --- |
+| BR-66 | DATA-01 | Inspect Prisma mappings and committed migration SQL/table definitions for singular `snake_case` PostgreSQL names and camelCase Prisma properties. | Not Run |
+| BR-67 | DATA-02 | Inspect every persistent resource model/migration for the four required audit columns, types, nullability, and timestamps. | Not Run |
+| BR-68 | UNIT-05, API-11, DATA-03 | Assert requester-triggered writes derive audit actors from the Requester email and never from a client-supplied actor value. | Not Run |
+| BR-69 | DATA-04 | Run the idempotent seed and system-operation smoke checks; verify `seed`/`system` audit actors and unchanged audit timestamps on an unchanged seed rerun. | Not Run |
+| BR-70 | UNIT-02, UNIT-03, UNIT-12, API-21, API-37, API-52, DATA-05 | Verify business-resource `deleted` defaults to false, is used by normal visibility/ownership predicates, and is set only by the approved soft-delete lifecycle. | Not Run |
+| BR-74 | API-65, DATA-06 | Verify no Ticket deletion operation is exposed and new Ticket persistence/output uses `deleted = false`. | Not Run |
 
 ## 16. Completion Rule
 
