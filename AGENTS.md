@@ -894,6 +894,15 @@ assignment-required setup.
 
 Do not perform unrelated README cleanup during feature work.
 
+### AI-use record
+
+For every user prompt that results in Lab 2 work, update
+`docs/lab-02/ai_use.md` during the same task. Add a concise, accurate row that
+summarizes the prompt and states what was done with the result. Do not invent
+prompt history, review outcomes, commands, or verification; when prior prompt
+history is unavailable, record only the prompts available in the current
+session and state that limitation in the reflection.
+
 ---
 
 ## 14. Secrets and privacy
