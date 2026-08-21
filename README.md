@@ -113,5 +113,7 @@ toktickit/
 
 ## Workflow
 
-`main` / `dev` / feature branches, Pull Requests, peer review.
+Each Issue uses its own `feature/*` branch and enters `labX-staging` through a
+peer-reviewed Pull Request. After all lab Issues and integration checks are
+complete, open one release Pull Request from `labX-staging` to `main`.
 See `AGENTS.md` for the full project constraints.
