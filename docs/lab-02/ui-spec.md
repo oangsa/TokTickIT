@@ -1151,7 +1151,7 @@ The UI should clearly reflect supported Lab 2 rules:
 - WEBP
 - PDF
 - maximum 5 MB per file
-- exact technical limit `5,242,880` bytes (`MAX_ATTACHMENT_BYTES`)
+- exact technical limit `5,000,000` bytes (`MAX_ATTACHMENT_BYTES`, decimal 5 MB)
 - maximum 5 active attachments per ticket
 - filename basename 1-255 UTF-8 bytes including extension, with no control characters
 
@@ -1524,10 +1524,12 @@ Icons may support visible text.
 
 An icon must not replace unclear action text.
 
-Any icon-only control requires:
+Every interactive icon-only control MUST provide both:
 
-- accessible label;
-- tooltip or equivalent discoverable description where useful.
+- an accessible programmatic name such as `aria-label` or an equivalent semantic label; and
+- a visible tooltip or equivalent hover/focus text label communicating the action to sighted users.
+
+The tooltip/equivalent label must be available on hover and keyboard focus where supported by the chosen implementation. This applies to navigation/menu controls, Attachment preview/download/remove controls, close/dismiss buttons, pagination icon buttons, filter/search auxiliary icons, mobile sidebar toggles, modal controls, and any other button whose visible content is only an icon. An icon shape, color, `title` alone, or `aria-label` alone is not sufficient.
 
 ## 29.9. Color
 

@@ -20,13 +20,14 @@ The Lab 2 API supports:
 
 Real authentication is outside Lab 2. `X-Requester-Id` behaves operationally like the current Requester context/session after Development Requester selection, but it is **not** an authentication credential, authorization token, login session, or security boundary.
 
-The Lab 2 handout's explicit normative requirements remain mandatory. Where the
+Explicit handout MUST/fixed delivery requirements remain mandatory. Where the
 handout intentionally leaves implementation behavior open, or provides
 partial/illustrative API examples, screenshots, or payloads rather than a fixed
 contract, the Lab 2 engineering-contract documents record the approved
 implementation decision. Those documents must not weaken or override an
 explicit handout MUST requirement without documented instructor/course
-approval.
+approval. The handout-required test/E2E filenames are preserved as real planned
+files; additional modular files remain valid for unrelated responsibilities.
 
 This is a production-oriented Lab 2 contract, not a production-ready deployment contract. While identity remains unauthenticated, the application is restricted to development/test networks, uses synthetic Requester identities only, and must not be exposed publicly.
 
@@ -365,7 +366,7 @@ Malformed public route identifiers, valid-but-missing identifiers, and requester
 {
   "statusCode": 413,
   "code": "PAYLOAD_TOO_LARGE",
-  "message": "The uploaded file exceeds the maximum allowed size of 5,242,880 bytes.",
+  "message": "The uploaded file exceeds the maximum allowed size of 5,000,000 bytes.",
   "error": "Content Too Large"
 }
 ```
@@ -1476,12 +1477,14 @@ The backend determines MIME type from the approved extension rather than trustin
 Maximum file size:
 
 ```text
-MAX_ATTACHMENT_BYTES = 5,242,880 bytes per file (5 x 1024 x 1024)
+MAX_ATTACHMENT_BYTES = 5,000,000 bytes per file (decimal 5 MB)
 ```
 
 Oversized uploads return `413 Content Too Large`.
 
-The exact constant is shared by frontend validation, multipart parsing, backend validation, PostgreSQL checks, documentation, and tests. PostgreSQL also enforces `size_bytes = octet_length(data)` so metadata cannot bypass the binary limit.
+The exact boundary is inclusive: `4,999,999` and `5,000,000` bytes are accepted when all other upload rules pass; `5,000,001` bytes returns `413 PAYLOAD_TOO_LARGE` and creates no usable Attachment.
+
+The exact constant is shared by frontend validation, multipart parsing, backend validation, PostgreSQL checks, documentation, and tests. PostgreSQL also enforces `size_bytes > 0 AND size_bytes <= 5000000 AND size_bytes = octet_length(data)` so metadata cannot bypass the binary limit.
 
 ### 11.3.1 Multipart Shape and Filename Validation
 
@@ -1556,7 +1559,7 @@ The backend validates:
 - Ticket exists and is non-deleted;
 - Ticket belongs to current Requester;
 - file extension is allowed;
-- non-empty file <= `5,242,880` bytes; and
+- non-empty file <= `5,000,000` bytes; and
 - resulting active Attachment count does not exceed five.
 
 The active-count check and insert execute in one Prisma transaction at
@@ -1955,7 +1958,7 @@ A removed owned Attachment remains available through the metadata endpoint for h
 | Exceed five active Attachments | `409` |
 | Same Idempotency Key with different normalized payload | `409` + `IDEMPOTENCY_CONFLICT` |
 | Preview/download removed Attachment | `410` |
-| Attachment > 5,242,880 bytes | `413` |
+| Attachment > 5,000,000 bytes | `413` |
 | Unsupported Attachment extension | `415` |
 | Serializable/deadlock retries exhausted after three total attempts | `500` + `INTERNAL_SERVER_ERROR` |
 | Unexpected safe server failure | `500` |

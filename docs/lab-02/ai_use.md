@@ -2,6 +2,13 @@
 
 **LLM/agent used:** Codex (GPT-5)
 
+The canonical Lab 2 AI-use record is `docs/lab-02/ai_use.md`, continuing the
+Lab 1 and repository `ai_use.md` naming convention. The Lab 2 handout prints
+`docs/lab-02/ai-use.md` in its “Minimum Lab 2 structure” and submission
+evidence; this pass records that exact course-delivery naming conflict and
+keeps only the established underscore filename. No duplicate `ai-use.md` file
+is created.
+
 ## Selected key prompts
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
@@ -21,10 +28,12 @@
 | 14 | Approve `IDEMPOTENCY-FENCING-A`: retain the lease `processingStartedAt`, lock and verify the claim inside the resource transaction, hold the lock through completion, fence stale old owners before mutation, and add PG-12. | Updated the specification and API transaction ordering so final mutable validation, Ticket creation, Pending binding, and claim completion occur under one locked and exactly verified claim lease. Expanded unit/API evidence and added PG-12 proving an old owner cannot commit after B reclaims. Updated AC-65 and the Ticket-creation close gate; no application, Prisma schema, migration, dependency, or generated file was changed. |
 | 15 | Commit the completed Lab 2 engineering-contract work without a bulk commit. | Reviewed the branch, working tree, diffs, contract consistency, and whitespace; staged only the seven explicit in-scope documentation paths and created one scoped documentation commit without pushing. |
 | 16 | Reconcile all Lab 2 GitHub Issues against the authoritative contracts in `docs/lab-02/`. | Updated Issues #17–#26 in place to use the final unversioned API, safe ownership behavior, QueryBuilder boundary, per-feature test gates, PostgreSQL/idempotency/Attachment hardening, and AC-01–AC-66 traceability. No Lab 2 application code was implemented. |
-| 17 | Confirm whether Issue #28 is still needed after removing API versioning. | Verified that #28 only tracked the abandoned `/api/v1` migration and closed it as Not planned because the approved Lab 2 contract uses unversioned `/api/...` routes. |
+| 17 | Confirm whether Issue #28 is still needed after removing API versioning. | Verified that #28 only tracked the abandoned versioned-route migration and closed it as Not planned because the approved Lab 2 contract uses unversioned `/api/...` routes. |
 | 18 | Perform a focused Lab 2 documentation consistency and safety correction pass without changing application code or creating a commit. | Inspected the actual Lab 1 Category schema/migration and corrected the four Lab 2 contracts for planned-test lifecycle, exact lease boundaries, canonical UUID ordering, Serializable Attachment-upload retries, Description search transparency, migration evidence, debounce coverage, QueryBuilder responsibility, handout authority, and command working-directory clarity. The then-open `updatedAt` backfill decision was documented for a later approval rather than guessed. No application, Prisma, dependency, generated-file, README, AGENTS.md, GitHub, or commit changes were made. |
 | 19 | Perform one final documentation-only Lab 2 contract sync to close the Category migration ambiguity and mark retry-backoff timing implementation-defined. | Updated `specification.md`, `api-spec.md`, and `tests.md` to require in-place Category migration preserving existing `id`, `name`, and `createdAt`, backfilling `isActive = true`, `deleted = false`, deterministic `seed` actors, and `updatedAt = original createdAt`; clarified that exact Serializable retry-backoff milliseconds are not an API contract while the bounded randomized maximum-three-attempt policy and safe `500` exhaustion remain. No application, Prisma, dependency, generated-file, or commit changes were made. |
 | 20 | Retrieve the comments and review record from Lab 2 PR #27 and document them using the Lab 1 reviewer-record format. | Retrieved the approved review, ten clarification points, and author reply from PR #27; recorded the feedback and evidence-backed responses in `docs/lab-02/reviewer.md`. No application, Prisma, dependency, generated-file, GitHub, commit, or push changes were made. |
+| 21 | Re-audit all Lab 2 Issues against the latest contracts in `docs/lab-02/`. | Scrutinized Issues #17–#26 against the current specification, API, UI, and test contracts; updated #17, #18, #21, #22, #24, and #25 for handout authority, deterministic Category backfill, canonical lowercase UUID sorting, the exact 300-second lease, Description-only search and debounce guidance, and three-total-attempt Serializable upload behavior with safe `500` exhaustion. Confirmed #19, #20, #23, and #26 required no change. No application code was implemented. |
+| 22 | Perform a focused documentation-only Lab 2 handout-authority correction pass for required test filenames, canonical AI-use naming, decimal Attachment size, and mandatory icon-only tooltips. | Updated the Lab 2 specification, API/UI contracts, test plan, and this AI-use record for the handout-required filename ownership, `5,000,000`-byte limit and boundaries, and tooltip plus accessible-name evidence. Preserved the approved `/api/...`, DTO, ownership-404, Pending atomic binding, idempotency, Serializable, QueryBuilder, JSON-limit, logging, migration, and index decisions. No application code, schema, migration, dependency, generated file, or commit was created. |
 
 ## Reflection
 The first draft preserved the Lab 1 format but did not contain enough evidence
@@ -41,11 +50,11 @@ The subsequent scrutiny kept the frozen product behavior unchanged and recorded
 remaining contract risks for an explicit product/engineering decision.
 The final synchronization applied those explicit decisions and retained the
 documentation-only boundary.
-The Ticket-first/direct-upload portion of the latest decision was subsequently
-rejected and reverted to the previously approved Pending pre-upload plus atomic
-initial binding architecture. Its unrelated branch-workflow, Playwright, and
-unversioned-API decisions remain approved. Only prompt history available in the
-repository and current session is recorded here.
+The previously considered direct-upload-first portion of the latest decision
+was subsequently rejected and reverted to the approved Pending pre-upload plus
+atomic initial binding architecture. Its unrelated branch-workflow, Playwright,
+and unversioned-API decisions remain approved. Only prompt history available in
+the repository and current session is recorded here.
 The latest decision interview preserved the no-authentication Lab 2 boundary
 while converting the scrutiny risks into explicit, testable engineering
 contracts. New acceptance criteria were appended without renumbering AC-01
