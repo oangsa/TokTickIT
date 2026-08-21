@@ -698,8 +698,12 @@ Search by ticket number, summary, or description...
 Search requests are debounced by:
 
 ```text
-400 ms
+SEARCH_DEBOUNCE_MS = 400
 ```
+
+The search control provides lightweight guidance through the accessible
+placeholder or equivalent helper text: `Search ticket number, summary, or
+description`.
 
 ## 13.3. Search / Filter Logic in the UI
 
@@ -710,6 +714,9 @@ Any committed query change resets the page to page 1.
 The frontend maps friendly filter controls to the API query contract without exposing the generic filter DSL. It exposes only the valid Ticket choices defined for the UI: Ticket Number/Summary/Description search and Category, Related System, Requested Priority, and Current Status filters. These controls are UX restrictions only, not an API validation or security boundary. The backend Ticket validator must still enforce the Ticket field/condition matrix and return `400` for disallowed direct API combinations before data-access execution; the shared QueryBuilder receives only validated/typed inputs.
 
 My Tickets consumes `TicketListItemDTO[]`, not full `TicketDTO[]`. The list projection contains all fields required by the existing table and deliberately excludes Description, Requester fields, Attachments, and audit/lifecycle-only fields. Description remains searchable even though it is not returned in each list item.
+
+A Ticket may match solely because its Description contains the search term,
+even though Description is intentionally omitted from `TicketListItemDTO`.
 
 The browser API client reads pagination from `X-Pagination` and request correlation from `X-Request-Id`. The server CORS response must expose both headers, and browser-visible integration/E2E behavior must verify they are readable rather than relying on framework defaults.
 
