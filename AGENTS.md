@@ -12,8 +12,8 @@ specification explicitly changes them.
 | Backend | Node.js + Express + TypeScript |
 | Database | PostgreSQL + Prisma |
 | Architecture | REST-style APIs |
-| Testing | Vitest + Supertest |
-| Workflow | Git, GitHub Projects, four Issues, `main`/`dev`/feature branches, Pull Requests, peer review |
+| Testing | Vitest + Supertest; Playwright for approved E2E work |
+| Workflow | Git, GitHub Projects, Issues, `feature/*`/`labX-staging`/`main` branches, Pull Requests, peer review |
 
 Do not replace or introduce alternatives such as:
 
@@ -50,7 +50,6 @@ Use **REST-style APIs**.
 The following are introduced in later labs and must not be implemented unless
 the current assignment explicitly requests them:
 
-- Playwright
 - authentication
 - ticket creation
 - image upload
@@ -128,6 +127,11 @@ Do not create alternative documentation hierarchies such as
 Keep root-level files minimal.
 
 `README.md`, `.gitignore`, and this `AGENTS.md` are valid root-level files.
+When assignment-approved repository-wide Playwright work is introduced, a
+minimal private root `package.json`, committed root lockfile,
+`playwright.config.ts`, and `e2e/` hierarchy are also valid. Keep frontend and
+backend application dependencies in their existing packages; do not introduce
+npm/pnpm workspaces solely for E2E tooling.
 
 Put assignment documentation in the required `docs/` location.
 
@@ -894,6 +898,15 @@ assignment-required setup.
 
 Do not perform unrelated README cleanup during feature work.
 
+### AI-use record
+
+For every user prompt that results in Lab 2 work, update
+`docs/lab-02/ai-use.md` during the same task. Add a concise, accurate row that
+summarizes the prompt and states what was done with the result. Do not invent
+prompt history, review outcomes, commands, or verification; when prior prompt
+history is unavailable, record only the prompts available in the current
+session and state that limitation in the reflection.
+
 ---
 
 ## 14. Secrets and privacy
@@ -971,6 +984,11 @@ Do not change:
 
 versions unless required by the requested work or assignment.
 
+For approved E2E work, pin `@playwright/test` in the minimal private repository
+root package and resolve it locally. Do not rely on an implicit `npx` download.
+Keep MSW, when required for React UI tests, as a pinned client development
+dependency with the committed client lockfile.
+
 Never replace Bootstrap with another UI framework.
 
 Never replace Prisma with another ORM.
@@ -979,20 +997,22 @@ Never replace Prisma with another ORM.
 
 ## 16. Git and branch discipline
 
-The required workflow uses:
+The required workflow for each lab uses:
 
 ```text
 main
-dev
-feature branches
+  <- labX-staging release Pull Request after all lab Issues are complete
+       <- feature/* Pull Requests, one scoped Issue per branch
 Pull Requests
 peer review
 ```
 
 Respect the repository's existing branch strategy.
 
-Do not directly merge into `main` or `dev` unless explicitly requested and
-permitted by the assignment workflow.
+Do not develop directly on `main` or `labX-staging`. Each Issue is implemented
+on its own `feature/*` branch and enters `labX-staging` through a peer-reviewed
+Pull Request. After every Issue for the lab is complete and integration checks
+pass, open one release Pull Request from `labX-staging` to `main`.
 
 For feature work, preserve branch scope.
 
@@ -1005,10 +1025,10 @@ The assignment requires:
 
 - Git
 - GitHub Projects
-- four Issues
+- the lab's approved Issues
 - `main`
-- `dev`
-- feature branches
+- `labX-staging`
+- `feature/*` branches
 - Pull Requests
 - peer review
 
@@ -1111,6 +1131,7 @@ Never push unless explicitly requested.
    PostgreSQL + Prisma
    REST-style APIs
    Vitest + Supertest
+   Playwright for assignment-required E2E/responsive/visual tests
    ```
 
 2. **Do not implement later-lab functionality during Lab XX.**
@@ -1118,7 +1139,6 @@ Never push unless explicitly requested.
    Unless explicitly required, do not add:
 
    ```text
-   Playwright
    authentication
    ticket creation
    image upload
@@ -1193,12 +1213,14 @@ Never push unless explicitly requested.
 
 12. **Do not introduce later-lab architecture proactively.**
 
-    Avoid designing authentication abstractions, upload infrastructure, or
-    Playwright suites before they are required.
+    Avoid designing authentication abstractions or upload infrastructure before
+    they are required. Playwright is approved for assignment-required E2E,
+    responsive, and visual tests.
 
 13. **Run relevant Lab XX tests before completion.**
 
-    Use Vitest and Supertest according to repository scripts.
+    Use Vitest, Supertest, and approved Playwright suites according to repository
+    scripts.
 
 14. **Do not upgrade packages, change build tools, or change deployment settings
     unless required.**
