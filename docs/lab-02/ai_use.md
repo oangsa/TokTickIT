@@ -22,6 +22,8 @@
 | 15 | Commit the completed Lab 2 engineering-contract work without a bulk commit. | Reviewed the branch, working tree, diffs, contract consistency, and whitespace; staged only the seven explicit in-scope documentation paths and created one scoped documentation commit without pushing. |
 | 16 | Reconcile all Lab 2 GitHub Issues against the authoritative contracts in `docs/lab-02/`. | Updated Issues #17–#26 in place to use the final unversioned API, safe ownership behavior, QueryBuilder boundary, per-feature test gates, PostgreSQL/idempotency/Attachment hardening, and AC-01–AC-66 traceability. No Lab 2 application code was implemented. |
 | 17 | Confirm whether Issue #28 is still needed after removing API versioning. | Verified that #28 only tracked the abandoned `/api/v1` migration and closed it as Not planned because the approved Lab 2 contract uses unversioned `/api/...` routes. |
+| 18 | Perform a focused Lab 2 documentation consistency and safety correction pass without changing application code or creating a commit. | Inspected the actual Lab 1 Category schema/migration and corrected the four Lab 2 contracts for planned-test lifecycle, exact lease boundaries, canonical UUID ordering, Serializable Attachment-upload retries, Description search transparency, migration evidence, debounce coverage, QueryBuilder responsibility, handout authority, and command working-directory clarity. The then-open `updatedAt` backfill decision was documented for a later approval rather than guessed. No application, Prisma, dependency, generated-file, README, AGENTS.md, GitHub, or commit changes were made. |
+| 19 | Perform one final documentation-only Lab 2 contract sync to close the Category migration ambiguity and mark retry-backoff timing implementation-defined. | Updated `specification.md`, `api-spec.md`, and `tests.md` to require in-place Category migration preserving existing `id`, `name`, and `createdAt`, backfilling `isActive = true`, `deleted = false`, deterministic `seed` actors, and `updatedAt = original createdAt`; clarified that exact Serializable retry-backoff milliseconds are not an API contract while the bounded randomized maximum-three-attempt policy and safe `500` exhaustion remain. No application, Prisma, dependency, generated-file, or commit changes were made. |
 
 ## Reflection
 The first draft preserved the Lab 1 format but did not contain enough evidence
@@ -63,3 +65,15 @@ after another request reclaims the lease.
 The latest planning pass synchronized Issues #17–#26 with these contracts while
 retaining #25 as a final regression gate rather than a substitute for each
 feature Issue's focused tests.
+This correction pass used the committed Lab 1 schema and Category migration as
+the migration baseline rather than assuming audit/lifecycle columns existed.
+It made the planned-test lifecycle explicit, aligned the five-minute lease to
+the exact 300-second boundary, clarified canonical UUID ordering and
+Serializable retry behavior, and documented the then-open `updatedAt` backfill
+decision without inventing a historical value. The final sync now closes that
+decision: existing Category rows preserve `id`, `name`, and `createdAt`, use
+`isActive = true`, `deleted = false`, and deterministic `seed` actors, and set
+`updatedAt` to the preserved original `createdAt`. It also makes retry-backoff
+milliseconds intentionally implementation-defined while retaining the small,
+bounded, randomized maximum-three-attempt policy and safe `500` exhaustion.
+No application code or commit was created.

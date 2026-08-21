@@ -20,6 +20,14 @@ The Lab 2 API supports:
 
 Real authentication is outside Lab 2. `X-Requester-Id` behaves operationally like the current Requester context/session after Development Requester selection, but it is **not** an authentication credential, authorization token, login session, or security boundary.
 
+The Lab 2 handout's explicit normative requirements remain mandatory. Where the
+handout intentionally leaves implementation behavior open, or provides
+partial/illustrative API examples, screenshots, or payloads rather than a fixed
+contract, the Lab 2 engineering-contract documents record the approved
+implementation decision. Those documents must not weaken or override an
+explicit handout MUST requirement without documented instructor/course
+approval.
+
 This is a production-oriented Lab 2 contract, not a production-ready deployment contract. While identity remains unauthenticated, the application is restricted to development/test networks, uses synthetic Requester identities only, and must not be exposed publicly.
 
 ---
@@ -265,7 +273,6 @@ CONFLICT
 PAYLOAD_TOO_LARGE
 UNSUPPORTED_MEDIA_TYPE
 INTERNAL_SERVER_ERROR
-SERVICE_UNAVAILABLE
 ```
 
 A protocol-specific code may be used when the client must distinguish a special behavior. Lab 2 uses:
@@ -388,19 +395,6 @@ For an oversized JSON body, the same code/status uses safe generic copy stating 
 ```
 
 Stack traces, SQL, Prisma/PostgreSQL internals, database credentials, binary data, and other sensitive implementation information must never be returned to the client.
-
-#### 503 Service Unavailable
-
-```json
-{
-  "statusCode": 503,
-  "code": "SERVICE_UNAVAILABLE",
-  "message": "The service is temporarily unable to complete the request.",
-  "error": "Service Unavailable"
-}
-```
-
-This status is used when bounded serialization/deadlock retries are exhausted. The response may include `Retry-After: 1`.
 
 ---
 
@@ -551,7 +545,7 @@ interface TicketListItemDTO {
 }
 ```
 
-The list projection intentionally excludes `description`, all Requester fields, `attachments`, `createdBy`, `updatedBy`, `updatedAt`, and `deleted`. Backend search may still match `description`; omission from the response does not remove it from the approved search whitelist. Historical Category and Related System names continue to resolve for existing list items even when those master records later become inactive or logically deleted.
+The list projection intentionally excludes `description`, all Requester fields, `attachments`, `createdBy`, `updatedBy`, `updatedAt`, and `deleted`. Backend search may still match `description`; a Ticket may match solely because its Description contains the search term, even though Description is intentionally omitted from `TicketListItemDTO`. Omission from the response does not remove Description from the approved search whitelist. Historical Category and Related System names continue to resolve for existing list items even when those master records later become inactive or logically deleted.
 
 ---
 
@@ -731,7 +725,7 @@ Requester ownership is derived from `X-Requester-Id`. Audit actors are derived b
 | `summary` | required string; trim; 3-150 chars after trim |
 | `requestedPriority` | required; `LOW`, `MEDIUM`, or `HIGH` |
 | `description` | required string; trim; 10-2000 chars after trim |
-| `attachmentIds` | optional array; at most five valid UUID/storage keys; duplicates rejected; normalized and sorted as an unordered logical set |
+| `attachmentIds` | optional array; at most five valid UUID/storage keys; after UUID syntax validation values are canonicalized to lowercase, duplicates are rejected, and the remaining canonical strings are sorted lexicographically ascending as an unordered logical set |
 
 Syntactic validation required for canonicalization occurs before idempotency resolution. The server then computes the approved canonical SHA-256 hash and resolves, establishes, or atomically reclaims the unique idempotency claim. Only the winner of a new or reclaimed `PROCESSING` claim may continue. After `IDEMPOTENCY-FENCING-A` locks and verifies the claim inside the resource transaction, the final authoritative mutable check requires each referenced Attachment to exist in the current Requester scope, be Pending (`ticketId = null`, `deleted = false`), unexpired, unbound, and within the five-Attachment limit. Cross-scope/unavailable IDs return the same safe `404`; an owned Attachment that is no longer Pending/bindable returns `409 Conflict`.
 
@@ -856,7 +850,29 @@ Normalization includes:
 - trimmed `description`;
 - typed numeric IDs;
 - normalized enum values; and
-- `attachmentIds` after UUID validation, normalization, duplicate rejection, and deterministic sorting.
+- `attachmentIds` after UUID syntax validation, normalization to canonical
+  lowercase UUID strings, duplicate rejection after normalization, and
+  lexicographically ascending sorting by those canonical lowercase strings.
+
+The Attachment-ID ordering is not binary UUID ordering or implementation-
+dependent collection ordering. For example:
+
+```text
+Submitted:
+[
+  "f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0",
+  "00000000-0000-0000-0000-000000000000"
+]
+
+Canonical:
+[
+  "00000000-0000-0000-0000-000000000000",
+  "f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0"
+]
+```
+
+That sorted list is included in the canonical logical request before the
+`UTF-8 -> SHA-256 -> lowercase hexadecimal` steps.
 
 Examples:
 
@@ -898,9 +914,9 @@ Resolution behavior:
 
 | Idempotency state | Hash relation | Result |
 |---|---|---|
-| fresh `PROCESSING` (`now < processingStartedAt + 5 minutes`) | same | Wait within the existing bounded/normal request-timeout behavior, then resolve the completed result if it becomes available; never start a second operation. |
+| fresh `PROCESSING` (`now < processingStartedAt + 300 seconds`) | same | Wait within the existing bounded/normal request-timeout behavior, then resolve the completed result if it becomes available; never start a second operation. |
 | fresh `PROCESSING` | different | `409 IDEMPOTENCY_CONFLICT` without waiting for mutable state or performing mutation. |
-| stale `PROCESSING` (`now >= processingStartedAt + 5 minutes`) | same | Attempt an atomic in-place reclaim. The single winner resets `processingStartedAt = now` and retries the operation after rerunning mutable validation; losing contenders refetch and follow normal fresh-Processing wait or completed-replay behavior. |
+| stale `PROCESSING` (`now >= processingStartedAt + 300 seconds`) | same | Attempt an atomic in-place reclaim. The single winner resets `processingStartedAt = now` and retries the operation after rerunning mutable validation; losing contenders refetch and follow normal fresh-Processing wait or completed-replay behavior. |
 | stale `PROCESSING` | different | `409 IDEMPOTENCY_CONFLICT`; do not update or delete the claim to let the new payload use the key. |
 | `COMPLETED` and `now < expiresAt` | same | Resolve stored `ticketId` and return a freshly reconstructed current `TicketDTO` with `200`; do not re-run mutable Category, Related System, or Pending-Attachment validation. |
 | `COMPLETED` and `now < expiresAt` | different | `409 IDEMPOTENCY_CONFLICT` |
@@ -952,7 +968,7 @@ No `Idempotency-Replayed` response header is required.
 
 The database uniqueness constraint on `(requesterId, key)` prevents concurrent requests from owning duplicate new attempts. The winner establishes `PROCESSING` before final mutable validation or mutation and retains the exact `processingStartedAt` lease value. A losing fresh same-hash request follows the bounded wait behavior and resolves the winner's completed record as `200`; a losing different-hash request returns `409 IDEMPOTENCY_CONFLICT`. Neither loser creates a Ticket or mutates an Attachment.
 
-`PROCESSING_STALE_AFTER` is exactly five minutes. Freshness uses `now < processingStartedAt + 5 minutes`; stale begins at exact equality. For a stale same-hash claim, reclaim is an atomic conditional update equivalent to:
+`PROCESSING_LEASE_SECONDS = 300` and `STALE_CUTOFF = processingStartedAt + 300 seconds`. Freshness uses `now < STALE_CUTOFF`; stale/reclaim eligibility begins at exact equality, `now >= STALE_CUTOFF`. Thus `4m 59.999s` is fresh and `5m 00.000s` is stale. For a stale same-hash claim, reclaim is an atomic conditional update equivalent to:
 
 ```sql
 UPDATE idempotency_record
@@ -963,7 +979,7 @@ WHERE requester_id = :requester_id
   AND key = :key
   AND status = 'PROCESSING'
   AND request_hash = :request_hash
-  AND processing_started_at <= :now - INTERVAL '5 minutes'
+  AND processing_started_at <= :now - INTERVAL '300 seconds'
 RETURNING id;
 ```
 
@@ -992,11 +1008,11 @@ If the original owner obtains and holds the lock first, a reclaim waits and re-e
 
 A retry may execute validation/business logic again. An unchanged normalized logical retry keeps the same Idempotency Key. If the normalized logical payload is changed after a validation/business failure, the frontend must generate a new Idempotency Key.
 
-If the server/process crashes after the claim is committed but before `COMPLETED`, the abandoned `PROCESSING` claim must have no committed Ticket or Attachment mutation. At five minutes it becomes eligible for same-hash atomic reclaim under Section 8.5. A stale claim cannot be reclaimed while a resource transaction currently holds its claim-row lock. If the original owner later resumes after a completed reclaim, Section 8.5.1 fences its old lease before mutation. Different-hash requests continue to conflict, and no persistent `FAILED` state is introduced.
+If the server/process crashes after the claim is committed but before `COMPLETED`, the abandoned `PROCESSING` claim must have no committed Ticket or Attachment mutation. At `300 seconds` it becomes eligible for same-hash atomic reclaim under Section 8.5. A stale claim cannot be reclaimed while a resource transaction currently holds its claim-row lock. If the original owner later resumes after a completed reclaim, Section 8.5.1 fences its old lease before mutation. Different-hash requests continue to conflict, and no persistent `FAILED` state is introduced.
 
 ### 8.7 Retention
 
-For a successful operation, the server transitions the owned claim to `COMPLETED`, records `ticketId`/`completedAt`, and sets `expiresAt = completedAt + 24 hours`. Replay/conflict behavior applies only while `now < expiresAt`. At exact equality and afterward, the completed row is logically expired even when physical cleanup has not yet deleted it; the same Requester/key may represent a new operation. Idempotency resolution locks and atomically removes/replaces that expired `COMPLETED` row before establishing a new unique `PROCESSING` claim. Concurrent reuse and cleanup must resolve to one safe claimant without a false uniqueness error or duplicate Ticket creation. This 24-hour completed-result policy is separate from the five-minute `PROCESSING` lease: completed rows use `expiresAt`; Processing rows use `processingStartedAt` and are reclaimed only by same-hash request-time resolution.
+For a successful operation, the server transitions the owned claim to `COMPLETED`, records `ticketId`/`completedAt`, and sets `expiresAt = completedAt + 24 hours`. Replay/conflict behavior applies only while `now < expiresAt`. At exact equality and afterward, the completed row is logically expired even when physical cleanup has not yet deleted it; the same Requester/key may represent a new operation. Idempotency resolution locks and atomically removes/replaces that expired `COMPLETED` row before establishing a new unique `PROCESSING` claim. Concurrent reuse and cleanup must resolve to one safe claimant without a false uniqueness error or duplicate Ticket creation. This 24-hour completed-result policy is separate from the `300-second` `PROCESSING` lease: completed rows use `expiresAt`; Processing rows use `processingStartedAt` and are reclaimed only by same-hash request-time resolution.
 
 The frontend uses a conservative automatic-retry deadline measured from initial client key creation and never automatically reuses that key at or after 24 hours. A later attempt requires explicit user submission and a new key.
 
@@ -1069,6 +1085,9 @@ ticketNumber CONTAINS search
 OR summary CONTAINS search
 OR description CONTAINS search
 ```
+
+A Ticket may match solely because its Description contains the search term,
+even though Description is intentionally omitted from `TicketListItemDTO`.
 
 Unknown or non-whitelisted search fields return `400 Validation Error` when search is active.
 
@@ -1166,6 +1185,11 @@ This nullable-field example describes generic QueryBuilder input only; no curren
 
 Generic QueryBuilder support does not mean every Ticket field may use every condition. The Ticket-specific compatibility matrix in the next section is authoritative.
 
+For example, `summary + ISNULL` may be representable by the generic QueryBuilder
+because `ISNULL` is part of its reusable vocabulary, but it is invalid for the
+non-nullable Lab 2 Ticket `summary` field. The Ticket validator must return
+`400 VALIDATION_ERROR` before QueryBuilder or Prisma receives that request.
+
 ### 9.7 Ticket Condition Compatibility Matrix
 
 | Ticket field(s) | Field category | Allowed conditions |
@@ -1220,7 +1244,7 @@ Invalid:
 
 ### 9.9 Query Mapping
 
-After Ticket-specific query-shape and permission validation, the backend maps parsed filter values to typed application values before the Ticket service executes. The QueryBuilder receives only those validated/typed values and does not own Ticket permissions, Requester ownership, `deleted = false`, semantic Priority ordering, Ticket-specific conversions/business rules, or pagination.
+After Ticket-specific query-shape and permission validation, the backend maps parsed filter values to typed application values before the Ticket service executes. The generic QueryBuilder receives only those validated/typed internal inputs and constructs reusable Prisma-compatible expressions for its supported generic operators. It does not own Ticket permissions, Requester ownership, `deleted = false`, semantic Priority ordering, Ticket-specific conversions/business rules, or pagination. Generic capability does not expand the Ticket field whitelist or condition matrix.
 
 Examples:
 
@@ -1535,7 +1559,33 @@ The backend validates:
 - non-empty file <= `5,242,880` bytes; and
 - resulting active Attachment count does not exceed five.
 
-The active-count check and insert execute in one Prisma transaction at PostgreSQL `Serializable` isolation. Serialization/deadlock conflicts receive at most three bounded retries with small randomized backoff. Retry exhaustion returns `503 SERVICE_UNAVAILABLE` and may include `Retry-After: 1`.
+The active-count check and insert execute in one Prisma transaction at
+PostgreSQL `Serializable` isolation. Prisma's default PostgreSQL isolation must
+not be relied upon for this operation. The transaction covers both the current
+Active-Attachment count and the new bound Active-Attachment insert. Conceptually:
+
+```text
+begin Serializable transaction
+-> resolve requester-scoped Ticket
+-> count current Active Attachments
+-> if count >= 5: 409 CONFLICT
+-> otherwise insert one bound Active Attachment
+-> commit
+```
+
+Supported PostgreSQL serialization/deadlock transient failures may use a small,
+bounded, randomized backoff for a maximum of three total transaction attempts,
+including the first attempt. Do not retry validation `400`, safe ownership/not-
+found `404`, business-limit `409`, payload-size `413`, unsupported-media `415`,
+or other ordinary business errors. If a retry observes a real Active count of
+five, return `409 CONFLICT`. If all three attempts fail solely because of
+serialization/deadlock contention, return the existing centralized safe `500
+INTERNAL_SERVER_ERROR`; Lab 2 does not define a Service Unavailable variant for
+this behavior. Exact retry-backoff milliseconds are intentionally
+implementation-defined and are not part of the Lab 2 wire/API contract. The
+implementation must use a small, bounded, randomized delay between eligible
+retries and must not exceed three total transaction attempts; tests verify
+these observable outcomes rather than asserting an exact sleep duration.
 
 This endpoint directly persists the new Attachment as Active for an already-created owned Ticket. It is used after the Ticket exists, including later Ticket Detail management. It is distinct from `POST /api/attachments`, which creates Pending rows for initial Ticket creation.
 
@@ -1907,7 +1957,7 @@ A removed owned Attachment remains available through the metadata endpoint for h
 | Preview/download removed Attachment | `410` |
 | Attachment > 5,242,880 bytes | `413` |
 | Unsupported Attachment extension | `415` |
-| Serializable/deadlock retries exhausted | `503` + `SERVICE_UNAVAILABLE` |
+| Serializable/deadlock retries exhausted after three total attempts | `500` + `INTERNAL_SERVER_ERROR` |
 | Unexpected safe server failure | `500` |
 | Ticket Number generation retries exhausted | `500` |
 
@@ -1978,7 +2028,7 @@ Unexpected errors may record a sanitized error class/stable code and sanitized i
 
 ### 17.1 Operational Maintenance CLI
 
-Expired Pending Attachments and logically expired `COMPLETED` Idempotency Records are cleaned by the idempotent server maintenance command `npm run maintenance:cleanup`. This is not an HTTP endpoint and no in-process timer is introduced. Production scheduling remains external to Lab 2. The command does not select, delete, or reclaim `PROCESSING` rows; five-minute stale recovery is request-driven under Section 8.5.
+Expired Pending Attachments and logically expired `COMPLETED` Idempotency Records are cleaned by the idempotent server maintenance command `npm run maintenance:cleanup`. This is not an HTTP endpoint and no in-process timer is introduced. Production scheduling remains external to Lab 2. The command does not select, delete, or reclaim `PROCESSING` rows; `300-second` stale recovery is request-driven under Section 8.5.
 
 Each Pending-cleanup transaction captures one cutoff timestamp, selects at most 100 rows satisfying `ticket_id IS NULL`, `deleted = false`, and `created_at <= cutoff` through parameterized `FOR UPDATE SKIP LOCKED`, and hard-deletes the selected rows/binaries. Ticket binding locks referenced Pending rows in deterministic storage-key order; cleanup skips rows currently being bound. Invocations repeat safe batches until none remain and can be retried.
 
