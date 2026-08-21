@@ -20,6 +20,8 @@
 | 13 | Finalize stale PROCESSING recovery as a five-minute lease: fresh same-hash waits, stale same-hash atomically reclaims, different hash conflicts, reclaim resets `processingStartedAt`, and concurrent retries have one reclaim owner; add PostgreSQL concurrency evidence. | Updated the specification, API contract, schema field contract, unit/API/PostgreSQL test plan, AC-65 traceability, and Issue close gate. Added `processingStartedAt` as required TIMESTAMPTZ state, request-time conditional reclaim, exact five-minute boundary, mutable revalidation, no-Failed/no-delete rules, separation from 24-hour Completed expiry, and PG-11 exactly-one-owner/no-duplicate evidence. No application, Prisma schema, migration, dependency, or generated file was changed. |
 | 14 | Approve `IDEMPOTENCY-FENCING-A`: retain the lease `processingStartedAt`, lock and verify the claim inside the resource transaction, hold the lock through completion, fence stale old owners before mutation, and add PG-12. | Updated the specification and API transaction ordering so final mutable validation, Ticket creation, Pending binding, and claim completion occur under one locked and exactly verified claim lease. Expanded unit/API evidence and added PG-12 proving an old owner cannot commit after B reclaims. Updated AC-65 and the Ticket-creation close gate; no application, Prisma schema, migration, dependency, or generated file was changed. |
 | 15 | Commit the completed Lab 2 engineering-contract work without a bulk commit. | Reviewed the branch, working tree, diffs, contract consistency, and whitespace; staged only the seven explicit in-scope documentation paths and created one scoped documentation commit without pushing. |
+| 16 | Reconcile all Lab 2 GitHub Issues against the authoritative contracts in `docs/lab-02/`. | Updated Issues #17–#26 in place to use the final unversioned API, safe ownership behavior, QueryBuilder boundary, per-feature test gates, PostgreSQL/idempotency/Attachment hardening, and AC-01–AC-66 traceability. No Lab 2 application code was implemented. |
+| 17 | Confirm whether Issue #28 is still needed after removing API versioning. | Verified that #28 only tracked the abandoned `/api/v1` migration and closed it as Not planned because the approved Lab 2 contract uses unversioned `/api/...` routes. |
 
 ## Reflection
 The first draft preserved the Lab 1 format but did not contain enough evidence
@@ -58,3 +60,6 @@ now supplies the required concurrent exactly-one-reclaim evidence. The approved
 lease ownership is checked while the claim row is locked inside the same
 resource transaction, and PG-12 proves that a resumed old owner cannot mutate
 after another request reclaims the lease.
+The latest planning pass synchronized Issues #17–#26 with these contracts while
+retaining #25 as a final regression gate rather than a substitute for each
+feature Issue's focused tests.
