@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-9 important prompts from the 22-prompt Lab 2 history available in the
-repository and current session.
+10 important prompts from the Lab 2 history available in the repository and
+current session.
 
-## Selected key prompts (9)
+## Selected key prompts (10)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -20,6 +20,7 @@ repository and current session.
 | 21 | Re-audit all Lab 2 Issues against the latest contracts in `docs/lab-02/`. | Traced Issues #17–#26 against the current specification, API, UI, and test plan; updated only the Issues with verified drift, including #21, #24, and #25. Kept Issue-level focused gates separate from #25 final regression evidence and made no application-code changes. |
 | 22 | Perform a focused documentation-only Lab 2 handout-authority correction pass for required test filenames, canonical AI-use naming, decimal Attachment size, and mandatory icon-only tooltips. | Updated the Lab 2 contracts and test plan for handout-required test ownership, the decimal Attachment limit and boundaries, and tooltip plus accessible-name evidence. This record preserves the prompt as historical activity while the current pass applies the superseding handout filename correction. |
 | 23 (current) | Perform a final Lab 2 course-delivery consistency pass: rename the AI-use deliverable to `docs/lab-02/ai-use.md`, curate 6–10 selected prompts, and synchronize Issues #21, #24, and #25 to `tests.md`. | Used the handout and current `tests.md` as authority; renamed and curated this deliverable, then applied focused Issue edits for Ticket test ownership and the 12-hex Ticket Number suffix, the 5,000,000-byte Attachment limit and `attachments.api.test.ts`, and the current E2E file ownership. Verified no application, schema, migration, dependency, generated-file, or commit changes were made. |
+| 24–26 (current) | Diagnose why merged PR #27 did not close Issue #17, then make merged-PR issue closure independent of the PR base branch. | Confirmed GitHub ignored `closes #17` because PR #27 targeted `lab2-staging`, and confirmed the existing workflow did not subscribe to merged PRs. Added a global merged-PR handler that applies the existing closing-keyword syntax with the scoped Actions token, then closed the already-merged Issue #17 as completed because its event cannot be replayed; no application, API, Prisma, or dependency changes were made. |
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
