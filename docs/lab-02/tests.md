@@ -172,11 +172,11 @@ Focused PostgreSQL tests under `tests/lab-02/postgres/` use the real Prisma sche
 TEST_DATABASE_URL
 ```
 
-`DATABASE_URL` remains the development database. The PostgreSQL integration suite must never fall back to `DATABASE_URL`. Before any reset/setup, its guard must fail safely unless all of the following hold:
+`DATABASE_URL` and Prisma 7's `DIRECT_URL` remain development-database connections. The PostgreSQL integration suite must never fall back to either one. Before any reset/setup, its guard must fail safely unless all of the following hold:
 
 - `NODE_ENV` is `test`;
 - `TEST_DATABASE_URL` is present and parses as PostgreSQL;
-- the normalized `TEST_DATABASE_URL` is not equal to `DATABASE_URL` when the latter is present;
+- the normalized `TEST_DATABASE_URL` is not equal to `DATABASE_URL` or `DIRECT_URL` when either is present;
 - the target database name contains an explicit test marker such as `test`; and
 - setup can identify the target as the dedicated Lab 2 test database before destructive cleanup.
 
@@ -240,6 +240,49 @@ the planned Lab 2 tests already exist or pass.
 | Lab 2 E2E/responsive/visual suite | repository root after #25 adds Playwright config | `npm run test:e2e -- e2e/lab-02` | Resolves the locally installed pinned Playwright package and coordinates `client/`, `server/`, PostgreSQL, Chromium, approved viewports, screenshots, and traces without implicit download. |
 
 Do not run migration, seed, reset, or PostgreSQL integration setup against production or the normal development database. Use a disposable or explicitly designated Lab 2 database for fresh-database evidence and the separately guarded `TEST_DATABASE_URL` for PG-01–PG-12.
+
+The guarded PostgreSQL files and the Lab 1 API tests read different variables:
+`tests/lab-02/postgres/*` connect through `TEST_DATABASE_URL`, while
+`tests/lab-01/*` exercise the running Express app, which resolves
+`DATABASE_URL` in `server/src/prisma.ts`. Two consequences follow.
+
+First, `assertLab2TestDatabase` refuses to run when `TEST_DATABASE_URL` names
+the same database as `DATABASE_URL` or `DIRECT_URL`, so the two variables must
+name different databases.
+
+Second, the guarded PostgreSQL files create their own fixture rows and leave
+them behind (for example `Idempotency Test Category`), while
+`tests/lab-01/categories.test.ts` asserts that `GET /api/categories` returns
+exactly the four seeded Categories. The Lab 1 API tests therefore cannot share
+the disposable Lab 2 database with the guarded suite.
+
+A single `npm test` run is green when `DATABASE_URL`/`DIRECT_URL` name a
+migrated and seeded Lab 1 database and `TEST_DATABASE_URL` names a separate
+disposable Lab 2 database. To keep every run off the normal development
+database, use a second disposable database for `DATABASE_URL`/`DIRECT_URL` and
+migrate and seed it first.
+
+### 4.5.1 Issue #18 final verification evidence
+
+The following checks were run on 2026-08-22 from the listed package
+directories. The disposable PostgreSQL password is intentionally redacted. Two
+disposable databases on the same throwaway PostgreSQL 16 instance at
+`localhost:55432` were used - `toktickit_lab2_test` for the guarded Lab 2
+suite and `toktickit_lab1_dev` for the Lab 1 application tests, for the reason
+given in Section 4.5. The normal development database was never used, migrated,
+seeded, or reset.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Fresh migration | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> DATABASE_URL=<same> DIRECT_URL=<same> npx prisma migrate deploy` | Disposable `toktickit_lab2_test` | Passed — both forward migrations applied. |
+| Prisma drift | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> DATABASE_URL=<same> DIRECT_URL=<same> npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` | Disposable `toktickit_lab2_test` | Passed — empty migration; the `summary` and `description` trigram indexes are represented in `schema.prisma` and are not dropped. |
+| Attachment trigger absence | `SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE c.relname = 'attachment' AND NOT t.tgisinternal;` and `SELECT count(*) FROM pg_proc WHERE proname LIKE 'prevent_bound_attachment%';` | Disposable `toktickit_lab2_test` | Passed — 0 triggers and 0 trigger functions exist on `attachment`; the forward migration never creates one. |
+| Issue #18 focused gate | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npm test -- --run tests/lab-02/CategoryService.test.ts tests/lab-02/RelatedSystemService.test.ts tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-02/postgres/transactions.postgres.test.ts tests/lab-02/postgres/idempotency.postgres.test.ts` | Disposable `toktickit_lab2_test` | Passed — 5 files, 24 tests. |
+| Seed repeatability | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> DATABASE_URL=<same> DIRECT_URL=<same> npm run prisma:seed` (run twice) | Disposable `toktickit_lab2_test` | Passed — both runs completed; the migration-upgrade test verifies identical rows and audit timestamps across reruns. |
+| Lab 1 regression | `NODE_ENV=test DATABASE_URL=<lab1_dev_url> DIRECT_URL=<same> TEST_DATABASE_URL=<lab2_test_url> npm test -- --run tests/lab-01/categories.test.ts tests/lab-01/health.test.ts` | Disposable `toktickit_lab1_dev`, migrated and seeded first | Passed — 2 files, 2 tests. |
+| Full server suite, single invocation | `NODE_ENV=test DATABASE_URL=<lab1_dev_url> DIRECT_URL=<same> TEST_DATABASE_URL=<lab2_test_url> npm test` | Both disposable databases | Passed — 8 files, 30 tests. |
+| Backend validation/build | `npx prisma validate && npm run build` | `server/` | Passed. |
+| Frontend build | `npm run build` | `client/` | Passed. |
 
 ### 4.6 Deterministic Test Data
 
@@ -330,8 +373,8 @@ cover `ISNULL`, `ISNOTNULL`, and every other approved generic operator.
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
 | UNIT-01 | Unit | FR-01–06, BR-12–17, AC-02, AC-05, AC-41 | DevelopmentRequesterService: active/non-deleted retrieval and requester-context validation. | Returns only valid active requesters; rejects unknown/inactive/deleted contexts with safe domain errors. | tests/lab-02/DevelopmentRequesterService.test.ts | Not Run |
-| UNIT-02 | Unit | BR-07, BR-71–73, AC-10 | CategoryService: selectable master behavior and historical lookup behavior. | Active/non-deleted categories are selectable; inactive/deleted categories are rejected for new Ticket creation while historical metadata can still resolve. | tests/lab-02/CategoryService.test.ts | Not Run |
-| UNIT-03 | Unit | BR-08, BR-71–73, AC-10 | RelatedSystemService: selectable master behavior and historical lookup behavior. | Active/non-deleted systems are selectable; inactive/deleted systems are rejected for new Ticket creation while historical metadata can still resolve. | tests/lab-02/RelatedSystemService.test.ts | Not Run |
+| UNIT-02 | Unit | BR-07, BR-71–73, AC-10 | CategoryService: selectable master behavior and historical lookup behavior. | Active/non-deleted categories are selectable; inactive/deleted categories are rejected for new Ticket creation while historical metadata can still resolve. | tests/lab-02/CategoryService.test.ts | Passed — 3 tests |
+| UNIT-03 | Unit | BR-08, BR-71–73, AC-10 | RelatedSystemService: selectable master behavior and historical lookup behavior. | Active/non-deleted systems are selectable; inactive/deleted systems are rejected for new Ticket creation while historical metadata can still resolve. | tests/lab-02/RelatedSystemService.test.ts | Passed — 3 tests |
 | UNIT-04 | Unit | BR-01–03, AC-07 | Ticket Number formatting/generation helper: Bangkok date, format, uppercase 12-hex suffix, deterministic injected time/random behavior. | Generated candidate matches `TKT-YYYYMMDD-RRRRRRRRRRRR`; business date uses Asia/Bangkok. Persistence/collision retry is not owned by this helper. | tests/lab-02/TicketNumber.test.ts | Not Run |
 | UNIT-05 | Unit | FR-07–12, BR-01–25, AC-06–12 | TicketService: creation, Pending-Attachment validation/binding, trimming, NEW status, requester/audit derivation, replay-first ordering, collision retry, ownership, and detail. | A new attempt atomically creates the Ticket and binds every referenced Pending row; completed same-hash replay returns the existing Ticket without mutable Pending validation; collision retries remain bounded. | tests/lab-02/TicketService.test.ts | Not Run |
 | UNIT-06 | Unit | BR-26–43, BR-75, AC-24–30, AC-55 | Ticket query request validator/normalizer: Ticket field whitelist, exact condition matrix, searchFields whitelist/uniqueness, typed number/date/enum/IN conversion, nullable compatibility, query-complexity bounds, invalid rejection, and direct-client boundary. | Only Ticket-approved bounded input reaches QueryBuilder/Prisma; search >200 chars, >20 filters, duplicate search fields, `IN` outside 1–100 unique values, invalid combinations/enums/shapes/conversions fail before data access. | tests/lab-02/TicketQueryValidator.test.ts | Not Run |
@@ -439,10 +482,10 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-04 | PostgreSQL Integration | BR-58, AC-19 | Mixed Pending hard-delete + Active soft-remove rollback after transaction work begins. | Injected failure leaves no Pending row/binary deletion and no Active lifecycle/reason/audit mutation committed. | tests/lab-02/postgres/transactions.postgres.test.ts | Not Run |
 | PG-05 | PostgreSQL Integration | BR-47, BR-76, AC-47 | Two concurrent valid direct uploads to one Ticket currently at four Active Attachments, using separate connections. | Each attempt uses PostgreSQL `Serializable` isolation for the Active count plus insert; supported serialization/deadlock failures may use a small bounded randomized delay for at most three total attempts, while ordinary errors are not retried. Exactly one request commits `201`, exactly one resolves `409`, exactly one new Attachment persists, and final Active count is 5. This PostgreSQL test verifies the observable concurrency result and does not assert exact backoff milliseconds. | tests/lab-02/postgres/attachment-concurrency.postgres.test.ts | Not Run |
 | PG-06 | PostgreSQL Integration | BR-80–81, AC-48 | Pending cleanup races Ticket binding using separate connections and bounded SKIP LOCKED selection. | The row is either cleaned while still Pending or bound Active; cleanup never deletes it after Active binding and skips a row currently locked for binding. | tests/lab-02/postgres/maintenance.postgres.test.ts | Not Run |
-| PG-07 | PostgreSQL Integration | AC-49 | Upgrade a populated Lab 1 schema through the committed Lab 2 migration using the repository-confirmed baseline. | The existing Category table is migrated in place rather than dropped/recreated; its existing `id`, `name`, and original `createdAt` values survive exactly; existing valid rows receive `isActive = true`, `deleted = false`, `createdBy = seed`, `updatedBy = seed`, and `updatedAt` equal to each row's original preserved `createdAt`; no migration-time or other nondeterministic timestamp is used for that backfill; the resulting schema and idempotent seed are valid. | tests/lab-02/postgres/migration-upgrade.postgres.test.ts | Not Run |
-| PG-08 | PostgreSQL Integration | AC-56 | Attachment database check constraints. | PostgreSQL rejects invalid lifecycle/reason/name-byte/binary-size/size-metadata combinations, rejects `0` and `5,000,001` bytes, accepts `4,999,999` and `5,000,000` bytes, and accepts valid Pending, Active, and Removed rows when `size_bytes = octet_length(data)`. | tests/lab-02/postgres/transactions.postgres.test.ts | Not Run |
+| PG-07 | PostgreSQL Integration | AC-49 | Upgrade a populated Lab 1 schema through the committed Lab 2 migration using the repository-confirmed baseline. | The existing Category table is migrated in place rather than dropped/recreated; its existing `id`, `name`, and original `createdAt` values survive exactly; existing valid rows receive `isActive = true`, `deleted = false`, `createdBy = seed`, `updatedBy = seed`, and `updatedAt` equal to each row's original preserved `createdAt`; no migration-time or other nondeterministic timestamp is used for that backfill; the resulting schema and idempotent seed are valid. | tests/lab-02/postgres/migration-upgrade.postgres.test.ts | Passed — 5 tests |
+| PG-08 | PostgreSQL Integration | AC-56 | Attachment database check constraints and removal-metadata retention. | PostgreSQL rejects invalid lifecycle/reason/name-byte/binary-size/size-metadata combinations, rejects `0` and `5,000,001` bytes, accepts `4,999,999` and `5,000,000` bytes, accepts valid Pending, Active, and Removed rows when `size_bytes = octet_length(data)`, permits Pending cleanup, keeps the Ticket binding and reason across a soft removal, and rejects marking a bound row removed without a valid reason. Transition rules beyond per-row validity are application-owned (Specification Section 7.2.7). | tests/lab-02/postgres/transactions.postgres.test.ts | Passed — 8 tests |
 | PG-09 | PostgreSQL Integration | BR-82, AC-52 | Expired-but-not-cleaned requester/key reuse racing idempotency cleanup and another reuse caller. | Old technical row is safely removed/replaced, no false unique-key error occurs, exactly one new logical operation wins, and no duplicate Ticket is created. | tests/lab-02/postgres/idempotency.postgres.test.ts; tests/lab-02/postgres/maintenance.postgres.test.ts | Not Run |
-| PG-10 | PostgreSQL Integration | BR-19–23, AC-64–65 | Idempotency database enum, hash, Processing timestamp, state, expiry, unique-claim, and restrictive-FK constraints. | PostgreSQL accepts valid PROCESSING and COMPLETED rows/transitions with non-null `processing_started_at`; request-time boundary evidence treats `now < processing_started_at + 300 seconds` as fresh and `now >= processing_started_at + 300 seconds` as stale; rejects malformed/non-lowercase/non-64-character current hashes, invalid nullability/state combinations, wrong 24-hour expiry, duplicate requester/key ownership, and forbidden referenced-row deletion. | tests/lab-02/postgres/idempotency.postgres.test.ts | Not Run |
+| PG-10 | PostgreSQL Integration | BR-19–23, AC-64–65 | Idempotency database enum, hash, Processing timestamp, state, expiry, unique-claim, and restrictive-FK constraints. | PostgreSQL accepts valid PROCESSING and COMPLETED rows/transitions with non-null `processing_started_at`; request-time boundary evidence treats `now < processing_started_at + 300 seconds` as fresh and `now >= processing_started_at + 300 seconds` as stale; rejects malformed/non-lowercase/non-64-character current hashes, invalid nullability/state combinations, wrong 24-hour expiry, duplicate requester/key ownership, and forbidden referenced-row deletion. | tests/lab-02/postgres/idempotency.postgres.test.ts | Passed — 5 tests |
 | PG-11 | PostgreSQL Integration | BR-19–24, BR-82, AC-65 | Stale same-hash PROCESSING claim with two concurrent retries and referenced Pending Attachments, using separate connections. | `PROCESSING_LEASE_SECONDS = 300`; a claim at `4m 59.999s` is fresh and a claim at `5m 00.000s` is stale/reclaim-eligible. Exactly one conditional update reclaims the stale claim and resets `processing_started_at`; exactly one Ticket and one set of Attachment bindings commit; the other retry refetches and waits/replays normally; no duplicate Ticket or Attachment binding occurs. | tests/lab-02/postgres/idempotency.postgres.test.ts | Not Run |
 | PG-12 | PostgreSQL Integration | BR-19–24, BR-82, AC-65 | Old-owner fencing after reclaim, using separate connections and the exact retained lease timestamp. | A owns PROCESSING; its lease becomes stale; B atomically reclaims and obtains a new `processing_started_at`; A resumes with the old value and its locked status/hash/timestamp fencing check fails before mutation; B alone performs final validation, creates, binds, and completes; exactly one Ticket and one Attachment-binding set commit. The claim lock blocks reclaim while held. | tests/lab-02/postgres/idempotency.postgres.test.ts | Not Run |
 
@@ -673,11 +716,11 @@ The following rules previously had only generic Definition-of-Done wording. Each
 | BR-70 | UNIT-02, UNIT-03, UNIT-12, API-21, API-37, API-52, DATA-05 | Verify business-resource `deleted` defaults to false, is used by normal visibility/ownership predicates, and is set only by the approved soft-delete lifecycle. | Not Run |
 | BR-74 | API-65, DATA-06 | Verify no Ticket deletion operation is exposed and new Ticket persistence/output uses `deleted = false`. | Not Run |
 | BR-91 | UI-32, UI-37, VIS-01, VIS-02, VIS-03 | Inspect representative icon-only controls for both accessible programmatic names and visible tooltip/hover-focus labels, including navigation, Attachment, close, pagination, filter/search, mobile-sidebar, and modal controls; verify action wording without relying on icon shape, color, `title` alone, or `aria-label` alone. | Not Run |
-| Migration preservation (AC-49) | PG-07, DATA-07 | Apply the committed migration to both a fresh database and a populated Lab 1 database; verify the existing Category table is altered in place, its `id`, `name`, and `createdAt` values are preserved exactly, and each existing valid row receives `isActive = true`, `deleted = false`, `createdBy = seed`, `updatedBy = seed`, and `updatedAt = original createdAt`. Verify that existing-row `updatedAt` is not derived from migration execution time, `now()`, `CURRENT_TIMESTAMP`, application-start time, or another nondeterministic timestamp. | Not Run |
-| Attachment checks/indexes (AC-56, AC-63) | PG-08, DATA-08 | Inspect and exercise committed Attachment checks plus general/partial/unique/trigram/cleanup indexes; verify the size invariant `size_bytes > 0 AND size_bytes <= 5000000 AND size_bytes = octet_length(data)` and record schema evidence without asserting an exact query plan. | Not Run |
+| Migration preservation (AC-49) | PG-07, DATA-07 | Apply the committed migration to both a fresh database and a populated Lab 1 database; verify the existing Category table is altered in place, its `id`, `name`, and `createdAt` values are preserved exactly, and each existing valid row receives `isActive = true`, `deleted = false`, `createdBy = seed`, `updatedBy = seed`, and `updatedAt = original createdAt`. Verify that existing-row `updatedAt` is not derived from migration execution time, `now()`, `CURRENT_TIMESTAMP`, application-start time, or another nondeterministic timestamp. | Passed — PG-07 + fresh deploy/seed smoke |
+| Attachment checks/indexes (AC-56, AC-63) | PG-08, DATA-08 | Inspect and exercise the committed Attachment checks - which are the complete database-level Attachment contract, with no triggers - plus the general/partial/unique/trigram/cleanup indexes; verify the size invariant `size_bytes > 0 AND size_bytes <= 5000000 AND size_bytes = octet_length(data)` and record schema evidence without asserting an exact query plan. | Passed — PG-07 schema evidence + PG-08 |
 | Synthetic Requester boundary (AC-50) | API-75, DATA-09 | Inspect seed fixtures and bootstrap evidence to confirm every unauthenticated Requester identity is synthetic and deployment documentation prohibits real PII/public exposure. | Not Run |
 | Pinned test tooling (AC-62) | DATA-10 | Inspect root/client manifests and lockfiles: pinned client MSW, minimal private root package, pinned local Playwright, no workspaces/application dependency relocation, and no implicit download in E2E commands. | Not Run |
-| Authoritative schema contract (AC-64) | PG-07, PG-08, PG-10, DATA-11 | Inspect Prisma mappings and committed migration SQL against Specification Section 7 for every field type/nullability/default, enum, key, restrictive FK, CHECK, and index; run boundary tests on fresh PostgreSQL without asserting an exact planner choice. | Not Run |
+| Authoritative schema contract (AC-64) | PG-07, PG-08, PG-10, DATA-11 | Inspect Prisma mappings and committed migration SQL against Specification Section 7 for every field type/nullability/default, enum, key, restrictive FK, CHECK, and index; run boundary tests on fresh PostgreSQL without asserting an exact planner choice. | Passed — PG-07, PG-08, PG-10 |
 
 ## 16. Completion Rule
 

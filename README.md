@@ -57,10 +57,13 @@ when the request fails. Covered by `server/tests/lab-01/health.test.ts`
 
 ### Issue 3 — Category model + seed
 
-`Category` (`id`, unique `name`, `createdAt`) lives in `server/prisma/schema.prisma`
-and is created by migration `20260808064543_add_category`. `npm run prisma:seed`
+`Category` (`id`, unique `name`, `isActive`, `deleted`, `createdBy`, `createdAt`,
+`updatedBy`, `updatedAt`) lives in `server/prisma/schema.prisma`. The Lab 1
+`20260808064543_add_category` migration creates the initial table; the forward
+Lab 2 migration `20260822000000_lab2_data_model` alters that table in place and
+preserves existing identities and creation timestamps. `npm run prisma:seed`
 upserts the four categories on the unique `name`, so re-running it never
-duplicates rows:
+duplicates rows or changes audit timestamps:
 
 ```text
 Account and Access, Hardware, Software, Network
@@ -72,6 +75,35 @@ from `server/prisma.config.ts` rather than from `schema.prisma`, and the running
 app connects separately through the `@prisma/adapter-pg` driver adapter in
 `server/src/prisma.ts`. Real credentials stay out of git — only `.env.example` is
 tracked. Evidence in `docs/lab-01/tests.md`.
+
+### Lab 2 PostgreSQL integration tests
+
+The Lab 2 persistence suites use only a disposable PostgreSQL target. They
+never fall back to the normal development `DATABASE_URL`, and their guard
+requires `NODE_ENV=test`, a PostgreSQL `TEST_DATABASE_URL`, and an explicit
+test marker in the target database name.
+
+From `server/`, start the disposable target with a local-only synthetic password
+without committing it to an environment file:
+
+```bash
+export LAB2_TEST_DB_PASSWORD='<PASSWORD>'
+docker compose -f tests/lab-02/postgres/docker-compose.test.yml up -d --wait
+export NODE_ENV=test
+export TEST_DATABASE_URL="postgresql://lab2_test:${LAB2_TEST_DB_PASSWORD}@localhost:55432/toktickit_lab2_test"
+DATABASE_URL="$TEST_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+DATABASE_URL="$TEST_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" npm run prisma:seed
+DATABASE_URL="$TEST_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" npm test -- tests/lab-01/categories.test.ts tests/lab-01/health.test.ts
+npm test -- tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-02/postgres/transactions.postgres.test.ts tests/lab-02/postgres/idempotency.postgres.test.ts
+docker compose -f tests/lab-02/postgres/docker-compose.test.yml down -v
+```
+
+The migration suite covers both fresh reproduction and populated-Lab-1
+preservation; the seed is safe to rerun against the disposable target. The Lab 1
+regressions run immediately after the clean migration and seed, before the Lab 2
+PostgreSQL suites reset the disposable target. Teardown is last so every command
+uses the same guarded database while the normal development database remains
+untouched.
 
 ### Issue 4 — Category list + UI states
 

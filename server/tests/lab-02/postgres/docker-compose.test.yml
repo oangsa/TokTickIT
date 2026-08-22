@@ -1,0 +1,17 @@
+services:
+  lab2-test-postgres:
+    image: postgres:16-alpine
+    container_name: toktickit-lab2-test-postgres
+    environment:
+      POSTGRES_DB: toktickit_lab2_test
+      POSTGRES_USER: lab2_test
+      POSTGRES_PASSWORD: ${LAB2_TEST_DB_PASSWORD:?Set LAB2_TEST_DB_PASSWORD}
+    ports:
+      - "55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab2_test -d toktickit_lab2_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
