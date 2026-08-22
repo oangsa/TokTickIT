@@ -36,13 +36,39 @@ npm run dev                 # http://localhost:5173
 npm test                    # vitest run
 ```
 
+### Lab 2 client
+
+Run `npm install` in `client/` after pulling: Lab 2 adds `react-router-dom`
+for routing and `@fontsource/inter` for the required typeface. Bootstrap
+remains the only UI library.
+
+| Route | Screen |
+|---|---|
+| `/` | Redirects to `/requesters` or `/tickets` depending on the stored Requester |
+| `/requesters` | Development Requester Selection (placeholder until Issue 20) |
+| `/tickets` | My Tickets (placeholder until Issue 22) |
+| `/tickets/new` | Create Ticket (placeholder until Issue 21) |
+| `/tickets/:publicId` | Requester Ticket Detail (placeholder until Issue 23) |
+| `/error` | Standalone global error page |
+
+The selected Requester is kept in `sessionStorage` as a Lab 2 testing
+mechanism; it is not authentication. Until Issue 20 implements the selector,
+the requester routes cannot be reached through the UI, so the application is
+not yet drivable end to end.
+
+`client/src/components/` holds the shared conventions this Issue establishes —
+form field, button hierarchy, badge, skeleton, empty/error/success state,
+modal, pagination, filter chip, and Attachment lifecycle state. They are
+covered by `client/tests/lab-02/SharedComponents.test.tsx`; the screens that
+consume them arrive with Issues 20–23.
+
 ## Lab 1 status
 
 | Issue | Status | Where |
 |---|---|---|
-| 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
+| 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/pages/SystemCheck.tsx` |
 | 3 — Category model + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
-| 4 — Category list + UI states | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/App.tsx` |
+| 4 — Category list + UI states | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/pages/SystemCheck.tsx` |
 
 ### Issue 2 — API health check
 
@@ -51,8 +77,10 @@ GET /api/health  ->  200  {"status":"ok","service":"TokTickIT API"}
 ```
 
 The client calls it from `checkSystem()` in `client/src/api.ts`; **Check System**
-on the React page shows `Backend status: Online`, or `Backend status: Offline`
-when the request fails. Covered by `server/tests/lab-01/health.test.ts`
+shows `Backend status: Online`, or `Backend status: Offline` when the request
+fails. Since the Lab 2 shell landed, this screen lives in
+`client/src/pages/SystemCheck.tsx` and is no longer the application's landing
+route; its Lab 1 tests continue to exercise it directly. Covered by `server/tests/lab-01/health.test.ts`
 (Supertest). Evidence in `docs/lab-01/tests.md`.
 
 ### Issue 3 — Category model + seed
@@ -132,7 +160,12 @@ the timeout case in `client/tests/lab-01/api.test.tsx` (Vitest). Evidence in
 toktickit/
 ├── client/            # React + TypeScript + Vite + Bootstrap
 │   ├── src/
-│   └── tests/lab-01/
+│   │   ├── components/   # shared UI components
+│   │   ├── pages/        # routed screens
+│   │   ├── requester/    # Lab 2 requester context and route guard
+│   │   └── styles/       # Zen Green tokens and shell styling
+│   ├── tests/lab-01/
+│   └── tests/lab-02/
 ├── server/
 │   ├── prisma.config.ts  # Prisma 7 config: schema path, seed, migrate URL
 │   ├── prisma/        # schema + migrations + seed

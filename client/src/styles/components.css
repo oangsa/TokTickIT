@@ -1,0 +1,326 @@
+/*
+ * Hand-written shell and primitive styling that Bootstrap classes cannot
+ * express (ui-spec Sections 5, 7.3, 28, 29.8). Imported after theme.css.
+ */
+
+/* Skip link (Section 29.5). */
+.tt-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 1080;
+  padding: 0.5rem 1rem;
+  background-color: var(--tt-surface);
+  border: 1px solid var(--tt-green-secondary);
+  border-radius: var(--tt-radius-control);
+}
+
+.tt-skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+/*
+ * Shell layout (Sections 3.5, 5.1). The full-height rule is desktop-only: below
+ * the breakpoint the mobile topbar sits outside this grid, so `100vh` here would
+ * make the document taller than the viewport on every page.
+ */
+.tt-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.tt-main {
+  min-width: 0;
+}
+
+.tt-main__inner {
+  max-width: var(--tt-content-max);
+  margin-inline: auto;
+  padding: var(--tt-page-pad);
+}
+
+.tt-brand {
+  font-weight: 700;
+  color: var(--tt-green-primary);
+}
+
+/*
+ * The topbar outranks the open drawer (z-index 1045 below). Without its own
+ * stacking position the fixed drawer paints over the menu toggle, hiding the
+ * only control that closes it for pointer users (Section 5.2: the mobile
+ * navigation must not obscure required actions).
+ */
+.tt-topbar {
+  position: relative;
+  z-index: 1046;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--tt-topbar-height);
+  padding: 0.75rem var(--tt-page-pad);
+  background-color: var(--tt-surface);
+  border-bottom: 1px solid var(--tt-border);
+}
+
+.tt-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  inline-size: min(280px, 85vw);
+  padding: var(--tt-page-pad) 1rem;
+  background-color: var(--tt-surface);
+  border-right: 1px solid var(--tt-border);
+}
+
+.tt-sidebar__footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--tt-border);
+}
+
+.tt-sidebar .nav-link {
+  color: var(--tt-text);
+  border-radius: var(--tt-radius-control);
+  padding: 0.5rem 0.75rem;
+}
+
+.tt-sidebar .nav-link:hover {
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-secondary);
+}
+
+/* Active navigation uses Pale Green with Primary Green text (Section 5.1). */
+.tt-sidebar .nav-link.active {
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+  font-weight: 600;
+}
+
+/*
+ * Below the desktop breakpoint the sidebar is an off-canvas drawer. It uses
+ * `visibility` rather than `display` so a closed drawer leaves the tab order
+ * and the accessibility tree without any JavaScript.
+ */
+@media (max-width: 991.98px) {
+  .tt-sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 1045;
+    /* Start the drawer content below the topbar it now passes under. */
+    padding-block-start: calc(var(--tt-topbar-height) + var(--tt-page-pad));
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.2s ease,
+      visibility 0s linear 0.2s;
+  }
+
+  .tt-sidebar--open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+}
+
+@media (min-width: 992px) {
+  .tt-shell {
+    grid-template-columns: var(--tt-sidebar-width) 1fr;
+    min-height: 100vh;
+  }
+
+  .tt-sidebar {
+    position: static;
+    inline-size: auto;
+    transform: none;
+    visibility: visible;
+  }
+}
+
+.tt-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  background-color: rgba(22, 36, 29, 0.4);
+}
+
+/* Icon-only controls: tooltip plus accessible name (Section 29.8). */
+.tt-tip-host {
+  display: inline-flex;
+  overflow: visible;
+}
+
+/*
+ * Tooltips are portaled to the document body and positioned against the viewport
+ * by IconButton. This avoids clipping inside Bootstrap surfaces such as
+ * `.modal-content` and clamps labels at both viewport edges without creating
+ * page-level horizontal overflow.
+ */
+.tt-tip {
+  position: fixed;
+  z-index: 1090;
+  max-inline-size: min(20rem, calc(100vw - 1rem));
+  white-space: normal;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--tt-radius-control);
+  background-color: var(--tt-text);
+  color: var(--tt-surface);
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+
+.tt-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border-radius: var(--tt-radius-control);
+  color: var(--tt-text);
+}
+
+/* Busy buttons keep their width and their original action text (Section 10.6). */
+.tt-btn__spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  margin-right: 0.375rem;
+}
+
+/*
+ * Read-only controls must not look editable (Section 7.3). The soft gray-green
+ * fill alone is a weak signal, so the dashed border carries the same meaning as
+ * a shape rather than a colour.
+ *
+ * Focus keeps the ring — visible focus is mandatory (Section 29.6) — but not the
+ * green border, which would read as an active editable control. This rule must
+ * outrank both Bootstrap's `.form-control:focus` and theme.css's override; it
+ * ties on specificity and wins on source order.
+ */
+.tt-readonly {
+  background-color: var(--tt-readonly-bg);
+  border: 1px dashed var(--tt-border);
+}
+
+.tt-readonly:focus {
+  background-color: var(--tt-readonly-bg);
+  border-color: var(--tt-border);
+  box-shadow: var(--tt-focus-ring);
+}
+
+.tt-textarea {
+  resize: vertical;
+}
+
+.tt-validation {
+  color: var(--tt-danger);
+}
+
+.tt-required {
+  color: var(--tt-danger);
+}
+
+/* Badges stay inside the Zen Green language (Section 17). */
+.tt-badge--pale {
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+}
+
+.tt-badge--medium {
+  background-color: var(--tt-green-secondary);
+  color: var(--tt-surface);
+}
+
+.tt-badge--strong {
+  background-color: var(--tt-green-primary);
+  color: var(--tt-surface);
+}
+
+.tt-badge--neutral {
+  background-color: var(--tt-readonly-bg);
+  color: var(--tt-text);
+  border: 1px solid var(--tt-border);
+}
+
+.tt-chip {
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Skeletons resemble the final layout without distracting animation (Section 28). */
+.tt-skeleton {
+  display: block;
+  background-color: #e4eae6;
+  border-radius: var(--tt-radius-control);
+  opacity: 1;
+}
+
+.tt-empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+/*
+ * Non-intrusive success confirmation (Sections 3.1, 11.7). Pale Green surface
+ * with dark green text; the visible message text carries the meaning, so the
+ * colour is never the only signal (Section 29.9).
+ */
+.tt-success {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--tt-green-secondary);
+  border-radius: var(--tt-radius-control);
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+}
+
+/*
+ * Attachment lifecycle badges (Section 23). Uploading/Failed/Invalid are
+ * client-local upload states; Pending/Active/Removed are the persisted
+ * lifecycle. Each badge always renders its text label.
+ */
+/*
+ * Pending is pre-uploaded but not yet Ticket evidence, so it borrows the dashed
+ * "not directly editable" border already used by `.tt-readonly`. Uploading keeps
+ * the plain neutral badge, so the two read differently at a glance and not only
+ * by their label (Section 34).
+ */
+.tt-attachment-state--pending {
+  background-color: var(--tt-surface);
+  color: var(--tt-text);
+  border: 1px dashed var(--tt-green-secondary);
+}
+
+.tt-attachment-state--error {
+  background-color: #fbeced;
+  color: var(--tt-danger);
+  border: 1px solid var(--tt-danger);
+}
+
+.tt-attachment-state--removed {
+  background-color: var(--tt-readonly-bg);
+  color: var(--tt-text-muted);
+  border: 1px dashed var(--tt-text-muted);
+}
+
+/*
+ * Responsive ticket table (Section 16.3). Below 768px the lower-priority
+ * columns are hidden so the page itself never scrolls horizontally; the markup
+ * stays a table rather than switching to cards.
+ */
+.tt-table-wrap {
+  overflow-x: auto;
+}
+
+@media (max-width: 767.98px) {
+  .tt-col-secondary {
+    display: none;
+  }
+}

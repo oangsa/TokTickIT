@@ -284,6 +284,75 @@ seeded, or reset.
 | Backend validation/build | `npx prisma validate && npm run build` | `server/` | Passed. |
 | Frontend build | `npm run build` | `client/` | Passed. |
 
+### 4.5.2 Issue #19 final verification evidence
+
+The following checks were run on 2026-08-22 from `client/`. Issue #19 is
+frontend-only: no server file, Prisma schema, migration, or database was
+touched, so no database target was involved and the server suite was not run.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Baseline before the refactor | `npm test` and `npm run build` | `client/` | Passed — 2 files, 6 tests; build succeeded. |
+| Install frontend dependencies | `npm install react-router-dom @fontsource/inter` | `client/` | Passed — `react-router-dom` 7.18.2 provides routing and `@fontsource/inter` 5.3.0 self-hosts the required typeface. Neither is a UI framework or a global state library; Bootstrap 5.3.8 remains the only UI library and no dependency was upgraded. |
+| Lab 1 client regression after the move | `npm test -- tests/lab-01` | `client/` | Passed — 2 files, 6 tests. Only the import line of `tests/lab-01/App.test.tsx` changed; every assertion is unchanged. |
+| Issue #19 focused gate | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | `client/` | Passed — 1 file, 27 tests. |
+| Shared component contract | `npm test -- tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 1 file, 21 tests. Covers modal focus management, the windowed pagination control, field label/required/error/counter association and ordering, read-only semantics, busy-button behavior, icon-only names plus tooltips, and the six Attachment state labels. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 54 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed — `tsc` typechecked every file under `src` and `tests`, and the Vite build succeeded. |
+| Contrast spot-check of the new tokens | Manual WCAG 2.1 relative-luminance calculation | `client/src/styles/theme.css` | Passed — disabled Primary button 4.87:1, disabled Destructive 4.82:1, muted text 5.63:1 on white, active navigation 5.97:1 on Pale Green, warning 6.39:1 on white. Bootstrap's `--bs-btn-disabled-opacity` is set to `1` because it otherwise composites a second time and drops the disabled Primary button to 1.8:1. |
+| Served-route smoke | `npm run preview -- --port 4173 --strictPort` then `curl` for `/`, `/tickets`, `/error` | `client/` built output | Passed — each route returned `200` through the single-page fallback. This confirms routing is served; it is not visual or responsive evidence, which remains Issue #25 (RESP-01–03, VIS-01–03) and the Section 34 checklist. |
+
+### 4.5.3 Issue #19 scrutinize fix pass
+
+A specification-first review of the Issue #19 change surfaced five defects that
+were fixed before shipping. All checks below were run on 2026-08-23 from
+`client/`; the change remains frontend-only, so no server, Prisma, migration, or
+database target was involved.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| The open mobile drawer painted over the menu toggle, hiding the only pointer-reachable control that closes it (ui-spec Section 5.2). | `.tt-topbar` takes `position: relative; z-index: 1046` above the drawer's `1045`, and the drawer pads its content below the topbar using the new `--tt-topbar-height` token. | Bootstrap stacking confirmed against `client/node_modules/bootstrap/dist/css/bootstrap.min.css`; visual re-check belongs to Issue #25. |
+| The icon-only tooltip was always mounted with `opacity: 0`, so it occupied layout permanently and centred itself off-screen on the left-most control — a clipped label now and page-level horizontal scrolling for any right-edge icon button later (Sections 4, 29.8, 34). | `.tt-tip` first toggled `display` and aligned to the host's inline start. The follow-up in Section 4.5.4 supersedes that sibling implementation with a viewport-positioned body portal; `IconButton` still drops `aria-describedby` because the tooltip repeats the `aria-label`. | `ApplicationShell.test.tsx` and `SharedComponents.test.tsx` assert the accessible name, hover/focus visibility, and body-level `role="tooltip"` placement. |
+| The modal's dismiss handler sat on `.modal-backdrop`, which Bootstrap places at `z-index: 1050` beneath the full-viewport `.modal` at `1055`, so it never received a click. | The handler moved to `.modal` with a `target === currentTarget` check on `mousedown`, so a drag out of the dialog does not dismiss it. | `SharedComponents.test.tsx` — "closes on a click outside the dialog but not on a drag out of it". |
+| `document.body.classList.add("modal-open")` was a no-op: `grep -c "modal-open" bootstrap.min.css` returns `0` because Bootstrap 5 locks scrolling from JavaScript this component does not use. | The effect sets and restores `document.body.style.overflow` directly. | `SharedComponents.test.tsx` — "locks page scrolling while open and restores it on close". |
+| `Uploading` and `Pending` shared one badge treatment, and `.tt-attachment-state--progress` duplicated `.tt-badge--neutral` verbatim (Section 34). | The duplicate class is deleted; `Pending` takes a dashed Secondary Green border matching the established `.tt-readonly` idiom, and `Uploading` keeps the plain neutral badge. | `SharedComponents.test.tsx` — "distinguishes Uploading from Pending by more than the label". |
+
+Two further corrections were folded into the same pass. `ValidationMessage` no
+longer carries `role="alert"`: `FormField` already associates it through
+`aria-describedby`, which is what Section 29.4 requires, and an assertive live
+region would interrupt once per failed field when Section 8.2 validates the whole
+form on submit. `FormField` records that the native `required` attribute it sets
+for Section 29.3 also arms browser validation, so the Issue #21 form must use
+`<form noValidate>` or the browser's own bubble will pre-empt the
+field-associated message and first-invalid focus Section 8.2 requires.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 57 tests (3 added by this pass). |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed. |
+
+### 4.5.4 Issue #19 follow-up fix pass
+
+The follow-up fixes were run on 2026-08-23 from `client/`. The implementation
+remains frontend-only: no server, Prisma, migration, or database target was
+changed.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| Bootstrap's default card body/header spacing was `16px` at every breakpoint, not the UI contract's desktop/tablet/mobile rhythm. | Added `--tt-card-pad` values of `24px`, `20px`, and `16px`, and mapped Bootstrap card spacer/cap variables to that token. | `client/src/styles/theme.css`; `npm run build`. |
+| A CSS sibling tooltip could be clipped by `.modal-content` or overflow past the viewport edge. | `IconButton` now mounts the tooltip in `document.body`, positions it against the viewport, clamps both inline edges, and flips above controls near the bottom edge. | `ApplicationShell.test.tsx` and `SharedComponents.test.tsx` exercise hover/focus visibility and body-level placement. |
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Application shell/navigation gate | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | `client/` | Passed — 1 file, 27 tests. |
+| Shared component contract | `npm test -- tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 1 file, 24 tests. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 57 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+Playwright/responsive/visual browser coverage remains not run in this Issue;
+the planned visual and responsive pass remains assigned to Issue #25.
+
 ### 4.6 Deterministic Test Data
 
 Automated tests use deterministic fixtures/mocks. The standard fixture set should include at least:
@@ -495,9 +564,9 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | --- | --- | --- | --- | --- | --- | --- |
 | UI-01 | UI | AC-02 | Requester Selection normal/loading/empty/failure states. | Skeleton while loading; active names only; test-not-authentication explanation; no-active and safe failure states provide Retry; Continue disabled until selection. | tests/lab-02/RequesterSelection.test.tsx | Not Run |
 | UI-02 | UI | AC-03 | Requester selection persistence and navigation. | Selecting requester + Continue stores requester in sessionStorage, shows name in app context, and navigates to `/tickets`. | tests/lab-02/RequesterSelection.test.tsx | Not Run |
-| UI-03 | UI | FR-03–05 | Application shell/navigation. | Desktop shell shows TokTickIT, My Tickets, Create Ticket, requester name, Change Requester, and active navigation semantics. | tests/lab-02/ApplicationShell.test.tsx | Not Run |
-| UI-04 | UI | AC-01, AC-05, AC-46 | Requester route guard and invalid-context handling. | No valid stored context redirects requester routes to `/requesters` before requester data renders; defined invalid-context 400 clears context/state and redirects. | tests/lab-02/ApplicationShell.test.tsx | Not Run |
-| UI-05 | UI | AC-04 | Change Requester behavior. | Clears prior requester context/cache/list/detail/draft state, avoids stale data, and returns to selector. | tests/lab-02/ApplicationShell.test.tsx | Not Run |
+| UI-03 | UI | FR-03–05 | Application shell/navigation. | Desktop shell shows TokTickIT, My Tickets, Create Ticket, requester name, Change Requester, and active navigation semantics. | tests/lab-02/ApplicationShell.test.tsx | Passed — 9 tests |
+| UI-04 | UI | AC-01, AC-05, AC-46 | Requester route guard and invalid-context handling. | No valid stored context redirects requester routes to `/requesters` before requester data renders; defined invalid-context 400 clears context/state and redirects. | tests/lab-02/ApplicationShell.test.tsx | Partial — 11 tests cover the route guard, the malformed stored context, and the `/` redirect. The invalid-context `400` half needs the API layer and is deferred to Issue #20. |
+| UI-05 | UI | AC-04 | Change Requester behavior. | Clears prior requester context/cache/list/detail/draft state, avoids stale data, and returns to selector. | tests/lab-02/ApplicationShell.test.tsx | Partial — 1 test covers clearing the stored context and returning to the selector with no stale name, navigation, or heading. Cache/list/detail/draft state does not exist until Issues #21–#23. |
 | UI-06 | UI | FR-07, AC-66 | Create Ticket required, generated, and Requester-context fields. | Editable Category/System/Priority/Summary/Description/Attachments + Cancel/Submit are present; non-editable Ticket Number/Date state that they are assigned on submission; non-editable Requester shows the selected Development Requester; none is sent as a client-controlled body field; pre-creation Status/public/audit fields remain absent. | tests/lab-02/CreateTicket.test.tsx | Not Run |
 | UI-07 | UI | AC-08–10, AC-38 | Create Ticket client validation, counters, labels, first-invalid focus. | Errors not dumped on initial render; submit validates all; field-associated messages/counters/required semantics; invalid client-known form does not call API and focuses first invalid field. | tests/lab-02/CreateTicket.test.tsx | Not Run |
 | UI-08 | UI | FR-12 | Create Ticket busy submission. | Delayed response causes disabled Submit with spinner while text remains `Submit Ticket`; duplicate click prevented. | tests/lab-02/CreateTicket.test.tsx | Not Run |
@@ -524,12 +593,12 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-29 | UI | AC-19 | Per-selected-Attachment removal reasons. | One required 3–200 char trimmed reason per selected active file; invalid reason blocks delete request. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-30 | UI | AC-19 | Atomic batch-removal UI failure. | Failed all-or-nothing API request leaves all selected rows in previous state; no partial Removed UI. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-31 | UI | AC-39 | Global Error page variants. | 403/404/500 safe copy; standalone no sidebar; no backend internals; explicit Back routes `/tickets` rather than browser history. | tests/lab-02/ErrorPage.test.tsx | Not Run |
-| UI-32 | UI | AC-38 | Shared accessibility contract across UI suites. | Semantic controls, labels/required/errors, keyboard operability, visible focus, aria-live for meaningful async states, icon accessible names plus mandatory tooltip/hover-focus labels, modal focus management, and non-color-only states. | tests/lab-02/RequesterSelection.test.tsx; tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/CreateTicket.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/ErrorPage.test.tsx | Not Run |
+| UI-32 | UI | AC-38 | Shared accessibility contract across UI suites. | Semantic controls, labels/required/errors, keyboard operability, visible focus, aria-live for meaningful async states, icon accessible names plus mandatory tooltip/hover-focus labels, modal focus management, and non-color-only states. | tests/lab-02/RequesterSelection.test.tsx; tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/CreateTicket.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/ErrorPage.test.tsx | Partial — the shared primitives and shell landmarks/keyboard behavior pass in `ApplicationShell.test.tsx` and `SharedComponents.test.tsx`. Per-screen coverage follows the screens in Issues #20–#23. |
 | UI-33 | UI | AC-51–53 | Ambiguous-create recovery persistence and expiry. | Recovery record stores requester/key time/original normalized payload only while ambiguous; reload offers explicit resume without auto-submit; success/failure/discard/switch/expiry clears it; current replay rendering includes later Attachment mutations. | tests/lab-02/CreateTicket.test.tsx | Not Run |
 | UI-34 | UI | AC-54 | Requester-header binary fetch and Blob URL lifecycle. | Preview/download checks response before body, sends X-Requester-Id, uses known originalName for download, and revokes URLs on close/replacement/unmount/after download; direct binary navigation is not used. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-35 | UI | AC-61 | State-less global-error fallback. | Missing/invalid navigation state renders safe generic 500 copy; arbitrary backend text is ignored; Back chooses `/tickets` with valid Requester context and `/requesters` without it. | tests/lab-02/ErrorPage.test.tsx | Not Run |
 | UI-36 | UI | AC-38, AC-66 | Automated meaningful presentation/state contract across Create Ticket, Ticket Detail, badges, and Attachment states. | Assert only contract-significant semantics/classes: generated Ticket Number/Date and Requester are read-only/disabled; editable vs read-only and invalid/error states differ; required labels/asterisks and associated errors exist; Submit/Cancel hierarchy and disabled/busy Submit are represented; Detail fields remain read-only; priority/status badges retain visible text; Pending/Active/Removed/Invalid/Failed states have approved visual/semantic markers without color-only meaning. | tests/lab-02/CreateTicket.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx | Not Run |
-| UI-37 | UI | BR-91, AC-38, AC-66 | Representative icon-only control labels and tooltips. | Mobile sidebar, Attachment preview/download/remove, close/dismiss, pagination, and filter/search auxiliary icon-only controls expose an accessible programmatic name and observable tooltip/hover-focus text with the expected action wording; assertions verify user-visible semantics and association, not tooltip-library internals. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx | Not Run |
+| UI-37 | UI | BR-91, AC-38, AC-66 | Representative icon-only control labels and tooltips. | Mobile sidebar, Attachment preview/download/remove, close/dismiss, pagination, and filter/search auxiliary icon-only controls expose an accessible programmatic name and observable tooltip/hover-focus text with the expected action wording; assertions verify user-visible semantics and association, not tooltip-library internals. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx | Partial — the mobile sidebar toggle, the modal close control, and the filter-chip remove control assert both an accessible name and an associated visible tooltip. Attachment preview/download/remove follow in Issue #23. Pagination introduces no icon-only control: both arrows carry visible text. |
 
 ## 9. Planned Responsive Tests
 

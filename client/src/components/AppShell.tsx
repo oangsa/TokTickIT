@@ -1,0 +1,74 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Outlet } from "react-router-dom";
+
+import { IconButton } from "./IconButton.js";
+import { SidebarNav } from "./SidebarNav.js";
+
+const SIDEBAR_ID = "tt-sidebar";
+const MAIN_ID = "tt-main";
+
+/*
+ * The requester application shell (ui-spec Section 5). The mobile drawer is
+ * React state plus CSS; Bootstrap's JavaScript bundle is deliberately not used.
+ */
+export function AppShell() {
+  const [open, setOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        toggleRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
+  const toggleLabel = open ? "Close navigation menu" : "Open navigation menu";
+
+  return (
+    <>
+      <a className="tt-skip-link" href={`#${MAIN_ID}`}>
+        Skip to main content
+      </a>
+
+      <header className="tt-topbar d-lg-none">
+        <IconButton
+          ref={toggleRef}
+          label={toggleLabel}
+          aria-expanded={open}
+          aria-controls={SIDEBAR_ID}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span aria-hidden="true">☰</span>
+        </IconButton>
+        <span className="tt-brand">TokTickIT</span>
+      </header>
+
+      {open ? <div className="tt-backdrop d-lg-none" onClick={close} /> : null}
+
+      <div className="tt-shell">
+        <SidebarNav id={SIDEBAR_ID} open={open} onNavigate={close} />
+        <main id={MAIN_ID} tabIndex={-1} className="tt-main">
+          {/*
+            No key is needed on the Outlet: RequesterGuard sits above this shell,
+            so clearing the context unmounts the whole subtree and no list,
+            detail, or draft state survives a Requester switch (Sections 5.3, 28).
+          */}
+          <div className="tt-main__inner">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+    </>
+  );
+}
