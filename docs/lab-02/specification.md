@@ -521,6 +521,18 @@ CHECK (
 
 The database rejects every other lifecycle combination and does not silently trim or normalize values. The application still validates first and returns the approved friendly API errors. Filename extension validation, control-character rejection, basename handling, and MIME derivation remain application-owned. `MAX_ATTACHMENT_BYTES` is exactly `5,000,000` bytes (decimal 5 MB) in every layer.
 
+These `CHECK` constraints are the complete database-level Attachment contract.
+They constrain each row's validity, not the transitions between rows, and Lab 2
+adds no triggers, rules, or stored procedures to `attachment`. Transition rules
+- binding a Pending Attachment to exactly one Ticket, never rebinding it to a
+different Ticket, never resurrecting a Removed Attachment, and never hard
+deleting a bound Attachment during normal removal - are application-owned and
+enforced in the Attachment service, which is also where the approved friendly
+API errors are produced. A trigger layer was evaluated and rejected: it could
+not express the transition rules completely, PostgreSQL `TRUNCATE` bypasses
+row-level `DELETE` triggers, and Prisma cannot represent triggers, so they are
+invisible to `prisma migrate diff` and unprotected against later schema work.
+
 #### 7.2.8 IdempotencyRecord
 
 Prisma model `IdempotencyRecord` maps to PostgreSQL table `idempotency_record`.
@@ -605,6 +617,12 @@ Required/justified indexes include:
 - `idempotency_record(expires_at, id)` for cleanup;
 - GIN trigram indexes on `ticket_number`, `summary`, and `description` to support case-insensitive substring/prefix/suffix search efficiently.
 
+`gin_trgm_ops` has no `bpchar` operator class, so the `ticket_number` trigram
+index is an expression index over `(ticket_number::text)`. Ticket Number search
+predicates must therefore be written against `ticket_number::text` for the
+index to be usable; an uncast `ticket_number ILIKE ...` predicate is still
+correct but cannot match the index expression.
+
 The general `attachment(ticket_id)` index is retained because Ticket Detail retrieves both Active and Removed history; the Active partial index serves the separate max-five/count path. PostgreSQL-specific checks, extensions, and indexes that Prisma cannot fully express must be added through committed SQL in the Prisma migration. Fresh-schema/migration evidence verifies their presence, but acceptance never depends on PostgreSQL choosing an exact query plan.
 
 ### 7.4 Seed Data
@@ -646,7 +664,7 @@ Seed-created records use `created_by = "seed"` and `updated_by = "seed"`.
 
 All schema changes must be delivered through committed Prisma migrations. `prisma db push` alone is not sufficient for completion. A fresh database must be reproducible from migrations plus the idempotent seed.
 
-The Lab 1 Category table is migrated forward in place rather than dropped/recreated. Based on the committed Lab 1 evidence, the migration starts from the existing `id`, `name`, and `createdAt` columns, preserves each value exactly, and may rename/alter them to the Lab 2 mapped snake_case/type convention without recreating the table. For every existing row it adds/backfills `isActive = true`, `deleted = false`, `createdBy = seed`, `updatedBy = seed`, and `updatedAt` equal to the original preserved `createdAt`; the existing-row `updatedAt` value is never migration time, `now()`, `CURRENT_TIMESTAMP`, application-start time, or another nondeterministic timestamp. It then enforces the required `NOT NULL` constraints. Verification covers both a fresh database and a populated Lab 1 database upgraded through the committed migration.
+The Lab 1 Category table is migrated forward in place rather than dropped/recreated. Based on the committed Lab 1 evidence, the migration starts from the existing `id`, `name`, and `createdAt` columns, preserves each value exactly, and may rename/alter them to the Lab 2 mapped snake_case/type convention without recreating the table. For every existing row it adds/backfills `isActive = true`, `deleted = false`, `createdBy = seed`, `updatedBy = seed`, and `updatedAt` equal to the original preserved `createdAt`; the existing-row `updatedAt` value is never migration time, `now()`, `CURRENT_TIMESTAMP`, application-start time, or another nondeterministic timestamp. It then enforces the required `NOT NULL` constraints. The Lab 1 `createdAt` column is `TIMESTAMP(3)` without a time zone, so widening it to `TIMESTAMPTZ(3)` must choose an interpretation; the migration interprets the stored values as UTC explicitly rather than inheriting the session `TimeZone`. This is correct because Prisma resolves `@default(now())` itself and sends `created_at` as an explicit UTC value in the `INSERT`, so the Lab 1 database default is not the source of these values. Verification covers both a fresh database and a populated Lab 1 database upgraded through the committed migration.
 
 ## 8. API Contract
 

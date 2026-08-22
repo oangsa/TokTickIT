@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-19 important prompts in 17 table entries from the Lab 2 history available in
+21 important prompts in 19 table entries from the Lab 2 history available in
 the repository and current session.
 
-## Selected key prompts (19; 17 entries)
+## Selected key prompts (21; 19 entries)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -28,11 +28,13 @@ the repository and current session.
 | 32 (current) | Fix-then-ship the remaining Issue #18 scrutinize findings. | Updated the guarded PostgreSQL documentation and current schema notes, narrowed test-helper error handling, and made migration evidence assert exact foreign-key targets as well as restrictive actions. Reran the focused Lab 2 suites, Prisma validation, server build, Lab 1 health/Category regressions, and diff checks; no commit was created. |
 | 33 (current) | Fix-then-ship the remaining Issue #18 findings, consulting the current Prisma documentation for the database URL configuration. | Closed the remaining test-workflow gaps by guarding both `DATABASE_URL` and Prisma CLI `DIRECT_URL`, correcting the documented disposable-database command order, and asserting the exact PostgreSQL SQLSTATE for each negative boundary. Updated the verified Lab 2 evidence statuses, reran the required PostgreSQL and Lab 1 regressions on disposable targets, and confirmed the server build; no commit was created. |
 | 34 (current) | Fix-then-ship the remaining Issue #18 scrutinize findings. | Added database-level protection against hard-deleting bound Attachments, parameterized the disposable PostgreSQL password, reconciled the AI-use and test evidence counts, and reran the focused PostgreSQL, Lab 1 regression, Prisma validation, server build, and diff checks before shipping. |
+| 35 (current) | Fix-then-ship the remaining Issue #18 scrutinize findings. | Added a forward migration and regression coverage that reject unbinding bound Attachments, represented the required summary/description trigram indexes in Prisma to prevent schema drift, recorded exact final verification evidence, and reran the focused PostgreSQL, Lab 1 regression, Prisma validation, and both application builds; no commit was created. |
+| 36 (current) | Scrutinize the Issue #18 changes against the specification, then fix-then-ship the findings. | Removed the Attachment binding triggers through a forward `DROP TRIGGER`/`DROP FUNCTION` migration after probing showed they still allowed rebinding a bound Attachment to a different Ticket, resurrecting a Removed Attachment, and being bypassed by `TRUNCATE`; recorded in Specification Section 7.2.7 that the three CHECK constraints are the complete database-level contract and transitions are application-owned. Rewrote the affected regression to assert removal-metadata retention instead. Documented the `ticket_number` trigram expression index cast and the Lab 1 UTC timestamp interpretation. Corrected the verification evidence: the Lab 1 API tests resolve `DATABASE_URL`, not `TEST_DATABASE_URL`, and cannot share the disposable Lab 2 database because the guarded suite leaves fixture rows behind, so they now run against a second disposable database. Reran everything on throwaway PostgreSQL: 3 migrations, empty drift, 0 triggers, focused gate 5 files/24 tests, full suite 8 files/30 tests, Lab 1 regression 2 files/2 tests, Prisma validation, and both builds. |
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
-the handout-facing deliverable intentionally selects nineteen representative
-prompts in seventeen table entries rather than reproducing every wording
+the handout-facing deliverable intentionally selects twenty-one representative
+prompts in nineteen table entries rather than reproducing every wording
 correction. The selection
 covers specification and API contracts, UI behavior, schema and migration
 decisions, Attachment lifecycle, idempotency/concurrency, test traceability,

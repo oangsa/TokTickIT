@@ -104,6 +104,8 @@ model Ticket {
   @@index([relatedSystemId], map: "ticket_related_system_id_idx")
   @@index([requestedPriority], map: "ticket_requested_priority_idx")
   @@index([currentStatus], map: "ticket_current_status_idx")
+  @@index([summary(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_summary_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_description_trgm_idx")
   @@map("ticket")
 }
 

@@ -195,28 +195,40 @@ describe.sequential("Lab 2 Attachment PostgreSQL invariants", () => {
     ).resolves.toBeDefined();
   }, 30_000);
 
-  it("allows Pending cleanup but prevents hard deletion of bound Attachments", async () => {
+  it("allows Pending cleanup and keeps removal metadata attached on soft removal", async () => {
     const pendingAttachment = await createAttachment(prisma, fixture);
     await expect(
       prisma.attachment.delete({ where: { id: pendingAttachment.id } }),
     ).resolves.toBeDefined();
 
+    // Soft removal is the normal bound-file removal path: the Ticket binding
+    // and the reason both survive it.
     const activeAttachment = await createAttachment(prisma, fixture, {
       ticketId: fixture.ticketId,
     });
-    await expectDatabaseReject(
-      () => prisma.attachment.delete({ where: { id: activeAttachment.id } }),
-      "23001",
-    );
-
-    const removedAttachment = await createAttachment(prisma, fixture, {
+    await expect(
+      prisma.attachment.update({
+        where: { id: activeAttachment.id },
+        data: { deleted: true, removalReason: "Requester removed file" },
+      }),
+    ).resolves.toMatchObject({
       ticketId: fixture.ticketId,
       deleted: true,
       removalReason: "Requester removed file",
     });
+
+    // The lifecycle CHECK is what keeps removal metadata attached: a bound row
+    // cannot be marked removed without a trimmed 3-200 character reason.
+    const secondActiveAttachment = await createAttachment(prisma, fixture, {
+      ticketId: fixture.ticketId,
+    });
     await expectDatabaseReject(
-      () => prisma.attachment.delete({ where: { id: removedAttachment.id } }),
-      "23001",
+      () =>
+        prisma.attachment.update({
+          where: { id: secondActiveAttachment.id },
+          data: { deleted: true },
+        }),
+      "23514",
     );
   }, 30_000);
 
