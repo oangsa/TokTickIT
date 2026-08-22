@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AttachmentState, AttachmentStateName } from "../../src/components/AttachmentState.js";
 import { Button } from "../../src/components/Button.js";
 import { FilterChip } from "../../src/components/FilterChip.js";
+import { Form } from "../../src/components/Form.js";
 import { Modal } from "../../src/components/Modal.js";
 import { Pagination } from "../../src/components/Pagination.js";
 import { ReadOnlyField } from "../../src/components/ReadOnlyField.js";
@@ -174,6 +175,17 @@ describe("UI-32 pagination (ui-spec 18)", () => {
 });
 
 describe("UI-32 form field contract (ui-spec 7, 8, 9, 29)", () => {
+  it("disables native submit blocking for the shared custom-validation form", () => {
+    const { container } = render(
+      <Form>
+        <input aria-label="Summary" required />
+      </Form>,
+    );
+
+    expect(container.querySelector("form")).toHaveAttribute("novalidate");
+    expect(screen.getByRole("textbox", { name: "Summary" })).toBeRequired();
+  });
+
   it("puts the validation message immediately below its control, before the counter", () => {
     const { container } = render(
       <TextInput

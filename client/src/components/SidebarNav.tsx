@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useMatch, useNavigate } from "react-router-dom";
 
 import { useRequester } from "../requester/RequesterProvider.js";
 import { Button } from "./Button.js";
@@ -21,10 +21,11 @@ interface SidebarNavProps {
 export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
   const { requester, clearRequester } = useRequester();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
 
-  const createTicketActive = pathname === "/tickets/new";
-  const myTicketsActive = pathname === "/tickets" || (pathname.startsWith("/tickets/") && !createTicketActive);
+  const createTicketActive = Boolean(useMatch({ path: "/tickets/new", end: true }));
+  const ticketsActive = useMatch({ path: "/tickets", end: true });
+  const ticketDetailActive = useMatch({ path: "/tickets/:publicId", end: true });
+  const myTicketsActive = Boolean(!createTicketActive && (ticketsActive || ticketDetailActive));
 
   function handleChangeRequester() {
     clearRequester();

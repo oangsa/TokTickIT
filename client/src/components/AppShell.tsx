@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 
 import { IconButton } from "./IconButton.js";
 import { SidebarNav } from "./SidebarNav.js";
@@ -14,8 +14,16 @@ const MAIN_ID = "tt-main";
 export function AppShell() {
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const location = useLocation();
+  const previousLocationKeyRef = useRef(location.key);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    if (open) {
+      toggleRef.current?.focus();
+    }
+
+    setOpen(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -32,6 +40,19 @@ export function AppShell() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open]);
+
+  useEffect(() => {
+    if (previousLocationKeyRef.current === location.key) {
+      return;
+    }
+
+    previousLocationKeyRef.current = location.key;
+
+    if (open) {
+      setOpen(false);
+      toggleRef.current?.focus();
+    }
+  }, [location.key, open]);
 
   const toggleLabel = open ? "Close navigation menu" : "Open navigation menu";
 

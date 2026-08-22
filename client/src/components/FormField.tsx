@@ -30,10 +30,9 @@ interface FormFieldProps extends SharedFieldProps {
  * The red asterisk is decorative; the control's native `required` attribute
  * carries the requirement programmatically (Section 29.3).
  *
- * ponytail: that native `required` also arms browser validation. Every form
- * built on these fields needs `<form noValidate>`, or the browser's own bubble
- * pre-empts the field-associated message and first-invalid focus Section 8.2
- * requires.
+ * The shared `Form` wrapper supplies `noValidate` for forms built on these
+ * fields. Without it, the browser's own bubble pre-empts the field-associated
+ * message and first-invalid focus Section 8.2 requires.
  *
  * The error renders immediately after the control, before the help/counter row:
  * Section 7.6 puts the validation message directly below its field, and a

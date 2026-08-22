@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { ComponentProps } from "react";
 import App from "../../src/App.js";
 import {
@@ -20,6 +20,25 @@ function renderAt(entry: Entry, requester?: StoredRequester) {
 
   return render(
     <MemoryRouter initialEntries={[entry]}>
+      <App />
+    </MemoryRouter>,
+  );
+}
+
+function ProgrammaticNavigationButton() {
+  const navigate = useNavigate();
+
+  return <button onClick={() => navigate("/tickets/new")}>Navigate to Create Ticket</button>;
+}
+
+function renderAtWithProgrammaticNavigation(entry: Entry, requester?: StoredRequester) {
+  if (requester) {
+    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
+  }
+
+  return render(
+    <MemoryRouter initialEntries={[entry]}>
+      <ProgrammaticNavigationButton />
       <App />
     </MemoryRouter>,
   );
@@ -47,6 +66,13 @@ describe("UI-03 application shell and navigation", () => {
 
   it("marks Create Ticket as the current page on /tickets/new", () => {
     renderAt("/tickets/new", ALICE);
+
+    expect(screen.getByRole("link", { name: "Create Ticket" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "My Tickets" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps Create Ticket current when the route has a trailing slash", () => {
+    renderAt("/tickets/new/", ALICE);
 
     expect(screen.getByRole("link", { name: "Create Ticket" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "My Tickets" })).not.toHaveAttribute("aria-current");
@@ -107,6 +133,7 @@ describe("UI-04 requester route guard", () => {
       renderAt("/tickets");
 
       expect(screen.getByRole("heading", { name: /Select a Development Requester/i })).toBeInTheDocument();
+      expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
     },
   );
 
@@ -123,8 +150,8 @@ describe("UI-04 requester route guard", () => {
     expect(within(main).getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
   });
 
-  it("sends an unknown route to the global error page", () => {
-    renderAt("/nope", ALICE);
+  it.each(["/nope", "/system-check"])("sends an unknown route %s to the global error page", (path) => {
+    renderAt(path, ALICE);
 
     expect(screen.getByText("404")).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
@@ -139,6 +166,7 @@ describe("UI-05 Change Requester", () => {
 
     expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
     expect(screen.getByRole("heading", { name: /Select a Development Requester/i })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveFocus();
     expect(screen.queryByText(ALICE.name)).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "My Tickets" })).not.toBeInTheDocument();
@@ -200,6 +228,19 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
       "aria-expanded",
       "false",
     );
+    expect(screen.getByRole("button", { name: "Open navigation menu" })).toHaveFocus();
+  });
+
+  it("closes the drawer after a route changes outside the sidebar", async () => {
+    renderAtWithProgrammaticNavigation("/tickets", ALICE);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Navigate to Create Ticket" }));
+
+    expect(screen.getByRole("heading", { name: "Create Ticket" })).toBeInTheDocument();
+    const closedToggle = screen.getByRole("button", { name: "Open navigation menu" });
+    expect(closedToggle).toHaveAttribute("aria-expanded", "false");
+    expect(closedToggle).toHaveFocus();
   });
 
   it("exposes banner, navigation, main landmarks and a skip link", () => {
@@ -218,6 +259,7 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
 
     expect(screen.getByText("500")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back" })).toHaveClass("btn-outline-secondary");
     expect(screen.queryByText(/DB timeout/)).not.toBeInTheDocument();
   });
 });

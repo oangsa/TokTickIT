@@ -53,7 +53,17 @@ export function readRequesterContext(): StoredRequester | null {
     return null;
   }
 
-  return raw === null ? null : parseRequester(raw);
+  if (raw === null) {
+    return null;
+  }
+
+  const requester = parseRequester(raw);
+
+  if (requester === null) {
+    clearRequesterContext();
+  }
+
+  return requester;
 }
 
 export function writeRequesterContext(requester: StoredRequester): void {

@@ -56,7 +56,7 @@ export default function ErrorPage() {
         <p className="display-5 mb-3">{status}</p>
         <h1 className="h4">{copy.title}</h1>
         <p className="text-secondary">{copy.message}</p>
-        <Link className="btn btn-primary" to={backPath}>
+        <Link className="btn btn-outline-secondary" to={backPath}>
           Back
         </Link>
       </div>

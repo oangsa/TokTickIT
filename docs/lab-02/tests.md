@@ -294,7 +294,7 @@ touched, so no database target was involved and the server suite was not run.
 | --- | --- | --- | --- |
 | Baseline before the refactor | `npm test` and `npm run build` | `client/` | Passed — 2 files, 6 tests; build succeeded. |
 | Install frontend dependencies | `npm install react-router-dom @fontsource/inter` | `client/` | Passed — `react-router-dom` 7.18.2 provides routing and `@fontsource/inter` 5.3.0 self-hosts the required typeface. Neither is a UI framework or a global state library; Bootstrap 5.3.8 remains the only UI library and no dependency was upgraded. |
-| Lab 1 client regression after the move | `npm test -- tests/lab-01` | `client/` | Passed — 2 files, 6 tests. Only the import line of `tests/lab-01/App.test.tsx` changed; every assertion is unchanged. |
+| Lab 1 client regression after the move | `npm test -- tests/lab-01` | `client/` | Passed — 2 files, 6 tests. `tests/lab-01/App.test.tsx` continues to mount the Lab 1 `SystemCheck` page directly; the existing assertions remain unchanged. |
 | Issue #19 focused gate | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | `client/` | Passed — 1 file, 27 tests. |
 | Shared component contract | `npm test -- tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 1 file, 21 tests. Covers modal focus management, the windowed pagination control, field label/required/error/counter association and ordering, read-only semantics, busy-button behavior, icon-only names plus tooltips, and the six Attachment state labels. |
 | Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 54 tests. |
@@ -352,6 +352,115 @@ changed.
 
 Playwright/responsive/visual browser coverage remains not run in this Issue;
 the planned visual and responsive pass remains assigned to Issue #25.
+
+### 4.5.5 Issue #19 review follow-up verification
+
+The follow-up checks were run on 2026-08-23 from `client/`. The malformed
+Requester-context regression now verifies that invalid `sessionStorage` values
+are removed, and the Lab 1 client tests exercise the compatibility route through
+the routed application rather than importing `SystemCheck` directly.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Requester-context regression | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | Passed — 1 file, 27 tests. |
+| Routed Lab 1 regression | `npm test -- tests/lab-01/App.test.tsx` | Passed — 1 file, 5 tests. |
+| Frontend full test suite | `npm test` | Passed — 4 files, 57 tests. |
+| Frontend typecheck/build | `npm run build` | Passed. |
+| Diff hygiene | `git diff --check` | Passed. |
+
+### 4.5.6 Issue #19 fix-then-ship verification
+
+The final review fixes were run on 2026-08-23 from `client/`. Mobile drawer
+navigation now restores focus to the visible menu toggle, and standalone error
+navigation uses the UI contract's secondary Back treatment.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Mobile navigation focus regression | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | Passed — 1 file, 27 tests. |
+| Frontend full test suite | `npm test` | Passed — 4 files, 57 tests. |
+| Frontend typecheck/build | `npm run build` | Passed. |
+| Diff hygiene | `git diff --check` | Passed. |
+
+Playwright/responsive/visual browser coverage remains not run in this Issue;
+the planned visual and responsive pass remains assigned to Issue #25.
+
+### 4.5.7 Issue #19 form-style fix verification
+
+The remaining shared-control style findings were fixed on 2026-08-23 from
+`client/`. Invalid controls retain the Zen Green danger border while focused,
+and editable text/select controls expose the contract's visible hover treatment;
+disabled, read-only, and invalid controls are excluded from that hover rule.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Shared component and shell gate | `npm test -- tests/lab-02/ApplicationShell.test.tsx tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 2 files, 51 tests. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 57 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed. |
+| Backend typecheck/build | `npm run build` | `server/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+Playwright/responsive/visual browser coverage remains not run in this Issue;
+the planned visual and responsive pass remains assigned to Issue #25.
+
+### 4.5.8 Issue #19 scrutinize follow-up verification
+
+The route and focus follow-up checks were run on 2026-08-23 from `client/`.
+Navigation active state now uses route-aware matching so `/tickets/new/` does
+not activate My Tickets, and changing Requester focuses the new standalone
+Requester screen after the shell unmounts.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #19 focused shell gate | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | `client/` | Passed — 1 file, 28 tests. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 58 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed. |
+| Backend typecheck/build | `npm run build` | `server/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+The public `/system-check` compatibility route remains a contract decision for
+the next step: the current Lab 2 API contract requires `X-Requester-Id` for
+`GET /api/categories`, while the retained Lab 1 route calls it without that
+context. No unauthenticated Lab 2 exception was added implicitly.
+
+### 4.5.9 Issue #19 final route/API contract resolution
+
+The final contract fix was run on 2026-08-23 from the repository. Lab 2 now
+exposes only the routes defined by `docs/lab-02/specification.md`; the Lab 1
+`SystemCheck` page remains available to its direct Lab 1 client tests without
+adding an unauthenticated Lab 2 route or weakening the required
+`X-Requester-Id` contract for `GET /api/categories`.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Lab 1 client regression | `npm test -- tests/lab-01/App.test.tsx` | `client/` | Passed — 1 file, 5 tests. |
+| Issue #19 focused shell gate | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | `client/` | Passed — 1 file, 29 tests, including `/system-check` resolving to the global 404 route. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 59 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed. |
+| Backend typecheck/build | `npm run build` | `server/` | Passed. |
+| Backend test suite (attempted) | `npm test` | `server/` | Not passed in this sandbox: the two Lab 1 Supertest cases hit `listen EPERM` on `0.0.0.0`, and three PostgreSQL contract suites failed while resetting the test schema. Three non-PostgreSQL files passed; no server files changed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+Playwright/responsive/visual browser coverage remains assigned to Issue #25.
+
+### 4.5.10 Issue #19 final focus and form-validation follow-up
+
+The final follow-up checks were run on 2026-08-23 from the repository. The
+mobile drawer now closes for any in-shell route change, including navigation
+that does not originate from the sidebar, and the shared `Form` boundary
+defaults to `noValidate` so the field-level validation and first-invalid-focus
+contract remains in control. The Lab 1 `SystemCheck` page remains directly
+covered without adding `/system-check` to the Lab 2 route contract or weakening
+the requester header requirement for `GET /api/categories`.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Shell and shared-component focused gate | `npm test -- --run tests/lab-02/ApplicationShell.test.tsx tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 2 files, 55 tests. Includes route-change drawer closure, toggle focus restoration, and the shared `Form` `novalidate` contract. |
+| Frontend full test suite | `npm test -- --run` | `client/` | Passed — 4 files, 61 tests, including 6 Lab 1 client tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed. |
+| Backend typecheck/build | `npm run build` | `server/` | Passed; no backend files changed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+Playwright/responsive/visual browser coverage remains assigned to Issue #25.
 
 ### 4.6 Deterministic Test Data
 

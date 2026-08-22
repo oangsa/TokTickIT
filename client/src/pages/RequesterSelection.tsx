@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import { Card } from "../components/Card.js";
 import { PageHeader } from "../components/PageHeader.js";
 
@@ -7,8 +9,14 @@ import { PageHeader } from "../components/PageHeader.js";
  * loading, empty, and failure states.
  */
 export default function RequesterSelection() {
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    mainRef.current?.focus();
+  }, []);
+
   return (
-    <main className="tt-main__inner" style={{ maxWidth: 560 }}>
+    <main ref={mainRef} tabIndex={-1} className="tt-main__inner" style={{ maxWidth: 560 }}>
       <p className="tt-brand h5">TokTickIT</p>
       <PageHeader
         title="Select a Development Requester"

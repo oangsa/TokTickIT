@@ -76,6 +76,8 @@
   --bs-link-hover-color-rgb: 0, 107, 60;
   --bs-primary: var(--tt-green-primary);
   --bs-primary-rgb: 0, 107, 60;
+  --bs-form-invalid-color: var(--tt-danger);
+  --bs-form-invalid-border-color: var(--tt-danger);
   --bs-body-font-family:
     "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -211,6 +213,18 @@ body {
 .form-select:focus,
 .form-check-input:focus {
   border-color: var(--tt-green-secondary);
+  box-shadow: var(--tt-focus-ring);
+}
+
+.form-control:hover:not(:disabled):not([readonly]):not(.is-invalid),
+.form-select:hover:not(:disabled):not(.is-invalid) {
+  border-color: var(--tt-green-secondary);
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus,
+.form-check-input.is-invalid:focus {
+  border-color: var(--tt-danger);
   box-shadow: var(--tt-focus-ring);
 }
 
