@@ -3,6 +3,12 @@
 -- timezone-less creation values remain attached to the same rows. Lab 1
 -- timestamps are interpreted as UTC explicitly; this does not depend on the
 -- PostgreSQL session TimeZone setting.
+--
+-- Specification Section 7.2.7 makes the three Attachment CHECK constraints the
+-- complete database-level Attachment contract: no triggers, rules, or stored
+-- procedures are added to `attachment`. Lifecycle transitions - binding once,
+-- never rebinding, never resurrecting a Removed row, never hard deleting a
+-- bound row - are application-owned in the Attachment service.
 
 BEGIN;
 
@@ -184,25 +190,6 @@ CREATE TABLE attachment (
     REFERENCES development_requester (id)
     ON DELETE RESTRICT ON UPDATE RESTRICT
 );
-
-CREATE FUNCTION prevent_bound_attachment_hard_delete()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  IF OLD.ticket_id IS NOT NULL THEN
-    RAISE EXCEPTION 'bound Attachments must be soft-removed'
-      USING ERRCODE = 'restrict_violation';
-  END IF;
-
-  RETURN OLD;
-END;
-$$;
-
-CREATE TRIGGER attachment_prevent_bound_hard_delete
-BEFORE DELETE ON attachment
-FOR EACH ROW
-EXECUTE FUNCTION prevent_bound_attachment_hard_delete();
 
 CREATE TABLE idempotency_record (
   id SERIAL NOT NULL,
