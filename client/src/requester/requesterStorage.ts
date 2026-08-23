@@ -33,7 +33,7 @@ function parseRequester(raw: string): StoredRequester | null {
 
   const candidate = parsed as Record<string, unknown>;
 
-  if (typeof candidate.id !== "number" || !Number.isInteger(candidate.id) || candidate.id <= 0) {
+  if (typeof candidate.id !== "number" || !Number.isSafeInteger(candidate.id) || candidate.id <= 0) {
     return null;
   }
 

@@ -357,13 +357,13 @@ the planned visual and responsive pass remains assigned to Issue #25.
 
 The follow-up checks were run on 2026-08-23 from `client/`. The malformed
 Requester-context regression now verifies that invalid `sessionStorage` values
-are removed, and the Lab 1 client tests exercise the compatibility route through
-the routed application rather than importing `SystemCheck` directly.
+are removed, and the Lab 1 client tests continue to mount the extracted
+`SystemCheck` page directly; they do not exercise a `/system-check` route.
 
 | Check | Command | Result |
 | --- | --- | --- |
 | Requester-context regression | `npm test -- tests/lab-02/ApplicationShell.test.tsx` | Passed — 1 file, 27 tests. |
-| Routed Lab 1 regression | `npm test -- tests/lab-01/App.test.tsx` | Passed — 1 file, 5 tests. |
+| Lab 1 client regression | `npm test -- tests/lab-01/App.test.tsx` | Passed — 1 file, 5 tests. |
 | Frontend full test suite | `npm test` | Passed — 4 files, 57 tests. |
 | Frontend typecheck/build | `npm run build` | Passed. |
 | Diff hygiene | `git diff --check` | Passed. |
@@ -459,6 +459,24 @@ the requester header requirement for `GET /api/categories`.
 | Frontend typecheck/build | `npm run build` | `client/` | Passed. |
 | Backend typecheck/build | `npm run build` | `server/` | Passed; no backend files changed. |
 | Diff hygiene | `git diff --check` | repository | Passed. |
+
+Playwright/responsive/visual browser coverage remains assigned to Issue #25.
+
+### 4.5.11 Issue #19 requester-context validation follow-up
+
+The final requester-context fix was run on 2026-08-23 from the repository.
+Stored requester IDs now require positive safe integers, preventing a
+non-representable JavaScript number from passing the route guard as valid
+requester context. The regression also verifies that the unsafe stored value is
+removed before the requester route renders.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Unsafe requester-context regression | `npm test -- --run tests/lab-02/ApplicationShell.test.tsx` | Passed — 1 file, 31 tests. |
+| Frontend full test suite | `npm test -- --run` | Passed — 4 files, 62 tests. |
+| Frontend typecheck/build | `npm run build` | Passed. |
+| Backend typecheck/build | `npm run build` | Passed; no backend files changed. |
+| Diff hygiene | `git diff --check` | Passed. |
 
 Playwright/responsive/visual browser coverage remains assigned to Issue #25.
 

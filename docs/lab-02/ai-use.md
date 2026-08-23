@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-30 important prompts in 28 table entries from the Lab 2 history available in
+32 important prompts in 30 table entries from the Lab 2 history available in
 the repository and current session.
 
-## Selected key prompts (30; 28 entries)
+## Selected key prompts (32; 30 entries)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -40,11 +40,12 @@ the repository and current session.
 | 44 (current) | Fix-then-ship the remaining Issue #19 scrutinize findings. | Made navigation active-state matching route-aware, including trailing-slash routes, and moved focus to the standalone requester page after Change Requester unmounts the shell. Reran the focused shell suite (28 tests), full client suite (58 tests), and both application builds. Did not silently resolve the documented `/system-check` compatibility-route versus mandatory `X-Requester-Id` contract conflict; no commit was created. |
 | 45 (current) | Fix-then-ship the remaining Issue #19 route/API contract finding. | Removed the uncontracted `/system-check` route from the Lab 2 router and README, restored direct Lab 1 `SystemCheck` coverage, added a regression asserting `/system-check` resolves to the safe 404 route, and synchronized the Lab 2 evidence. Reran the focused Lab 1 and shell suites, full client suite (59 tests), both application builds, and diff checks; no commit was created. |
 | 46 (current) | Fix-then-ship the remaining Issue #19 findings after the specification-first review. | Closed the mobile drawer on every in-shell router location change and restored focus to the toggle, added a reusable `Form` boundary that defaults to `noValidate`, and added regressions for both behaviors. Preserved the specs-first Lab 1 decision: `SystemCheck` remains directly tested, while `/system-check` is not added to the Lab 2 route contract. Verified the focused suites (55 tests), full client suite (61 tests), client/server builds, and diff hygiene; responsive/visual browser coverage remains assigned to Issue #25. |
+| 47 (current) | Fix-then-ship the remaining Issue #19 scrutinize findings. | Changed requester-context validation to require positive safe integers, added an unsafe-ID route-guard regression, and corrected the stale Lab 2 evidence that incorrectly described Lab 1 coverage as routed. Reran the focused shell suite, full client suite, client/server builds, and diff checks; responsive/visual browser coverage remains assigned to Issue #25. |
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
-the handout-facing deliverable intentionally selects thirty representative
-prompts in twenty-eight table entries rather than reproducing every wording
+the handout-facing deliverable intentionally selects thirty-two representative
+prompts in thirty table entries rather than reproducing every wording
 correction. The selection
 covers specification and API contracts, UI behavior, schema and migration
 decisions, Attachment lifecycle, idempotency/concurrency, test traceability,

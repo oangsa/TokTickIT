@@ -126,7 +126,14 @@ describe("UI-04 requester route guard", () => {
     },
   );
 
-  it.each(["not json", '{"id":"abc","name":"Alice"}', "{}", '{"id":1}', '{"id":0,"name":"Alice"}'])(
+  it.each([
+    "not json",
+    '{"id":"abc","name":"Alice"}',
+    "{}",
+    '{"id":1}',
+    '{"id":0,"name":"Alice"}',
+    '{"id":9007199254740992,"name":"Alice"}',
+  ])(
     "treats the malformed stored context %s as absent",
     (stored) => {
       sessionStorage.setItem(REQUESTER_STORAGE_KEY, stored);
