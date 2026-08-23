@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { checkSystem, Category } from "../api.js";
 
+/*
+ * Lab 1 system-check screen. Lab 2 replaced it with the routed shell, so no route
+ * renders it any more and `/system-check` resolves to the global 404; it is kept
+ * only so the Lab 1 behaviour and its tests stay valid. Delete it together with
+ * `tests/lab-01/App.test.tsx` once Lab 1 evidence is no longer required.
+ */
+
 // UI states you must handle for Issue 4: idle, loading, success, error.
 type UiState = "idle" | "loading" | "success" | "error";
 

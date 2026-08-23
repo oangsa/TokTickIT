@@ -193,10 +193,6 @@ body {
   --bs-dropdown-link-active-bg: var(--tt-green-primary);
 }
 
-.btn-close {
-  --bs-btn-close-focus-shadow: var(--tt-focus-ring);
-}
-
 .nav-pills {
   --bs-nav-pills-link-active-bg: var(--tt-green-pale);
   --bs-nav-pills-link-active-color: var(--tt-green-primary);

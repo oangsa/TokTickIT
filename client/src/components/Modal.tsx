@@ -45,7 +45,15 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
     }
 
     invokerRef.current = document.activeElement;
-    (focusables()[0] ?? dialogRef.current)?.focus();
+
+    /*
+     * Focus the dialog itself, not its first focusable control. That control is
+     * the close IconButton, and focusing it fires that button's focus tooltip,
+     * so every dialog would open with a "Close dialog" label floating under the
+     * × instead of leaving the reader on the dialog copy. The container
+     * carries `tabIndex={-1}` for exactly this.
+     */
+    dialogRef.current?.focus();
 
     /*
      * Bootstrap 5 ships no `.modal-open` rule; it locks scrolling from its own
@@ -59,7 +67,7 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
       document.body.style.overflow = previousOverflow;
       (invokerRef.current as HTMLElement | null)?.focus?.();
     };
-  }, [open, focusables]);
+  }, [open]);
 
   /*
    * The dismiss handler belongs on `.modal`, not on `.modal-backdrop`: Bootstrap
@@ -77,6 +85,13 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
+      /*
+       * The shell's mobile drawer listens for Escape on `document`, and this
+       * dialog is portaled to `document.body`, so the native event reaches that
+       * listener too. Without this, one Escape over an open drawer closes both
+       * the dialog and the navigation behind it.
+       */
+      event.stopPropagation();
       onClose();
       return;
     }
@@ -93,11 +108,19 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
 
     const first = elements[0];
     const last = elements[elements.length - 1];
+    const active = document.activeElement;
 
-    if (event.shiftKey && document.activeElement === first) {
+    /*
+     * The dialog container is a trap edge in its own right. Focus parks there on
+     * open and again whenever a click lands on non-focusable content, and native
+     * Shift+Tab from it walks backwards past this portal into the page behind
+     * the backdrop. Forward Tab from the container needs no help: every
+     * focusable is a descendant, so document order keeps it inside.
+     */
+    if (event.shiftKey && (active === first || active === dialogRef.current)) {
       event.preventDefault();
       last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
+    } else if (!event.shiftKey && active === last) {
       event.preventDefault();
       first.focus();
     }

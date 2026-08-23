@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import { Button } from "./Button.js";
 
 interface PaginationProps {
@@ -52,9 +54,43 @@ export function Pagination({
   onPageSizeChange,
 }: PaginationProps) {
   const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
-  const firstItem = totalItems === 0 ? 0 : (pageNumber - 1) * pageSize + 1;
-  const lastItem = Math.min(pageNumber * pageSize, totalItems);
-  const pages = pageWindow(pageNumber, pageCount);
+  /*
+   * Clamp here rather than in every caller. Narrowing a search or filter shrinks
+   * `totalItems` while the caller still holds the old page number, and an
+   * unclamped `firstItem` then reads past the end: "Showing 391-25 of 25", with
+   * Previous still offering a page that no longer exists.
+   */
+  const page = Math.min(Math.max(1, pageNumber), pageCount);
+
+  /*
+   * The clamp alone would only make the controls internally consistent: the
+   * caller would still hold the stale page number, still be showing the empty
+   * result of fetching it, and the range above those zero rows would claim
+   * "Showing 21-25 of 25". Report the clamp so the caller's own page state
+   * converges and the next fetch matches what is rendered.
+   *
+   * `onPageChange` is read through a ref: callers commonly pass an inline arrow,
+   * and depending on its identity would re-run this on every render.
+   */
+  const onPageChangeRef = useRef(onPageChange);
+  onPageChangeRef.current = onPageChange;
+
+  useEffect(() => {
+    if (pageNumber !== page) {
+      onPageChangeRef.current(page);
+    }
+  }, [pageNumber, page]);
+
+  const firstItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastItem = Math.min(page * pageSize, totalItems);
+  const pages = pageWindow(page, pageCount);
+  /*
+   * A `pageSize` outside the presets would leave the select with no matching
+   * option, so it would render blank while the list showed that size's rows.
+   */
+  const sizeOptions = pageSizeOptions.includes(pageSize)
+    ? pageSizeOptions
+    : [...pageSizeOptions, pageSize].sort((left, right) => left - right);
 
   return (
     <nav aria-label="Ticket pagination" className="d-flex flex-wrap align-items-center gap-3 mt-3">
@@ -63,7 +99,7 @@ export function Pagination({
           Showing {firstItem}–{lastItem} of {totalItems}
         </span>
         <span className="d-lg-none">
-          Page {pageNumber} of {pageCount}
+          Page {page} of {pageCount}
         </span>
       </p>
 
@@ -74,7 +110,7 @@ export function Pagination({
           value={pageSize}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
         >
-          {pageSizeOptions.map((option) => (
+          {sizeOptions.map((option) => (
             <option key={option} value={option}>
               {option}
             </option>
@@ -85,27 +121,27 @@ export function Pagination({
       <div className="d-flex align-items-center gap-2 ms-auto">
         <Button
           variant="secondary"
-          disabled={pageNumber <= 1}
-          onClick={() => onPageChange(pageNumber - 1)}
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
         >
           <span aria-hidden="true">‹ </span>Previous
         </Button>
 
         <ul className="pagination mb-0 d-none d-lg-flex">
-          {pages.map((page, index) =>
-            page === null ? (
+          {pages.map((entry, index) =>
+            entry === null ? (
               <li key={`gap-${index}`} className="page-item disabled">
                 <span className="page-link">…</span>
               </li>
             ) : (
-              <li key={page} className={`page-item${page === pageNumber ? " active" : ""}`}>
+              <li key={entry} className={`page-item${entry === page ? " active" : ""}`}>
                 <button
                   type="button"
                   className="page-link"
-                  aria-current={page === pageNumber ? "page" : undefined}
-                  onClick={() => onPageChange(page)}
+                  aria-current={entry === page ? "page" : undefined}
+                  onClick={() => onPageChange(entry)}
                 >
-                  {page}
+                  {entry}
                 </button>
               </li>
             )
@@ -114,8 +150,8 @@ export function Pagination({
 
         <Button
           variant="secondary"
-          disabled={pageNumber >= pageCount}
-          onClick={() => onPageChange(pageNumber + 1)}
+          disabled={page >= pageCount}
+          onClick={() => onPageChange(page + 1)}
         >
           Next<span aria-hidden="true"> ›</span>
         </Button>

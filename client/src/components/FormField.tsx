@@ -66,16 +66,18 @@ export function FormField({ label, required, error, helpText, counter, id, child
 
       {error ? <ValidationMessage id={errorId}>{error}</ValidationMessage> : null}
 
-      <div className="d-flex justify-content-between gap-3">
-        {helpText ? (
-          <span id={helpId} className="form-text">
-            {helpText}
-          </span>
-        ) : (
-          <span />
-        )}
-        {counter ? <CharacterCounter id={counterId} value={counter.value} max={counter.max} /> : null}
-      </div>
+      {helpText || counter ? (
+        <div className="d-flex justify-content-between gap-3">
+          {helpText ? (
+            <span id={helpId} className="form-text">
+              {helpText}
+            </span>
+          ) : (
+            <span />
+          )}
+          {counter ? <CharacterCounter id={counterId} value={counter.value} max={counter.max} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -79,7 +79,25 @@ export function AppShell() {
 
       <div className="tt-shell">
         <SidebarNav id={SIDEBAR_ID} open={open} onNavigate={close} />
-        <main id={MAIN_ID} tabIndex={-1} className="tt-main">
+        {/*
+          The open drawer's backdrop hides the page visually but not from the
+          tab order, so Tab past Change Requester lands on controls behind the
+          dimmed overlay that cannot be seen or clicked. `inert` takes the whole
+          main region out of focus and hit-testing for as long as the drawer is
+          open (Section 5.2: the mobile navigation must not obscure required
+          actions). Above the breakpoint `open` is always false, so the desktop
+          shell never sets it.
+
+          Spelled as a string: React 18 has no typed `inert` prop and forwards
+          unknown attributes verbatim, so the attribute must be absent rather
+          than `false` — React renders `inert="false"`, which is still inert.
+        */}
+        <main
+          id={MAIN_ID}
+          tabIndex={-1}
+          className="tt-main"
+          {...(open ? { inert: "" } : {})}
+        >
           {/*
             No key is needed on the Outlet: RequesterGuard sits above this shell,
             so clearing the context unmounts the whole subtree and no list,

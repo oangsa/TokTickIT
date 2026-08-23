@@ -480,6 +480,80 @@ removed before the requester route renders.
 
 Playwright/responsive/visual browser coverage remains assigned to Issue #25.
 
+### 4.5.12 Issue #19 modal-focus and pagination fix pass
+
+A second specification-first review of Issue #19 surfaced three defects in the
+shared primitives, all confirmed against the real components before the fix. The
+checks below were run on 2026-08-23 from `client/`; the change remains
+frontend-only, so no server, Prisma, migration, or database target was involved.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| The modal focus trap escaped on `Shift+Tab` whenever focus rested on the dialog container, which is where it parks on open and after any click on non-focusable content. Native `Shift+Tab` then walked backwards past the portal onto the page behind the dimmed, scroll-locked backdrop, breaking the keyboard operability Sections 29.5 and 29.6 require of the preview and removal modals. | The `Tab` handler treats the dialog container as a trap edge alongside the first focusable. Forward `Tab` needs no help because every focusable is a descendant. | `SharedComponents.test.tsx` — "traps Shift+Tab when focus rests on the dialog container". Verified to fail against the pre-fix component. |
+| Opening any dialog fired the close control's focus tooltip, because focus moved to the first focusable and that control is the icon-only close button. Every dialog opened with a "Close dialog" label floating under the `×` instead of leaving the reader on the dialog copy. Section 29.8 asks for the tooltip on hover/focus of the control, not as an open animation. | Opening focuses the dialog container itself, which already carries `tabIndex={-1}`. The close control keeps both its accessible name and its hover/focus tooltip. | `SharedComponents.test.tsx` — "labels the dialog by its title and gives the close control a tooltip" now asserts no tooltip on open and the tooltip on hover. Verified to fail against the pre-fix component. |
+| `Pagination` derived the displayed range from the caller's raw page number. Narrowing a search or filter shrinks `totalItems` while the caller still holds the old page, producing `Showing 391-25 of 25` with Previous still offering a page that no longer exists. | The component clamps the page number into `[1, pageCount]` once and derives the range, window, disabled state, and `onPageChange` payloads from the clamped value, so callers do not each repeat the clamp. | `SharedComponents.test.tsx` — "clamps a stale page number past the end of a narrowed result set". Verified to fail against the pre-fix component. |
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Shared component contract | `npm test -- --run tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 1 file, 32 tests (3 added by this pass). |
+| Regression value check | Same suite against the pre-fix `Modal.tsx` and `Pagination.tsx` | `client/` | 3 failed, 24 passed — each new test fails without its fix. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 72 tests. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed. |
+| Frontend build | `npm run build` | `client/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+Findings accepted without change in this pass: `writeRequesterContext` still
+lacks the `try`/`catch` that `readRequesterContext` carries, and will be
+hardened when Issue #20 first calls it; `.tt-table-wrap` and `.tt-col-secondary`
+remain unused until Issue #22 renders the ticket table; `SystemCheck.tsx` stays
+a directly tested Lab 1 page with no Lab 2 route, per Section 4.5.9.
+
+Playwright/responsive/visual browser coverage remains assigned to Issue #25.
+
+### 4.5.13 Issue #19 persistent-sidebar and drawer-containment fix pass
+
+An outsider specification-first review of Issue #19 traced the shell against
+Sections 5.1, 5.2, 23, and 34 and surfaced three defects plus one false evidence
+row. The checks below were run on 2026-08-23 from `client/`; the change remains
+frontend-only, so no server, Prisma, migration, or database target was involved.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| The desktop sidebar was not persistent. `.tt-shell` is a grid with the default `align-items: stretch`, so `.tt-sidebar` stretched to the height of the main column and `.tt-sidebar__footer`'s `margin-top: auto` placed Requester and Change Requester at the bottom of the *document* rather than the bottom of the sidebar. Section 5.1 requires a persistent sidebar with that block at its foot, and Section 34 forbids hidden required buttons; once Issue #22 renders a full ticket table, Change Requester and both navigation links sit far below the fold. | `.tt-sidebar` becomes `position: sticky; top: 0; block-size: 100vh; overflow-y: auto` above the 992px breakpoint, so the whole navigation stays on screen at any list length. | Browser-only: jsdom applies no stylesheets. Assigned to Issue #25 in VIS-01–VIS-03 below. |
+| The open mobile drawer's backdrop hid the page visually but not from the tab order, so Tab past Change Requester landed on controls behind the dimmed overlay that could be neither seen nor clicked (Section 5.2: the mobile navigation must not obscure required actions). | `.tt-main` carries `inert` while the drawer is open. React 18 has no typed `inert` prop and forwards unknown attributes verbatim, so it is spelled as a string and omitted entirely when closed — `inert="false"` is still inert. | `ApplicationShell.test.tsx` — "takes the page behind the open drawer out of the tab order". Verified to fail against the pre-fix component. |
+| `Failed` and `Invalid` rendered as the same badge; only the label separated them, although the same pass had explicitly set a "more than the label" bar for `Uploading` vs `Pending` (Section 34). | `Invalid` adds `.tt-attachment-state--invalid`, taking the dashed border the pending/removed treatments already use for "not real evidence", while `Failed` keeps the solid border of something attempted and retryable (Sections 23.2, 23.3). | `SharedComponents.test.tsx` — "gives every attachment state a treatment of its own, not just a label" and "separates Failed from Invalid by border style, not only by colour". Both verified to fail against the pre-fix component. |
+| Section 4.5.12 recorded `git diff --check` as Passed while `client/src/styles/components.css` ended with a blank line, and recorded 27/64 tests for a working tree that held 32/72. | The blank line is removed and both counts are corrected above. Gate results are now re-run immediately before they are written down. | `git diff --check` clean; `npm test` reports 4 files, 74 tests. |
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Shell and shared-component gate | `npm test -- --run tests/lab-02/ApplicationShell.test.tsx tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 2 files, 68 tests (3 added by this pass). |
+| Regression value check | Same suites against the pre-fix `AppShell.tsx` and `AttachmentState.tsx` | `client/` | 3 failed, 65 passed — each new test fails without its fix. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 74 tests. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed. |
+| Frontend build | `npm run build` | `client/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+Findings reviewed and rejected in this pass: gating the Requester Selection
+focus move on a `requesterCleared` navigation flag was implemented and reverted.
+`clearRequester` commits synchronously while react-router v7 wraps `navigate` in
+a transition, so `RequesterGuard`'s own state-less redirect always wins and the
+flag never arrives — a probe confirmed `location.state` is `null` on arrival.
+The concern was overstated in any case: the `<h1>` sits inside `<main>`, so
+focusing that container skips no heading. The unconditional focus move stays.
+
+Findings accepted without change in this pass: `.btn-close` is removed from
+`theme.css` as dead — `Modal` uses `IconButton`, and a reintroduced Bootstrap
+close button would be an icon-only control with no tooltip (Section 29.8);
+`--tt-warning` stays although unused, because Section 3.1 lists it as an
+approved token; `Form.tsx` stays a thin `noValidate` wrapper until Issue #21's
+forms show whether they share more than that attribute.
+
+The `ui-spec.md` Section 27.1 amendment carried in this branch is a change to
+the source of truth, not an implementation detail, and is recorded as such
+rather than reviewed alongside the code that depends on it.
+
+Playwright/responsive/visual browser coverage remains assigned to Issue #25.
+
 ### 4.6 Deterministic Test Data
 
 Automated tests use deterministic fixtures/mocks. The standard fixture set should include at least:
@@ -691,8 +765,8 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | --- | --- | --- | --- | --- | --- | --- |
 | UI-01 | UI | AC-02 | Requester Selection normal/loading/empty/failure states. | Skeleton while loading; active names only; test-not-authentication explanation; no-active and safe failure states provide Retry; Continue disabled until selection. | tests/lab-02/RequesterSelection.test.tsx | Not Run |
 | UI-02 | UI | AC-03 | Requester selection persistence and navigation. | Selecting requester + Continue stores requester in sessionStorage, shows name in app context, and navigates to `/tickets`. | tests/lab-02/RequesterSelection.test.tsx | Not Run |
-| UI-03 | UI | FR-03–05 | Application shell/navigation. | Desktop shell shows TokTickIT, My Tickets, Create Ticket, requester name, Change Requester, and active navigation semantics. | tests/lab-02/ApplicationShell.test.tsx | Passed — 9 tests |
-| UI-04 | UI | AC-01, AC-05, AC-46 | Requester route guard and invalid-context handling. | No valid stored context redirects requester routes to `/requesters` before requester data renders; defined invalid-context 400 clears context/state and redirects. | tests/lab-02/ApplicationShell.test.tsx | Partial — 11 tests cover the route guard, the malformed stored context, and the `/` redirect. The invalid-context `400` half needs the API layer and is deferred to Issue #20. |
+| UI-03 | UI | FR-03–05 | Application shell/navigation. | Desktop shell shows TokTickIT, My Tickets, Create Ticket, requester name, Change Requester, and active navigation semantics. | tests/lab-02/ApplicationShell.test.tsx | Passed — 10 tests |
+| UI-04 | UI | AC-01, AC-05, AC-46 | Requester route guard and invalid-context handling. | No valid stored context redirects requester routes to `/requesters` before requester data renders; defined invalid-context 400 clears context/state and redirects. | tests/lab-02/ApplicationShell.test.tsx | Partial — 13 tests cover the route guard, the malformed stored context, and the `/` redirect. The invalid-context `400` half needs the API layer and is deferred to Issue #20. |
 | UI-05 | UI | AC-04 | Change Requester behavior. | Clears prior requester context/cache/list/detail/draft state, avoids stale data, and returns to selector. | tests/lab-02/ApplicationShell.test.tsx | Partial — 1 test covers clearing the stored context and returning to the selector with no stale name, navigation, or heading. Cache/list/detail/draft state does not exist until Issues #21–#23. |
 | UI-06 | UI | FR-07, AC-66 | Create Ticket required, generated, and Requester-context fields. | Editable Category/System/Priority/Summary/Description/Attachments + Cancel/Submit are present; non-editable Ticket Number/Date state that they are assigned on submission; non-editable Requester shows the selected Development Requester; none is sent as a client-controlled body field; pre-creation Status/public/audit fields remain absent. | tests/lab-02/CreateTicket.test.tsx | Not Run |
 | UI-07 | UI | AC-08–10, AC-38 | Create Ticket client validation, counters, labels, first-invalid focus. | Errors not dumped on initial render; submit validates all; field-associated messages/counters/required semantics; invalid client-known form does not call API and focuses first invalid field. | tests/lab-02/CreateTicket.test.tsx | Not Run |
@@ -719,11 +793,11 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-28 | UI | AC-19 | Batch Attachment selection. | Only Active Ticket Detail rows are selectable; selected count and Remove Selected behave correctly; Create Ticket transient/Pending states and Removed rows are not selectable for Active removal. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-29 | UI | AC-19 | Per-selected-Attachment removal reasons. | One required 3–200 char trimmed reason per selected active file; invalid reason blocks delete request. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-30 | UI | AC-19 | Atomic batch-removal UI failure. | Failed all-or-nothing API request leaves all selected rows in previous state; no partial Removed UI. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
-| UI-31 | UI | AC-39 | Global Error page variants. | 403/404/500 safe copy; standalone no sidebar; no backend internals; explicit Back routes `/tickets` rather than browser history. | tests/lab-02/ErrorPage.test.tsx | Not Run |
+| UI-31 | UI | AC-39 | Global Error page variants. | 403/404/500 safe copy; standalone no sidebar; no backend internals; explicit Back routes `/tickets` rather than browser history. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Partial — `ApplicationShell.test.tsx` covers the standalone no-sidebar shell, the safe `404` copy on an unknown route, and the explicit Back targets `/tickets` and `/requesters` resolved from the requester context rather than browser history. The `403` variant and the per-screen navigation that reaches `/error` follow the screens in Issues #22–#23. |
 | UI-32 | UI | AC-38 | Shared accessibility contract across UI suites. | Semantic controls, labels/required/errors, keyboard operability, visible focus, aria-live for meaningful async states, icon accessible names plus mandatory tooltip/hover-focus labels, modal focus management, and non-color-only states. | tests/lab-02/RequesterSelection.test.tsx; tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/CreateTicket.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/ErrorPage.test.tsx | Partial — the shared primitives and shell landmarks/keyboard behavior pass in `ApplicationShell.test.tsx` and `SharedComponents.test.tsx`. Per-screen coverage follows the screens in Issues #20–#23. |
 | UI-33 | UI | AC-51–53 | Ambiguous-create recovery persistence and expiry. | Recovery record stores requester/key time/original normalized payload only while ambiguous; reload offers explicit resume without auto-submit; success/failure/discard/switch/expiry clears it; current replay rendering includes later Attachment mutations. | tests/lab-02/CreateTicket.test.tsx | Not Run |
 | UI-34 | UI | AC-54 | Requester-header binary fetch and Blob URL lifecycle. | Preview/download checks response before body, sends X-Requester-Id, uses known originalName for download, and revokes URLs on close/replacement/unmount/after download; direct binary navigation is not used. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
-| UI-35 | UI | AC-61 | State-less global-error fallback. | Missing/invalid navigation state renders safe generic 500 copy; arbitrary backend text is ignored; Back chooses `/tickets` with valid Requester context and `/requesters` without it. | tests/lab-02/ErrorPage.test.tsx | Not Run |
+| UI-35 | UI | AC-61 | State-less global-error fallback. | Missing/invalid navigation state renders safe generic 500 copy; arbitrary backend text is ignored; Back chooses `/tickets` with valid Requester context and `/requesters` without it. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Passed — 4 tests in `ApplicationShell.test.tsx`: missing/invalid navigation state renders the generic `500`, a backend-supplied `title` is ignored, and Back targets `/tickets` with a valid Requester context, `/requesters` without one, and `/tickets` even when navigation state supplies its own `backPath`. |
 | UI-36 | UI | AC-38, AC-66 | Automated meaningful presentation/state contract across Create Ticket, Ticket Detail, badges, and Attachment states. | Assert only contract-significant semantics/classes: generated Ticket Number/Date and Requester are read-only/disabled; editable vs read-only and invalid/error states differ; required labels/asterisks and associated errors exist; Submit/Cancel hierarchy and disabled/busy Submit are represented; Detail fields remain read-only; priority/status badges retain visible text; Pending/Active/Removed/Invalid/Failed states have approved visual/semantic markers without color-only meaning. | tests/lab-02/CreateTicket.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-37 | UI | BR-91, AC-38, AC-66 | Representative icon-only control labels and tooltips. | Mobile sidebar, Attachment preview/download/remove, close/dismiss, pagination, and filter/search auxiliary icon-only controls expose an accessible programmatic name and observable tooltip/hover-focus text with the expected action wording; assertions verify user-visible semantics and association, not tooltip-library internals. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx | Partial — the mobile sidebar toggle, the modal close control, and the filter-chip remove control assert both an accessible name and an associated visible tooltip. Attachment preview/download/remove follow in Issue #23. Pagination introduces no icon-only control: both arrows carry visible text. |
 
@@ -740,7 +814,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
 | VIS-01 | Visual | AC-35–38 | Create Ticket screenshot evidence at all required viewports. | Screenshots saved under approved Create Ticket artifact directory and pass visual checklist; no pixel-perfect baseline requirement. | e2e/lab-02/responsive-visual.spec.ts | Not Run |
-| VIS-02 | Visual | AC-35–38 | My Tickets screenshot evidence at all required viewports. | Screenshots saved under approved My Tickets artifact directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Not Run |
+| VIS-02 | Visual | AC-35–38 | My Tickets screenshot evidence at all required viewports. | Screenshots saved under approved My Tickets artifact directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Not Run — must also assert that the closed mobile drawer's navigation links and Change Requester are out of the tab order, and that on a ticket list long enough to scroll the desktop sidebar stays fixed with Change Requester visible. Both guarantees are CSS-only (`.tt-sidebar { visibility: hidden }` below 992px; `position: sticky` above it) and jsdom applies no stylesheets, so `ApplicationShell.test.tsx` cannot see a regression in either. |
 | VIS-03 | Visual | AC-35–38 | Ticket Detail screenshot evidence at all required viewports. | Screenshots saved under approved Ticket Detail artifact directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Not Run |
 
 Required screenshot directories:

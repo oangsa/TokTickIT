@@ -250,17 +250,40 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
     expect(closedToggle).toHaveFocus();
   });
 
+  it("takes the page behind the open drawer out of the tab order", async () => {
+    renderAt("/tickets", ALICE);
+
+    const main = screen.getByRole("main");
+    expect(main).not.toHaveAttribute("inert");
+
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    expect(main).toHaveAttribute("inert");
+
+    await userEvent.keyboard("{Escape}");
+    expect(main).not.toHaveAttribute("inert");
+  });
+
   it("exposes banner, navigation, main landmarks and a skip link", () => {
     renderAt("/tickets", ALICE);
 
-    expect(screen.getByRole("banner")).toBeInTheDocument();
+    /*
+     * The banner is the mobile topbar and carries the drawer toggle; it is
+     * `d-lg-none`, so on desktop the shell has no banner landmark at all and
+     * the brand lives inside the sidebar navigation. jsdom applies no
+     * stylesheets, so both viewports render here — assert which landmark this
+     * is rather than implying it exists at every width.
+     */
+    const banner = screen.getByRole("banner");
+    expect(within(banner).getByRole("button", { name: "Open navigation menu" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument();
 
     const main = screen.getByRole("main");
     const skipLink = screen.getByRole("link", { name: "Skip to main content" });
     expect(skipLink).toHaveAttribute("href", `#${main.id}`);
   });
+});
 
+describe("UI-31 and UI-35 global error page", () => {
   it("renders the safe generic error and ignores backend-supplied text", () => {
     renderAt({ pathname: "/error", state: { title: "DB timeout at 10.0.0.4" } }, ALICE);
 
@@ -268,5 +291,25 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
     expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back" })).toHaveClass("btn-outline-secondary");
     expect(screen.queryByText(/DB timeout/)).not.toBeInTheDocument();
+  });
+
+  // AC-61 and ui-spec Section 27.4: Back is resolved from the requester context,
+  // never from browser history and never from a caller-supplied `backPath`.
+  it("sends Back to /tickets when a valid Requester context exists", () => {
+    renderAt({ pathname: "/error", state: { status: 404 } }, ALICE);
+
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
+  });
+
+  it("sends Back to /requesters when no Requester context exists", () => {
+    renderAt({ pathname: "/error", state: { status: 404 } });
+
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/requesters");
+  });
+
+  it("ignores a caller-supplied backPath rather than following it", () => {
+    renderAt({ pathname: "/error", state: { status: 404, backPath: "https://evil.example/" } }, ALICE);
+
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
   });
 });

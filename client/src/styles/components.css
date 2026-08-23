@@ -50,9 +50,14 @@
  * stacking position the fixed drawer paints over the menu toggle, hiding the
  * only control that closes it for pointer users (Section 5.2: the mobile
  * navigation must not obscure required actions).
+ *
+ * `sticky`, not `relative`: the drawer is fixed to the viewport and reserves the
+ * topbar's height at its top edge, so a topbar that scrolls out of view leaves
+ * that strip blank and takes the toggle off screen with it.
  */
 .tt-topbar {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 1046;
   display: flex;
   align-items: center;
@@ -101,6 +106,13 @@
  * Below the desktop breakpoint the sidebar is an off-canvas drawer. It uses
  * `visibility` rather than `display` so a closed drawer leaves the tab order
  * and the accessibility tree without any JavaScript.
+ *
+ * Known ceiling: `visibility` is the ONLY thing keeping a closed drawer's links
+ * and Change Requester out of the tab order, and the same node is the desktop
+ * sidebar, so it cannot be made `inert` from React without a viewport check.
+ * jsdom applies no stylesheets, so `ApplicationShell.test.tsx` cannot see a
+ * regression here — Issue #25's responsive pass must assert closed-drawer tab
+ * order in a real browser, not only compare screenshots.
  */
 @media (max-width: 991.98px) {
   .tt-sidebar {
@@ -130,9 +142,21 @@
     min-height: 100vh;
   }
 
+  /*
+   * The sidebar is persistent (Section 5.1), which the grid alone does not give:
+   * items stretch, so a tall main column stretches the sidebar with it and
+   * `.tt-sidebar__footer`'s `margin-top: auto` lands Requester and Change
+   * Requester at the bottom of the document rather than the bottom of the
+   * sidebar. `sticky` plus a viewport-height box keeps the whole navigation —
+   * and the required Change Requester action — on screen at any list length
+   * (Section 34: no hidden required buttons).
+   */
   .tt-sidebar {
-    position: static;
+    position: sticky;
+    top: 0;
+    block-size: 100vh;
     inline-size: auto;
+    overflow-y: auto;
     transform: none;
     visibility: visible;
   }
@@ -148,7 +172,6 @@
 /* Icon-only controls: tooltip plus accessible name (Section 29.8). */
 .tt-tip-host {
   display: inline-flex;
-  overflow: visible;
 }
 
 /*
@@ -211,6 +234,15 @@
 }
 
 .tt-textarea {
+  resize: vertical;
+}
+
+/*
+ * A read-only Description keeps the read-only fill and dashed border but stays
+ * vertically resizable, so a long value can be opened up rather than scrolled
+ * a line at a time (Sections 20.2, 20.3).
+ */
+.tt-readonly--multiline {
   resize: vertical;
 }
 
@@ -304,23 +336,18 @@
   border: 1px solid var(--tt-danger);
 }
 
+/*
+ * Invalid never became a usable Attachment, so it takes the dashed border the
+ * pending/removed treatments already use for "not real evidence", while Failed
+ * keeps the solid border of something that was attempted and can be retried
+ * (Sections 23.2, 23.3, 34).
+ */
+.tt-attachment-state--invalid {
+  border-style: dashed;
+}
+
 .tt-attachment-state--removed {
   background-color: var(--tt-readonly-bg);
   color: var(--tt-text-muted);
   border: 1px dashed var(--tt-text-muted);
-}
-
-/*
- * Responsive ticket table (Section 16.3). Below 768px the lower-priority
- * columns are hidden so the page itself never scrolls horizontally; the markup
- * stays a table rather than switching to cards.
- */
-.tt-table-wrap {
-  overflow-x: auto;
-}
-
-@media (max-width: 767.98px) {
-  .tt-col-secondary {
-    display: none;
-  }
 }

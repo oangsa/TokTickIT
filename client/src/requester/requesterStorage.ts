@@ -66,10 +66,24 @@ export function readRequesterContext(): StoredRequester | null {
   return requester;
 }
 
+/*
+ * Storage access is guarded on every path, not only on read: `setItem` throws in
+ * the same situations `getItem` does (private-mode quota, blocked site data),
+ * and this one is called from a click handler where the throw would escape.
+ * The in-memory context still holds for the session; only persistence is lost.
+ */
 export function writeRequesterContext(requester: StoredRequester): void {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
+  try {
+    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
+  } catch {
+    /* Persisting is best effort. */
+  }
 }
 
 export function clearRequesterContext(): void {
-  sessionStorage.removeItem(REQUESTER_STORAGE_KEY);
+  try {
+    sessionStorage.removeItem(REQUESTER_STORAGE_KEY);
+  } catch {
+    /* Nothing to clear if storage is unreachable. */
+  }
 }

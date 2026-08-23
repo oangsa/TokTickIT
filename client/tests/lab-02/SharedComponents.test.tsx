@@ -69,6 +69,21 @@ describe("UI-32 modal focus management (ui-spec 29.5, 29.6)", () => {
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 
+  it("traps Shift+Tab when focus rests on the dialog container", async () => {
+    render(<ModalHarness withAction />);
+    const invoker = screen.getByRole("button", { name: "Remove attachment" });
+    await userEvent.click(invoker);
+
+    // Clicking non-focusable content parks focus on the dialog container, and
+    // native Shift+Tab from there walks backwards out of the portal into the
+    // page behind the backdrop.
+    await userEvent.click(screen.getByTestId("prose"));
+    await userEvent.tab({ shift: true });
+
+    expect(screen.getByRole("dialog")).toContainElement(document.activeElement as HTMLElement);
+    expect(invoker).not.toHaveFocus();
+  });
+
   it("closes on a click outside the dialog but not on a drag out of it", async () => {
     render(<ModalHarness />);
     const invoker = screen.getByRole("button", { name: "Remove attachment" });
@@ -101,14 +116,21 @@ describe("UI-32 modal focus management (ui-spec 29.5, 29.6)", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAccessibleName("Remove attachment");
+    expect(dialog).toHaveFocus();
+
+    // Opening must not pop a tooltip. Focus lands on the dialog, not on the
+    // close control, so the dialog copy is what greets the reader.
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 
     const close = within(dialog).getByRole("button", { name: "Close dialog" });
+    expect(close).toHaveAccessibleName("Close dialog");
+
+    await userEvent.hover(close);
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveTextContent("Close dialog");
     expect(tooltip.parentElement).toBe(document.body);
     expect(tooltip).toHaveClass("tt-tip");
     expect(tooltip).toHaveStyle({ visibility: "visible" });
-    expect(close).toHaveAccessibleName("Close dialog");
   });
 });
 
@@ -145,6 +167,71 @@ describe("UI-32 pagination (ui-spec 18)", () => {
     for (const page of ["1", "2", "3", "4", "5"]) {
       expect(screen.getByRole("button", { name: page })).toBeInTheDocument();
     }
+  });
+
+  it("clamps a stale page number past the end of a narrowed result set", async () => {
+    const onPageChange = vi.fn();
+    render(
+      <Pagination
+        pageNumber={40}
+        pageSize={10}
+        totalItems={25}
+        onPageChange={onPageChange}
+        onPageSizeChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Showing 21\u201325 of 25")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "3" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+
+    // Previous steps back from the clamped page, not from the stale 40.
+    await userEvent.click(screen.getByRole("button", { name: "Previous" }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+
+  it("reports the clamp so the caller's stale page state converges", () => {
+    // Clamping the display alone would leave the caller fetching page 40 and
+    // rendering its empty result under a "Showing 21-25 of 25" range.
+    const onPageChange = vi.fn();
+    render(
+      <Pagination
+        pageNumber={40}
+        pageSize={10}
+        totalItems={25}
+        onPageChange={onPageChange}
+        onPageSizeChange={vi.fn()}
+      />,
+    );
+
+    expect(onPageChange).toHaveBeenCalledWith(3);
+  });
+
+  it("does not report a page change when the caller is already in range", () => {
+    const onPageChange = vi.fn();
+    render(
+      <Pagination
+        pageNumber={2}
+        pageSize={10}
+        totalItems={47}
+        onPageChange={onPageChange}
+        onPageSizeChange={vi.fn()}
+      />,
+    );
+
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it("does not re-report the clamp when the caller passes a fresh callback each render", () => {
+    const onPageChange = vi.fn();
+    const props = { pageNumber: 40, pageSize: 10, totalItems: 25, onPageSizeChange: vi.fn() };
+    const { rerender } = render(
+      <Pagination {...props} onPageChange={(page) => onPageChange(page)} />,
+    );
+    rerender(<Pagination {...props} onPageChange={(page) => onPageChange(page)} />);
+    rerender(<Pagination {...props} onPageChange={(page) => onPageChange(page)} />);
+
+    expect(onPageChange).toHaveBeenCalledTimes(1);
   });
 
   it("disables Previous on the first page and Next on the last", () => {
@@ -240,6 +327,20 @@ describe("UI-32 form field contract (ui-spec 7, 8, 9, 29)", () => {
     expect(field).toHaveClass("tt-readonly");
     expect(field).toHaveValue("Assigned on submission");
   });
+
+  it("renders a multi-line read-only value as a textarea, not a one-line input", () => {
+    // Ticket Detail Description is read-only and runs to 2000 characters
+    // (ui-spec Sections 20.2, 20.3); a single-line input would clip it.
+    const description = "First line.\nSecond line.\n" + "x".repeat(500);
+    render(<ReadOnlyField label="Description" value={description} multiline />);
+
+    const field = screen.getByRole("textbox", { name: "Description" });
+    expect(field.tagName).toBe("TEXTAREA");
+    expect(field).toHaveAttribute("readonly");
+    expect(field).not.toBeDisabled();
+    expect(field).toHaveClass("tt-readonly");
+    expect(field).toHaveValue(description);
+  });
 });
 
 describe("UI-32 button hierarchy (ui-spec 10)", () => {
@@ -257,11 +358,28 @@ describe("UI-32 button hierarchy (ui-spec 10)", () => {
     expect(button).not.toHaveTextContent(/Submitting/);
   });
 
-  it("reserves the spinner slot when idle so the width does not shift", () => {
-    const { container } = render(<Button variant="primary">Submit Ticket</Button>);
+  it("reserves the spinner slot while idle so a busy button does not shift", () => {
+    const { container } = render(
+      <Button variant="primary" busy={false}>
+        Submit Ticket
+      </Button>,
+    );
 
     expect(container.querySelector(".tt-btn__spinner")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Submit Ticket" })).not.toHaveAttribute("aria-busy");
+  });
+
+  it("adds no spinner slot to a button that never becomes busy", () => {
+    // The reserved slot is 1rem plus its margin. On a button with no busy state
+    // it is dead space that indents the label, which is visible on the `px-0`
+    // tertiary action sitting under the sidebar navigation links.
+    const { container } = render(
+      <Button variant="tertiary" className="px-0">
+        Change Requester
+      </Button>,
+    );
+
+    expect(container.querySelector(".tt-btn__spinner")).toBeNull();
   });
 });
 
@@ -292,13 +410,25 @@ describe("UI-37 icon-only controls and non-colour state (ui-spec 23, 29.8, 29.9)
     expect(container.firstElementChild).toHaveClass("tt-badge");
   });
 
-  it("distinguishes Uploading from Pending by more than the label", () => {
-    const { container: uploading } = render(<AttachmentState state="Uploading" />);
-    const { container: pending } = render(<AttachmentState state="Pending" />);
+  it("gives every attachment state a treatment of its own, not just a label", () => {
+    // Section 34 asks for all six to be visually distinct. Two states that
+    // differ only by their text collapse into one look at a glance.
+    const classNames = states.map((state) => {
+      const { container } = render(<AttachmentState state={state} />);
+      return container.firstElementChild?.className ?? "";
+    });
 
-    expect(uploading.firstElementChild?.className).not.toBe(
-      pending.firstElementChild?.className,
-    );
+    expect(new Set(classNames).size).toBe(states.length);
+  });
+
+  it("separates Failed from Invalid by border style, not only by colour", () => {
+    // Both are red error surfaces; Failed was attempted and can be retried,
+    // Invalid never became a usable Attachment (Sections 23.2, 23.3).
+    const { container: failed } = render(<AttachmentState state="Failed" />);
+    const { container: invalid } = render(<AttachmentState state="Invalid" />);
+
+    expect(failed.firstElementChild).not.toHaveClass("tt-attachment-state--invalid");
+    expect(invalid.firstElementChild).toHaveClass("tt-attachment-state--invalid");
   });
 
   it("announces a success confirmation politely without interrupting", () => {
