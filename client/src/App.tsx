@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell.js";
 import CreateTicket from "./pages/CreateTicket.js";
@@ -16,9 +17,27 @@ function RootRedirect() {
   return <Navigate to={requester === null ? "/requesters" : "/tickets"} replace />;
 }
 
+function RouteFocusManager() {
+  const { key } = useLocation();
+  const previousLocationKey = useRef(key);
+
+  useEffect(() => {
+    if (previousLocationKey.current === key) {
+      return;
+    }
+
+    previousLocationKey.current = key;
+    /* AppShell owns focus when its drawer closes; standalone pages need this boundary. */
+    document.querySelector<HTMLElement>('main:not(#tt-main)[tabindex="-1"]')?.focus();
+  }, [key]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <RequesterProvider>
+      <RouteFocusManager />
       <Routes>
         <Route path="/" element={<RootRedirect />} />
 

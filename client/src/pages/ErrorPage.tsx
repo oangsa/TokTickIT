@@ -63,7 +63,7 @@ export default function ErrorPage() {
   const backPath = requester === null ? "/requesters" : "/tickets";
 
   return (
-    <main className="tt-main__inner">
+    <main tabIndex={-1} className="tt-main__inner">
       <p className="tt-brand h5">TokTickIT</p>
 
       <div className="text-center py-5" role="alert">

@@ -10,8 +10,10 @@ import { Form } from "../../src/components/Form.js";
 import { Modal } from "../../src/components/Modal.js";
 import { Pagination } from "../../src/components/Pagination.js";
 import { ReadOnlyField } from "../../src/components/ReadOnlyField.js";
+import { Select } from "../../src/components/Select.js";
 import { SuccessMessage } from "../../src/components/SuccessMessage.js";
 import { TextInput } from "../../src/components/TextInput.js";
+import { Textarea } from "../../src/components/Textarea.js";
 
 function ModalHarness({ withAction = false }: { withAction?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -338,6 +340,56 @@ describe("UI-32 form field contract (ui-spec 7, 8, 9, 29)", () => {
     expect(input).toHaveAccessibleDescription(/Summary must contain 3-150 characters\./);
     expect(input).toHaveAccessibleDescription(/2 \/ 150/);
     expect(screen.getByText("2 / 150")).toBeInTheDocument();
+  });
+
+  it("preserves external descriptions without losing generated error wiring", () => {
+    render(
+      <>
+        <span id="external-description">External context</span>
+        <TextInput
+          label="Summary"
+          required
+          error="Summary must contain 3-150 characters."
+          counter={{ value: 2, max: 150 }}
+          aria-describedby="external-description"
+          aria-invalid={false}
+        />
+        <Select
+          label="Category"
+          required
+          error="Category is required."
+          counter={{ value: 1, max: 40 }}
+          aria-describedby="external-description"
+          aria-invalid={false}
+        >
+          <option value="bug">Bug</option>
+        </Select>
+        <Textarea
+          label="Description"
+          required
+          error="Description must contain 10-2000 characters."
+          counter={{ value: 9, max: 2000 }}
+          aria-describedby="external-description"
+          aria-invalid={false}
+        />
+      </>,
+    );
+
+    const controls = [
+      screen.getByRole("textbox", { name: "Summary" }),
+      screen.getByRole("combobox", { name: "Category" }),
+      screen.getByRole("textbox", { name: "Description" }),
+    ];
+
+    for (const control of controls) {
+      const describedBy = control.getAttribute("aria-describedby")?.split(" ") ?? [];
+
+      expect(describedBy).toContain("external-description");
+      expect(describedBy.some((id) => id.endsWith("-error"))).toBe(true);
+      expect(describedBy.some((id) => id.endsWith("-counter"))).toBe(true);
+      expect(control).toHaveAttribute("aria-invalid", "true");
+      expect(control).toHaveAccessibleDescription(/External context/);
+    }
   });
 
   it("shows no validation message on an untouched field", () => {

@@ -17,6 +17,8 @@ export function Textarea({
   id,
   className,
   rows = 5,
+  "aria-describedby": externalDescribedBy,
+  "aria-invalid": externalInvalid,
   ...rest
 }: TextareaProps) {
   return (
@@ -28,8 +30,8 @@ export function Textarea({
           className={["form-control", "tt-textarea", invalid ? "is-invalid" : null, className]
             .filter(Boolean)
             .join(" ")}
-          aria-describedby={describedBy}
-          aria-invalid={invalid || undefined}
+          aria-describedby={[describedBy, externalDescribedBy].filter(Boolean).join(" ") || undefined}
+          aria-invalid={invalid || externalInvalid || undefined}
           required={required}
           {...rest}
         />

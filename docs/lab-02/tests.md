@@ -617,6 +617,52 @@ also remain open by design: "My Tickets remains a responsive table" has no table
 until Issue #22, and `SystemCheck.tsx` is now unrouted, so Lab 1 *tests* remain
 valid while the Lab 1 *screen* is no longer reachable in the application.
 
+### 4.5.15 Issue #19 route-focus and shared ARIA fix pass
+
+A follow-up specification-first review reproduced two remaining issues in the
+shared frontend foundation: the selector's page-local `POP` check could not
+distinguish the document's first entry from a later browser-history return, and
+caller-supplied ARIA attributes could overwrite generated error, counter, and
+invalid wiring. The checks below were run on 2026-08-23 from `client/`; no
+server, Prisma, migration, or database source changed.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| Returning to `/requesters` through browser history restored the page without the focus move required for a replaced screen. | Added a persistent route-focus boundary in `App.tsx` that skips the document's initial entry, focuses standalone page mains after changed location entries, and leaves in-shell drawer focus restoration to `AppShell`. Removed the page-local `useNavigationType()` branch. | `ApplicationShell.test.tsx` — "moves focus to the selector when browser history returns there" plus the existing cold-load, guard-redirect, Change Requester, and drawer-focus regressions. |
+| `...rest` could overwrite generated `aria-describedby` and `aria-invalid` attributes on `TextInput`, `Select`, and `Textarea`. | Destructured caller ARIA attributes, merged external descriptions with generated IDs, and made an existing field error win over a caller-supplied invalid value. | `SharedComponents.test.tsx` — "preserves external descriptions without losing generated error wiring" covers all three editable controls, including error, counter, and invalid-state assertions. |
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #19 focused gate | `npm test -- --run tests/lab-02/ApplicationShell.test.tsx tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 2 files, 86 tests. |
+| Frontend full test suite | `npm test -- --run` | `client/` | Passed — 4 files, 92 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed — TypeScript and Vite production build. |
+| Backend build | `npm run build` | `server/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+Responsive and visual browser coverage was intentionally not run for this
+follow-up, per the current task direction; it remains assigned to Issue #25.
+
+### 4.5.16 Issue #19 error-route focus and tooltip evidence fix pass
+
+The remaining focused review found that the standalone `/error` page was not a
+target for the persistent route-focus boundary, and that the mobile navigation
+icon button's keyboard tooltip behavior was implemented but only covered by a
+hover test. The checks below were run on 2026-08-23; manual and responsive
+browser coverage remains intentionally deferred per the current task direction.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| Client-side navigation to `/error` could leave focus on the removed trigger because its standalone `<main>` lacked the focus target used by `RouteFocusManager`. | Added `tabIndex={-1}` to the standalone error main. | `ApplicationShell.test.tsx` — "moves focus to the standalone error page after client-side navigation". |
+| The mobile navigation icon button's `IconButton` tooltip was verified for hover but not keyboard focus and blur. | Extended the navigation-toggle test to assert tooltip visibility on focus and removal on blur. | `ApplicationShell.test.tsx` — UI-32/UI-37 accessibility foundation test. |
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #19 focused gate | `npm test -- --run tests/lab-02/ApplicationShell.test.tsx tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 2 files, 87 tests. |
+| Frontend full test suite | `npm test -- --run` | `client/` | Passed — 4 files, 93 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed — TypeScript and Vite production build. |
+| Backend build | `npm run build` | `server/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
 ## 5. Reusable QueryBuilder Test Principle
 
 The global QueryBuilder follows the reusable infrastructure/repository utility pattern:

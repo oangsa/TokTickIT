@@ -71,6 +71,25 @@ function renderAtWithProgrammaticNavigation(entry: Entry, requester?: StoredRequ
   );
 }
 
+function HistoryBackButton() {
+  const navigate = useNavigate();
+
+  return <button onClick={() => navigate(-1)}>Go back</button>;
+}
+
+function renderAtWithHistory(entries: Entry[], initialIndex: number, requester?: StoredRequester) {
+  if (requester) {
+    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
+  }
+
+  return render(
+    <MemoryRouter initialEntries={entries} initialIndex={initialIndex}>
+      <HistoryBackButton />
+      <App />
+    </MemoryRouter>,
+  );
+}
+
 afterEach(() => {
   sessionStorage.clear();
   /* Still inside React's tree here: cleanup has not unmounted the shell yet. */
@@ -228,6 +247,15 @@ describe("UI-05 Change Requester", () => {
 
     expect(screen.getByRole("main")).toHaveFocus();
   });
+
+  it("moves focus to the selector when browser history returns there", async () => {
+    renderAtWithHistory(["/requesters", "/tickets"], 1, ALICE);
+
+    await userEvent.click(screen.getByRole("button", { name: "Go back" }));
+
+    expect(await screen.findByRole("heading", { name: /Select a Development Requester/i })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
 });
 
 describe("UI-32 and UI-37 accessibility foundations", () => {
@@ -246,6 +274,13 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
     expect(tooltip).toHaveStyle({ visibility: "visible" });
 
     await userEvent.unhover(toggle);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    act(() => toggle.focus());
+    expect(toggle).toHaveFocus();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Open navigation menu");
+
+    act(() => toggle.blur());
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
@@ -376,6 +411,12 @@ describe("UI-31 and UI-35 global error page", () => {
     expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back" })).toHaveClass("btn-outline-secondary");
     expect(screen.queryByText(/DB timeout/)).not.toBeInTheDocument();
+  });
+
+  it("moves focus to the standalone error page after client-side navigation", async () => {
+    await renderErrorVia({ status: 500 }, ALICE);
+
+    expect(screen.getByRole("main")).toHaveFocus();
   });
 
   /*
