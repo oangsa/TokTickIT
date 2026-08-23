@@ -1382,7 +1382,9 @@ message
 backPath
 ```
 
-If navigation state is missing or invalid, including after reload or direct navigation, render the safe generic `500` variant. Never render arbitrary backend-provided title/message text.
+If navigation state is missing or invalid, including after direct navigation, render the safe generic `500` variant. Never render arbitrary backend-provided title/message text.
+
+A reload does not necessarily discard the state: the router restores `location.state` from the browser's own history entry, so a reloaded `/error` may still render the original status. This is safe and is the preferred behavior — only the `403`, `404`, and `500` variants are honored, any other `status` value falls back to `500`, and `title`/`message`/`backPath` are ignored in every case. The requirement is that unrecognized or absent state can never produce anything other than the safe generic `500` variant, not that a reload must forget a valid status.
 
 ## 27.2. Shell
 
