@@ -69,6 +69,14 @@ export function Pagination({
    * "Showing 21-25 of 25". Report the clamp so the caller's own page state
    * converges and the next fetch matches what is rendered.
    *
+   * `totalItems > 0` guards the report, and it is load-bearing rather than an
+   * optimisation. `totalItems: 0` is what a caller renders while a refetch is in
+   * flight, and it collapses `pageCount` to 1: reporting there would knock a user
+   * on page 3 back to page 1 and discard the page-3 response that was about to
+   * arrive. A genuinely empty result set needs no report either — every page of
+   * it is equally empty, and the clamped display already reads "Page 1 of 1" —
+   * so the report is only owed once a real total contradicts the caller.
+   *
    * `onPageChange` is read through a ref: callers commonly pass an inline arrow,
    * and depending on its identity would re-run this on every render.
    */
@@ -76,10 +84,10 @@ export function Pagination({
   onPageChangeRef.current = onPageChange;
 
   useEffect(() => {
-    if (pageNumber !== page) {
+    if (totalItems > 0 && pageNumber !== page) {
       onPageChangeRef.current(page);
     }
-  }, [pageNumber, page]);
+  }, [pageNumber, page, totalItems]);
 
   const firstItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
   const lastItem = Math.min(page * pageSize, totalItems);

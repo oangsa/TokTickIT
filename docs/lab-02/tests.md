@@ -569,6 +569,54 @@ Automated tests use deterministic fixtures/mocks. The standard fixture set shoul
 
 E2E may use a test-only fixture/reset mechanism or equivalent deterministic test dependency. Test-only reset behavior must not be exposed as a production API.
 
+### 4.5.14 Issue #19 focus-indicator and breakpoint fix pass
+
+A second outsider specification-first review traced the shell and the shared
+primitives against the compiled `bootstrap.min.css` cascade rather than against
+the source classes alone, and against Sections 4, 5.2, 27.1, 29.6, and 34. The
+checks below were run on 2026-08-23 from `client/`; the change is frontend-only
+plus one `ui-spec.md` restoration, so no server, Prisma, migration, or database
+target was involved.
+
+| Finding | Fix | Evidence |
+| --- | --- | --- |
+| Icon-only controls had **no** visible focus indicator at all, and no hover feedback either. `.btn:focus-visible` carries `outline: 0` at specificity 0,2,0 and beats the `:focus-visible` outline in `theme.css` at 0,1,0; it then replaces the outline with `box-shadow: var(--bs-btn-focus-box-shadow)`, which resolves `rgba(var(--bs-btn-focus-shadow-rgb), .5)`. Bootstrap defines `--bs-btn-focus-shadow-rgb` only on variant classes, never on `:root` or `.btn`, and `IconButton` renders a bare `btn tt-icon-btn`: the var is undefined, the shadow is invalid at computed-value time, and it computes to `none`. The mobile sidebar toggle, the modal close control, and the filter-chip remove control — the three controls AC-BR-91 names — therefore shipped with no focus ring (Section 29.6: visible focus is mandatory; Section 34). | One rule gives `.btn:focus-visible`, `.nav-link:focus-visible`, and `.page-link:focus` a solid `2px` Secondary Green outline, restoring a single indicator for every control. `.tt-icon-btn` additionally supplies the Pale Green hover pair and its own `--bs-btn-focus-shadow-rgb`. | Browser-only: jsdom applies no stylesheets. Cascade confirmed by grep against `client/node_modules/bootstrap/dist/css/bootstrap.min.css` — `--bs-btn-focus-shadow-rgb` has zero `:root` definitions and is absent from the `.btn` base block. Visual confirmation assigned to Issue #25 (VIS-01–VIS-03). |
+| The focus ring itself failed WCAG 2.2 SC 1.4.11. `--tt-focus-ring` at `rgba(11, 122, 70, 0.35)` composites to `rgb(170, 208, 190)` on white — **1.68:1**; Bootstrap's `.btn` ring at alpha `.5` reaches only **2.16:1**. Because Bootstrap zeroes the outline on `.btn`, `.nav-link`, and `.page-link`, that ring was the entire indicator for sidebar navigation and pagination. Form controls were unaffected: `.form-control:focus` also swaps the border to Secondary Green. Section 4.5.6's contrast spot-check measured disabled buttons, muted text, active navigation, and warning — every token except the focus indicator. | The same solid outline rule above. Secondary Green `#0B7A46` measures 5.40:1 on white and 4.87:1 on Pale Green; the translucent ring is now decoration layered on a compliant indicator rather than the indicator itself. | Manual WCAG 2.1 relative-luminance calculation over the composited ring colours and the replacement outline. |
+| A drawer left open across the 992px breakpoint froze the desktop page. `open` was never reset on a viewport change, and above the breakpoint `.tt-topbar` and `.tt-backdrop` are both `d-lg-none`: the toggle is `display: none` so it can be neither clicked nor focused, the backdrop is invisible, and `.tt-main` keeps `inert`. A tablet rotating 820 -> 1180 therefore lands on a normal-looking desktop shell whose entire content area silently refuses every click and every Tab. Escape still worked but is not a discoverable recovery (Section 5.2: the navigation must not obscure required actions; Section 34: no hidden required buttons). | `AppShell` subscribes to `matchMedia("(min-width: 992px)")` and closes the drawer on the `change` event. No focus restoration: the toggle is `display: none` at that width, so focusing it would be a no-op. | `ApplicationShell.test.tsx` — "closes the drawer when the viewport crosses into the desktop breakpoint" and "leaves the drawer alone while the viewport stays below the breakpoint". `tests/setup.ts` gains a `matchMedia` implementation resolving `(min-width: Npx)` against `window.innerWidth`, because jsdom ships none and an always-`false` stub would assert nothing. |
+| `Pagination`'s clamp report would steal the user's page during a refetch. The effect fired `onPageChange(page)` whenever the clamp moved, and `totalItems: 0` — what a caller renders while a request is in flight — collapses `pageCount` to 1. A user on page 3 would be knocked to page 1 and the page-3 response discarded. No caller exists yet, so this was unexercised; it would have become a live defect the moment Issue #22 wired the component up. | The report is gated on `totalItems > 0`. A genuinely empty result set needs no report either — every page of it is equally empty and the clamped display already reads "Page 1 of 1" — so the report is owed only once a real total contradicts the caller. The internal clamp is unchanged, so the rendered range and the disabled arrows stay correct throughout. | `SharedComponents.test.tsx` — "does not report a clamp while the total is still unresolved". Verified to fail against the pre-fix component. |
+| `ui-spec.md` Section 27.1 had been edited by this Issue to bless the implementation: the original "including after reload or direct navigation" was replaced with a paragraph declaring reload-restored state safe and preferred. Under specification-first that inverts the contract direction — the requirement was implementable, and the implementation rewrote its own acceptance criterion instead. | The original sentence is restored and `ErrorPage` implements it: `useNavigationType() === "POP"` identifies the entries that were not produced by a live client-side navigation — the document's own entry, a reload of it, and a history restore — and those fall back to the generic `500` variant regardless of what `location.state` still carries. A real `PUSH`/`REPLACE` into `/error` keeps the status its caller set, so the `404` wildcard route is unaffected. | `ApplicationShell.test.tsx` — "falls back to the generic variant when a %s entry is restored rather than navigated to" for 403/404/500. Verified to fail against the pre-fix component for 403 and 404 (500 was already the fallback). The variant-copy and Back-path tests now arrive through a real navigation via the new `renderErrorVia` helper, matching how the application reaches the route. |
+| The `403` variant had no test and no producer; only `404` and `500` were exercised. | `ApplicationShell.test.tsx` covers all three variants' copy plus a rejection table for unrecognised `status` values (`401`, `418`, the string `"404"`, `null`, `"nope"`). | Included in the counts below. |
+| Section 4.5.13 rejected gating the Requester Selection focus move because a `location.state` flag never survives the batch — `clearRequester` commits urgently while react-router v7 wraps `navigate` in a transition, so `RequesterGuard`'s state-less redirect wins. That diagnosis is correct and was reproduced in this pass. The mechanism was the problem, not the goal. | `useNavigationType() !== "POP"` asks the same question without passing anything through the router: it is true for Change Requester and for a guard redirect, and false for a cold load or reload of `/requesters`. Focus therefore still follows every client-side screen replacement and no longer moves on the document's own entry, which is the conventional SPA rule. | `ApplicationShell.test.tsx` — "does not steal focus on a first load of the selector" and "moves focus to the selector when the guard redirects a guarded route". The first is verified to fail against the pre-fix component. |
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Shell and shared-component gate | `npm test -- --run tests/lab-02/ApplicationShell.test.tsx tests/lab-02/SharedComponents.test.tsx` | `client/` | Passed — 2 files, 84 tests (16 added by this pass). |
+| Regression value check | Same suites against the pre-fix `AppShell.tsx`, `Pagination.tsx`, `ErrorPage.tsx`, and `RequesterSelection.tsx` | `client/` | 5 failed, 85 passed — each behavioural fix has a test that fails without it. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 4 files, 90 tests. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed. |
+| Frontend build | `npm run build` | `client/` | Passed. |
+| Diff hygiene | `git diff --check` | repository | Passed. |
+
+The two CSS findings carry no automated evidence by construction: jsdom applies
+no stylesheets, so neither the missing focus ring nor its contrast is visible to
+Vitest. Both were found by reading the compiled Bootstrap cascade directly and
+both remain assigned to Issue #25's VIS-01–VIS-03 for visual confirmation. The
+Section 34 checklist item "focus states remain visible" should be verified
+against `IconButton` specifically, since that is the control the cascade broke.
+
+Findings raised and accepted without code change in this pass: fifteen shared
+components (`Modal`, `Pagination`, `FilterChip`, `AttachmentState`, `Skeleton`,
+`ErrorState`, `SuccessMessage`, `Select`, `Textarea`, `TextInput`,
+`ReadOnlyField`, `CharacterCounter`, `ValidationMessage`, `Form`, and `Badge`
+outside `AttachmentState`) still have no screen consumer and are exercised only
+by tests. Section 31 lists them as expected categories, so they are in scope, but
+the `Pagination` defect above is precisely what building a non-trivial API against
+an imagined caller produces; the props of `Pagination` and `Modal` should be
+re-reviewed when Issues #21-#23 actually consume them. Two acceptance criteria
+also remain open by design: "My Tickets remains a responsive table" has no table
+until Issue #22, and `SystemCheck.tsx` is now unrouted, so Lab 1 *tests* remain
+valid while the Lab 1 *screen* is no longer reachable in the application.
+
 ## 5. Reusable QueryBuilder Test Principle
 
 The global QueryBuilder follows the reusable infrastructure/repository utility pattern:

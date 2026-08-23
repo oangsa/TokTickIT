@@ -239,3 +239,38 @@ body {
   outline: 2px solid var(--tt-green-secondary);
   outline-offset: 2px;
 }
+
+/*
+ * Bootstrap zeroes the outline on `.btn:focus-visible`, `.nav-link:focus-visible`
+ * and `.page-link:focus` and replaces it with a translucent box-shadow. Two
+ * problems follow (Section 29.6, Section 34):
+ *
+ *  1. Those rules are specificity 0,2,0 and beat the `:focus-visible` rule above,
+ *     so the green outline never reaches a Bootstrap control.
+ *  2. `--bs-btn-focus-box-shadow` reads `--bs-btn-focus-shadow-rgb`, which
+ *     Bootstrap defines only on variant classes. `.tt-icon-btn` is a bare `.btn`,
+ *     so the var is undefined, the shadow is invalid at computed-value time, and
+ *     the icon-only controls end up with NO focus indicator at all.
+ *
+ * A solid Secondary Green outline restores one indicator for every control and
+ * clears 3:1 against both white (5.4:1) and Pale Green (4.9:1); the translucent
+ * ring below is decoration on top of it, not the indicator itself.
+ */
+.btn:focus-visible,
+.nav-link:focus-visible,
+.page-link:focus {
+  outline: 2px solid var(--tt-green-secondary);
+  outline-offset: 2px;
+}
+
+/*
+ * `.tt-icon-btn` is a bare `.btn`, so Bootstrap's hover rule reads
+ * `--bs-btn-hover-bg`/`--bs-btn-hover-color`, which no variant class defines for
+ * it: hover produced no feedback whatsoever. Give it the same Pale Green hover
+ * the sidebar navigation and secondary buttons use.
+ */
+.tt-icon-btn {
+  --bs-btn-hover-bg: var(--tt-green-pale);
+  --bs-btn-hover-color: var(--tt-green-primary);
+  --bs-btn-focus-shadow-rgb: 11, 122, 70;
+}

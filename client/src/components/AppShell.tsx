@@ -41,6 +41,31 @@ export function AppShell() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
+  /*
+   * The drawer only exists below the desktop breakpoint. Above it the topbar and
+   * the backdrop are both `d-lg-none`, so a drawer left open across a resize or a
+   * tablet rotation keeps `inert` on the whole main region with no visible
+   * backdrop and no pointer-reachable toggle to clear it — the page reads as a
+   * normal desktop shell whose content simply does not respond (Section 5.2: the
+   * navigation must not obscure required actions; Section 34: no hidden required
+   * buttons). Escape still works, but it is not a discoverable way out.
+   *
+   * No focus restoration here: the toggle is `display: none` at this width, so
+   * focusing it would be a no-op.
+   */
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 992px)");
+
+    function closeOnDesktop() {
+      if (desktop.matches) {
+        setOpen(false);
+      }
+    }
+
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
   useEffect(() => {
     if (previousLocationKeyRef.current === location.key) {
       return;

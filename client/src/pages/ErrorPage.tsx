@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigationType } from "react-router-dom";
 
 import { useRequester } from "../requester/RequesterProvider.js";
 
@@ -28,7 +28,7 @@ function readStatus(state: unknown): ErrorStatus {
     }
   }
 
-  // Missing or invalid navigation state, including reload and direct navigation.
+  // Missing or invalid navigation state.
   return 500;
 }
 
@@ -45,7 +45,17 @@ function readStatus(state: unknown): ErrorStatus {
 export default function ErrorPage() {
   const location = useLocation();
   const { requester } = useRequester();
-  const status = readStatus(location.state);
+  /*
+   * Section 27.1 discards the state after a reload or a direct navigation, and
+   * the browser will not do that on its own: `location.state` is persisted in the
+   * history entry, so a reloaded `/error` comes back with the original status
+   * still attached. `POP` is exactly the set of entries that were not produced by
+   * a live client-side navigation — the document's own entry, a reload of it, and
+   * a history restore — so those fall back to the generic variant, while a real
+   * `PUSH`/`REPLACE` into `/error` keeps the status its caller set.
+   */
+  const restoredEntry = useNavigationType() === "POP";
+  const status = restoredEntry ? 500 : readStatus(location.state);
   const copy = ERROR_COPY[status];
 
   // Back never uses browser history: history may return to the same failing

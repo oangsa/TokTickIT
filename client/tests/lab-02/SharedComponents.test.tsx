@@ -207,6 +207,39 @@ describe("UI-32 pagination (ui-spec 18)", () => {
     expect(onPageChange).toHaveBeenCalledWith(3);
   });
 
+  /*
+   * `totalItems: 0` is what a caller renders while a refetch is in flight. The
+   * clamp must stay silent there or it knocks the user back to page 1 and throws
+   * away the response that was about to arrive.
+   */
+  it("does not report a clamp while the total is still unresolved", () => {
+    const onPageChange = vi.fn();
+
+    const { rerender } = render(
+      <Pagination
+        pageNumber={3}
+        pageSize={10}
+        totalItems={0}
+        onPageChange={onPageChange}
+        onPageSizeChange={() => {}}
+      />,
+    );
+
+    expect(onPageChange).not.toHaveBeenCalled();
+
+    rerender(
+      <Pagination
+        pageNumber={3}
+        pageSize={10}
+        totalItems={400}
+        onPageChange={onPageChange}
+        onPageSizeChange={() => {}}
+      />,
+    );
+
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
   it("does not report a page change when the caller is already in range", () => {
     const onPageChange = vi.fn();
     render(

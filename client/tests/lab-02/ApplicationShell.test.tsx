@@ -1,9 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { ComponentProps } from "react";
 import App from "../../src/App.js";
+import { setViewportWidth } from "../setup.js";
 import {
   REQUESTER_STORAGE_KEY,
   StoredRequester,
@@ -25,6 +26,32 @@ function renderAt(entry: Entry, requester?: StoredRequester) {
   );
 }
 
+/*
+ * `/error` honours its status only on a live client-side navigation (ui-spec
+ * Section 27.1), so these tests must arrive the way the application does rather
+ * than mounting `/error` as the router's own initial entry.
+ */
+function ErrorNavigationButton({ state }: { state: unknown }) {
+  const navigate = useNavigate();
+
+  return <button onClick={() => navigate("/error", { state })}>Go to error</button>;
+}
+
+async function renderErrorVia(state: unknown, requester?: StoredRequester) {
+  if (requester) {
+    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
+  }
+
+  render(
+    <MemoryRouter initialEntries={["/requesters"]}>
+      <ErrorNavigationButton state={state} />
+      <App />
+    </MemoryRouter>,
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: "Go to error" }));
+}
+
 function ProgrammaticNavigationButton() {
   const navigate = useNavigate();
 
@@ -44,7 +71,11 @@ function renderAtWithProgrammaticNavigation(entry: Entry, requester?: StoredRequ
   );
 }
 
-afterEach(() => sessionStorage.clear());
+afterEach(() => {
+  sessionStorage.clear();
+  /* Still inside React's tree here: cleanup has not unmounted the shell yet. */
+  act(() => setViewportWidth(1024));
+});
 
 describe("UI-03 application shell and navigation", () => {
   it("shows the TokTickIT identity, navigation, requester name, and Change Requester", () => {
@@ -178,6 +209,25 @@ describe("UI-05 Change Requester", () => {
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "My Tickets" })).not.toBeInTheDocument();
   });
+
+  /*
+   * Focus follows a route change that replaces the whole screen, but a cold load
+   * of `/requesters` must leave it where the browser put it: focusing `<main>`
+   * there talks over the page title for a screen reader (Section 29.6).
+   */
+  it("does not steal focus on a first load of the selector", () => {
+    renderAt("/requesters");
+
+    expect(screen.getByRole("main")).not.toHaveFocus();
+    expect(document.body).toHaveFocus();
+  });
+
+  /* A guard redirect is also a client-side screen replacement, so focus follows. */
+  it("moves focus to the selector when the guard redirects a guarded route", () => {
+    renderAt("/tickets");
+
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
 });
 
 describe("UI-32 and UI-37 accessibility foundations", () => {
@@ -263,6 +313,41 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
     expect(main).not.toHaveAttribute("inert");
   });
 
+  it("closes the drawer when the viewport crosses into the desktop breakpoint", async () => {
+    setViewportWidth(820);
+    renderAt("/tickets", ALICE);
+
+    const main = screen.getByRole("main");
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    expect(main).toHaveAttribute("inert");
+
+    /*
+     * A tablet rotating 820 -> 1180 crosses the 992px breakpoint. Above it the
+     * toggle and the backdrop are `d-lg-none`, so an `inert` main would leave the
+     * whole content area unreachable with nothing on screen explaining why.
+     */
+    act(() => setViewportWidth(1180));
+
+    expect(screen.getByRole("button", { name: "Open navigation menu" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(main).not.toHaveAttribute("inert");
+  });
+
+  it("leaves the drawer alone while the viewport stays below the breakpoint", async () => {
+    setViewportWidth(390);
+    renderAt("/tickets", ALICE);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    act(() => setViewportWidth(820));
+
+    expect(screen.getByRole("button", { name: "Close navigation menu" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
   it("exposes banner, navigation, main landmarks and a skip link", () => {
     renderAt("/tickets", ALICE);
 
@@ -284,8 +369,8 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
 });
 
 describe("UI-31 and UI-35 global error page", () => {
-  it("renders the safe generic error and ignores backend-supplied text", () => {
-    renderAt({ pathname: "/error", state: { title: "DB timeout at 10.0.0.4" } }, ALICE);
+  it("renders the safe generic error and ignores backend-supplied text", async () => {
+    await renderErrorVia({ title: "DB timeout at 10.0.0.4" }, ALICE);
 
     expect(screen.getByText("500")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
@@ -293,22 +378,59 @@ describe("UI-31 and UI-35 global error page", () => {
     expect(screen.queryByText(/DB timeout/)).not.toBeInTheDocument();
   });
 
+  /*
+   * `location.state` lives in the history entry, so the browser hands it straight
+   * back on a reload. Section 27.1 requires the generic variant there regardless
+   * of what the entry still carries.
+   */
+  it.each([403, 404, 500])(
+    "falls back to the generic variant when a %s entry is restored rather than navigated to",
+    (status) => {
+      renderAt({ pathname: "/error", state: { status } }, ALICE);
+
+      expect(screen.getByText("500")).toBeInTheDocument();
+      expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
+    },
+  );
+
   // AC-61 and ui-spec Section 27.4: Back is resolved from the requester context,
   // never from browser history and never from a caller-supplied `backPath`.
-  it("sends Back to /tickets when a valid Requester context exists", () => {
-    renderAt({ pathname: "/error", state: { status: 404 } }, ALICE);
+  it.each([
+    [403, "Unable to open this page.", "You do not have access to the requested resource."],
+    [404, "Page not found.", "The requested resource could not be found."],
+    [500, "Something went wrong.", "Please try again later."],
+  ])("renders the safe %s variant copy", async (status, title, message) => {
+    await renderErrorVia({ status }, ALICE);
+
+    expect(screen.getByText(String(status))).toBeInTheDocument();
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it.each([401, 418, "404", null, "nope"])(
+    "falls back to the generic 500 variant for the unrecognised status %s",
+    async (status) => {
+      await renderErrorVia({ status }, ALICE);
+
+      expect(screen.getByText("500")).toBeInTheDocument();
+      expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
+    },
+  );
+
+  it("sends Back to /tickets when a valid Requester context exists", async () => {
+    await renderErrorVia({ status: 404 }, ALICE);
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
   });
 
-  it("sends Back to /requesters when no Requester context exists", () => {
-    renderAt({ pathname: "/error", state: { status: 404 } });
+  it("sends Back to /requesters when no Requester context exists", async () => {
+    await renderErrorVia({ status: 404 });
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/requesters");
   });
 
-  it("ignores a caller-supplied backPath rather than following it", () => {
-    renderAt({ pathname: "/error", state: { status: 404, backPath: "https://evil.example/" } }, ALICE);
+  it("ignores a caller-supplied backPath rather than following it", async () => {
+    await renderErrorVia({ status: 404, backPath: "https://evil.example/" }, ALICE);
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
   });
