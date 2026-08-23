@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-32 important prompts in 30 table entries from the Lab 2 history available in
-the repository and current session.
+38 representative prompts in 36 table entries from the Lab 2 history available
+in the repository and current session.
 
-## Selected key prompts (32; 30 entries)
+## Selected key prompts (38; 36 entries)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -46,11 +46,12 @@ the repository and current session.
 | 50 (current) | Fix-then-ship the Issue #19 scrutinize findings without implementing later-lab screens. | Kept the spec-defined route set, documented the Lab 1 direct-component compatibility boundary and Issue #22 responsive-table deferral, and included the pending disabled bare-icon CSS correction. The focused and full client checks plus both application builds were rerun before committing; browser responsive/visual coverage remains assigned to Issue #25. |
 | 51 (current) | Fix-then-ship the two actionable Issue #19 scrutinize findings while deferring responsive/visual browser verification as requested. | Replaced per-page POP focus logic with a persistent route-focus boundary that handles history returns without overriding shell drawer focus; merged caller `aria-describedby` values while keeping generated error/counter/invalid wiring authoritative across `TextInput`, `Select`, and `Textarea`. Added regressions and verified the focused/full client suites plus client/server builds; responsive/visual browser coverage remains assigned to Issue #25, and no commit was created. |
 | 52 (current) | Fix-then-ship the remaining Issue #19 error-route focus and icon-tooltip evidence findings. | Added a focus target to the standalone `/error` main, covered live error-route focus restoration, and covered tooltip visibility on keyboard focus/blur for the mobile menu toggle. Focused/full client tests and both application builds were rerun; manual/responsive browser checks remain intentionally deferred, and no commit was created. |
+| 53 (current) | Requested a step-by-step implementation plan for resolving the PR #32 review findings. | Used the plan to synchronize the Issue #19 ownership wording (shell/responsive foundation under #19, API-backed My Tickets under #22, final Playwright responsive/visual verification under #25), the current UI-05/UI-31/UI-35 test traceability, and this record's prompt/entry counts, without adding Issue #22 or Issue #25 functionality. |
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
-the handout-facing deliverable intentionally selects thirty-four representative
-prompts in thirty-two table entries rather than reproducing every wording
+the handout-facing deliverable intentionally selects thirty-eight representative
+prompts in thirty-six table entries rather than reproducing every wording
 correction. The selection
 covers specification and API contracts, UI behavior, schema and migration
 decisions, Attachment lifecycle, idempotency/concurrency, test traceability,
