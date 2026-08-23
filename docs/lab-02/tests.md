@@ -1008,6 +1008,14 @@ does not defer or replace a feature Issue's own close gate.
 | #24 — Attachment lifecycle | `server/tests/lab-02/AttachmentService.test.ts`, `server/tests/lab-02/MaintenanceService.test.ts`, `server/tests/lab-02/attachments.api.test.ts`, `server/tests/lab-02/transport-hardening.api.test.ts`, `server/tests/lab-02/postgres/attachment-concurrency.postgres.test.ts`, `server/tests/lab-02/postgres/maintenance.postgres.test.ts`, `server/tests/lab-02/postgres/transactions.postgres.test.ts`, `client/tests/lab-02/AttachmentSection.test.tsx` | Attachment lifecycle, exact multipart/binary bounds, serializable max-five, cleanup CLI/race safety, database checks, scope hiding, Blob URL cleanup, and atomic deletion tests pass. |
 | #25 — Integration/tooling | Root pinned Playwright manifest/config/lockfile, client pinned MSW, `e2e/lab-02/requester-ticket-flow.spec.ts`, `e2e/lab-02/create-ticket.spec.ts`, `e2e/lab-02/responsive-visual.spec.ts`, responsive/visual evidence | Local pinned tooling coordinates client/server/test PostgreSQL; all focused suites rerun and approved E2E/viewports pass without implicit runner download. |
 
+Issue #19 scope boundary: this close gate covers the reusable route, shell,
+navigation, responsive/focus foundation, and shared controls only. `SystemCheck`
+remains directly covered by the Lab 1 component tests; `/system-check` is not a
+Lab 2 route because the Lab 2 categories contract requires `X-Requester-Id`.
+Requester selection, ticket creation, the responsive My Tickets table, and
+ticket detail behavior remain owned by Issues #20–#23. Issue #25 owns the final
+browser responsive and visual reruns.
+
 ## 15. Non-Automated Delivery Evidence
 
 Mocked Unit/API tests remain fast contract/application evidence and must not be described as proof of PostgreSQL ACID, locking, uniqueness, or concurrency. PG-01–PG-12 provide the focused real-database evidence; the following schema/delivery evidence remains separately required:

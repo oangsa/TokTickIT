@@ -110,10 +110,23 @@ body {
  *
  * `.btn:disabled` applies `--bs-btn-disabled-opacity` on top of the disabled
  * colours, so a pre-muted disabled background is muted twice and drops to about
- * 1.8:1. Opacity is turned off here and every variant supplies its own final
- * disabled colours instead (Sections 7.5, 10.5).
+ * 1.8:1. Opacity is turned off for the variants below, each of which supplies
+ * its own final disabled colours instead (Sections 7.5, 10.5).
+ *
+ * Deliberately NOT `.btn`. Bootstrap's `.btn` base block defines
+ * `--bs-btn-disabled-opacity` but none of `--bs-btn-disabled-color`, `-bg`, or
+ * `-border-color`; only variant classes define those. A bare `.btn` — which is
+ * what `IconButton` renders — therefore resolves the three colour declarations
+ * as invalid at computed-value time: `color` inherits the enabled text colour,
+ * `background-color` falls back to transparent, and `border-color` falls back to
+ * `currentcolor`, adding a 1px dark border the enabled control does not have.
+ * Switching opacity off there would remove the only muting a bare `.btn` gets
+ * and leave a disabled icon-only control looking stronger than an enabled one.
  */
-.btn {
+.btn-primary,
+.btn-outline-secondary,
+.btn-link,
+.btn-danger {
   --bs-btn-disabled-opacity: 1;
 }
 
