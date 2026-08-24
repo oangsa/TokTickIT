@@ -71,7 +71,15 @@ export class InvalidRequesterContextError extends Error {
   }
 }
 
-export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
+/*
+ * `signal` is deliberately not accepted: `apiFetch` installs its own timeout
+ * signal and a caller's would be silently overwritten by it. Cancel-on-unmount
+ * is done with the `ignore` flag pattern in the effect instead (see
+ * `RequesterSelection`), which is what keeps a stale response from painting
+ * over a newer one. If a real abort is ever needed, merge the two signals here
+ * rather than re-widening this type.
+ */
+export interface ApiRequestInit extends Omit<RequestInit, "headers" | "signal"> {
   headers?: Record<string, string>;
 }
 

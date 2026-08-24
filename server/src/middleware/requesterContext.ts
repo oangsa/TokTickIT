@@ -21,8 +21,18 @@ const REQUESTER_CONTEXT_DETAILS: ErrorDetail[] = [
   { field: "X-Requester-Id", message: "The requester context is invalid." },
 ];
 
-/* Only the bootstrap endpoint and the health check are exempt; everything else is denied by default. */
-const EXEMPT_ROUTES = new Set(["GET /requesters", "GET /health"]);
+/*
+ * Only the bootstrap endpoint and the health check are exempt; everything else
+ * is denied by default.
+ *
+ * Matched the way Express itself routes, or the guard rejects requests the
+ * router would have served: paths case-insensitively (`caseSensitive` is off),
+ * and HEAD alongside GET (Express dispatches HEAD to GET handlers). A miss here
+ * fails closed, but it fails closed with the context-invalidating `details`,
+ * which makes the client discard a perfectly good stored Requester.
+ */
+const EXEMPT_PATHS = new Set(["/requesters", "/health"]);
+const EXEMPT_METHODS = new Set(["GET", "HEAD"]);
 
 const INTEGER_PATTERN = /^-?\d+$/;
 
@@ -34,7 +44,7 @@ export async function requireRequesterContext(
   /* Mounted at "/api", so `req.path` is already stripped of that prefix. */
   const path = req.path.replace(/\/+$/, "") || "/";
 
-  if (EXEMPT_ROUTES.has(`${req.method} ${path}`)) {
+  if (EXEMPT_METHODS.has(req.method) && EXEMPT_PATHS.has(path.toLowerCase())) {
     next();
     return;
   }

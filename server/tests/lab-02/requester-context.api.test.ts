@@ -55,6 +55,20 @@ describe("requester context guard (API-01)", () => {
     expect(res.body).toEqual({ status: "ok", service: "TokTickIT API" });
   });
 
+  it("exempts the bootstrap and health routes the way Express routes them", async () => {
+    // Express matches paths case-insensitively and dispatches HEAD to GET
+    // handlers. An exemption that missed either would answer with the
+    // context-invalidating `details`, and the client would throw away a valid
+    // stored Requester over a URL the router would have served.
+    const upperHealth = await request(app).get("/api/HEALTH");
+    const upperBootstrap = await request(app).get("/api/Requesters");
+    const headBootstrap = await request(app).head("/api/requesters");
+
+    expect(upperHealth.status).toBe(200);
+    expect(upperBootstrap.status).toBe(200);
+    expect(headBootstrap.status).toBe(200);
+  });
+
   it("rejects a guarded route when the header is missing", async () => {
     const res = await request(app).get("/api/categories");
 

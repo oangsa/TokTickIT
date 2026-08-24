@@ -58,6 +58,21 @@ export default function RequesterSelection() {
 
   const retry = useCallback(() => setReloadCount((count) => count + 1), []);
 
+  /*
+   * One always-mounted live region (ui-spec 29.7). A `role="status"` node that
+   * is inserted into the DOM with its text already present is announced
+   * inconsistently -- assistive technology reports mutations to a region that
+   * is already in the accessibility tree -- so the region stays put and only
+   * its text changes. Failure is left to `ErrorState`'s `role="alert"`; putting
+   * it here too would announce it twice.
+   */
+  const announcement =
+    loadState === "loading"
+      ? "Loading Development Requesters"
+      : loadState === "loaded"
+        ? `${requesters.length} Development Requester${requesters.length === 1 ? "" : "s"} loaded`
+        : "";
+
   function handleContinue(): void {
     const selected = requesters.find((requester) => String(requester.id) === selectedId);
 
@@ -76,13 +91,13 @@ export default function RequesterSelection() {
         title="Select a Development Requester"
         subtitle="This is a Lab 2 testing mechanism, not authentication. Secure authentication is introduced in a later lab."
       />
+      {/* Skeleton is decorative and aria-hidden, so the screen owns the announcement (ui-spec 29.7). */}
+      <p role="status" className="visually-hidden">
+        {announcement}
+      </p>
       <Card>
         {loadState === "loading" ? (
           <>
-            {/* Skeleton is decorative and aria-hidden, so the screen owns the announcement (ui-spec 29.7). */}
-            <p role="status" className="visually-hidden">
-              Loading Development Requesters
-            </p>
             <Skeleton width="12rem" height="1rem" />
             <Skeleton height="2.5rem" />
             <div className="d-flex justify-content-end">

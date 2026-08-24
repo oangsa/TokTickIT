@@ -88,4 +88,20 @@ describe("GET /api/requesters (API-02)", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
+
+  it("is not served outside development and test", async () => {
+    // The response carries full DevelopmentRequesterDTOs, names and emails
+    // included, with no requester context required. api-spec Section 1 confines
+    // that to development/test networks and Section 3.4 is explicit that CORS
+    // is not an API boundary, so the restriction is enforced by the route.
+    vi.stubEnv("NODE_ENV", "production");
+
+    const res = await request(app).get("/api/requesters");
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("NOT_FOUND");
+    expect(prismaMock.developmentRequester.findMany).not.toHaveBeenCalled();
+
+    vi.unstubAllEnvs();
+  });
 });

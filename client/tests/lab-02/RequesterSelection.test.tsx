@@ -64,6 +64,20 @@ describe("UI-01 Development Requester Selection", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
+  it("keeps one live region mounted across the load so the change is announced", async () => {
+    // A role="status" node inserted with its text already present is announced
+    // inconsistently; the region has to outlive the state change.
+    stubJson(REQUESTERS);
+    renderSelection();
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveTextContent("Loading Development Requesters");
+
+    await screen.findByRole("combobox");
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("2 Development Requesters loaded");
+  });
+
   it("states that this is a testing mechanism and not authentication", async () => {
     stubJson(REQUESTERS);
     renderSelection();

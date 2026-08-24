@@ -1,9 +1,10 @@
 import cors from "cors";
 import type { RequestHandler } from "express";
 
+import { isDevelopmentOrTest } from "../env.js";
+
 /* api-spec Section 3.4. Wildcard origins are prohibited. */
 const DEVELOPMENT_ORIGIN = "http://localhost:5173";
-const DEVELOPMENT_ENVIRONMENTS = new Set(["development", "test"]);
 const EXACT_ORIGIN_PATTERN = /^https?:\/\/[^\s/]+$/;
 
 export const ALLOWED_REQUEST_HEADERS = [
@@ -34,7 +35,7 @@ export function resolveAllowedOrigins(env: CorsEnvironment): string[] {
     return configured;
   }
 
-  if (env.NODE_ENV === undefined || DEVELOPMENT_ENVIRONMENTS.has(env.NODE_ENV)) {
+  if (isDevelopmentOrTest(env.NODE_ENV)) {
     return [DEVELOPMENT_ORIGIN];
   }
 
