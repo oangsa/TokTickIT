@@ -83,8 +83,35 @@ export interface ApiRequestInit extends Omit<RequestInit, "headers" | "signal"> 
   headers?: Record<string, string>;
 }
 
+export interface ApiErrorDetail {
+  field: string;
+  message: string;
+}
+
 interface ErrorEnvelope {
   code?: string;
+  details?: ApiErrorDetail[];
+}
+
+/*
+ * Carries the machine-readable parts of the centralized envelope so a form can
+ * mark the fields the backend rejected. The `message` stays the generic client
+ * string: backend `message` text is never surfaced to the UI (api-spec Section
+ * 17), and `details[].message` is only used where the contract defines it as
+ * safe field feedback.
+ */
+export class ApiResponseError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+  readonly details: ApiErrorDetail[];
+
+  constructor(status: number, code: string | undefined, details: ApiErrorDetail[]) {
+    super(`The request failed (HTTP ${status}).`);
+    this.name = "ApiResponseError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
 }
 
 export async function apiFetch<T>(
@@ -114,7 +141,15 @@ export async function apiFetch<T>(
     }
 
     /* Backend `message` text is never surfaced to the UI. */
-    throw new Error(`The request failed (HTTP ${response.status}).`);
+    throw new ApiResponseError(
+      response.status,
+      envelope?.code,
+      Array.isArray(envelope?.details) ? envelope.details : [],
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return (await response.json().catch(() => {
@@ -125,4 +160,55 @@ export async function apiFetch<T>(
 /* The one Lab 2 endpoint that must not send X-Requester-Id (api-spec Section 3.1). */
 export function fetchRequesters(): Promise<DevelopmentRequester[]> {
   return apiFetch<DevelopmentRequester[]>("/api/requesters");
+}
+
+/* api-spec Sections 5.2 and 5.3. Both master DTOs share the same shape. */
+export interface MasterDataItem {
+  id: number;
+  name: string;
+  isActive: boolean;
+  deleted: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/* api-spec Section 5.4. */
+export interface Attachment {
+  attachmentId: string;
+  ticketPublicId: string | null;
+  originalName: string;
+  extension: string;
+  mimeType: string;
+  sizeBytes: number;
+  removalReason: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+  deleted: boolean;
+}
+
+/* api-spec Section 5.5. `createdAt` is the authoritative Ticket Date. */
+export interface Ticket {
+  publicId: string;
+  ticketNumber: string;
+  requesterId: number;
+  requesterName: string;
+  requesterEmail: string;
+  categoryId: number;
+  categoryName: string;
+  relatedSystemId: number;
+  relatedSystemName: string;
+  summary: string;
+  description: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  currentStatus: "NEW";
+  attachments: Attachment[];
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+  deleted: boolean;
 }
