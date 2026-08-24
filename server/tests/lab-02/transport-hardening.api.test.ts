@@ -112,14 +112,35 @@ describe("transport hardening (API-72, API-74)", () => {
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
-  it("merges Vary without clobbering the CORS value", async () => {
+  it("merges Vary on a requester-scoped response without clobbering the CORS value", async () => {
     const res = await request(app)
-      .get("/api/requesters")
+      .get("/api/categories")
+      .set("X-Requester-Id", "1")
       .set("Origin", "http://localhost:5173");
 
     const varyValues = res.headers.vary.split(/,\s*/);
     expect(varyValues).toContain("Origin");
     expect(varyValues).toContain("X-Requester-Id");
     expect(varyValues.filter((value) => value === "Origin")).toHaveLength(1);
+  });
+
+  it("varies a requester-scoped error response by X-Requester-Id too", async () => {
+    const res = await request(app).get("/api/categories").set("Origin", "http://localhost:5173");
+
+    expect(res.status).toBe(400);
+    expect(res.headers.vary.split(/,\s*/)).toContain("X-Requester-Id");
+  });
+
+  it("does not vary the bootstrap response by X-Requester-Id", async () => {
+    // `GET /api/requesters` returns the same body to every Requester and never
+    // reads the header, so claiming to vary by it would be a false cache key
+    // (api-spec Section 3.6).
+    const res = await request(app)
+      .get("/api/requesters")
+      .set("Origin", "http://localhost:5173");
+
+    const varyValues = res.headers.vary.split(/,\s*/);
+    expect(varyValues).toContain("Origin");
+    expect(varyValues).not.toContain("X-Requester-Id");
   });
 });

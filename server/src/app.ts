@@ -1,12 +1,12 @@
-import express, { NextFunction, Request, Response } from "express";
+import express, { Request, Response } from "express";
 
 import { errorHandler, notFoundHandler } from "./http/errors.js";
 import { createCorsMiddleware } from "./middleware/cors.js";
 import { requestLog } from "./middleware/requestLog.js";
 import { requireRequesterContext } from "./middleware/requesterContext.js";
 import { transport } from "./middleware/transport.js";
-import { getPrisma } from "./prisma.js";
 import { referenceDataRouter } from "./routes/referenceData.js";
+import { ticketsRouter } from "./routes/tickets.js";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -33,26 +33,16 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
-// Issue 20 — Development Requester bootstrap
+// Issue 20 — Development Requester bootstrap.
+// Issue 21 — Categories (moved here from the Lab 1 inline handler and widened
+// from { id, name } to the full CategoryDTO) and Related Systems.
 // ---------------------------------------------------------------------------
 app.use("/api", referenceDataRouter);
 
 // ---------------------------------------------------------------------------
-// Issue 4 — Category list. Issue 20 puts it behind the requester guard by mount
-// order; its Lab 1 { id, name } body is unchanged. Issue 21 converts it to the
-// full CategoryDTO.
+// Issue 21 — Ticket creation
 // ---------------------------------------------------------------------------
-app.get("/api/categories", async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const categories = await getPrisma().category.findMany({
-      select: { id: true, name: true },
-      orderBy: { id: "asc" },
-    });
-    res.json(categories);
-  } catch (error) {
-    next(error);
-  }
-});
+app.use("/api", ticketsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

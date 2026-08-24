@@ -16,12 +16,16 @@ describe("GET /api/categories", () => {
       .get("/api/categories")
       .set("X-Requester-Id", String(requesterId));
 
+    // Issue 21 widened this route from the Lab 1 `{ id, name }` body to the
+    // full CategoryDTO (api-spec Section 6.2), so the assertion checks the
+    // seeded identity rather than the exact field set. The full DTO shape is
+    // owned by `tests/lab-02/reference-data.api.test.ts`.
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([
-      { id: expect.any(Number), name: "Account and Access" },
-      { id: expect.any(Number), name: "Hardware" },
-      { id: expect.any(Number), name: "Software" },
-      { id: expect.any(Number), name: "Network" },
+    expect(res.body.map((c: { name: string }) => c.name)).toEqual([
+      "Account and Access",
+      "Hardware",
+      "Software",
+      "Network",
     ]);
     const ids = res.body.map((c: { id: number }) => c.id);
     expect(ids).toEqual([...ids].sort((a, b) => a - b));

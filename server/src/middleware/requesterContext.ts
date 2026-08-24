@@ -8,6 +8,12 @@ declare global {
   namespace Express {
     interface Request {
       requesterId?: number;
+      /*
+       * The guard already loads the row to validate it. Audit actors are derived
+       * from the selected Requester's email (api-spec Section 7.2), so it is
+       * kept here instead of every handler refetching it.
+       */
+      requesterEmail?: string;
     }
   }
 }
@@ -35,7 +41,7 @@ const INTEGER_PATTERN = /^-?\d+$/;
  */
 export async function requireRequesterContext(
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ): Promise<void> {
   /* Mounted at "/api", so `req.path` is already stripped of that prefix. */
@@ -45,6 +51,13 @@ export async function requireRequesterContext(
     next();
     return;
   }
+
+  /*
+   * Everything past this point is requester-scoped, so it varies by the context
+   * header (Section 3.6). Set before the rejections below so error responses
+   * carry it too. `res.vary` merges with the CORS value rather than replacing it.
+   */
+  res.vary("X-Requester-Id");
 
   const header = req.header("X-Requester-Id");
 
@@ -78,6 +91,7 @@ export async function requireRequesterContext(
     }
 
     req.requesterId = requesterId;
+    req.requesterEmail = requester.email;
     next();
   } catch (error) {
     next(error);
