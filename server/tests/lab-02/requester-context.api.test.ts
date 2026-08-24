@@ -1,0 +1,141 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import request from "supertest";
+
+const prismaMock = vi.hoisted(() => ({
+  developmentRequester: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+  },
+  category: { findMany: vi.fn() },
+}));
+
+vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
+
+import { app } from "../../src/app.js";
+
+const ALICE = {
+  id: 1,
+  name: "Alice Johnson",
+  email: "alice.johnson@example.com",
+  isActive: true,
+  deleted: false,
+  createdBy: "seed",
+  createdAt: new Date("2026-08-20T01:00:00.000Z"),
+  updatedBy: "seed",
+  updatedAt: new Date("2026-08-20T01:00:00.000Z"),
+};
+
+const REQUESTER_CONTEXT_DETAILS = [
+  { field: "X-Requester-Id", message: "The requester context is invalid." },
+];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);
+  prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
+  prismaMock.category.findMany.mockResolvedValue([]);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("requester context guard (API-01)", () => {
+  it("lets the bootstrap endpoint through without requester context", async () => {
+    const res = await request(app).get("/api/requesters");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("lets the health check through without requester context", async () => {
+    const res = await request(app).get("/api/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: "ok", service: "TokTickIT API" });
+  });
+
+  it("rejects a guarded route when the header is missing", async () => {
+    const res = await request(app).get("/api/categories");
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      statusCode: 400,
+      code: "BAD_REQUEST",
+      message: "The request is invalid.",
+      error: "Bad Request",
+      details: REQUESTER_CONTEXT_DETAILS,
+    });
+  });
+
+  it("rejects a non-integer header with VALIDATION_ERROR", async () => {
+    const res = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.message).toBe("The request contains invalid values.");
+    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+  });
+
+  it("rejects a decimal header with VALIDATION_ERROR", async () => {
+    const res = await request(app).get("/api/categories").set("X-Requester-Id", "1.5");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+  });
+
+  it("rejects an unsafe integer header with VALIDATION_ERROR", async () => {
+    const res = await request(app)
+      .get("/api/categories")
+      .set("X-Requester-Id", "99999999999999999999");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+  });
+
+  it("rejects zero and negative headers with VALIDATION_ERROR", async () => {
+    const zero = await request(app).get("/api/categories").set("X-Requester-Id", "0");
+    const negative = await request(app).get("/api/categories").set("X-Requester-Id", "-3");
+
+    for (const res of [zero, negative]) {
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+    }
+  });
+
+  it("rejects an unknown, deleted, or inactive Requester with BAD_REQUEST", async () => {
+    // Unknown, `deleted: true`, and `isActive: false` all resolve to `null`
+    // through `findSelectableById`, which is exactly why they are
+    // indistinguishable to the client.
+    prismaMock.developmentRequester.findFirst.mockResolvedValue(null);
+
+    const res = await request(app).get("/api/categories").set("X-Requester-Id", "999");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("BAD_REQUEST");
+    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+  });
+
+  it("accepts a valid active Requester and reaches the route", async () => {
+    const res = await request(app).get("/api/categories").set("X-Requester-Id", "1");
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.category.findMany).toHaveBeenCalled();
+  });
+
+  it("carries the same generic message on every rejection", async () => {
+    const missing = await request(app).get("/api/categories");
+    const nonInteger = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
+    prismaMock.developmentRequester.findFirst.mockResolvedValue(null);
+    const unknown = await request(app).get("/api/categories").set("X-Requester-Id", "999");
+
+    for (const res of [missing, nonInteger, unknown]) {
+      expect(res.body.details[0].message).toBe("The requester context is invalid.");
+      expect(JSON.stringify(res.body)).not.toContain(ALICE.name);
+      expect(JSON.stringify(res.body)).not.toContain(ALICE.email);
+    }
+  });
+});
