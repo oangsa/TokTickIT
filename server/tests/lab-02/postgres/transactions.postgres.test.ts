@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import { RequestedPriority } from "../../../src/generated/prisma/enums.js";
 import type { PrismaClient } from "../../../src/generated/prisma/client.js";
+import { runCreateTicket } from "../../../src/services/createTicketFlow.js";
 import {
   assertLab2TestDatabase,
   createTestPrisma,
@@ -417,5 +418,197 @@ describe.sequential("Lab 2 Attachment PostgreSQL invariants", () => {
       createAttachment(prisma, fixture, { storageKey }),
       "23505",
     );
+  }, 30_000);
+});
+
+/*
+ * PG-03 (BR-21-24, BR-52, AC-06, AC-11). The failure is injected at the
+ * Attachment-binding step, after the claim is fenced and the Ticket row is
+ * inserted, so the rollback under test is a real PostgreSQL rollback of a
+ * partially written transaction rather than a simulated one.
+ */
+function withFailingBinding(client: PrismaClient): PrismaClient {
+  return new Proxy(client, {
+    get(target, property, receiver) {
+      if (property !== "$transaction") {
+        return Reflect.get(target, property, receiver);
+      }
+
+      return (callback: (tx: unknown) => unknown) =>
+        (target as PrismaClient).$transaction((tx) =>
+          Promise.resolve(
+            callback(
+              new Proxy(tx as object, {
+                get(txTarget, txProperty) {
+                  if (txProperty === "attachment") {
+                    return new Proxy(Reflect.get(txTarget, txProperty) as object, {
+                      get(delegate, method) {
+                        if (method === "updateMany") {
+                          return async () => {
+                            throw new Error("injected binding failure");
+                          };
+                        }
+
+                        const value = Reflect.get(delegate, method);
+                        return typeof value === "function" ? value.bind(delegate) : value;
+                      },
+                    });
+                  }
+
+                  /*
+                   * Bound to the transaction client: `$queryRaw` and the model
+                   * delegates lose `this` when read through a bare Reflect.get.
+                   */
+                  const value = Reflect.get(txTarget, txProperty);
+                  return typeof value === "function" ? value.bind(txTarget) : value;
+                },
+              }),
+            ),
+          ),
+        );
+    },
+  }) as PrismaClient;
+}
+
+describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
+  let target: TestDatabaseTarget;
+  let prisma: PrismaClient;
+  let requesterId: number;
+  let categoryId: number;
+  let relatedSystemId: number;
+
+  const ACTOR = "rollback.test@example.com";
+
+  beforeAll(async () => {
+    target = assertLab2TestDatabase();
+    prisma = createTestPrisma(target);
+
+    const requester = await prisma.developmentRequester.create({
+      data: { name: "Rollback Test Requester", email: ACTOR, createdBy: "system", updatedBy: "system" },
+    });
+    const category = await prisma.category.create({
+      data: { name: `Rollback Category ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
+    });
+    const relatedSystem = await prisma.relatedSystem.create({
+      data: { name: `Rollback System ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
+    });
+
+    requesterId = requester.id;
+    categoryId = category.id;
+    relatedSystemId = relatedSystem.id;
+  }, 120_000);
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("leaves no Ticket, binding, or COMPLETED result when the transaction fails", async () => {
+    const key = randomUUID();
+    const summary = `Rollback ${key}`;
+
+    const attachment = await prisma.attachment.create({
+      data: {
+        storageKey: randomUUID(),
+        uploadedByRequesterId: requesterId,
+        originalName: "vpn-error.png",
+        extension: "png",
+        mimeType: "image/png",
+        sizeBytes: 4,
+        data: Buffer.from([1, 2, 3, 4]),
+        createdBy: ACTOR,
+        updatedBy: ACTOR,
+      },
+    });
+
+    const payload = {
+      categoryId,
+      relatedSystemId,
+      summary,
+      requestedPriority: "HIGH" as const,
+      description: "The VPN client fails after entering my credentials.",
+      attachmentIds: [attachment.storageKey],
+    };
+
+    await expect(
+      runCreateTicket(withFailingBinding(prisma), {
+        requesterId,
+        actor: ACTOR,
+        key,
+        payload,
+      }),
+    ).rejects.toThrowError("injected binding failure");
+
+    /* No partial Ticket survived the rollback. */
+    expect(await prisma.ticket.findMany({ where: { summary } })).toHaveLength(0);
+
+    /* The referenced row is still Pending and still retryable. */
+    const afterFailure = await prisma.attachment.findUnique({
+      where: { storageKey: attachment.storageKey },
+    });
+    expect(afterFailure?.ticketId).toBeNull();
+    expect(afterFailure?.deleted).toBe(false);
+
+    /*
+     * BR-24 and api-spec Section 8.6: the owned claim is removed rather than
+     * persisted as FAILED, so the unchanged retry below may run again.
+     */
+    expect(
+      await prisma.idempotencyRecord.findUnique({
+        where: { requesterId_key: { requesterId, key } },
+      }),
+    ).toBeNull();
+  }, 30_000);
+
+  it("lets the unchanged retry succeed with the same key and the same Pending rows", async () => {
+    const key = randomUUID();
+    const summary = `Rollback retry ${key}`;
+
+    const attachment = await prisma.attachment.create({
+      data: {
+        storageKey: randomUUID(),
+        uploadedByRequesterId: requesterId,
+        originalName: "vpn-error.png",
+        extension: "png",
+        mimeType: "image/png",
+        sizeBytes: 4,
+        data: Buffer.from([1, 2, 3, 4]),
+        createdBy: ACTOR,
+        updatedBy: ACTOR,
+      },
+    });
+
+    const payload = {
+      categoryId,
+      relatedSystemId,
+      summary,
+      requestedPriority: "HIGH" as const,
+      description: "The VPN client fails after entering my credentials.",
+      attachmentIds: [attachment.storageKey],
+    };
+
+    await expect(
+      runCreateTicket(withFailingBinding(prisma), { requesterId, actor: ACTOR, key, payload }),
+    ).rejects.toThrowError("injected binding failure");
+
+    const retry = await runCreateTicket(prisma, { requesterId, actor: ACTOR, key, payload });
+
+    expect(retry.status).toBe(201);
+    expect(retry.ticket.attachments.map((row) => row.attachmentId)).toEqual([
+      attachment.storageKey,
+    ]);
+
+    const tickets = await prisma.ticket.findMany({ where: { summary } });
+    expect(tickets).toHaveLength(1);
+
+    const bound = await prisma.attachment.findUnique({
+      where: { storageKey: attachment.storageKey },
+    });
+    expect(bound?.ticketId).toBe(tickets[0].id);
+
+    const claim = await prisma.idempotencyRecord.findUnique({
+      where: { requesterId_key: { requesterId, key } },
+    });
+    expect(claim?.status).toBe("COMPLETED");
+    expect(claim?.ticketId).toBe(tickets[0].id);
   }, 30_000);
 });
