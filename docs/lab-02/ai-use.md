@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-38 representative prompts in 36 table entries from the Lab 2 history available
+39 representative prompts in 37 table entries from the Lab 2 history available
 in the repository and current session.
 
-## Selected key prompts (38; 36 entries)
+## Selected key prompts (39; 37 entries)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -47,11 +47,12 @@ in the repository and current session.
 | 51 (current) | Fix-then-ship the two actionable Issue #19 scrutinize findings while deferring responsive/visual browser verification as requested. | Replaced per-page POP focus logic with a persistent route-focus boundary that handles history returns without overriding shell drawer focus; merged caller `aria-describedby` values while keeping generated error/counter/invalid wiring authoritative across `TextInput`, `Select`, and `Textarea`. Added regressions and verified the focused/full client suites plus client/server builds; responsive/visual browser coverage remains assigned to Issue #25, and no commit was created. |
 | 52 (current) | Fix-then-ship the remaining Issue #19 error-route focus and icon-tooltip evidence findings. | Added a focus target to the standalone `/error` main, covered live error-route focus restoration, and covered tooltip visibility on keyboard focus/blur for the mobile menu toggle. Focused/full client tests and both application builds were rerun; manual/responsive browser checks remain intentionally deferred, and no commit was created. |
 | 53 (current) | Requested a step-by-step implementation plan for resolving the PR #32 review findings. | Used the plan to synchronize the Issue #19 ownership wording (shell/responsive foundation under #19, API-backed My Tickets under #22, final Playwright responsive/visual verification under #25), the current UI-05/UI-31/UI-35 test traceability, and this record's prompt/entry counts, without adding Issue #22 or Issue #25 functionality. |
+| 54 (current) | Implement Issue #20: the Development Requester context middleware, the `GET /api/requesters` bootstrap endpoint, the Requester Selection screen and its API funnel, then run every gate and record the evidence. | Built the server middleware stack (`requestLog`, `cors`, `transport`, `requesterContext`) and the shared error contract, added `developmentRequesterService` and the `referenceData` routes so `GET /api/requesters` answers without a requester header while every other `/api` route except `GET /api/health` is guarded, and added the client `apiFetch`/`useRequesterApi` funnel and the real Requester Selection screen. Verified on 2026-08-24 against two disposable PostgreSQL 16 databases, never the development database: server focused gate 6 files/44 tests, Lab 1 regression 2 files/2 tests, full server suite 14 files/74 tests, server build, client focused gate 2 files/65 tests, full client suite 5 files/106 tests, client build, and a live `curl` smoke check showing `GET /api/requesters` 200 with `Cache-Control: no-store` and only the four active synthetic Requesters, `GET /api/categories` 400 with the `X-Requester-Id` details marker, and `GET /api/health` still exempt. Deliberately deferred: the `CategoryDTO` conversion to Issue #21, `GET /api/tickets` and its `X-Pagination` value to Issue #22, and responsive/visual browser evidence to Issue #25; the browser half of the Step 3 smoke check was driven manually by the developer rather than by automation, because this environment has no browser driver and Playwright is out of scope; all five behaviors passed. This entry also closes the compatibility conflict recorded in entry 44: the `/system-check` versus mandatory `X-Requester-Id` conflict no longer exists, because `/api/categories` is now behind the requester guard and the Lab 1 `SystemCheck` page is unrouted and therefore unreachable from the Lab 2 application. No commit was created.
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
-the handout-facing deliverable intentionally selects thirty-eight representative
-prompts in thirty-six table entries rather than reproducing every wording
+the handout-facing deliverable intentionally selects thirty-nine representative
+prompts in thirty-seven table entries rather than reproducing every wording
 correction. The selection
 covers specification and API contracts, UI behavior, schema and migration
 decisions, Attachment lifecycle, idempotency/concurrency, test traceability,

@@ -6,7 +6,16 @@ import { app } from "../../src/app.js";
 //   npx prisma migrate dev && npm run prisma:seed
 describe("GET /api/categories", () => {
   it("returns the four seeded categories in id order", async () => {
-    const res = await request(app).get("/api/categories");
+    // Issue 20 guards every Lab 2 endpoint except the bootstrap, so the header
+    // is resolved from the bootstrap rather than hard-coded to a seeded id.
+    const requesters = await request(app).get("/api/requesters");
+    expect(requesters.status).toBe(200);
+    const requesterId: number = requesters.body[0].id;
+
+    const res = await request(app)
+      .get("/api/categories")
+      .set("X-Requester-Id", String(requesterId));
+
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
       { id: expect.any(Number), name: "Account and Access" },

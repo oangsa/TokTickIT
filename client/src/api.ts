@@ -44,3 +44,85 @@ export async function checkSystem(): Promise<SystemStatus> {
 
   return { online: true, categories };
 }
+
+/* api-spec Section 5.1. Every field is synthetic development/test data. */
+export interface DevelopmentRequester {
+  id: number;
+  name: string;
+  email: string;
+  isActive: boolean;
+  deleted: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/*
+ * Thrown only for the defined context-invalidating 400 (api-spec Section 3.1):
+ * an error envelope whose `details` names the `X-Requester-Id` field. An
+ * ordinary form VALIDATION_ERROR must never produce this, or submitting a bad
+ * form would wipe the session.
+ */
+export class InvalidRequesterContextError extends Error {
+  constructor() {
+    super("The stored Development Requester is no longer valid.");
+    this.name = "InvalidRequesterContextError";
+  }
+}
+
+/*
+ * `signal` is deliberately not accepted: `apiFetch` installs its own timeout
+ * signal and a caller's would be silently overwritten by it. Cancel-on-unmount
+ * is done with the `ignore` flag pattern in the effect instead (see
+ * `RequesterSelection`), which is what keeps a stale response from painting
+ * over a newer one. If a real abort is ever needed, merge the two signals here
+ * rather than re-widening this type.
+ */
+export interface ApiRequestInit extends Omit<RequestInit, "headers" | "signal"> {
+  headers?: Record<string, string>;
+}
+
+interface ErrorEnvelope {
+  details?: { field?: string }[];
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init?: ApiRequestInit,
+  requesterId?: number,
+): Promise<T> {
+  const headers: Record<string, string> = { ...init?.headers };
+
+  if (requesterId !== undefined) {
+    headers["X-Requester-Id"] = String(requesterId);
+  }
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  }).catch(() => {
+    throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
+  });
+
+  if (!response.ok) {
+    const envelope: ErrorEnvelope | null = await response.json().catch(() => null);
+
+    if (envelope?.details?.some((detail) => detail.field === "X-Requester-Id")) {
+      throw new InvalidRequesterContextError();
+    }
+
+    /* Backend `message` text is never surfaced to the UI. */
+    throw new Error(`The request failed (HTTP ${response.status}).`);
+  }
+
+  return (await response.json().catch(() => {
+    throw new Error("Could not read the API response.");
+  })) as T;
+}
+
+/* The one Lab 2 endpoint that must not send X-Requester-Id (api-spec Section 3.1). */
+export function fetchRequesters(): Promise<DevelopmentRequester[]> {
+  return apiFetch<DevelopmentRequester[]>("/api/requesters");
+}

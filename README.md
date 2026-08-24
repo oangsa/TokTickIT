@@ -26,6 +26,16 @@ npm run dev                 # http://localhost:3000
 npm test                    # vitest run
 ```
 
+The backend also reads two Lab 2 variables from `.env`:
+
+- `CORS_ALLOWED_ORIGINS` — a comma-separated list of **exact** origins (no
+  wildcard). The dev default is `http://localhost:5173`.
+- `NODE_ENV` — `development`, `test`, or `production`.
+
+A missing or invalid `CORS_ALLOWED_ORIGINS` allowlist fails startup outside
+`development` and `test`, so a production boot cannot start with a wildcard or
+an empty allowlist.
+
 ## Frontend (`client/`)
 
 ```bash
@@ -45,22 +55,58 @@ remains the only UI library.
 | Route | Screen |
 |---|---|
 | `/` | Redirects to `/requesters` or `/tickets` depending on the stored Requester |
-| `/requesters` | Development Requester Selection (placeholder until Issue 20) |
+| `/requesters` | Development Requester Selection — loads active Requesters from `GET /api/requesters`, stores the choice in `sessionStorage`, and navigates to `/tickets` |
 | `/tickets` | My Tickets (placeholder until Issue 22) |
 | `/tickets/new` | Create Ticket (placeholder until Issue 21) |
 | `/tickets/:publicId` | Requester Ticket Detail (placeholder until Issue 23) |
 | `/error` | Standalone global error page |
 
 The selected Requester is kept in `sessionStorage` as a Lab 2 testing
-mechanism; it is not authentication. Until Issue 20 implements the selector,
-the requester routes cannot be reached through the UI, so the application is
-not yet drivable end to end.
+mechanism; it is not authentication. The Requester Selection screen at
+`/requesters` loads the active Development Requesters from
+`GET /api/requesters`, stores the choice in `sessionStorage`, and navigates to
+`/tickets`, so the requester routes are now reachable through the UI. The
+application is drivable end to end up to the screens still owned by Issues
+#21, #22, and #23 (Create Ticket, My Tickets, and Ticket Detail remain
+placeholders).
 
-`client/src/components/` holds the shared conventions this Issue establishes —
+## Lab 2 status
+
+| Issue | Status | Where |
+|---|---|---|
+| 18 — Data model + forward migration + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
+| 19 — Zen Green shell + UI foundation | Done | `client/src/`, `client/src/components/`, `client/src/requester/` |
+| 20 — Requester context + selector | Done | `server/src/middleware/`, `server/src/routes/referenceData.ts`, `client/src/pages/RequesterSelection.tsx`, `client/src/requester/useRequesterApi.ts` |
+
+### Issue 20 — Requester context + selector
+
+`GET /api/requesters` is a new endpoint that returns the full
+`DevelopmentRequesterDTO` for active, non-deleted Requesters only. It is the
+one Lab 2 endpoint exempt from the requester guard, along with `GET
+/api/health`. Every other `/api` route now requires a valid `X-Requester-Id`
+header: a missing, malformed, non-positive, unknown, inactive, or deleted
+context is rejected with a safe `400` whose `details` name the `X-Requester-Id`
+field. The client treats that exact marker as the signal to clear its stored
+context and redirect to `/requesters`.
+
+`GET /api/categories` is now guarded under Lab 2 (its Lab 1 `{ id, name }` body
+is unchanged). The unrouted Lab 1 `SystemCheck` page is unaffected because it
+is not reachable through the Lab 2 router, so its `checkSystem()` call to
+`/api/categories` is not exercised by any routed screen.
+
+CORS is configured from `CORS_ALLOWED_ORIGINS` (a comma-separated list of exact
+origins; no wildcard) and `NODE_ENV`. A missing or invalid allowlist fails
+startup outside `development` and `test`. **CORS origin restriction is browser
+hardening — not authentication, authorization, or a privacy boundary.** The
+unauthenticated Lab 2 application is restricted to development/test networks
+and must not be described as safe for public deployment (AC-50, part of the
+DATA-09 evidence).
+
+`client/src/components/` holds the shared conventions Issue 19 established —
 form field, button hierarchy, badge, skeleton, empty/error/success state,
 modal, pagination, filter chip, and Attachment lifecycle state. They are
-covered by `client/tests/lab-02/SharedComponents.test.tsx`; the screens that
-consume them arrive with Issues 20–23.
+covered by `client/tests/lab-02/SharedComponents.test.tsx`; Requester Selection
+is the first screen to consume them, and the rest arrive with Issues 21–23.
 
 ## Lab 1 status
 

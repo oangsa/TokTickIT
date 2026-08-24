@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { act, render, renderHook, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { ComponentProps } from "react";
@@ -9,6 +9,9 @@ import {
   REQUESTER_STORAGE_KEY,
   StoredRequester,
 } from "../../src/requester/requesterStorage.js";
+import { RequesterProvider } from "../../src/requester/RequesterProvider.js";
+import { useRequesterApi } from "../../src/requester/useRequesterApi.js";
+import { ApiRequestInit, InvalidRequesterContextError } from "../../src/api.js";
 
 const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
 
@@ -90,8 +93,14 @@ function renderAtWithHistory(entries: Entry[], initialIndex: number, requester?:
   );
 }
 
+/* RequesterSelection fetches on mount; without a stub, fetch is undefined in jsdom. */
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => [] })));
+});
+
 afterEach(() => {
   sessionStorage.clear();
+  vi.unstubAllGlobals();
   /* Still inside React's tree here: cleanup has not unmounted the shell yet. */
   act(() => setViewportWidth(1024));
 });
@@ -474,5 +483,107 @@ describe("UI-31 and UI-35 global error page", () => {
     await renderErrorVia({ status: 404, backPath: "https://evil.example/" }, ALICE);
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
+  });
+});
+
+describe("UI-04 invalid requester context recovery", () => {
+  function renderApi() {
+    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
+
+    return renderHook(() => useRequesterApi(), {
+      wrapper: ({ children }) => <RequesterProvider>{children}</RequesterProvider>,
+    });
+  }
+
+  it("sends the stored Requester as X-Requester-Id", async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: ApiRequestInit) => ({ ok: true, status: 200, json: async () => [] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderApi();
+
+    await act(async () => {
+      await result.current("/api/categories");
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init).toBeDefined();
+    expect(init?.headers?.["X-Requester-Id"]).toBe("1");
+  });
+
+  it("clears the stored context on the marked context-invalidating 400", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          statusCode: 400,
+          code: "BAD_REQUEST",
+          message: "The request is invalid.",
+          error: "Bad Request",
+          details: [{ field: "X-Requester-Id", message: "The requester context is invalid." }],
+        }),
+      })),
+    );
+    const { result } = renderApi();
+
+    await act(async () => {
+      await expect(result.current("/api/categories")).rejects.toBeInstanceOf(
+        InvalidRequesterContextError,
+      );
+    });
+    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
+  });
+
+  it("leaves the stored context alone on an ordinary validation 400", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          statusCode: 400,
+          code: "BAD_REQUEST",
+          message: "The request is invalid.",
+          error: "Bad Request",
+          details: [{ field: "summary", message: "Summary must contain 3-150 characters." }],
+        }),
+      })),
+    );
+    const { result } = renderApi();
+
+    await act(async () => {
+      await expect(result.current("/api/categories")).rejects.toThrow(Error);
+      await expect(result.current("/api/categories")).rejects.not.toBeInstanceOf(
+        InvalidRequesterContextError,
+      );
+    });
+    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBe(JSON.stringify(ALICE));
+  });
+
+  it("never surfaces the backend message text", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          statusCode: 400,
+          code: "BAD_REQUEST",
+          message: "The request is invalid.",
+          error: "Bad Request",
+          details: [{ field: "summary", message: "Summary must contain 3-150 characters." }],
+        }),
+      })),
+    );
+    const { result } = renderApi();
+
+    let error: unknown;
+    await act(async () => {
+      error = await result.current("/api/categories").catch((caught) => caught);
+    });
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toContain("Summary must contain");
   });
 });
