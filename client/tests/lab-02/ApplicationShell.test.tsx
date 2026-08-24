@@ -511,7 +511,7 @@ describe("UI-04 invalid requester context recovery", () => {
     expect(init?.headers?.["X-Requester-Id"]).toBe("1");
   });
 
-  it("clears the stored context on the marked context-invalidating 400", async () => {
+  it("clears the stored context on a REQUESTER_CONTEXT_INVALID 400", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -519,10 +519,9 @@ describe("UI-04 invalid requester context recovery", () => {
         status: 400,
         json: async () => ({
           statusCode: 400,
-          code: "BAD_REQUEST",
-          message: "The request is invalid.",
+          code: "REQUESTER_CONTEXT_INVALID",
+          message: "The requester context is invalid.",
           error: "Bad Request",
-          details: [{ field: "X-Requester-Id", message: "The requester context is invalid." }],
         }),
       })),
     );
@@ -536,7 +535,7 @@ describe("UI-04 invalid requester context recovery", () => {
     expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
   });
 
-  it("leaves the stored context alone on an ordinary validation 400", async () => {
+  it("leaves the stored context alone on an ordinary application 400", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({

@@ -85,9 +85,10 @@ placeholders).
 one Lab 2 endpoint exempt from the requester guard, along with `GET
 /api/health`. Every other `/api` route now requires a valid `X-Requester-Id`
 header: a missing, malformed, non-positive, unknown, inactive, or deleted
-context is rejected with a safe `400` whose `details` name the `X-Requester-Id`
-field. The client treats that exact marker as the signal to clear its stored
-context and redirect to `/requesters`.
+context is rejected with a safe `400` carrying the protocol-specific code
+`REQUESTER_CONTEXT_INVALID`. The client treats that code, and only that code, as
+the signal to clear its stored context and redirect to `/requesters`; an ordinary
+application `400` leaves the stored Requester alone.
 
 `GET /api/categories` is now guarded under Lab 2 (its Lab 1 `{ id, name }` body
 is unchanged). The unrouted Lab 1 `SystemCheck` page is unaffected because it

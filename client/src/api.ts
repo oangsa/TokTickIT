@@ -60,8 +60,8 @@ export interface DevelopmentRequester {
 
 /*
  * Thrown only for the defined context-invalidating 400 (api-spec Section 3.1):
- * an error envelope whose `details` names the `X-Requester-Id` field. An
- * ordinary form VALIDATION_ERROR must never produce this, or submitting a bad
+ * an error envelope carrying `code: "REQUESTER_CONTEXT_INVALID"`. An ordinary
+ * BAD_REQUEST/VALIDATION_ERROR must never produce this, or submitting a bad
  * form would wipe the session.
  */
 export class InvalidRequesterContextError extends Error {
@@ -84,7 +84,7 @@ export interface ApiRequestInit extends Omit<RequestInit, "headers" | "signal"> 
 }
 
 interface ErrorEnvelope {
-  details?: { field?: string }[];
+  code?: string;
 }
 
 export async function apiFetch<T>(
@@ -109,7 +109,7 @@ export async function apiFetch<T>(
   if (!response.ok) {
     const envelope: ErrorEnvelope | null = await response.json().catch(() => null);
 
-    if (envelope?.details?.some((detail) => detail.field === "X-Requester-Id")) {
+    if (envelope?.code === "REQUESTER_CONTEXT_INVALID") {
       throw new InvalidRequesterContextError();
     }
 

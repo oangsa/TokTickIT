@@ -144,19 +144,23 @@ X-Requester-Id: 3
 
 The value is the positive integer primary key of the selected Development Requester.
 
-Requester-context validation:
+Requester-context validation. Every failure uses one protocol-specific code so
+the client can distinguish an invalid stored Requester from an ordinary
+application `400`:
 
 | Condition | Result |
 |---|---|
-| Header missing | `400 Bad Request` |
-| Not an integer | `400 Validation Error` |
-| Integer <= 0 | `400 Validation Error` |
-| Requester does not exist | `400 Bad Request` |
-| Requester is logically deleted | `400 Bad Request` |
-| Requester is inactive | `400 Bad Request` |
+| Header missing | `400 REQUESTER_CONTEXT_INVALID` |
+| Not an integer | `400 REQUESTER_CONTEXT_INVALID` |
+| Integer <= 0 | `400 REQUESTER_CONTEXT_INVALID` |
+| Requester does not exist | `400 REQUESTER_CONTEXT_INVALID` |
+| Requester is logically deleted | `400 REQUESTER_CONTEXT_INVALID` |
+| Requester is inactive | `400 REQUESTER_CONTEXT_INVALID` |
 | Valid Requester requests a resource outside their requester scope | `404 Not Found`, indistinguishable from unavailable |
 
-`401 Unauthorized` is not used in Lab 2 because real authentication has not been introduced.
+The six failing conditions are deliberately indistinguishable from each other: the response never reveals whether the Requester is unknown, inactive, or logically deleted. Ordinary `BAD_REQUEST` and `VALIDATION_ERROR` responses must never carry this code, and the client must never treat an ordinary `400` as a reason to clear the stored Requester.
+
+`401 Unauthorized` and `403 Forbidden` are not used for this behavior. `401` is not used anywhere in Lab 2 because real authentication has not been introduced.
 
 ### 3.2 `Idempotency-Key`
 
@@ -226,14 +230,30 @@ Express accepts JSON bodies up to exactly `131,072` bytes. A larger JSON body re
 
 ### 3.6 Cache Variation and Storage
 
-Every requester-scoped Lab 2 response, including representative errors and binary responses, includes:
+Bootstrap and requester-scoped variation are not the same case and are specified separately.
+
+**Requester-scoped responses.** Every requester-scoped Lab 2 response, including representative errors and binary responses, includes:
 
 ```http
 Cache-Control: no-store
 Vary: Origin, X-Requester-Id
 ```
 
-Middleware must merge `Vary` values rather than overwrite values already applied by CORS. `GET /api/requesters` also uses `Cache-Control: no-store` because it returns the full synthetic Requester DTO.
+**Bootstrap response.** `GET /api/requesters` includes:
+
+```http
+Cache-Control: no-store
+```
+
+because it returns the full synthetic Requester DTO. It preserves whatever `Vary` value CORS applies, such as:
+
+```http
+Vary: Origin
+```
+
+It does not become requester-dependent merely because the other Lab 2 endpoints require `X-Requester-Id`, so `X-Requester-Id` is not added to its `Vary`.
+
+Middleware must merge `Vary` values rather than overwrite values already applied by CORS.
 
 ---
 
@@ -280,7 +300,10 @@ A protocol-specific code may be used when the client must distinguish a special 
 
 ```text
 IDEMPOTENCY_CONFLICT
+REQUESTER_CONTEXT_INVALID
 ```
+
+`REQUESTER_CONTEXT_INVALID` is returned with `400 Bad Request` and is the only `400` the frontend may treat as "the stored Requester context is invalid and must be cleared". It exists because the frontend otherwise has no deterministic machine-readable way to separate that case from an ordinary application `400`.
 
 Resource-specific error-code proliferation is intentionally avoided. `FORBIDDEN` remains available for future/non-ownership authorization failures, but Lab 2 requester-owned Ticket/Attachment scope failures use centralized `NOT_FOUND`.
 
@@ -296,6 +319,19 @@ Resource-specific error-code proliferation is intentionally avoided. `FORBIDDEN`
   "error": "Bad Request"
 }
 ```
+
+#### 400 Requester Context Invalid
+
+```json
+{
+  "statusCode": 400,
+  "code": "REQUESTER_CONTEXT_INVALID",
+  "message": "The requester context is invalid.",
+  "error": "Bad Request"
+}
+```
+
+The message is fixed and generic. It never discloses whether the Requester does not exist, is inactive, or is logically deleted.
 
 #### 400 Validation Error
 
@@ -561,6 +597,8 @@ GET /api/requesters
 `X-Requester-Id` is not required because this endpoint bootstraps the Development Requester Selection screen.
 
 The response uses the full `DevelopmentRequesterDTO` but may contain only synthetic development/test identities. CORS origin restriction does not make this data private or authenticated.
+
+The response uses `Cache-Control: no-store` and preserves whatever `Vary` value CORS applies, such as `Vary: Origin`. It is not requester-dependent, so `X-Requester-Id` is not added to its `Vary` (Section 3.6).
 
 The endpoint returns only rows where:
 
@@ -1946,7 +1984,7 @@ A removed owned Attachment remains available through the metadata endpoint for h
 | Empty active master/reference list | `200` + `[]` |
 | Invalid JSON/request structure | `400` |
 | Invalid field validation | `400` |
-| Missing/invalid/inactive/deleted Requester context | `400` |
+| Missing/invalid/inactive/deleted Requester context | `400` + `REQUESTER_CONTEXT_INVALID` |
 | Invalid Ticket-list query/filter/sort/pagination | `400` |
 | Malformed UUID inside request JSON | `400` |
 | Resource outside current Requester scope | `404`, same as unavailable |
