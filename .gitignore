@@ -17,3 +17,5 @@ server/src/generated/
 # agent tooling
 .claude/
 .codex/
+
+ignore/
