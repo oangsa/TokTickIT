@@ -342,12 +342,37 @@ describe("Attachment references", () => {
     ["a malformed UUID", ["not-a-uuid"]],
     ["a non-array value", ATTACHMENT_A],
     ["a duplicate after normalization", [ATTACHMENT_A, ATTACHMENT_A.toUpperCase()]],
+    /*
+     * api-spec Section 8.2 defines the field as an optional array. Omitting it
+     * means no Attachments; an explicit `null` is a value of the wrong type,
+     * and treating it as `[]` would accept a body shape the contract does not
+     * define and hash it identically to the omitted form.
+     */
+    ["an explicit null", null],
   ])("rejects %s", async (_label, attachmentIds) => {
     const res = await post({ ...VALID_BODY, attachmentIds });
 
     expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
     expect(fieldsOf(res.body)).toContain("attachmentIds");
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(tx.ticket.create).not.toHaveBeenCalled();
+  });
+
+  /* The two spellings of "no initial Attachments" that the contract does define. */
+  it("accepts an omitted attachmentIds", async () => {
+    /* `VALID_BODY` carries no `attachmentIds` key at all. */
+    const res = await post(VALID_BODY);
+
+    expect(res.status).toBe(201);
+    expect(res.body.attachments).toEqual([]);
+  });
+
+  it("accepts an empty attachmentIds array", async () => {
+    const res = await post({ ...VALID_BODY, attachmentIds: [] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.attachments).toEqual([]);
   });
 
   it("reports every invalid field in one response", async () => {

@@ -77,8 +77,11 @@ function readTrimmedText(
 }
 
 /*
- * BR-21 / api-spec Section 8.2. Omitted and `[]` both mean no initial
- * Attachments. Duplicates are rejected after lowercase normalization rather
+ * BR-21 / api-spec Section 8.2. The field is an optional array: omitted and `[]`
+ * both mean no initial Attachments, and an explicit `null` is a type error like
+ * any other non-array, not a third spelling of "none" -- accepting it would let
+ * a client that serializes an absent list as `null` pass a shape the contract
+ * does not define. Duplicates are rejected after lowercase normalization rather
  * than silently deduplicated, so `[A, A]` is a 400 and never a one-item set.
  * The survivors are sorted by their canonical lowercase string -- not by binary
  * UUID value and not by submission order -- so `[A,B]` and `[B,A]` hash equally.
@@ -86,7 +89,7 @@ function readTrimmedText(
 function readAttachmentIds(value: unknown, details: ErrorDetail[]): string[] | undefined {
   const field = "attachmentIds";
 
-  if (value === undefined || value === null) {
+  if (value === undefined) {
     return [];
   }
 
