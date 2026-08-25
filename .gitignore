@@ -14,8 +14,8 @@ server/src/generated/
 # logs & OS
 *.log
 .DS_Store
+# agent tooling
+.claude/
+.codex/
 
-server/src/generated/
-
-
-ignore
+ignore/

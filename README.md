@@ -85,14 +85,44 @@ placeholders).
 one Lab 2 endpoint exempt from the requester guard, along with `GET
 /api/health`. Every other `/api` route now requires a valid `X-Requester-Id`
 header: a missing, malformed, non-positive, unknown, inactive, or deleted
-context is rejected with a safe `400` whose `details` name the `X-Requester-Id`
-field. The client treats that exact marker as the signal to clear its stored
-context and redirect to `/requesters`.
+context is rejected with a safe `400` carrying the protocol-specific code
+`REQUESTER_CONTEXT_INVALID`. The client treats that code, and only that code, as
+the signal to clear its stored context and redirect to `/requesters`; an ordinary
+application `400` leaves the stored Requester alone.
 
-`GET /api/categories` is now guarded under Lab 2 (its Lab 1 `{ id, name }` body
-is unchanged). The unrouted Lab 1 `SystemCheck` page is unaffected because it
-is not reachable through the Lab 2 router, so its `checkSystem()` call to
-`/api/categories` is not exercised by any routed screen.
+`GET /api/categories` is now guarded under Lab 2. The unrouted Lab 1
+`SystemCheck` page is unaffected because it is not reachable through the Lab 2
+router, so its `checkSystem()` call to `/api/categories` is not exercised by any
+routed screen.
+
+### Issue 21 — Ticket creation
+
+`GET /api/categories` moves onto the shared reference-data router and returns the
+full `CategoryDTO` rather than the Lab 1 `{ id, name }` body; `GET
+/api/related-systems` is added alongside it. Both return active, non-deleted rows
+only and require requester context.
+
+`POST /api/tickets` creates a Ticket under a persistent idempotency claim scoped
+to `(requesterId, Idempotency-Key)`. Nothing touches a Ticket or an Attachment
+until the claim row is locked and its status, request hash, and exact
+`processingStartedAt` are verified, so an abandoned `PROCESSING` claim can have no
+committed mutation. Ticket creation, Attachment binding, and the claim's
+transition to `COMPLETED` are one transaction.
+
+The request hash is SHA-256 over a fixed-property-order payload with
+`attachmentIds` lowercased, duplicate-rejected, and sorted, so the same logical
+request replays as `200` while a different one under the same key is `409
+IDEMPOTENCY_CONFLICT`. A `PROCESSING` claim is fresh for 300 seconds and
+reclaim-eligible from exactly `processingStartedAt + 300s`.
+
+Create Ticket loads its dropdowns from those reference APIs, shows Ticket Number,
+Ticket Date, and Requester as read-only controls, and binds one Idempotency Key
+to one normalized payload: an unchanged retry reuses it, any change mints a new
+one. An ambiguous `5xx` stores a requester-scoped recovery record in
+`sessionStorage` that is only ever resubmitted by an explicit Resume action.
+
+Attachment upload remains Issue 24: the form carries the final prepared Pending
+`attachmentIds` that the submission sends, and the backend binds them.
 
 CORS is configured from `CORS_ALLOWED_ORIGINS` (a comma-separated list of exact
 origins; no wildcard) and `NODE_ENV`. A missing or invalid allowlist fails

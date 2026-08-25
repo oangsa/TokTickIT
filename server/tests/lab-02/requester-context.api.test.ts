@@ -26,9 +26,12 @@ const ALICE = {
   updatedAt: new Date("2026-08-20T01:00:00.000Z"),
 };
 
-const REQUESTER_CONTEXT_DETAILS = [
-  { field: "X-Requester-Id", message: "The requester context is invalid." },
-];
+const REQUESTER_CONTEXT_ENVELOPE = {
+  statusCode: 400,
+  code: "REQUESTER_CONTEXT_INVALID",
+  message: "The requester context is invalid.",
+  error: "Bad Request",
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -58,7 +61,7 @@ describe("requester context guard (API-01)", () => {
   it("exempts the bootstrap and health routes the way Express routes them", async () => {
     // Express matches paths case-insensitively and dispatches HEAD to GET
     // handlers. An exemption that missed either would answer with the
-    // context-invalidating `details`, and the client would throw away a valid
+    // context-invalidating code, and the client would throw away a valid
     // stored Requester over a URL the router would have served.
     const upperHealth = await request(app).get("/api/HEALTH");
     const upperBootstrap = await request(app).get("/api/Requesters");
@@ -73,54 +76,43 @@ describe("requester context guard (API-01)", () => {
     const res = await request(app).get("/api/categories");
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({
-      statusCode: 400,
-      code: "BAD_REQUEST",
-      message: "The request is invalid.",
-      error: "Bad Request",
-      details: REQUESTER_CONTEXT_DETAILS,
-    });
+    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
   });
 
-  it("rejects a non-integer header with VALIDATION_ERROR", async () => {
+  it("rejects a non-integer header with REQUESTER_CONTEXT_INVALID", async () => {
     const res = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("VALIDATION_ERROR");
-    expect(res.body.message).toBe("The request contains invalid values.");
-    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
   });
 
-  it("rejects a decimal header with VALIDATION_ERROR", async () => {
+  it("rejects a decimal header with REQUESTER_CONTEXT_INVALID", async () => {
     const res = await request(app).get("/api/categories").set("X-Requester-Id", "1.5");
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("VALIDATION_ERROR");
-    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
   });
 
-  it("rejects an unsafe integer header with VALIDATION_ERROR", async () => {
+  it("rejects an unsafe integer header with REQUESTER_CONTEXT_INVALID", async () => {
     const res = await request(app)
       .get("/api/categories")
       .set("X-Requester-Id", "99999999999999999999");
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("VALIDATION_ERROR");
-    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
   });
 
-  it("rejects zero and negative headers with VALIDATION_ERROR", async () => {
+  it("rejects zero and negative headers with REQUESTER_CONTEXT_INVALID", async () => {
     const zero = await request(app).get("/api/categories").set("X-Requester-Id", "0");
     const negative = await request(app).get("/api/categories").set("X-Requester-Id", "-3");
 
     for (const res of [zero, negative]) {
       expect(res.status).toBe(400);
-      expect(res.body.code).toBe("VALIDATION_ERROR");
-      expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+      expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
     }
   });
 
-  it("rejects an unknown, deleted, or inactive Requester with BAD_REQUEST", async () => {
+  it("rejects an unknown, deleted, or inactive Requester with REQUESTER_CONTEXT_INVALID", async () => {
     // Unknown, `deleted: true`, and `isActive: false` all resolve to `null`
     // through `findSelectableById`, which is exactly why they are
     // indistinguishable to the client.
@@ -129,8 +121,7 @@ describe("requester context guard (API-01)", () => {
     const res = await request(app).get("/api/categories").set("X-Requester-Id", "999");
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("BAD_REQUEST");
-    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
   });
 
   it("accepts a valid active Requester and reaches the route", async () => {
@@ -140,14 +131,15 @@ describe("requester context guard (API-01)", () => {
     expect(prismaMock.category.findMany).toHaveBeenCalled();
   });
 
-  it("carries the same generic message on every rejection", async () => {
+  it("carries the same code and generic message on every rejection", async () => {
     const missing = await request(app).get("/api/categories");
     const nonInteger = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
     prismaMock.developmentRequester.findFirst.mockResolvedValue(null);
     const unknown = await request(app).get("/api/categories").set("X-Requester-Id", "999");
 
     for (const res of [missing, nonInteger, unknown]) {
-      expect(res.body.details[0].message).toBe("The requester context is invalid.");
+      expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
+      expect(res.body.message).toBe("The requester context is invalid.");
       expect(JSON.stringify(res.body)).not.toContain(ALICE.name);
       expect(JSON.stringify(res.body)).not.toContain(ALICE.email);
     }

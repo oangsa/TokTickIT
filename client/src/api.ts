@@ -60,8 +60,8 @@ export interface DevelopmentRequester {
 
 /*
  * Thrown only for the defined context-invalidating 400 (api-spec Section 3.1):
- * an error envelope whose `details` names the `X-Requester-Id` field. An
- * ordinary form VALIDATION_ERROR must never produce this, or submitting a bad
+ * an error envelope carrying `code: "REQUESTER_CONTEXT_INVALID"`. An ordinary
+ * BAD_REQUEST/VALIDATION_ERROR must never produce this, or submitting a bad
  * form would wipe the session.
  */
 export class InvalidRequesterContextError extends Error {
@@ -72,19 +72,72 @@ export class InvalidRequesterContextError extends Error {
 }
 
 /*
- * `signal` is deliberately not accepted: `apiFetch` installs its own timeout
- * signal and a caller's would be silently overwritten by it. Cancel-on-unmount
- * is done with the `ignore` flag pattern in the effect instead (see
- * `RequesterSelection`), which is what keeps a stale response from painting
- * over a newer one. If a real abort is ever needed, merge the two signals here
- * rather than re-widening this type.
+ * A caller `signal` is merged with the per-request timeout rather than
+ * replacing it, so a requester-scoped request can be cancelled when the
+ * Requester context changes and still keeps its own deadline. Cancellation is
+ * best effort: an abort proves nothing about whether the server committed, so
+ * callers still need the `ignore` flag pattern (see `RequesterSelection`) or a
+ * requester generation check (see `CreateTicket`) to decide whether a settled
+ * Promise may touch current state.
  */
-export interface ApiRequestInit extends Omit<RequestInit, "headers" | "signal"> {
+export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
   headers?: Record<string, string>;
 }
 
+export interface ApiErrorDetail {
+  field: string;
+  message: string;
+}
+
 interface ErrorEnvelope {
-  details?: { field?: string }[];
+  code?: string;
+  details?: ApiErrorDetail[];
+}
+
+/*
+ * Carries the machine-readable parts of the centralized envelope so a form can
+ * mark the fields the backend rejected. The `message` stays the generic client
+ * string: backend `message` text is never surfaced to the UI (api-spec Section
+ * 17), and `details[].message` is only used where the contract defines it as
+ * safe field feedback.
+ */
+export class ApiResponseError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+  readonly details: ApiErrorDetail[];
+
+  constructor(status: number, code: string | undefined, details: ApiErrorDetail[]) {
+    super(`The request failed (HTTP ${status}).`);
+    this.name = "ApiResponseError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+/*
+ * `AbortSignal.any` is not implemented in the jsdom the tests run under, so the
+ * two signals are merged by hand and production takes the same path the tests
+ * exercise. Whichever fires first wins.
+ *
+ * ponytail: a completed request leaves its `abort` listener on the caller's
+ * signal until that signal is discarded, which for a requester signal is the
+ * next Requester change -- a handful of listeners, not a leak worth managing.
+ * Swap in `AbortSignal.any` if the client ever drops jsdom or the count grows.
+ */
+export function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSignal {
+  const controller = new AbortController();
+
+  for (const signal of [first, second]) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+
+    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+  }
+
+  return controller.signal;
 }
 
 export async function apiFetch<T>(
@@ -98,10 +151,12 @@ export async function apiFetch<T>(
     headers["X-Requester-Id"] = String(requesterId);
   }
 
+  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: init?.signal ? mergeSignals(timeout, init.signal) : timeout,
   }).catch(() => {
     throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
   });
@@ -109,12 +164,20 @@ export async function apiFetch<T>(
   if (!response.ok) {
     const envelope: ErrorEnvelope | null = await response.json().catch(() => null);
 
-    if (envelope?.details?.some((detail) => detail.field === "X-Requester-Id")) {
+    if (envelope?.code === "REQUESTER_CONTEXT_INVALID") {
       throw new InvalidRequesterContextError();
     }
 
     /* Backend `message` text is never surfaced to the UI. */
-    throw new Error(`The request failed (HTTP ${response.status}).`);
+    throw new ApiResponseError(
+      response.status,
+      envelope?.code,
+      Array.isArray(envelope?.details) ? envelope.details : [],
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return (await response.json().catch(() => {
@@ -125,4 +188,55 @@ export async function apiFetch<T>(
 /* The one Lab 2 endpoint that must not send X-Requester-Id (api-spec Section 3.1). */
 export function fetchRequesters(): Promise<DevelopmentRequester[]> {
   return apiFetch<DevelopmentRequester[]>("/api/requesters");
+}
+
+/* api-spec Sections 5.2 and 5.3. Both master DTOs share the same shape. */
+export interface MasterDataItem {
+  id: number;
+  name: string;
+  isActive: boolean;
+  deleted: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/* api-spec Section 5.4. */
+export interface Attachment {
+  attachmentId: string;
+  ticketPublicId: string | null;
+  originalName: string;
+  extension: string;
+  mimeType: string;
+  sizeBytes: number;
+  removalReason: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+  deleted: boolean;
+}
+
+/* api-spec Section 5.5. `createdAt` is the authoritative Ticket Date. */
+export interface Ticket {
+  publicId: string;
+  ticketNumber: string;
+  requesterId: number;
+  requesterName: string;
+  requesterEmail: string;
+  categoryId: number;
+  categoryName: string;
+  relatedSystemId: number;
+  relatedSystemName: string;
+  summary: string;
+  description: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  currentStatus: "NEW";
+  attachments: Attachment[];
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
+  deleted: boolean;
 }

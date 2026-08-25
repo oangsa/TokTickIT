@@ -10,7 +10,8 @@ export type ErrorCode =
   | "PAYLOAD_TOO_LARGE"
   | "UNSUPPORTED_MEDIA_TYPE"
   | "INTERNAL_SERVER_ERROR"
-  | "IDEMPOTENCY_CONFLICT";
+  | "IDEMPOTENCY_CONFLICT"
+  | "REQUESTER_CONTEXT_INVALID";
 
 export interface ErrorDetail {
   field: string;
@@ -74,6 +75,17 @@ const ERROR_DEFINITIONS: Record<ErrorCode, ErrorDefinition> = {
     statusCode: 409,
     error: "Conflict",
     message: "The requested operation conflicts with the current resource state.",
+  },
+  /*
+   * The one 400 the client is allowed to treat as "discard the stored
+   * Requester" (api-spec Section 3.1). Ordinary BAD_REQUEST/VALIDATION_ERROR
+   * must never carry this code, or a bad form would wipe the session. The
+   * message stays generic: unknown, inactive, and deleted are indistinguishable.
+   */
+  REQUESTER_CONTEXT_INVALID: {
+    statusCode: 400,
+    error: "Bad Request",
+    message: "The requester context is invalid.",
   },
 };
 

@@ -17,6 +17,12 @@ const UUID_PATTERN =
  * replaced rather than rejected. `res.vary` appends to whatever the CORS
  * middleware already set instead of overwriting it, so no header merging is
  * hand-rolled here.
+ *
+ * `X-Requester-Id` is deliberately NOT varied here. It is added by the requester
+ * guard, which is the only place that knows whether a response is
+ * requester-scoped: the bootstrap `GET /api/requesters` returns the same body to
+ * every Requester and must not claim to vary by a header it never reads
+ * (Section 3.6).
  */
 export function transport(req: Request, res: Response, next: NextFunction): void {
   const incoming = req.header("X-Request-Id");
@@ -26,7 +32,6 @@ export function transport(req: Request, res: Response, next: NextFunction): void
   res.setHeader("X-Request-Id", requestId);
   res.setHeader("Cache-Control", "no-store");
   res.vary("Origin");
-  res.vary("X-Requester-Id");
 
   next();
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { act, render, renderHook, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useNavigate } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { ComponentProps } from "react";
 import App from "../../src/App.js";
 import { setViewportWidth } from "../setup.js";
@@ -9,11 +9,14 @@ import {
   REQUESTER_STORAGE_KEY,
   StoredRequester,
 } from "../../src/requester/requesterStorage.js";
-import { RequesterProvider } from "../../src/requester/RequesterProvider.js";
+import { RequesterGuard } from "../../src/requester/RequesterGuard.js";
+import { RequesterProvider, useRequester } from "../../src/requester/RequesterProvider.js";
 import { useRequesterApi } from "../../src/requester/useRequesterApi.js";
 import { ApiRequestInit, InvalidRequesterContextError } from "../../src/api.js";
+import { RECOVERY_STORAGE_KEY } from "../../src/tickets/createTicketDraft.js";
 
 const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
+const BOB: StoredRequester = { id: 2, name: "Bob Example" };
 
 type Entry = NonNullable<ComponentProps<typeof MemoryRouter>["initialEntries"]>[number];
 
@@ -227,10 +230,33 @@ describe("UI-04 requester route guard", () => {
 describe("UI-05 Change Requester", () => {
   it("clears the stored context and returns to the selector without stale data", async () => {
     renderAt("/tickets", ALICE);
+    /*
+     * ui-spec Section 12.2 lists "Requester change" among the events that clear
+     * the ambiguous-submission recovery record. Unmounting the requester
+     * subtree drops in-memory state but not `sessionStorage`, so the record has
+     * to be removed on the switch rather than when Create Ticket next mounts.
+     */
+    sessionStorage.setItem(
+      RECOVERY_STORAGE_KEY,
+      JSON.stringify({
+        requesterId: ALICE.id,
+        idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+        keyCreatedAt: Date.now(),
+        payload: {
+          categoryId: 4,
+          relatedSystemId: 5,
+          summary: "Cannot connect to campus VPN",
+          requestedPriority: "HIGH",
+          description: "The VPN client fails after entering my credentials.",
+          attachmentIds: [],
+        },
+      }),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Change Requester" }));
 
     expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
     expect(screen.getByRole("heading", { name: /Select a Development Requester/i })).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveFocus();
     expect(screen.queryByText(ALICE.name)).not.toBeInTheDocument();
@@ -511,7 +537,7 @@ describe("UI-04 invalid requester context recovery", () => {
     expect(init?.headers?.["X-Requester-Id"]).toBe("1");
   });
 
-  it("clears the stored context on the marked context-invalidating 400", async () => {
+  it("clears the stored context on a REQUESTER_CONTEXT_INVALID 400", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -519,10 +545,9 @@ describe("UI-04 invalid requester context recovery", () => {
         status: 400,
         json: async () => ({
           statusCode: 400,
-          code: "BAD_REQUEST",
-          message: "The request is invalid.",
+          code: "REQUESTER_CONTEXT_INVALID",
+          message: "The requester context is invalid.",
           error: "Bad Request",
-          details: [{ field: "X-Requester-Id", message: "The requester context is invalid." }],
         }),
       })),
     );
@@ -536,7 +561,7 @@ describe("UI-04 invalid requester context recovery", () => {
     expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
   });
 
-  it("leaves the stored context alone on an ordinary validation 400", async () => {
+  it("leaves the stored context alone on an ordinary application 400", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -585,5 +610,224 @@ describe("UI-04 invalid requester context recovery", () => {
     });
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).not.toContain("Summary must contain");
+  });
+});
+
+
+/*
+ * The primitive the requester-scoped screens build on: work started under one
+ * Requester has to be able to ask, at completion time, whether the context that
+ * started it is still the current one.
+ */
+describe("UI-04 requester context invalidation", () => {
+  function renderContext() {
+    return renderHook(() => useRequester(), {
+      wrapper: ({ children }) => <RequesterProvider>{children}</RequesterProvider>,
+    });
+  }
+
+  it("makes a token captured under one Requester obsolete once another is selected", () => {
+    const { result } = renderContext();
+    act(() => result.current.selectRequester(ALICE));
+    const aliceToken = result.current.captureRequesterContext();
+
+    expect(result.current.isRequesterContextCurrent(aliceToken)).toBe(true);
+
+    act(() => result.current.selectRequester(BOB));
+
+    expect(result.current.isRequesterContextCurrent(aliceToken)).toBe(false);
+    /* Best-effort cancellation rides along; the generation is what decides. */
+    expect(aliceToken.signal.aborted).toBe(true);
+
+    const bobToken = result.current.captureRequesterContext();
+    expect(result.current.isRequesterContextCurrent(bobToken)).toBe(true);
+    expect(bobToken.signal.aborted).toBe(false);
+  });
+
+  it("makes an outstanding token obsolete when the context is cleared", () => {
+    const { result } = renderContext();
+    act(() => result.current.selectRequester(ALICE));
+    const token = result.current.captureRequesterContext();
+
+    act(() => result.current.clearRequester());
+
+    expect(result.current.isRequesterContextCurrent(token)).toBe(false);
+    expect(token.signal.aborted).toBe(true);
+  });
+});
+
+/*
+ * The shared requester API boundary is the layer that clears the context on a
+ * `REQUESTER_CONTEXT_INVALID`, so it is the layer that has to refuse to do so
+ * on behalf of a Requester who is no longer active. A feature-level token check
+ * cannot repair this: by the time the caller sees the rejection the context has
+ * already been cleared underneath it.
+ */
+describe("UI-04 obsolete requester-scoped requests", () => {
+  const BOB_RECOVERY = JSON.stringify({
+    requesterId: BOB.id,
+    idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+    keyCreatedAt: 1_700_000_000_000,
+    payload: {
+      categoryId: 4,
+      relatedSystemId: 5,
+      summary: "Cannot connect to campus VPN",
+      requestedPriority: "HIGH",
+      description: "The VPN client fails after entering my credentials.",
+      attachmentIds: [],
+    },
+  });
+
+  function RequesterApiHarness({ started }: { started: { current: Promise<unknown> | null } }) {
+    const callApi = useRequesterApi();
+    const { requester, selectRequester } = useRequester();
+
+    return (
+      <div>
+        <button
+          onClick={() => {
+            started.current = callApi("/api/categories").catch((error: unknown) => error);
+          }}
+        >
+          Start request
+        </button>
+        <button onClick={() => selectRequester(BOB)}>Select Bob</button>
+        <p data-testid="active-requester">{requester?.name ?? "none"}</p>
+      </div>
+    );
+  }
+
+  /*
+   * The real `RequesterGuard` guards the harness, so a wrongly cleared context
+   * shows up the way the user would meet it -- as the redirect off the page.
+   * Only the selector's route is a stand-in; reaching it is the assertion.
+   */
+  function renderGuardedHarness(started: { current: Promise<unknown> | null }) {
+    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
+
+    return render(
+      <MemoryRouter initialEntries={["/tickets"]}>
+        <RequesterProvider>
+          <Routes>
+            <Route element={<RequesterGuard />}>
+              <Route path="/tickets" element={<RequesterApiHarness started={started} />} />
+            </Route>
+            <Route path="/requesters" element={<p>Requester Selection</p>} />
+          </Routes>
+        </RequesterProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  function renderApiWithContext() {
+    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
+
+    return renderHook(() => ({ callApi: useRequesterApi(), context: useRequester() }), {
+      wrapper: ({ children }) => <RequesterProvider>{children}</RequesterProvider>,
+    });
+  }
+
+  it("leaves the replacement Requester alone when an obsolete request reports REQUESTER_CONTEXT_INVALID", async () => {
+    let settle!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+
+    /*
+     * The stub ignores its abort signal and settles anyway. An aborted request
+     * may already have reached the server and answered, so this regression has
+     * to prove the generation check -- not the AbortController -- is what keeps
+     * Requester A's verdict away from Requester B.
+     */
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        await pending;
+
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({
+            statusCode: 400,
+            code: "REQUESTER_CONTEXT_INVALID",
+            message: "The requester context is invalid.",
+            error: "Bad Request",
+          }),
+        };
+      }),
+    );
+
+    const started: { current: Promise<unknown> | null } = { current: null };
+    renderGuardedHarness(started);
+
+    await userEvent.click(screen.getByRole("button", { name: "Start request" }));
+    await userEvent.click(screen.getByRole("button", { name: "Select Bob" }));
+    /* Requester B's own ambiguous-submission record, seeded after the switch. */
+    sessionStorage.setItem(RECOVERY_STORAGE_KEY, BOB_RECOVERY);
+
+    await act(async () => {
+      settle();
+      await started.current;
+    });
+
+    /* The caller still sees the rejection; only the clear is withheld. */
+    expect(await started.current).toBeInstanceOf(InvalidRequesterContextError);
+    expect(screen.getByTestId("active-requester")).toHaveTextContent(BOB.name);
+    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBe(JSON.stringify(BOB));
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBe(BOB_RECOVERY);
+    expect(screen.queryByText("Requester Selection")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start request" })).toBeInTheDocument();
+  });
+
+  it("still cancels on a Requester change when the caller supplied its own signal", async () => {
+    let observed: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: ApiRequestInit) => {
+        observed = init?.signal ?? undefined;
+
+        return new Promise<never>(() => {});
+      }),
+    );
+    const { result } = renderApiWithContext();
+    const caller = new AbortController();
+
+    await act(async () => {
+      void result.current
+        .callApi("/api/categories", { signal: caller.signal })
+        .catch(() => undefined);
+    });
+
+    expect(observed?.aborted).toBe(false);
+
+    act(() => result.current.context.selectRequester(BOB));
+
+    expect(observed?.aborted).toBe(true);
+  });
+
+  it("still honours the caller's own signal", async () => {
+    let observed: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: ApiRequestInit) => {
+        observed = init?.signal ?? undefined;
+
+        return new Promise<never>(() => {});
+      }),
+    );
+    const { result } = renderApiWithContext();
+    const caller = new AbortController();
+
+    await act(async () => {
+      void result.current
+        .callApi("/api/categories", { signal: caller.signal })
+        .catch(() => undefined);
+    });
+
+    expect(observed?.aborted).toBe(false);
+
+    act(() => caller.abort());
+
+    expect(observed?.aborted).toBe(true);
   });
 });

@@ -51,9 +51,11 @@ describe("error contract (API-62, API-63, API-64, API-73)", () => {
   it("returns the central envelope on a 400", async () => {
     const res = await request(app).get("/api/categories");
 
+    // `details` is optional (api-spec Section 4.1) and the requester-context
+    // 400 carries none: the code alone is the machine-readable signal.
     expect(res.status).toBe(400);
     expect(Object.keys(res.body).sort()).toEqual(
-      ["statusCode", "code", "message", "error", "details"].sort(),
+      ["statusCode", "code", "message", "error"].sort(),
     );
   });
 
@@ -174,7 +176,7 @@ describe("error contract (API-62, API-63, API-64, API-73)", () => {
 
     const lastCall = logSpy.mock.calls.at(-1);
     const entry = JSON.parse(lastCall![0] as string);
-    expect(entry.errorCode).toBe("BAD_REQUEST");
+    expect(entry.errorCode).toBe("REQUESTER_CONTEXT_INVALID");
     expect(entry.status).toBe(400);
   });
 });

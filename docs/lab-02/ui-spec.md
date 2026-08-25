@@ -210,11 +210,17 @@ The mobile navigation must:
 
 The sidebar displays the selected Requester name.
 
-`Change Requester`:
+`Change Requester` runs the shared requester-switch path:
 
-1. clears the current requester context and requester-specific UI state;
-2. returns the user to the Development Requester Selection screen;
-3. must not display stale data belonging to the previous Requester while the new context loads.
+1. clears the stored requester context and the shared requester provider/context state;
+2. clears the shared requester-scoped cache, cancels in-flight shared requester requests, and rejects any response that arrives from the previous Requester;
+3. clears the requester-scoped feature state registered with the shared switch: the Create Ticket draft, Pending Attachment preparation, and idempotency/recovery state; the My Tickets rows and query/filter/sort/page/count state and its in-flight/stale list responses; Ticket Detail state and Detail requests; and Attachment lifecycle/request state;
+4. returns the user to the Development Requester Selection screen;
+5. must not display stale data belonging to the previous Requester while the new context loads.
+
+The shared layer owns steps 1-2 and the registration seam. Each requester-scoped
+feature owns clearing its own state in step 3 through that seam. Whatever the
+owner, Requester A data must never render under Requester B.
 
 ## 5.4. Requester Context and Route Guard
 
@@ -231,12 +237,17 @@ If a guarded route is opened without a stored Requester context, redirect to `/r
 
 For API calls after selection, the frontend sends the stored Requester ID as `X-Requester-Id` on every Lab 2 endpoint except `GET /api/requesters`.
 
-If a requester-context API returns the defined `400` behavior because the stored Requester is missing, malformed, inactive, deleted, or otherwise invalid, the frontend must:
+If an API response is `400` **and** its centralized error envelope carries `code: "REQUESTER_CONTEXT_INVALID"`, the frontend must:
 
 1. clear the stored Requester context;
-2. clear requester-specific UI state/cache/drafts;
+2. run the same shared requester-switch clearing described in Section 5.3;
 3. redirect to `/requesters`; and
 4. never render stale data from the invalid previous context.
+
+The `code` is the only signal that triggers this. The frontend must **not** clear
+the Requester context for an ordinary application `400` such as `BAD_REQUEST` or
+`VALIDATION_ERROR`; a rejected form must never end the session. HTTP status alone
+is not sufficient to make this decision.
 
 ---
 
@@ -1758,7 +1769,7 @@ The following decisions are part of the Lab 2 UI contract:
 - Pale Green active navigation treatment.
 - Centered Requester Selection card.
 - Requester Selection uses skeleton loading.
-- Requester-specific routes are guarded by the `sessionStorage` requester context; invalid context is cleared before redirecting to `/requesters`.
+- Requester-specific routes are guarded by the `sessionStorage` requester context; a `400` carrying `REQUESTER_CONTEXT_INVALID` clears the context before redirecting to `/requesters`, and no other `400` does.
 - Create Ticket may cancel an untouched empty form directly; dirty/Pending drafts require confirmation and best-effort cleanup of still-known Pending IDs.
 - Create Ticket pre-uploads valid selected files through `POST /api/attachments`, blocks submission while an intended file is unresolved, and submits the final Pending `attachmentIds` for atomic Ticket creation/binding.
 - Existing Ticket additions continue to use `POST /api/tickets/:publicId/attachments` and become Active directly.

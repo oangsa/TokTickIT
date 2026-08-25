@@ -27,10 +27,6 @@ const ALICE = {
   updatedAt: new Date("2026-08-20T01:00:00.000Z"),
 };
 
-const REQUESTER_CONTEXT_DETAILS = [
-  { field: "X-Requester-Id", message: "The requester context is invalid." },
-];
-
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -59,9 +55,9 @@ describe("transport hardening (API-72, API-74)", () => {
       .set("Content-Type", "application/json")
       .send(jsonBodyOfExactly(131072));
 
+    // Reaching the requester guard is the proof it was not size-rejected.
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("BAD_REQUEST");
-    expect(res.body.details).toEqual(REQUESTER_CONTEXT_DETAILS);
+    expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
   });
 
   it("rejects a body one byte over the boundary with 413", async () => {
@@ -87,13 +83,14 @@ describe("transport hardening (API-72, API-74)", () => {
     expect(res.body.details).toBeUndefined();
   });
 
-  it("classifies an invalid X-Requester-Id as VALIDATION_ERROR", async () => {
-    // The request-body half of API-72's `VALIDATION_ERROR` row needs a
-    // field-validating endpoint and is owned by Issue #21.
+  it("classifies an invalid X-Requester-Id as REQUESTER_CONTEXT_INVALID", async () => {
+    // API-72's `VALIDATION_ERROR` row needs a field-validating endpoint and is
+    // owned by Issue #21. Requester context is deliberately not that row: it
+    // carries its own protocol code so the client can tell the two apart.
     const res = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
   });
 
   it("sends Cache-Control: no-store on the bootstrap endpoint", async () => {
@@ -115,14 +112,35 @@ describe("transport hardening (API-72, API-74)", () => {
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
-  it("merges Vary without clobbering the CORS value", async () => {
+  it("merges Vary on a requester-scoped response without clobbering the CORS value", async () => {
     const res = await request(app)
-      .get("/api/requesters")
+      .get("/api/categories")
+      .set("X-Requester-Id", "1")
       .set("Origin", "http://localhost:5173");
 
     const varyValues = res.headers.vary.split(/,\s*/);
     expect(varyValues).toContain("Origin");
     expect(varyValues).toContain("X-Requester-Id");
     expect(varyValues.filter((value) => value === "Origin")).toHaveLength(1);
+  });
+
+  it("varies a requester-scoped error response by X-Requester-Id too", async () => {
+    const res = await request(app).get("/api/categories").set("Origin", "http://localhost:5173");
+
+    expect(res.status).toBe(400);
+    expect(res.headers.vary.split(/,\s*/)).toContain("X-Requester-Id");
+  });
+
+  it("does not vary the bootstrap response by X-Requester-Id", async () => {
+    // `GET /api/requesters` returns the same body to every Requester and never
+    // reads the header, so claiming to vary by it would be a false cache key
+    // (api-spec Section 3.6).
+    const res = await request(app)
+      .get("/api/requesters")
+      .set("Origin", "http://localhost:5173");
+
+    const varyValues = res.headers.vary.split(/,\s*/);
+    expect(varyValues).toContain("Origin");
+    expect(varyValues).not.toContain("X-Requester-Id");
   });
 });
