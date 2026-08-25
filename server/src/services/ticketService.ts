@@ -20,12 +20,16 @@ export const PENDING_ATTACHMENT_TTL_HOURS = 24;
  * Category and Related System are loaded by relation rather than re-validated,
  * because Ticket metadata is historical: a Ticket keeps resolving its names
  * after the master row goes inactive or is logically deleted (BR-72-73).
+ *
+ * `data` is omitted: the Attachment DTO carries `sizeBytes`, never the bytes.
+ * Without this, every create, replay, and detail read pulls up to five
+ * 5,000,000-byte blobs (MAX_ATTACHMENT_BYTES) into memory only to discard them.
  */
 const TICKET_DTO_INCLUDE = {
   requester: true,
   category: true,
   relatedSystem: true,
-  attachments: { orderBy: { id: "asc" } },
+  attachments: { orderBy: { id: "asc" }, omit: { data: true } },
 } satisfies Prisma.TicketInclude;
 
 type TicketWithRelations = Prisma.TicketGetPayload<{ include: typeof TICKET_DTO_INCLUDE }>;
