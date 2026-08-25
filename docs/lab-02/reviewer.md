@@ -8,6 +8,7 @@
 |----|--------|------------------|
 | [#27](https://github.com/oangsa/TokTickIT/pull/27) | feature/17-lab2-engineering-contract | Approved; PR remains open |
 | [#32](https://github.com/oangsa/TokTickIT/pull/32) | feature/19-zen-green-ui-foundation | Approved; merged into `lab2-staging` |
+| [#34](https://github.com/oangsa/TokTickIT/pull/34) | feature/21-create-ticket | Approved; merged into `lab2-staging` |
 
 Reviewer comments I received (@kittipichcha):
 
@@ -57,6 +58,13 @@ Reviewer comments I received (@kittipichcha):
   PR #32 carries no formal review record; the comment is reproduced verbatim
   above and is the whole of the reviewer's feedback on that pull request.
 
+- **#34 — Approved review, 2026-08-25:** “Everything can work correctly and
+  all test are passed as expected, no collision as I saw.”
+
+  The reviewer raised no change requests. The review carried no inline
+  file/line comments and PR #34 received no additional pull request comments,
+  so this approval is the whole of the reviewer's feedback on that pull request.
+
 How I responded:
 
 - **#27, test status** — `tests.md` now states that the rows are approved planned
@@ -101,6 +109,8 @@ How I responded:
 - **#27, command documentation** — `tests.md` identifies the required working
   directory for each command and the evidence that implementation must record.
   No separate application dependency or architecture change was introduced.
+- **#34** — no response required. The approval requested no changes, so the
+  branch was merged into `lab2-staging` as approved with no follow-up edits.
 
 Author's PR reply:
 
