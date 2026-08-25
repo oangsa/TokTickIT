@@ -887,6 +887,90 @@ the documented local workflow and is out of scope for PR #34. Both
 `tests/lab-02/cors.api.test.ts` and `tests/lab-02/reference-data.api.test.ts`
 already pin the current behavior and would need updating with it.
 
+### 4.5.22 PR #34 final shared requester invalidation verification
+
+The following checks were run on 2026-08-25 from the listed package
+directories, against commit `8c0b772bf39e97848b6f26a78c827df351bce372` — the
+commit that carries the final reviewed code. They supersede the counts in
+Section 4.5.21, which were recorded before the shared requester API boundary
+was fixed and before the Ticket DTO query stopped loading Attachment binary
+data. Section 4.5.21 is left as written; it is the record of the state of the
+tree at the time it was run, not of this one. The same guarded disposable
+`toktickit_lab2_test` target was used; the normal development database was
+never used, migrated, seeded, or reset.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #20 affected client requester gate | `npm test -- tests/lab-02/ApplicationShell.test.tsx tests/lab-02/RequesterSelection.test.tsx` | `client/` | Passed — 2 files, 71 tests. |
+| CreateTicket + ApplicationShell stale-Requester gate | `npm test -- tests/lab-02/CreateTicket.test.tsx tests/lab-02/ApplicationShell.test.tsx` | `client/` | Passed — 2 files, 99 tests. |
+| Issue #21 client focused gate | `npm test -- tests/lab-02/CreateTicket.test.tsx` | `client/` | Passed — 1 file, 38 tests. |
+| Issue #21 server focused gate | `npm test -- tests/lab-02/TicketNumber.test.ts tests/lab-02/TicketService.test.ts tests/lab-02/IdempotencyService.test.ts tests/lab-02/tickets.api.test.ts tests/lab-02/create-ticket.api.test.ts tests/lab-02/ticket-idempotency.api.test.ts tests/lab-02/postgres/idempotency.postgres.test.ts tests/lab-02/postgres/transactions.postgres.test.ts` | `server/`; the four API files mock Prisma, the two PostgreSQL files run against `toktickit_lab2_test` | Passed — 8 files, 181 tests. |
+| PostgreSQL integration gate | `npm test -- tests/lab-02/postgres/` | `server/`; `toktickit_lab2_test` | Passed — 4 files, 36 tests, no suite skipped. |
+| Full server suite | `npm test -- tests/` | `server/`; `toktickit_lab2_test` | Passed — 20 files, 254 tests. |
+| Full client suite | `npm test -- tests/` | `client/` | Passed — 6 files, 150 tests. |
+| Backend build | `npm run build` | `server/` | Passed — `tsc` completed with no output. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed — TypeScript and the Vite production build. |
+| Whitespace check | `git diff --check` | repository root | Passed — no output. |
+
+The client count moved from 147 to 150 because this pass added three
+regressions to `tests/lab-02/ApplicationShell.test.tsx`. The server counts are
+unchanged from Section 4.5.21: the fix is client-side, and the Ticket DTO query
+change that preceded it was already covered by the existing suites, which were
+rerun here against the final code rather than re-proved with new tests.
+
+The blocker this pass was opened for is stated explicitly: **a stale
+`REQUESTER_CONTEXT_INVALID` response belonging to Requester A can no longer
+clear Requester B.** The new regression drives the shared boundary directly —
+`useRequesterApi` under the real `RequesterGuard` — because that is the layer
+that owns the clear:
+
+1. Requester A is active and starts a requester-scoped request;
+2. the request is held unresolved and Requester B is selected;
+3. B's own ambiguous-submission recovery record is seeded after the switch;
+4. the original Promise is then settled with `400 REQUESTER_CONTEXT_INVALID`.
+
+After the stale response settles: B is still the selected Requester, B is still
+in `sessionStorage`, B's recovery record is untouched, the guarded page is still
+mounted, and the application has not returned to `/requesters`. The caller still
+receives the `InvalidRequesterContextError`; only the context clear is withheld.
+
+The test fails without the fix. Dropping the generation comparison from
+`useRequesterApi` — leaving the bare
+`if (error instanceof InvalidRequesterContextError) clearRequester()` the review
+found — reproduces the reviewed symptom exactly and that one test goes red while
+the other 60 in the file stay green.
+
+The stub deliberately ignores its abort signal and settles anyway, so the
+regression cannot pass merely because cancellation stopped the mocked Promise.
+That is the point of the design: an aborted request may already have reached the
+server and been answered, so the AbortController is best-effort cancellation and
+the generation token is the correctness boundary. Two further regressions cover
+the cancellation side of the same fix — a caller-supplied signal no longer
+replaces the requester-context signal, so the request still aborts on a
+Requester change, and the caller's own signal still aborts it. With the
+`apiFetch` timeout that makes three independent cancellation sources for one
+requester-scoped request.
+
+The previously recorded behavior is retained and was rerun here rather than
+assumed: a current-generation `REQUESTER_CONTEXT_INVALID` still clears the
+stored Requester and returns to `/requesters`; an ordinary `BAD_REQUEST` or
+`VALIDATION_ERROR` still clears nothing; and the three stale Create Ticket
+completion regressions from Section 4.5.21 — stale `201`, stale ordinary `4xx`,
+and stale ambiguous failure — all still pass, so Requester A still cannot
+navigate, clear, overwrite, or mark anything belonging to Requester B.
+
+The `attachmentIds` contract from Section 4.5.21 is unchanged and still covered:
+omitted and `[]` are valid, an explicit `null` is a `400 VALIDATION_ERROR`, and
+the canonicalization rules — at most five, UUID syntax, lowercase, duplicates
+rejected after normalization, ascending sort — are unchanged. The Ticket DTO
+query change is likewise unchanged and covered by the reran suites: a first
+create returns the full TicketDTO, a same-key replay returns the current
+TicketDTO, bound Attachment metadata including `ticketPublicId` and `sizeBytes`
+is present, and no Attachment binary `data` is loaded or returned to build it.
+
+The `NODE_ENV` reading described at the end of Section 4.5.21 remains a
+deliberate non-blocking follow-up and was not changed in this pass.
+
 ## 5. Reusable QueryBuilder Test Principle
 
 The global QueryBuilder follows the reusable infrastructure/repository utility pattern:
