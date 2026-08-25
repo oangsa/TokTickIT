@@ -50,9 +50,15 @@ export function toPayload(draft: CreateTicketDraft): CreateTicketPayload {
   };
 }
 
+/*
+ * Normalizes `attachmentIds` itself rather than trusting the caller to have run
+ * `toPayload` first. A restored recovery record or an Issue #24 caller that
+ * hands over an unsorted set must still produce the same signature, or a
+ * reordered but logically identical retry would mint a new Idempotency Key.
+ */
 export function payloadSignature(payload: CreateTicketPayload): string {
   return JSON.stringify({
-    attachmentIds: payload.attachmentIds,
+    attachmentIds: [...payload.attachmentIds].map((id) => id.toLowerCase()).sort(),
     categoryId: payload.categoryId,
     description: payload.description,
     relatedSystemId: payload.relatedSystemId,

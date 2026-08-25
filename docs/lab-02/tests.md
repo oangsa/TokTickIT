@@ -767,9 +767,9 @@ The normal development database was never used, migrated, seeded, or reset.
 | Check | Command | Environment / target | Result |
 | --- | --- | --- | --- |
 | Issue #21 server focused gate | `npm test -- tests/lab-02/TicketNumber.test.ts tests/lab-02/TicketService.test.ts tests/lab-02/IdempotencyService.test.ts tests/lab-02/tickets.api.test.ts tests/lab-02/create-ticket.api.test.ts tests/lab-02/ticket-idempotency.api.test.ts tests/lab-02/postgres/idempotency.postgres.test.ts tests/lab-02/postgres/transactions.postgres.test.ts` | `server/`; the four API files mock Prisma, the two PostgreSQL files run against `toktickit_lab2_test` | Passed — 8 files, 166 tests. |
-| Issue #21 client focused gate | `npm test -- tests/lab-02/CreateTicket.test.tsx` | `client/` | Passed — 1 file, 30 tests. |
+| Issue #21 client focused gate | `npm test -- tests/lab-02/CreateTicket.test.tsx` | `client/` | Passed — 1 file, 33 tests. |
 | Full server suite | `npm test -- tests/` | Both disposable databases | Passed — 20 files, 239 tests. |
-| Full client suite | `npm test -- tests/` | `client/` | Passed — 6 files, 137 tests. |
+| Full client suite | `npm test -- tests/` | `client/` | Passed — 6 files, 140 tests. |
 | Lab 1 regression | `npm test -- tests/lab-01/` | `server/` and `client/` | Passed — server 2 files / 2 tests, client 2 files / 6 tests. `GET /api/categories` still returns the four seeded Categories in id order once a valid `X-Requester-Id` is supplied; the Lab 1 assertion now checks that identity rather than the exact field set, because Issue #21 widened the body to the full `CategoryDTO`. |
 | Backend build | `npm run build` | `server/` | Passed — `tsc` completed with no output. |
 | Frontend typecheck/build | `npm run build` | `client/` | Passed — TypeScript and the Vite production build. |
@@ -781,6 +781,14 @@ reclaim, and `IDEMPOTENCY-FENCING-A` are decided by PostgreSQL rather than by a
 mock. PG-03 injects its failure at the Attachment-binding step, after the claim
 is fenced and the Ticket row is inserted, so the rollback under test is a real
 rollback of a partially written transaction.
+
+One Issue #21 acceptance criterion cannot be closed inside Issue #21: "Success
+shows the official Ticket Number and navigates to owned Ticket Detail." Create
+Ticket navigates to `/tickets/:publicId` and passes the generated Ticket Number
+in router navigation state, but the destination is the Issue #23 placeholder,
+which does not render it. The navigation half is covered here; the display half
+becomes verifiable when Issue #23 builds Ticket Detail, and that Issue's own
+close gate covers it.
 
 Explicitly not delivered by this Issue:
 
@@ -997,10 +1005,10 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-07 | UI | AC-08–10, AC-38 | Create Ticket client validation, counters, labels, first-invalid focus. | Errors not dumped on initial render; submit validates all; field-associated messages/counters/required semantics; invalid client-known form does not call API and focuses first invalid field. | tests/lab-02/CreateTicket.test.tsx | Passed |
 | UI-08 | UI | FR-12 | Create Ticket busy submission. | Delayed response causes disabled Submit with spinner while text remains `Submit Ticket`; duplicate click prevented. | tests/lab-02/CreateTicket.test.tsx | Passed |
 | UI-09 | UI | AC-06, AC-16, AC-44 | Initial pre-upload and atomic submit. | Valid selected files pre-upload one-by-one to Pending; Submit remains blocked for Uploading/Failed/Invalid intended files until Retry succeeds or Remove is explicit; final prepared IDs are sent and success navigates to Active Detail. | tests/lab-02/CreateTicket.test.tsx | Not Run |
-| UI-10 | UI | AC-10 | Ticket-create 4xx retention. | Stay on form; text/select values and valid Pending cards/IDs remain; server errors map safely; unchanged logical retry reuses the key. | tests/lab-02/CreateTicket.test.tsx | Passed |
+| UI-10 | UI | AC-10 | Ticket-create 4xx retention. | Stay on form; text/select values and valid Pending cards/IDs remain; server errors map safely; unchanged logical retry reuses the key. | tests/lab-02/CreateTicket.test.tsx | Partial — staying on the form, retaining text/select values, safe server-error mapping, and same-key unchanged retry are covered; the Pending card/ID retention half needs the Attachment controls owned by Issue #24 |
 | UI-11 | UI | BR-23–24 | Ticket-create unexpected 5xx compensation. | Non-file fields remain; best-effort Pending cleanup uses empty reasons; confirmed deletions show Retry Upload; client never invents an Active-removal reason. | tests/lab-02/CreateTicket.test.tsx | Not Run |
-| UI-12 | UI | BR-23–24 | Ambiguous Ticket-create recovery. | Unchanged POST retries with the same key; completed 200 recovers same Ticket and Active Attachments without duplicate, cleanup damage, or re-upload. | tests/lab-02/CreateTicket.test.tsx | Passed |
-| UI-13 | UI | AC-43 | Frontend Idempotency-Key lifecycle. | First logical submission gets a UUID; unchanged canonical retry and reordered same IDs reuse it; Ticket-field or final Attachment-set change generates a new key. | tests/lab-02/CreateTicket.test.tsx | Passed |
+| UI-12 | UI | BR-23–24 | Ambiguous Ticket-create recovery. | Unchanged POST retries with the same key; completed 200 recovers same Ticket and Active Attachments without duplicate, cleanup damage, or re-upload. | tests/lab-02/CreateTicket.test.tsx | Partial — the unchanged same-key retry and the completed `200` recovering the same Ticket without a duplicate are covered; the Active-Attachment, cleanup-damage, and no-re-upload halves are owned by Issue #24 |
+| UI-13 | UI | AC-43 | Frontend Idempotency-Key lifecycle. | First logical submission gets a UUID; unchanged canonical retry and reordered same IDs reuse it; Ticket-field or final Attachment-set change generates a new key. | tests/lab-02/CreateTicket.test.tsx | Passed — including the reordered-set case, asserted against `payloadSignature` because the draft's `attachmentIds` are written by the Issue #24 controls |
 | UI-14 | UI | AC-45 | Create Ticket Cancel/discard. | Untouched empty draft cancels directly; dirty and/or known Pending draft requires confirmation; confirm sends best-effort Pending cleanup, clears fields/files, and returns to `/tickets`. | tests/lab-02/CreateTicket.test.tsx | Partial — the direct cancel, the confirmation, Keep editing, and the confirmed discard clearing the draft and recovery record are covered; the best-effort Pending cleanup call is owned by Issue #24 |
 | UI-15 | UI | AC-33 | My Tickets loading/table/stale-data prevention. | Skeleton rows during load; required table structure; stale previous-requester Tickets never render during context change. | tests/lab-02/MyTickets.test.tsx | Not Run |
 | UI-16 | UI | AC-34 | My Tickets empty dataset vs no-results states. | Shared EmptyState shows correct distinct copy/actions for true empty dataset and active-query no-results. | tests/lab-02/MyTickets.test.tsx | Not Run |

@@ -8,6 +8,7 @@ import { REQUESTER_STORAGE_KEY } from "../../src/requester/requesterStorage.js";
 import {
   RECOVERY_STORAGE_KEY,
   RecoveryRecord,
+  payloadSignature,
 } from "../../src/tickets/createTicketDraft.js";
 
 const ALICE = { id: 1, name: "Alice Johnson" };
@@ -201,6 +202,17 @@ describe("Create Ticket form", () => {
 
 // UI-06: field validation and first-invalid focus.
 describe("Create Ticket validation", () => {
+  it("dumps no validation errors on the initial render", async () => {
+    stubApi();
+    renderCreateTicket();
+    await screen.findByLabelText(/^Category/);
+
+    expect(screen.queryByText(/must contain/)).toBeNull();
+    expect(screen.queryByText("Select a Category.")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText(/^Category/).getAttribute("aria-invalid")).toBeNull();
+  });
+
   it("blocks submission, marks every invalid field, and focuses the first one", async () => {
     const user = userEvent.setup();
     const { calls } = stubApi();
@@ -378,6 +390,31 @@ describe("Create Ticket submission", () => {
 
     expect(createCalls(calls)).toHaveLength(1);
   });
+
+  it("shows a spinner in the busy button while keeping its Submit Ticket text", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/api/categories")) {
+          return { ok: true, status: 200, json: async () => CATEGORIES };
+        }
+        if (url.includes("/api/related-systems")) {
+          return { ok: true, status: 200, json: async () => SYSTEMS };
+        }
+        return new Promise(() => {});
+      }),
+    );
+    renderCreateTicket();
+    await fillValidForm(user);
+
+    await user.click(submitButton());
+
+    await waitFor(() => expect(submitButton()).toHaveProperty("disabled", true));
+    /* Section 10.6: the action text never changes to "Submitting...". */
+    expect(submitButton().textContent).toContain("Submit Ticket");
+    expect(submitButton().querySelector(".spinner-border")).not.toBeNull();
+  });
 });
 
 // UI-08: 4xx retention, recovery, and key lifecycle (BR-24, ui-spec Section 12).
@@ -464,6 +501,30 @@ describe("Create Ticket failure behaviour", () => {
     const sent = createCalls(calls).map((call) => call.init?.headers?.["Idempotency-Key"]);
     expect(sent[0]).toBe(sent[1]);
     expect(sent[2]).not.toBe(sent[0]);
+  });
+
+  it("reuses the key when the same Attachment IDs are supplied in a different order", async () => {
+    /*
+     * UI-13's reordered-set case. The draft's `attachmentIds` are written by the
+     * Issue #24 Attachment controls, so this exercises the key-reuse rule at the
+     * module that owns it rather than through controls that do not exist yet.
+     */
+    const a = "00000000-0000-4000-8000-000000000000";
+    const b = "f0f0f0f0-f0f0-4f0f-b0f0-f0f0f0f0f0f0";
+    const base = {
+      categoryId: 4,
+      relatedSystemId: 5,
+      summary: "Cannot connect to campus VPN",
+      requestedPriority: "HIGH" as const,
+      description: "The VPN client fails after entering my credentials.",
+    };
+
+    expect(payloadSignature({ ...base, attachmentIds: [a, b] })).toBe(
+      payloadSignature({ ...base, attachmentIds: [b, a] }),
+    );
+    expect(payloadSignature({ ...base, attachmentIds: [a] })).not.toBe(
+      payloadSignature({ ...base, attachmentIds: [b] })
+    );
   });
 
   it("persists only the approved recovery data after an ambiguous 5xx", async () => {
