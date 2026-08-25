@@ -544,6 +544,34 @@ describe("Create Ticket failure behaviour", () => {
     expect(stored.payload.attachmentIds).toEqual([]);
   });
 
+  /*
+   * ui-spec Section 12.2 clears the record on a confirmed non-ambiguous
+   * failure. The requester guard rejects before the route runs, so no Ticket
+   * can exist and there is nothing to resume; the 400 must not be mistaken for
+   * an ambiguous 5xx just because it does not arrive as a field error.
+   */
+  it("leaves no recovery record when the context-invalidating 400 rejects the submission", async () => {
+    const user = userEvent.setup();
+    failWith(400, {
+      statusCode: 400,
+      code: "REQUESTER_CONTEXT_INVALID",
+      message: "The requester context is invalid.",
+      error: "Bad Request",
+    });
+    renderCreateTicket();
+    await fillValidForm(user);
+
+    await user.click(submitButton());
+
+    /* The stored Requester is discarded and the selector takes over. */
+    await screen.findByRole("heading", { name: /Select a Development Requester/i });
+    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Resume Submission Recovery" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("never submits a stored recovery record automatically on load", async () => {
     const record: RecoveryRecord = {
       requesterId: 1,

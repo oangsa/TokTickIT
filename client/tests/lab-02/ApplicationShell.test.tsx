@@ -12,6 +12,7 @@ import {
 import { RequesterProvider } from "../../src/requester/RequesterProvider.js";
 import { useRequesterApi } from "../../src/requester/useRequesterApi.js";
 import { ApiRequestInit, InvalidRequesterContextError } from "../../src/api.js";
+import { RECOVERY_STORAGE_KEY } from "../../src/tickets/createTicketDraft.js";
 
 const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
 
@@ -227,10 +228,33 @@ describe("UI-04 requester route guard", () => {
 describe("UI-05 Change Requester", () => {
   it("clears the stored context and returns to the selector without stale data", async () => {
     renderAt("/tickets", ALICE);
+    /*
+     * ui-spec Section 12.2 lists "Requester change" among the events that clear
+     * the ambiguous-submission recovery record. Unmounting the requester
+     * subtree drops in-memory state but not `sessionStorage`, so the record has
+     * to be removed on the switch rather than when Create Ticket next mounts.
+     */
+    sessionStorage.setItem(
+      RECOVERY_STORAGE_KEY,
+      JSON.stringify({
+        requesterId: ALICE.id,
+        idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+        keyCreatedAt: Date.now(),
+        payload: {
+          categoryId: 4,
+          relatedSystemId: 5,
+          summary: "Cannot connect to campus VPN",
+          requestedPriority: "HIGH",
+          description: "The VPN client fails after entering my credentials.",
+          attachmentIds: [],
+        },
+      }),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Change Requester" }));
 
     expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
     expect(screen.getByRole("heading", { name: /Select a Development Requester/i })).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveFocus();
     expect(screen.queryByText(ALICE.name)).not.toBeInTheDocument();

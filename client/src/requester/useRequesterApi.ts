@@ -8,8 +8,9 @@ import { useRequester } from "./RequesterProvider.js";
  * `RequesterGuard` redirects to `/requesters` on a null context, and because
  * the guard sits above `AppShell`, clearing unmounts the whole requester
  * subtree — list, detail, draft, and Attachment state go with it. No explicit
- * navigate and no cache-purge code is needed; this is the same mechanism
- * Change Requester already uses.
+ * navigate is needed; this is the same mechanism Change Requester already uses.
+ * Unmounting only drops in-memory state, so `clearRequester` also removes the
+ * requester-scoped `sessionStorage` records itself.
  */
 export function useRequesterApi() {
   const { requester, clearRequester } = useRequester();

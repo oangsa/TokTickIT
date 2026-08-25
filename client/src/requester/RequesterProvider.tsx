@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from "react";
 
+import { clearRecovery } from "../tickets/createTicketDraft.js";
 import {
   StoredRequester,
   clearRequesterContext,
@@ -23,8 +24,17 @@ export function RequesterProvider({ children }: { children: ReactNode }) {
     setRequester(selected);
   }, []);
 
+  /*
+   * ui-spec Section 12.2 lists "Requester change" among the events that clear
+   * the ambiguous-submission recovery record, and this is the one choke point
+   * every change goes through: Change Requester in the shell, and the
+   * context-invalidating 400. Unmounting the requester subtree drops in-memory
+   * state but not `sessionStorage`, so the record is removed here rather than
+   * left for the next Create Ticket mount to notice.
+   */
   const clearRequester = useCallback(() => {
     clearRequesterContext();
+    clearRecovery();
     setRequester(null);
   }, []);
 

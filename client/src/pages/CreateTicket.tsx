@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { ApiResponseError, MasterDataItem, Ticket } from "../api.js";
+import {
+  ApiResponseError,
+  InvalidRequesterContextError,
+  MasterDataItem,
+  Ticket,
+} from "../api.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { ErrorState } from "../components/ErrorState.js";
@@ -220,6 +225,17 @@ export default function CreateTicket() {
         state: { created: true, ticketNumber: ticket.ticketNumber },
       });
     } catch (error) {
+      /*
+       * A context-invalidating 400 is a confirmed non-ambiguous failure: the
+       * guard rejected the request before the route, so no Ticket exists.
+       * `useRequesterApi` has already cleared the requester and its recovery
+       * record, and `RequesterGuard` is redirecting to `/requesters`; writing a
+       * recovery record here would resurrect one for a Requester that is gone.
+       */
+      if (error instanceof InvalidRequesterContextError) {
+        return;
+      }
+
       if (error instanceof ApiResponseError && error.status < 500) {
         /*
          * Section 12.1: a 4xx is a confirmed non-ambiguous failure. Stay on the
