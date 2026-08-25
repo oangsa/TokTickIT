@@ -9,12 +9,13 @@ import {
   REQUESTER_STORAGE_KEY,
   StoredRequester,
 } from "../../src/requester/requesterStorage.js";
-import { RequesterProvider } from "../../src/requester/RequesterProvider.js";
+import { RequesterProvider, useRequester } from "../../src/requester/RequesterProvider.js";
 import { useRequesterApi } from "../../src/requester/useRequesterApi.js";
 import { ApiRequestInit, InvalidRequesterContextError } from "../../src/api.js";
 import { RECOVERY_STORAGE_KEY } from "../../src/tickets/createTicketDraft.js";
 
 const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
+const BOB: StoredRequester = { id: 2, name: "Bob Example" };
 
 type Entry = NonNullable<ComponentProps<typeof MemoryRouter>["initialEntries"]>[number];
 
@@ -608,5 +609,48 @@ describe("UI-04 invalid requester context recovery", () => {
     });
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).not.toContain("Summary must contain");
+  });
+});
+
+
+/*
+ * The primitive the requester-scoped screens build on: work started under one
+ * Requester has to be able to ask, at completion time, whether the context that
+ * started it is still the current one.
+ */
+describe("UI-04 requester context invalidation", () => {
+  function renderContext() {
+    return renderHook(() => useRequester(), {
+      wrapper: ({ children }) => <RequesterProvider>{children}</RequesterProvider>,
+    });
+  }
+
+  it("makes a token captured under one Requester obsolete once another is selected", () => {
+    const { result } = renderContext();
+    act(() => result.current.selectRequester(ALICE));
+    const aliceToken = result.current.captureRequesterContext();
+
+    expect(result.current.isRequesterContextCurrent(aliceToken)).toBe(true);
+
+    act(() => result.current.selectRequester(BOB));
+
+    expect(result.current.isRequesterContextCurrent(aliceToken)).toBe(false);
+    /* Best-effort cancellation rides along; the generation is what decides. */
+    expect(aliceToken.signal.aborted).toBe(true);
+
+    const bobToken = result.current.captureRequesterContext();
+    expect(result.current.isRequesterContextCurrent(bobToken)).toBe(true);
+    expect(bobToken.signal.aborted).toBe(false);
+  });
+
+  it("makes an outstanding token obsolete when the context is cleared", () => {
+    const { result } = renderContext();
+    act(() => result.current.selectRequester(ALICE));
+    const token = result.current.captureRequesterContext();
+
+    act(() => result.current.clearRequester());
+
+    expect(result.current.isRequesterContextCurrent(token)).toBe(false);
+    expect(token.signal.aborted).toBe(true);
   });
 });

@@ -120,7 +120,7 @@ function mapServerErrors(error: ApiResponseError): FieldErrors {
 
 export default function CreateTicket() {
   const navigate = useNavigate();
-  const { requester } = useRequester();
+  const { requester, captureRequesterContext, isRequesterContextCurrent } = useRequester();
   const callApi = useRequesterApi();
 
   const [categories, setCategories] = useState<MasterDataItem[]>([]);
@@ -217,7 +217,19 @@ export default function CreateTicket() {
     return keyRef.current;
   }
 
+  /*
+   * A submission belongs to the Requester context that started it. The request
+   * can outlive that context -- the user may change Requester while it is still
+   * pending -- and every completion path below writes requester-scoped state:
+   * navigation, the shared `sessionStorage` recovery record, the form's own
+   * errors. Applying any of that under a different Requester would render
+   * Requester A's outcome for Requester B, so an obsolete completion is dropped
+   * instead. The server result stays authoritative and is simply not consumed
+   * by this session; selecting Requester A again discovers it normally.
+   */
   async function submit(payload: CreateTicketPayload, key: string): Promise<void> {
+    const token = captureRequesterContext();
+
     setSubmitting(true);
 
     try {
@@ -227,6 +239,10 @@ export default function CreateTicket() {
         body: JSON.stringify(payload),
       });
 
+      if (!isRequesterContextCurrent(token)) {
+        return;
+      }
+
       /* Confirmed success: nothing is left ambiguous to resume. */
       clearRecovery();
       setRecovery(null);
@@ -234,6 +250,16 @@ export default function CreateTicket() {
         state: { created: true, ticketNumber: ticket.ticketNumber },
       });
     } catch (error) {
+      /*
+       * Checked before the failure is classified at all: a stale 4xx must not
+       * clear the current Requester's recovery record, and a stale 5xx or
+       * transport failure -- which is also how the requester-change abort
+       * surfaces -- must not write the previous Requester's record over it.
+       */
+      if (!isRequesterContextCurrent(token)) {
+        return;
+      }
+
       /*
        * A context-invalidating 400 is a confirmed non-ambiguous failure: the
        * guard rejected the request before the route, so no Ticket exists.
@@ -280,7 +306,9 @@ export default function CreateTicket() {
         form: "The Ticket submission did not complete. Use Resume Submission Recovery to retry it.",
       });
     } finally {
-      setSubmitting(false);
+      if (isRequesterContextCurrent(token)) {
+        setSubmitting(false);
+      }
     }
   }
 

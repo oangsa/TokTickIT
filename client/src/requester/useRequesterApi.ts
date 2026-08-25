@@ -11,14 +11,24 @@ import { useRequester } from "./RequesterProvider.js";
  * navigate is needed; this is the same mechanism Change Requester already uses.
  * Unmounting only drops in-memory state, so `clearRequester` also removes the
  * requester-scoped `sessionStorage` records itself.
+ *
+ * Every request also carries the current Requester context's abort signal, so a
+ * Requester change cancels the in-flight work it owns. That is best effort: the
+ * server may already have committed, and the Promise may still settle, so a
+ * caller whose completion has side effects must additionally check its captured
+ * token with `isRequesterContextCurrent` before applying them.
  */
 export function useRequesterApi() {
-  const { requester, clearRequester } = useRequester();
+  const { requester, clearRequester, captureRequesterContext } = useRequester();
 
   return useCallback(
     async <T,>(path: string, init?: ApiRequestInit): Promise<T> => {
       try {
-        return await apiFetch<T>(path, init, requester?.id);
+        return await apiFetch<T>(
+          path,
+          { ...init, signal: init?.signal ?? captureRequesterContext().signal },
+          requester?.id,
+        );
       } catch (error) {
         if (error instanceof InvalidRequesterContextError) {
           clearRequester();
@@ -27,6 +37,6 @@ export function useRequesterApi() {
         throw error;
       }
     },
-    [requester, clearRequester],
+    [requester, clearRequester, captureRequesterContext],
   );
 }

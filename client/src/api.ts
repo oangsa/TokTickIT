@@ -72,14 +72,15 @@ export class InvalidRequesterContextError extends Error {
 }
 
 /*
- * `signal` is deliberately not accepted: `apiFetch` installs its own timeout
- * signal and a caller's would be silently overwritten by it. Cancel-on-unmount
- * is done with the `ignore` flag pattern in the effect instead (see
- * `RequesterSelection`), which is what keeps a stale response from painting
- * over a newer one. If a real abort is ever needed, merge the two signals here
- * rather than re-widening this type.
+ * A caller `signal` is merged with the per-request timeout rather than
+ * replacing it, so a requester-scoped request can be cancelled when the
+ * Requester context changes and still keeps its own deadline. Cancellation is
+ * best effort: an abort proves nothing about whether the server committed, so
+ * callers still need the `ignore` flag pattern (see `RequesterSelection`) or a
+ * requester generation check (see `CreateTicket`) to decide whether a settled
+ * Promise may touch current state.
  */
-export interface ApiRequestInit extends Omit<RequestInit, "headers" | "signal"> {
+export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
   headers?: Record<string, string>;
 }
 
@@ -114,6 +115,31 @@ export class ApiResponseError extends Error {
   }
 }
 
+/*
+ * `AbortSignal.any` is not implemented in the jsdom the tests run under, so the
+ * two signals are merged by hand and production takes the same path the tests
+ * exercise. Whichever fires first wins.
+ *
+ * ponytail: a completed request leaves its `abort` listener on the caller's
+ * signal until that signal is discarded, which for a requester signal is the
+ * next Requester change -- a handful of listeners, not a leak worth managing.
+ * Swap in `AbortSignal.any` if the client ever drops jsdom or the count grows.
+ */
+function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSignal {
+  const controller = new AbortController();
+
+  for (const signal of [first, second]) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+
+    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+  }
+
+  return controller.signal;
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: ApiRequestInit,
@@ -125,10 +151,12 @@ export async function apiFetch<T>(
     headers["X-Requester-Id"] = String(requesterId);
   }
 
+  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: init?.signal ? mergeSignals(timeout, init.signal) : timeout,
   }).catch(() => {
     throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
   });

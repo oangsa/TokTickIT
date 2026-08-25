@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -12,6 +12,7 @@ import {
 } from "../../src/tickets/createTicketDraft.js";
 
 const ALICE = { id: 1, name: "Alice Johnson" };
+const BOB = { id: 2, name: "Bob Smith" };
 
 const CATEGORIES = [
   { id: 4, name: "Network", isActive: true, deleted: false, createdBy: "seed", createdAt: "", updatedBy: "seed", updatedAt: "" },
@@ -49,11 +50,25 @@ interface StubbedCall {
   init?: { method?: string; headers?: Record<string, string>; body?: string };
 }
 
+interface StubbedResult {
+  ok: boolean;
+  status: number;
+  body: unknown;
+}
+
+/* The two selectable Development Requesters, in the /api/requesters DTO shape. */
+const REQUESTERS = [
+  { ...ALICE, email: "alice.johnson@example.com", isActive: true, deleted: false, createdBy: "seed", createdAt: "", updatedBy: "seed", updatedAt: "" },
+  { ...BOB, email: "bob.smith@example.com", isActive: true, deleted: false, createdBy: "seed", createdAt: "", updatedBy: "seed", updatedAt: "" },
+];
+
 /*
- * Routes by path so the two reference-data loads and the create call can be
- * arranged independently. `create` returns the response for POST /api/tickets.
+ * Routes by path so the two reference-data loads, the Requester list, and the
+ * create call can be arranged independently. `create` returns the response for
+ * POST /api/tickets; returning a Promise leaves that request pending, which is
+ * how the stale-Requester tests hold a submission open across a switch.
  */
-function stubApi(create?: () => { ok: boolean; status: number; body: unknown }) {
+function stubApi(create?: () => StubbedResult | Promise<StubbedResult>) {
   const calls: StubbedCall[] = [];
 
   const fetchMock = vi.fn(async (url: string, init?: StubbedCall["init"]) => {
@@ -67,7 +82,11 @@ function stubApi(create?: () => { ok: boolean; status: number; body: unknown }) 
       return { ok: true, status: 200, json: async () => SYSTEMS };
     }
 
-    const result = create?.() ?? { ok: true, status: 201, body: TICKET };
+    if (url.includes("/api/requesters")) {
+      return { ok: true, status: 200, json: async () => REQUESTERS };
+    }
+
+    const result = await (create?.() ?? { ok: true, status: 201, body: TICKET });
     return { ok: result.ok, status: result.status, json: async () => result.body };
   });
 
@@ -746,5 +765,158 @@ describe("Cancel and discard", () => {
 
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
     await waitFor(() => expect(screen.queryByLabelText(/^Category/)).toBeNull());
+  });
+});
+
+
+/*
+ * UI-05/UI-08 carried forward from Issue #20: "Requester A data must never
+ * render under Requester B."
+ *
+ * A submission is requester-scoped async work that can outlive the context that
+ * started it. Client-side abort is not enough on its own -- the server may
+ * already have committed, and the Promise settles either way -- so what is
+ * asserted here is that an obsolete completion changes nothing for the current
+ * Requester: no navigation, no recovery record written or cleared, no form or
+ * error state, no focus move.
+ */
+describe("Stale Requester submission completion", () => {
+  const BOB_KEY = "11111111-1111-4111-8111-111111111111";
+
+  interface Deferred {
+    calls: StubbedCall[];
+    settle: (result: StubbedResult) => void;
+    fail: (error: Error) => void;
+  }
+
+  /* Holds POST /api/tickets open until the test decides how it ends. */
+  function pendingCreate(): Deferred {
+    let settle!: (result: StubbedResult) => void;
+    let fail!: (error: Error) => void;
+
+    const pending = new Promise<StubbedResult>((resolve, reject) => {
+      settle = resolve;
+      fail = reject;
+    });
+
+    const { calls } = stubApi(() => pending);
+
+    return { calls, settle, fail };
+  }
+
+  /* Bob's own ambiguous attempt, so an accidental clear or overwrite shows up. */
+  function seedBobRecovery(): RecoveryRecord {
+    const record: RecoveryRecord = {
+      requesterId: BOB.id,
+      idempotencyKey: BOB_KEY,
+      keyCreatedAt: Date.now(),
+      payload: {
+        categoryId: 2,
+        relatedSystemId: 5,
+        summary: "Printer queue is stuck",
+        requestedPriority: "LOW",
+        description: "Jobs stay queued and never reach the printer.",
+        attachmentIds: [],
+      },
+    };
+
+    sessionStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify(record));
+    return record;
+  }
+
+  async function submitAsAliceThenSwitchToBob(
+    user: ReturnType<typeof userEvent.setup>,
+  ): Promise<void> {
+    renderCreateTicket();
+    await fillValidForm(user);
+    await user.click(submitButton());
+
+    /* The POST is in flight and unresolved when the Requester changes. */
+    await waitFor(() => expect(createCalls(stubbedCalls).length).toBe(1));
+
+    await user.click(screen.getByRole("button", { name: "Change Requester" }));
+    await user.selectOptions(
+      await screen.findByLabelText(/^Development Requester/),
+      String(BOB.id),
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByRole("heading", { level: 1, name: "My Tickets" });
+  }
+
+  let stubbedCalls: StubbedCall[] = [];
+
+  it("ignores a success that arrives after the Requester was changed", async () => {
+    const user = userEvent.setup();
+    const { calls, settle } = pendingCreate();
+    stubbedCalls = calls;
+
+    await submitAsAliceThenSwitchToBob(user);
+    const bobRecord = seedBobRecovery();
+
+    await act(async () => {
+      settle({ ok: true, status: 201, body: TICKET });
+    });
+
+    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBe(JSON.stringify(BOB));
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBe(JSON.stringify(bobRecord));
+    expect(screen.getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Ticket Detail" })).not.toBeInTheDocument();
+    expect(screen.queryByText(TICKET.ticketNumber)).not.toBeInTheDocument();
+    expect(screen.queryByText(TICKET.publicId)).not.toBeInTheDocument();
+  });
+
+  it("writes no previous-Requester recovery record when a stale submission fails ambiguously", async () => {
+    const user = userEvent.setup();
+    const { calls, fail } = pendingCreate();
+    stubbedCalls = calls;
+
+    await submitAsAliceThenSwitchToBob(user);
+    const bobRecord = seedBobRecovery();
+
+    await act(async () => {
+      fail(new Error("Network request failed"));
+    });
+
+    /* Alice's key never reaches storage, and Bob's record is left untouched. */
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBe(JSON.stringify(bobRecord));
+    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBe(JSON.stringify(BOB));
+    expect(screen.getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
+  });
+
+  it("leaves the current Requester's form untouched when a stale submission is rejected with a 4xx", async () => {
+    const user = userEvent.setup();
+    const { calls, settle } = pendingCreate();
+    stubbedCalls = calls;
+
+    await submitAsAliceThenSwitchToBob(user);
+    const bobRecord = seedBobRecovery();
+
+    /* Bob opens Create Ticket, so a stale field error would be visible here. */
+    await user.click(screen.getByRole("link", { name: "Create Ticket" }));
+    await screen.findByLabelText(/^Category/);
+    const categorySelect = screen.getByLabelText(/^Category/);
+
+    await act(async () => {
+      settle({
+        ok: false,
+        status: 400,
+        body: {
+          statusCode: 400,
+          code: "VALIDATION_ERROR",
+          message: "The request contains invalid values.",
+          error: "Bad Request",
+          details: [{ field: "categoryId", message: "Select an available Category." }],
+        },
+      });
+    });
+
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBe(JSON.stringify(bobRecord));
+    expect(screen.queryByText("Select an available Category.")).not.toBeInTheDocument();
+    expect((categorySelect as HTMLSelectElement).value).toBe("");
+    expect(document.activeElement).not.toBe(categorySelect);
+    /* Bob's own resumable attempt is still offered. */
+    expect(
+      screen.getByRole("button", { name: "Resume Submission Recovery" }),
+    ).toBeInTheDocument();
   });
 });
