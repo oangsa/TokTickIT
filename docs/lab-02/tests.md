@@ -808,6 +808,85 @@ Explicitly not delivered by this Issue:
 - responsive and visual browser evidence (RESP-01-03, VIS-01-03) and all
   Playwright/MSW work remain owned by Issue #25; none was added or run here.
 
+### 4.5.21 Issue #21 final review fix verification
+
+The following checks were run on 2026-08-25 from the listed package
+directories, after the PR #34 final review fixes. They supersede the counts in
+Section 4.5.20, which were recorded before the stale-Requester and
+`attachmentIds` changes. The same guarded disposable `toktickit_lab2_test`
+target was used; the normal development database was never used, migrated,
+seeded, or reset.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #21 server focused gate | `npm test -- tests/lab-02/TicketNumber.test.ts tests/lab-02/TicketService.test.ts tests/lab-02/IdempotencyService.test.ts tests/lab-02/tickets.api.test.ts tests/lab-02/create-ticket.api.test.ts tests/lab-02/ticket-idempotency.api.test.ts tests/lab-02/postgres/idempotency.postgres.test.ts tests/lab-02/postgres/transactions.postgres.test.ts` | `server/`; the four API files mock Prisma, the two PostgreSQL files run against `toktickit_lab2_test` | Passed — 8 files, 181 tests. |
+| Issue #21 client focused gate | `npm test -- tests/lab-02/CreateTicket.test.tsx` | `client/` | Passed — 1 file, 38 tests. |
+| CreateTicket + ApplicationShell stale-Requester regression | `npm test -- tests/lab-02/CreateTicket.test.tsx tests/lab-02/ApplicationShell.test.tsx` | `client/` | Passed — 2 files, 96 tests. The three stale previous-Requester completion regressions and the two requester-generation invalidation regressions passed. |
+| PostgreSQL integration tests | `npm test -- tests/lab-02/postgres/` | `server/`; `toktickit_lab2_test` | Passed — 4 files, 36 tests. |
+| Full server suite | `npm test -- tests/` | `server/`; `toktickit_lab2_test` | Passed — 20 files, 254 tests. |
+| Full client suite | `npm test -- tests/` | `client/` | Passed — 6 files, 147 tests. |
+| Backend build | `npm run build` | `server/` | Passed — `tsc` completed with no output. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed — TypeScript and the Vite production build. |
+| Whitespace check | `git diff --check` | repository root | Passed — no output. |
+
+The stale previous-Requester completion regression is the one this pass was
+opened for, so it is called out explicitly: a `POST /api/tickets` started under
+Requester A is held unresolved, the Requester is changed to B through the shell
+selector, and the original Promise is then settled. All three completion shapes
+were covered and all three passed:
+
+- a stale `201` does not navigate to A's `/tickets/:publicId`, does not clear
+  B's recovery record, and renders no success state under B;
+- a stale transport failure writes no A recovery record and does not overwrite
+  B's;
+- a stale `400 VALIDATION_ERROR` does not clear B's recovery record, does not
+  mark or focus B's fields, and leaves B's Create Ticket form untouched.
+
+Each of the three fails without the fix: replacing the generation comparison in
+`RequesterProvider` with a constant `true` reproduces exactly the two reviewed
+symptoms — B's record cleared by the stale success and A's record written over
+B's by the stale failure.
+
+The mechanism is a runtime Requester generation on the shared requester context
+rather than anything local to Create Ticket. `captureRequesterContext()` returns
+the current generation together with that generation's `AbortSignal`;
+`isRequesterContextCurrent(token)` compares the captured generation against the
+live one. Change Requester, the `REQUESTER_CONTEXT_INVALID` recovery, and
+selecting a replacement Requester all advance it and abort the outgoing signal.
+The generation is never persisted to `sessionStorage`: a token restored after a
+reload would claim to be current for a context that no longer exists.
+
+Cancellation is best effort and is deliberately not the safety mechanism. An
+abort cannot prove the server did not already commit the Ticket, and the Promise
+settles either way, so the generation check is what makes an obsolete completion
+inert. The server result stays authoritative and is simply not consumed by the
+current session; selecting Requester A again discovers it normally.
+`apiFetch` now merges a caller signal with its own 8-second timeout instead of
+replacing it, so a requester-scoped request keeps its deadline and also cancels
+on a Requester change. The merge is written by hand because the jsdom the client
+suite runs under does not implement `AbortSignal.any`, which keeps production and
+the tests on the same path.
+
+`attachmentIds` was also corrected in this pass. api-spec Section 8.2 defines it
+as an optional array, so an explicit `null` is now a `400 VALIDATION_ERROR` with
+`attachmentIds` in `details` and no Ticket transaction, rather than being treated
+as `[]`. Omitted and `[]` both remain valid and both keep explicit coverage in
+`tests/lab-02/create-ticket.api.test.ts`. The canonicalization rules are
+unchanged: at most five values, UUID syntax, lowercase normalization, duplicates
+rejected after normalization, and a lexicographically ascending sort.
+
+Deferred follow-up, not changed in this PR: `isDevelopmentOrTest` in
+`server/src/env.ts` treats an unset `NODE_ENV` as development/test, which keeps
+the `http://localhost:5173` CORS fallback and the unauthenticated
+`GET /api/requesters` bootstrap available. A fail-closed reading would treat only
+an explicit `development` or `test` as inside that boundary and everything else,
+`undefined` included, as outside. Local development in this repository currently
+depends on the permissive reading — no tracked environment file sets `NODE_ENV`,
+so `npm run dev` runs with it unset — so changing it silently here would break
+the documented local workflow and is out of scope for PR #34. Both
+`tests/lab-02/cors.api.test.ts` and `tests/lab-02/reference-data.api.test.ts`
+already pin the current behavior and would need updating with it.
+
 ## 5. Reusable QueryBuilder Test Principle
 
 The global QueryBuilder follows the reusable infrastructure/repository utility pattern:
@@ -976,7 +1055,7 @@ cover `ISNULL`, `ISNOTNULL`, and every other approved generic operator.
 | API-72 | API | AC-58 | JSON parser size/error classification. | A body at the 131,072-byte parser boundary reaches normal parse/downstream handling rather than size rejection; larger returns 413; malformed JSON within limit returns 400 BAD_REQUEST; valid JSON with invalid fields returns 400 VALIDATION_ERROR. | tests/lab-02/transport-hardening.api.test.ts | Partial — the 131,072-byte boundary (proved by the body reaching the requester guard rather than being size-rejected), the 413, and the malformed-JSON `BAD_REQUEST` are covered by `transport-hardening.api.test.ts`; the request-body field `VALIDATION_ERROR` needs a field-validating endpoint and is owned by Issue #21. Requester-context failures are deliberately not this row: they carry `REQUESTER_CONTEXT_INVALID` (API-01) so the client can tell them apart from an ordinary application 400. |
 | API-73 | API | AC-59 | Structured logging allowlist and sensitive-marker exclusion. | Success/failure logs contain required correlation/transport fields; seeded marker values for queries, headers, bodies, names/emails, filenames, DB URLs, SQL, binary, and Prisma metadata never appear. | tests/lab-02/error-contract.api.test.ts | Passed |
 | API-74 | API | AC-60 | Cache and variation headers. | Bootstrap, requester-scoped JSON/binary, and representative error responses use no-store; requester-scoped responses merge `Origin, X-Requester-Id` into Vary without clobbering the CORS value; the bootstrap `GET /api/requesters` preserves the CORS `Vary: Origin` and does not add `X-Requester-Id`. | tests/lab-02/transport-hardening.api.test.ts | Passed |
-| API-75 | API | AC-50 | Synthetic full Requester DTO boundary. | Bootstrap retains the full DevelopmentRequesterDTO shape using only approved synthetic example identities; documentation/configuration never claim CORS makes it private. | tests/lab-02/reference-data.api.test.ts | Not Run |
+| API-75 | API | AC-50 | Synthetic full Requester DTO boundary. | Bootstrap retains the full DevelopmentRequesterDTO shape using only approved synthetic example identities; documentation/configuration never claim CORS makes it private. | tests/lab-02/reference-data.api.test.ts | Passed |
 | API-76 | API | BR-19–24, BR-82, AC-65 | `PROCESSING_LEASE_SECONDS = 300`, request-time reclaim, and old-owner fencing behavior. | Before `processingStartedAt + 300 seconds` same hash waits because `now < STALE_CUTOFF`; at exact equality and afterward same hash atomically reclaims because `now >= STALE_CUTOFF` and resets `processingStartedAt`; different hash returns 409 whether fresh or stale; the stale row is not deleted for new-payload key reuse; a resumed owner with the old lease fails fencing before final mutable validation/mutation and returns to wait/replay; no FAILED state is stored. | tests/lab-02/ticket-idempotency.api.test.ts | Passed |
 
 ### 7.1 Planned PostgreSQL Integration Tests
@@ -1237,7 +1316,7 @@ The following rules previously had only generic Definition-of-Done wording. Each
 | BR-91 | UI-32, UI-37, VIS-01, VIS-02, VIS-03 | Inspect representative icon-only controls for both accessible programmatic names and visible tooltip/hover-focus labels, including navigation, Attachment, close, pagination, filter/search, mobile-sidebar, and modal controls; verify action wording without relying on icon shape, color, `title` alone, or `aria-label` alone. | Not Run |
 | Migration preservation (AC-49) | PG-07, DATA-07 | Apply the committed migration to both a fresh database and a populated Lab 1 database; verify the existing Category table is altered in place, its `id`, `name`, and `createdAt` values are preserved exactly, and each existing valid row receives `isActive = true`, `deleted = false`, `createdBy = seed`, `updatedBy = seed`, and `updatedAt = original createdAt`. Verify that existing-row `updatedAt` is not derived from migration execution time, `now()`, `CURRENT_TIMESTAMP`, application-start time, or another nondeterministic timestamp. | Passed — PG-07 + fresh deploy/seed smoke |
 | Attachment checks/indexes (AC-56, AC-63) | PG-08, DATA-08 | Inspect and exercise the committed Attachment checks - which are the complete database-level Attachment contract, with no triggers - plus the general/partial/unique/trigram/cleanup indexes; verify the size invariant `size_bytes > 0 AND size_bytes <= 5000000 AND size_bytes = octet_length(data)` and record schema evidence without asserting an exact query plan. | Passed — PG-07 schema evidence + PG-08 |
-| Synthetic Requester boundary (AC-50) | API-75, DATA-09 | Inspect seed fixtures and bootstrap evidence to confirm every unauthenticated Requester identity is synthetic and deployment documentation prohibits real PII/public exposure. | Partial — verified for Issue #20 on 2026-08-24: every seeded Requester identity in `server/prisma/seed.ts` is synthetic and uses an `@example.com` address, and a live `curl -i http://localhost:3000/api/requesters` against the disposable Lab 1 database returned exactly those four active synthetic identities and no other personal data. `README.md` now states that the CORS origin restriction is browser hardening rather than authentication, authorization, or a privacy boundary, and that the unauthenticated Lab 2 application is restricted to development and test networks and must not be described as safe for public deployment. API-75 itself is not yet implemented and remains outside Issue #20. |
+| Synthetic Requester boundary (AC-50) | API-75, DATA-09 | Inspect seed fixtures and bootstrap evidence to confirm every unauthenticated Requester identity is synthetic and deployment documentation prohibits real PII/public exposure. | Passed — verified for Issue #20 on 2026-08-24: every seeded Requester identity in `server/prisma/seed.ts` is synthetic and uses an `@example.com` address, and a live `curl -i http://localhost:3000/api/requesters` against the disposable Lab 1 database returned exactly those four active synthetic identities and no other personal data. `README.md` now states that the CORS origin restriction is browser hardening rather than authentication, authorization, or a privacy boundary, and that the unauthenticated Lab 2 application is restricted to development and test networks and must not be described as safe for public deployment. Re-verified on 2026-08-25 for Issue #21: API-75 is implemented and passing in `tests/lab-02/reference-data.api.test.ts`, which proves the full nine-key `DevelopmentRequesterDTO` shape, the active/non-deleted query, the absent `X-Requester-Id` requirement, and the 404 outside development and test; the five seeded identities in `server/prisma/seed.ts` are all `@example.com`; and `README.md` still states that the CORS origin restriction is browser hardening rather than authentication, authorization, or a privacy boundary. |
 | Pinned test tooling (AC-62) | DATA-10 | Inspect root/client manifests and lockfiles: pinned client MSW, minimal private root package, pinned local Playwright, no workspaces/application dependency relocation, and no implicit download in E2E commands. | Not Run |
 | Authoritative schema contract (AC-64) | PG-07, PG-08, PG-10, DATA-11 | Inspect Prisma mappings and committed migration SQL against Specification Section 7 for every field type/nullability/default, enum, key, restrictive FK, CHECK, and index; run boundary tests on fresh PostgreSQL without asserting an exact planner choice. | Passed — PG-07, PG-08, PG-10 |
 
