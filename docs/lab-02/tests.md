@@ -782,13 +782,19 @@ mock. PG-03 injects its failure at the Attachment-binding step, after the claim
 is fenced and the Ticket row is inserted, so the rollback under test is a real
 rollback of a partially written transaction.
 
-One Issue #21 acceptance criterion cannot be closed inside Issue #21: "Success
-shows the official Ticket Number and navigates to owned Ticket Detail." Create
-Ticket navigates to `/tickets/:publicId` and passes the generated Ticket Number
-in router navigation state, but the destination is the Issue #23 placeholder,
-which does not render it. The navigation half is covered here; the display half
-becomes verifiable when Issue #23 builds Ticket Detail, and that Issue's own
-close gate covers it.
+One Issue #21 acceptance bullet combined two halves that Issue #21 cannot close
+on its own, so each half was reassigned to the Issue that owns it rather than
+left standing as an unmeetable criterion:
+
+- Create Ticket navigates to `/tickets/:publicId` and carries the generated
+  Ticket Number to the destination, which is covered here. Rendering that Ticket
+  Number and the non-intrusive success confirmation needs Ticket Detail and is
+  now an Issue #23 acceptance criterion.
+- The untouched-empty direct cancel, the dirty/Pending discard confirmation, and
+  the confirmed discard clearing the draft and any recovery record are covered
+  here. The best-effort Pending cleanup call through
+  `DELETE /api/attachments/collection` needs that endpoint and is now an Issue
+  #24 acceptance criterion.
 
 Explicitly not delivered by this Issue:
 
