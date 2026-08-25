@@ -890,14 +890,17 @@ already pin the current behavior and would need updating with it.
 ### 4.5.22 PR #34 final shared requester invalidation verification
 
 The following checks were run on 2026-08-25 from the listed package
-directories, against commit `8c0b772bf39e97848b6f26a78c827df351bce372` — the
-commit that carries the final reviewed code. They supersede the counts in
-Section 4.5.21, which were recorded before the shared requester API boundary
-was fixed and before the Ticket DTO query stopped loading Attachment binary
-data. Section 4.5.21 is left as written; it is the record of the state of the
-tree at the time it was run, not of this one. The same guarded disposable
-`toktickit_lab2_test` target was used; the normal development database was
-never used, migrated, seeded, or reset.
+directories, against commit
+`8c0b772bf39e97848b6f26a78c827df351bce372`, the last commit that changed
+application/test code. Subsequent PR commits only update documentation and
+repository-local ignore rules, so they do not change the executable tree
+covered by these results. They supersede the counts in Section 4.5.21, which
+were recorded before the shared requester API boundary was fixed and before
+the Ticket DTO query stopped loading Attachment binary data. Section 4.5.21
+is left as written; it is the record of the state of the tree at the time it
+was run, not of this one. The same guarded disposable `toktickit_lab2_test`
+target was used; the normal development database was never used, migrated,
+seeded, or reset.
 
 | Check | Command | Environment / target | Result |
 | --- | --- | --- | --- |
