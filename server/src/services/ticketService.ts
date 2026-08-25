@@ -9,6 +9,9 @@ import { generateTicketNumber } from "./ticketNumber.js";
 /* BR-03: at most three Ticket-creation attempts for Ticket Number collisions. */
 export const TICKET_NUMBER_ATTEMPTS = 3;
 
+/* Fixed identifier: savepoint names cannot be bound parameters. */
+const TICKET_NUMBER_SAVEPOINT = "ticket_number_attempt";
+
 /* BR-54: a Pending Attachment is cleanup-eligible 24 hours after creation. */
 export const PENDING_ATTACHMENT_TTL_HOURS = 24;
 
@@ -189,10 +192,26 @@ export class TicketService {
       const ticket = await this.insertTicket(tx, input);
 
       if (attachments.length > 0) {
-        await tx.attachment.updateMany({
-          where: { id: { in: attachments.map((row) => row.id) } },
+        /*
+         * The `ticketId`/`deleted` predicate is the binding guard, not a
+         * repetition of the read above. The read is not locking, so a
+         * concurrent create can bind the same row between the two statements;
+         * under READ COMMITTED this UPDATE then blocks on that row lock and
+         * re-evaluates its `WHERE` after the winner commits. Matching on `id`
+         * alone would silently rebind the row and move it off the other Ticket.
+         */
+        const { count } = await tx.attachment.updateMany({
+          where: {
+            id: { in: attachments.map((row) => row.id) },
+            ticketId: null,
+            deleted: false,
+          },
           data: { ticketId: ticket.id, updatedBy: input.actor },
         });
+
+        if (count !== attachments.length) {
+          throw new ApiError("CONFLICT");
+        }
       }
 
       await this.idempotency.complete(tx, {
@@ -253,9 +272,11 @@ export class TicketService {
 
   /*
    * BR-51. Each referenced Attachment must be owned, Pending (`ticketId = null`,
-   * `deleted = false`), and unexpired. Deterministic sorted-ID lock order
-   * reduces inconsistent lock ordering between concurrent creates; it is not
-   * claimed to prevent every deadlock (Section 7.3).
+   * `deleted = false`), and unexpired. This read does not lock: it exists to
+   * produce the safe 404/409 split below, and the binding UPDATE in `create`
+   * re-checks Pending state under the row lock. Rows are ordered by id so
+   * concurrent creates queue on them in the same order (Section 7.3); that
+   * reduces deadlocks and is not claimed to prevent every one.
    *
    * A row that is missing or belongs to another Requester is the same safe
    * `404` as unavailable, so the response never reveals cross-owner existence.
@@ -305,11 +326,19 @@ export class TicketService {
    * unique-constraint collision is retried a bounded number of times. Every
    * other field the client is forbidden to send -- requester, publicId, status,
    * audit actors, deletion flag -- is derived here.
+   *
+   * Each attempt runs inside its own savepoint. A unique violation puts the
+   * whole PostgreSQL transaction into the aborted state (SQLSTATE `25P02`), in
+   * which every later statement fails; without the rollback below the retry
+   * would take down the create transaction it is meant to save. The savepoint
+   * name is a fixed literal, never interpolated input.
    */
   private async insertTicket(tx: PrismaTransaction, input: CreateTicketInput) {
     for (let attempt = 1; attempt <= TICKET_NUMBER_ATTEMPTS; attempt += 1) {
+      await tx.$executeRawUnsafe(`SAVEPOINT ${TICKET_NUMBER_SAVEPOINT}`);
+
       try {
-        return await tx.ticket.create({
+        const ticket = await tx.ticket.create({
           data: {
             /* The schema has no database default: publicId is generated here. */
             publicId: randomUUID(),
@@ -326,7 +355,12 @@ export class TicketService {
             updatedBy: input.actor,
           },
         });
+
+        await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${TICKET_NUMBER_SAVEPOINT}`);
+        return ticket;
       } catch (error) {
+        await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${TICKET_NUMBER_SAVEPOINT}`);
+
         if (!isTicketNumberCollision(error) || attempt === TICKET_NUMBER_ATTEMPTS) {
           throw error;
         }

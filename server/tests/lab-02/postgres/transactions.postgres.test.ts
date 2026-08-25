@@ -559,6 +559,142 @@ describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
     ).toBeNull();
   }, 30_000);
 
+  /*
+   * BR-03. A unique violation puts the whole PostgreSQL transaction into the
+   * aborted state (SQLSTATE `25P02`), in which every later statement fails, so
+   * the bounded Ticket Number retry only works if each failed attempt is rolled
+   * back to its savepoint first. This reproduces `insertTicket`'s statement
+   * sequence: without the rollback the second insert cannot run at all.
+   */
+  it("lets a Ticket insert retry after a unique violation inside the same transaction", async () => {
+    const taken = `TKT-20260822-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+    const free = `TKT-20260822-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+
+    function ticketData(ticketNumber: string, summary: string) {
+      return {
+        publicId: randomUUID(),
+        ticketNumber,
+        requesterId,
+        categoryId,
+        relatedSystemId,
+        summary,
+        requestedPriority: RequestedPriority.LOW,
+        description: "A savepoint retry test description.",
+        createdBy: ACTOR,
+        updatedBy: ACTOR,
+      };
+    }
+
+    await prisma.ticket.create({ data: ticketData(taken, `Occupier ${taken}`) });
+
+    const retried = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SAVEPOINT ticket_number_attempt");
+
+      let collided = false;
+      try {
+        await tx.ticket.create({ data: ticketData(taken, `Collides ${taken}`) });
+      } catch (error) {
+        collided = (error as { code?: string }).code === "P2002";
+      }
+
+      expect(collided).toBe(true);
+      await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT ticket_number_attempt");
+
+      /* Fails with 25P02 if the savepoint rollback above is removed. */
+      return tx.ticket.create({ data: ticketData(free, `Retried ${free}`) });
+    });
+
+    expect(retried.ticketNumber).toBe(free);
+    expect(await prisma.ticket.findMany({ where: { ticketNumber: taken } })).toHaveLength(1);
+  }, 30_000);
+
+  /*
+   * BR-51 under concurrency. The Pending read inside the create transaction is
+   * not locking, so a competing writer can bind the same row after that read.
+   * The competitor here is an open transaction holding the row lock: the create
+   * reads the row as Pending from the committed snapshot, then blocks on its
+   * binding UPDATE until the competitor commits, and must re-check Pending
+   * state under the lock instead of silently moving the Attachment across.
+   */
+  it("refuses to rebind an Attachment a competing writer took after the Pending read", async () => {
+    const key = randomUUID();
+    const summary = `Contended binding ${key}`;
+
+    const attachment = await prisma.attachment.create({
+      data: {
+        storageKey: randomUUID(),
+        uploadedByRequesterId: requesterId,
+        originalName: "vpn-error.png",
+        extension: "png",
+        mimeType: "image/png",
+        sizeBytes: 4,
+        data: Buffer.from([1, 2, 3, 4]),
+        createdBy: ACTOR,
+        updatedBy: ACTOR,
+      },
+    });
+
+    /* The Ticket the competitor binds the row to. */
+    const winner = await prisma.ticket.create({
+      data: {
+        publicId: randomUUID(),
+        ticketNumber: `TKT-20260822-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+        requesterId,
+        categoryId,
+        relatedSystemId,
+        summary: `Winner ${key}`,
+        requestedPriority: RequestedPriority.LOW,
+        description: "Holds the contended Attachment binding.",
+        createdBy: ACTOR,
+        updatedBy: ACTOR,
+      },
+    });
+
+    let releaseCompetitor: () => void = () => {};
+    const competitorCommitted = prisma.$transaction(
+      async (tx) => {
+        await tx.attachment.update({
+          where: { id: attachment.id },
+          data: { ticketId: winner.id, updatedBy: ACTOR },
+        });
+        /* Row lock held, change uncommitted, until the create is blocked on it. */
+        await new Promise<void>((resolve) => (releaseCompetitor = resolve));
+      },
+      { timeout: 20_000 },
+    );
+
+    const created = runCreateTicket(prisma, {
+      requesterId,
+      actor: ACTOR,
+      key,
+      payload: {
+        categoryId,
+        relatedSystemId,
+        summary,
+        requestedPriority: "HIGH" as const,
+        description: "The VPN client fails after entering my credentials.",
+        attachmentIds: [attachment.storageKey],
+      },
+    });
+
+    /* Long enough for the create to reach the binding UPDATE and block there. */
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    releaseCompetitor();
+    await competitorCommitted;
+
+    await expect(created).rejects.toMatchObject({ code: "CONFLICT", statusCode: 409 });
+
+    /* The competitor keeps the Attachment and the losing Ticket never existed. */
+    const bound = await prisma.attachment.findUnique({ where: { id: attachment.id } });
+    expect(bound?.ticketId).toBe(winner.id);
+    expect(await prisma.ticket.findMany({ where: { summary } })).toHaveLength(0);
+    expect(
+      await prisma.idempotencyRecord.findUnique({
+        where: { requesterId_key: { requesterId, key } },
+      }),
+    ).toBeNull();
+  }, 60_000);
+
   it("lets the unchanged retry succeed with the same key and the same Pending rows", async () => {
     const key = randomUUID();
     const summary = `Rollback retry ${key}`;

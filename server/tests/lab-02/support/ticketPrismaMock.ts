@@ -17,6 +17,7 @@ export const tx = {
   ticket: { create: vi.fn() },
   idempotencyRecord: { update: vi.fn() },
   $queryRaw: vi.fn(),
+  $executeRawUnsafe: vi.fn(),
 };
 
 export const prismaMock = {
@@ -156,9 +157,19 @@ export function arrangeHappyPath(): void {
   tx.category.findFirst.mockResolvedValue({ id: 4, name: "Network" });
   tx.relatedSystem.findFirst.mockResolvedValue({ id: 5, name: "VPN" });
   tx.attachment.findMany.mockResolvedValue([]);
-  tx.attachment.updateMany.mockResolvedValue({ count: 0 });
+  /*
+   * The binding UPDATE is guarded by `ticketId: null`, so the service compares
+   * the affected count against the rows it read. The default reports every
+   * targeted row as still Pending; a suite testing a lost binding race
+   * overrides it with a lower count.
+   */
+  tx.attachment.updateMany.mockImplementation(
+    async ({ where }: { where: { id: { in: number[] } } }) => ({ count: where.id.in.length }),
+  );
   tx.ticket.create.mockResolvedValue(ticketRow());
   tx.idempotencyRecord.update.mockResolvedValue({});
+  /* SAVEPOINT / RELEASE / ROLLBACK TO around each Ticket Number attempt. */
+  tx.$executeRawUnsafe.mockResolvedValue(0);
   /* The fencing SELECT ... FOR UPDATE finds the owner's row. */
   tx.$queryRaw.mockResolvedValue([{ id: 7 }]);
 }

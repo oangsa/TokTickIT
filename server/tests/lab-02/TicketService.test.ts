@@ -69,6 +69,7 @@ const tx = {
   ticket: { create: vi.fn() },
   idempotencyRecord: { update: vi.fn() },
   $queryRaw: vi.fn(),
+  $executeRawUnsafe: vi.fn(),
 };
 
 const prismaMock = {
@@ -112,7 +113,15 @@ beforeEach(() => {
   tx.category.findFirst.mockResolvedValue({ id: 4, name: "Network" });
   tx.relatedSystem.findFirst.mockResolvedValue({ id: 5, name: "VPN" });
   tx.attachment.findMany.mockResolvedValue([]);
-  tx.attachment.updateMany.mockResolvedValue({ count: 0 });
+  /*
+   * The binding UPDATE is guarded by `ticketId: null`, so the service compares
+   * the affected count against the rows it read. The default reports every
+   * targeted row as still Pending; the lost-race case overrides it.
+   */
+  tx.attachment.updateMany.mockImplementation(
+    async ({ where }: { where: { id: { in: number[] } } }) => ({ count: where.id.in.length }),
+  );
+  tx.$executeRawUnsafe.mockResolvedValue(0);
   tx.ticket.create.mockResolvedValue(ticketRow());
   tx.idempotencyRecord.update.mockResolvedValue({});
   prismaMock.ticket.findUnique.mockResolvedValue(ticketRow());
@@ -180,7 +189,7 @@ describe("TicketService.create", () => {
 
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.attachment.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: [11, 12] } },
+      where: { id: { in: [11, 12] }, ticketId: null, deleted: false },
       data: { ticketId: 42, updatedBy: "alice.johnson@example.com" },
     });
     expect(tx.idempotencyRecord.update).toHaveBeenCalledWith(
@@ -193,6 +202,23 @@ describe("TicketService.create", () => {
 
     expect(tx.attachment.findMany).not.toHaveBeenCalled();
     expect(tx.attachment.updateMany).not.toHaveBeenCalled();
+  });
+
+  /*
+   * BR-51 under concurrency. The read is not locking, so a competing create can
+   * bind the same row between the read and the UPDATE; the guarded UPDATE then
+   * affects fewer rows than were read. Proved against real PostgreSQL in
+   * `postgres/transactions.postgres.test.ts`.
+   */
+  it("conflicts rather than rebinding when a competing create won the Attachment", async () => {
+    tx.attachment.findMany.mockResolvedValue([pendingAttachment()]);
+    tx.attachment.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.create(
+        baseInput({ payload: { ...baseInput().payload, attachmentIds: [ATTACHMENT_A] } }),
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", statusCode: 409 });
   });
 
   it("rejects a Category that is no longer active at commit time", async () => {
@@ -285,6 +311,30 @@ describe("TicketService.create", () => {
 
     await expect(service.create(baseInput())).resolves.toBeDefined();
     expect(tx.ticket.create).toHaveBeenCalledTimes(2);
+  });
+
+  /*
+   * A unique violation aborts the surrounding PostgreSQL transaction, so the
+   * retry above is only reachable if the failed attempt is rolled back to its
+   * savepoint first. A mock cannot reproduce SQLSTATE 25P02, so this asserts
+   * the statements that make the retry legal; the real behaviour is proved by
+   * `postgres/transactions.postgres.test.ts`.
+   */
+  it("rolls each failed Ticket Number attempt back to its savepoint", async () => {
+    const collision = Object.assign(new Error(), {
+      code: "P2002",
+      meta: { target: ["ticket_number"] },
+    });
+    tx.ticket.create.mockRejectedValueOnce(collision).mockResolvedValueOnce(ticketRow());
+
+    await service.create(baseInput());
+
+    expect(tx.$executeRawUnsafe.mock.calls.map((call) => call[0])).toEqual([
+      "SAVEPOINT ticket_number_attempt",
+      "ROLLBACK TO SAVEPOINT ticket_number_attempt",
+      "SAVEPOINT ticket_number_attempt",
+      "RELEASE SAVEPOINT ticket_number_attempt",
+    ]);
   });
 
   it("gives up after three attempts rather than retrying forever", async () => {

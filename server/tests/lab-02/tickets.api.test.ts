@@ -112,7 +112,7 @@ describe("POST /api/tickets", () => {
 
     expect(res.status).toBe(201);
     expect(tx.attachment.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: [11, 12] } },
+      where: { id: { in: [11, 12] }, ticketId: null, deleted: false },
       data: { ticketId: 42, updatedBy: "alice.johnson@example.com" },
     });
     expect(res.body.attachments.map((a: { attachmentId: string }) => a.attachmentId)).toEqual([
