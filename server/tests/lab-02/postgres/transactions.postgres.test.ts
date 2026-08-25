@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { RequestedPriority } from "../../../src/generated/prisma/enums.js";
 import type { PrismaClient } from "../../../src/generated/prisma/client.js";
 import { runCreateTicket } from "../../../src/services/createTicketFlow.js";
+import { parseCreateTicketRequest } from "../../../src/services/ticketCreateRequest.js";
 import {
   assertLab2TestDatabase,
   createTestPrisma,
@@ -557,6 +558,85 @@ describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
         where: { requesterId_key: { requesterId, key } },
       }),
     ).toBeNull();
+  }, 30_000);
+
+  /*
+   * AC-08/AC-09. The mocked API suites prove what the validator accepts, but
+   * only real PostgreSQL runs `ticket_summary_check` / `ticket_description_check`,
+   * which count with `char_length` -- characters, not UTF-16 code units. So the
+   * two layers can only be shown to agree here.
+   *
+   * An astral character is one character and two code units, so a `.length`
+   * bound disagrees with the CHECK in both directions: it would let a
+   * two-character Summary through to an insert-time 500, and refuse a
+   * 150-character one the column holds fine. Both boundaries are driven through
+   * `parseCreateTicketRequest` so the test fails if the two ever diverge again.
+   */
+  it("accepts the validator's maximum Summary and Description as real characters", async () => {
+    const summary = "\u{1F600}".repeat(150);
+    const description = "\u{1F600}".repeat(2000);
+
+    const { payload } = parseCreateTicketRequest({
+      categoryId,
+      relatedSystemId,
+      summary,
+      requestedPriority: "LOW",
+      description,
+    });
+
+    const { status, ticket } = await runCreateTicket(prisma, {
+      requesterId,
+      actor: ACTOR,
+      key: randomUUID(),
+      payload,
+    });
+
+    expect(status).toBe(201);
+    expect(ticket.summary).toBe(summary);
+    expect(ticket.description).toBe(description);
+
+    /* What the CHECK counts, and what `.length` would have reported instead. */
+    const [stored] = await prisma.$queryRaw<{ summary: number; description: number }[]>`
+      SELECT char_length(summary) AS summary, char_length(description) AS description
+      FROM ticket WHERE public_id = ${ticket.publicId}::uuid
+    `;
+    expect(Number(stored.summary)).toBe(150);
+    expect(Number(stored.description)).toBe(2000);
+    expect(summary.length).toBe(300);
+  }, 30_000);
+
+  /*
+   * The other direction: a Summary the validator must reject because the CHECK
+   * would. If `readTrimmedText` ever counts code units again this insert is what
+   * it reaches, and the client sees a 500 instead of a safe 400.
+   */
+  it("rejects a two-character astral Summary that the CHECK would refuse", async () => {
+    expect(() =>
+      parseCreateTicketRequest({
+        categoryId,
+        relatedSystemId,
+        summary: "\u{1F600}a",
+        requestedPriority: "LOW",
+        description: "A description well past the ten-character minimum.",
+      }),
+    ).toThrowError();
+
+    await expect(
+      prisma.ticket.create({
+        data: {
+          publicId: randomUUID(),
+          ticketNumber: `TKT-20260822-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+          requesterId,
+          categoryId,
+          relatedSystemId,
+          summary: "\u{1F600}a",
+          requestedPriority: RequestedPriority.LOW,
+          description: "A description well past the ten-character minimum.",
+          createdBy: ACTOR,
+          updatedBy: ACTOR,
+        },
+      }),
+    ).rejects.toThrowError(/ticket_summary_check/);
   }, 30_000);
 
   /*

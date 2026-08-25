@@ -61,6 +61,15 @@ const FIELD_IDS: Record<string, string> = {
  * instead of after a round trip. The backend stays authoritative: a rejection
  * that arrives anyway is mapped back onto the same fields below.
  */
+/*
+ * Characters, not UTF-16 code units: the backend measures the same way because
+ * the database CHECK is `char_length(...)`. Counting with `.length` here would
+ * mark a valid emoji Summary invalid and let a too-short one through to a 500.
+ */
+function characters(value: string): number {
+  return [...value].length;
+}
+
 function validate(draft: CreateTicketDraft): FieldErrors {
   const errors: FieldErrors = {};
   const summary = draft.summary.trim();
@@ -78,11 +87,11 @@ function validate(draft: CreateTicketDraft): FieldErrors {
     errors.requestedPriority = "Select a Requested Priority.";
   }
 
-  if (summary.length < 3 || summary.length > 150) {
+  if (characters(summary) < 3 || characters(summary) > 150) {
     errors.summary = "Summary must contain 3-150 characters.";
   }
 
-  if (description.length < 10 || description.length > 2000) {
+  if (characters(description) < 10 || characters(description) > 2000) {
     errors.description = "Description must contain 10-2000 characters.";
   }
 
@@ -426,14 +435,20 @@ export default function CreateTicket() {
               <option value="HIGH">High</option>
             </Select>
 
+            {/*
+             * No `maxLength`: the attribute counts UTF-16 code units, so it
+             * would cut a 150-character emoji Summary off at 75 -- a value the
+             * counter, the validator, and the column all accept. Section 9
+             * makes the always-visible counter the feedback mechanism, and
+             * `validate` is the hard stop.
+             */}
             <TextInput
               id={FIELD_IDS.summary}
               label="Summary"
               required
-              maxLength={150}
               value={draft.summary}
               error={errors.summary}
-              counter={{ value: draft.summary.trim().length, max: 150 }}
+              counter={{ value: characters(draft.summary.trim()), max: 150 }}
               onChange={(event) => update({ summary: event.target.value })}
             />
 
@@ -441,10 +456,9 @@ export default function CreateTicket() {
               id={FIELD_IDS.description}
               label="Description"
               required
-              maxLength={2000}
               value={draft.description}
               error={errors.description}
-              counter={{ value: draft.description.trim().length, max: 2000 }}
+              counter={{ value: characters(draft.description.trim()), max: 2000 }}
               onChange={(event) => update({ description: event.target.value })}
             />
           </Card>

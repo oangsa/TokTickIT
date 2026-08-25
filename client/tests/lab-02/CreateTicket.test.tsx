@@ -244,6 +244,12 @@ describe("Create Ticket validation", () => {
   it.each([
     ["a two-character Summary", "ab", "Summary must contain 3-150 characters."],
     ["a whitespace-only Summary", "   ", "Summary must contain 3-150 characters."],
+    /*
+     * Two characters in three UTF-16 code units. The backend counts characters
+     * because the database CHECK does, so counting code units here would send a
+     * value the server can only reject with a 500.
+     */
+    ["a two-character astral Summary", "\u{1F600}a", "Summary must contain 3-150 characters."],
   ])("rejects %s", async (_label, value, message) => {
     const user = userEvent.setup();
     stubApi();

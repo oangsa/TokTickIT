@@ -41,6 +41,13 @@ describe("Summary validation", () => {
     ["blank", "   "],
     ["two characters", "ab"],
     ["151 characters", "a".repeat(151)],
+    /*
+     * Three UTF-16 code units but two characters. Counting code units here
+     * would accept it and leave the `ticket_summary_check` CHECK to reject it
+     * at insert time, which surfaces as a 500 rather than this safe 400.
+     */
+    ["two-character astral", "\u{1F600}a"],
+    ["151-character astral", "\u{1F600}".repeat(151)],
     ["not a string", 12],
   ])("rejects a %s Summary without creating a Ticket", async (_label, summary) => {
     const res = await post({ ...VALID_BODY, summary });
@@ -54,6 +61,8 @@ describe("Summary validation", () => {
   it.each([
     ["three characters", "abc"],
     ["150 characters", "a".repeat(150)],
+    /* 300 UTF-16 code units, 150 characters: what the CHECK and the column allow. */
+    ["150-character astral", "\u{1F600}".repeat(150)],
   ])("accepts a %s Summary", async (_label, summary) => {
     expect((await post({ ...VALID_BODY, summary })).status).toBe(201);
   });
@@ -73,6 +82,9 @@ describe("Description validation", () => {
     ["blank", "        "],
     ["nine characters", "a".repeat(9)],
     ["2001 characters", "a".repeat(2001)],
+    /* Ten UTF-16 code units, five characters -- see the Summary cases above. */
+    ["five-character astral", "\u{1F600}".repeat(5)],
+    ["2001-character astral", "\u{1F600}".repeat(2001)],
   ])("rejects a %s Description without creating a Ticket", async (_label, description) => {
     const res = await post({ ...VALID_BODY, description });
 
@@ -84,6 +96,7 @@ describe("Description validation", () => {
   it.each([
     ["ten characters", "a".repeat(10)],
     ["2000 characters", "a".repeat(2000)],
+    ["2000-character astral", "\u{1F600}".repeat(2000)],
   ])("accepts a %s Description", async (_label, description) => {
     expect((await post({ ...VALID_BODY, description })).status).toBe(201);
   });

@@ -58,7 +58,17 @@ function readTrimmedText(
   /* Trim first: length is measured on the stored value, not the raw input. */
   const trimmed = value.trim();
 
-  if (trimmed.length < min || trimmed.length > max) {
+  /*
+   * Counted in code points, not UTF-16 code units, because the database CHECK
+   * is `char_length(...)` and `VARCHAR(n)` is also counted in characters. A
+   * `.length` here disagrees with both on any astral character: "\u{1F600}a" is
+   * 3 code units but 2 characters, so the app would accept a Summary the CHECK
+   * then rejects -- an insert-time 500 instead of a safe 400 -- and a 150-
+   * character Summary of emoji would be refused even though the column holds it.
+   */
+  const length = [...trimmed].length;
+
+  if (length < min || length > max) {
     details.push({ field, message: `${field} must contain ${min}-${max} characters.` });
     return undefined;
   }
