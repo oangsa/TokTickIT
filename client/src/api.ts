@@ -125,7 +125,7 @@ export class ApiResponseError extends Error {
  * next Requester change -- a handful of listeners, not a leak worth managing.
  * Swap in `AbortSignal.any` if the client ever drops jsdom or the count grows.
  */
-function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSignal {
+export function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSignal {
   const controller = new AbortController();
 
   for (const signal of [first, second]) {
