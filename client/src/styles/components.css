@@ -381,8 +381,28 @@
   background-color: var(--tt-green-pale);
 }
 
-.tt-row:focus-visible {
+/*
+ * The row is no longer focusable itself, so the ring follows the Ticket Number
+ * link inside it. `:has(:focus-visible)` rather than `:focus-within`, so a
+ * pointer click does not leave a ring behind the way plain focus would.
+ */
+.tt-row:has(.tt-row-link:focus-visible) {
   outline: 2px solid var(--tt-green-secondary);
   /* Inset: a row outline drawn outside the cell is clipped by the table. */
   outline-offset: -2px;
+}
+
+/*
+ * The link carries the row, so it takes the row's colour rather than the
+ * default link blue. It still underlines on hover and focus, so it is not
+ * signalled by colour alone.
+ */
+.tt-row-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tt-row-link:hover,
+.tt-row-link:focus-visible {
+  text-decoration: underline;
 }

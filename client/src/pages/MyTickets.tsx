@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   ApiResponseError,
@@ -458,11 +458,15 @@ export default function MyTickets() {
           </div>
 
           <div className="mb-3">
-            <Button
-              variant="secondary"
-              disabled={loading}
-              onClick={() => setFilterDraft(selectedFilters(query))}
-            >
+            {/*
+              * Not disabled during a fetch. Disabling a focused control moves
+              * focus to `<body>`, and this screen fetches on every search
+              * pause -- so a keyboard user was thrown out of the toolbar every
+              * 400ms while typing. Nothing here needs the guard: `commitQuery`
+              * only writes the URL, and the list effect discards the superseded
+              * response through its `ignore` flag.
+              */}
+            <Button variant="secondary" onClick={() => setFilterDraft(selectedFilters(query))}>
               Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
             </Button>
           </div>
@@ -471,7 +475,6 @@ export default function MyTickets() {
             <Select
               label="Sort by"
               value={query.sort}
-              disabled={loading}
               onChange={(event) => commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })}
             >
               {SORT_OPTIONS.map((option) => (
@@ -547,21 +550,42 @@ export default function MyTickets() {
                         </tr>
                       ))
                     : items.map((item) => (
+                        /*
+                         * The whole row opens Ticket Detail (ui-spec 16.1), but the
+                         * row is not the control. A focusable `<tr>` carrying an
+                         * `aria-label` and a hand-rolled Enter/Space handler
+                         * announced itself as a row, not as something activatable,
+                         * and a `role` that would fix that cannot go on a `<tr>`
+                         * without breaking the table's own row semantics.
+                         *
+                         * The Ticket Number cell holds a real `<Link>` instead: it
+                         * is in the tab order, carries the link role, activates on
+                         * Enter natively, and offers a URL to open in a new tab.
+                         * ui-spec 16.2 allows exactly this -- "activatable with
+                         * Enter/Space where the chosen implementation pattern
+                         * supports it". The row keeps `onClick` as a pointer
+                         * convenience, and `.tt-row:focus-within` draws the focus
+                         * ring around the row when the link inside it is focused.
+                         */
                         <tr
                           key={item.publicId}
                           className="tt-row"
-                          tabIndex={0}
-                          aria-label={`Open ticket ${item.ticketNumber}`}
                           onClick={() => navigate(`/tickets/${item.publicId}`)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              /* Space would scroll the page instead. */
-                              event.preventDefault();
-                              navigate(`/tickets/${item.publicId}`);
-                            }
-                          }}
                         >
-                          <td>{item.ticketNumber}</td>
+                          <td>
+                            {/*
+                              * The visible Ticket Number is contained in the
+                              * accessible name, so WCAG 2.5.3 Label in Name holds
+                              * for anyone speaking what they can see.
+                              */}
+                            <Link
+                              className="tt-row-link"
+                              to={`/tickets/${item.publicId}`}
+                              aria-label={`Open ticket ${item.ticketNumber}`}
+                            >
+                              {item.ticketNumber}
+                            </Link>
+                          </td>
                           <td>{item.summary}</td>
                           <td className={SECONDARY_COLUMN}>{item.categoryName}</td>
                           <td className={SECONDARY_COLUMN}>{item.relatedSystemName}</td>
@@ -617,9 +641,14 @@ export default function MyTickets() {
               * no control left to correct it.
               *
               * During a fetch the controls stay in place so the surrounding
-              * structure does not jump (Section 19.1); a disabled fieldset
-              * disables every control inside it, so the ones that cannot safely
-              * operate mid-fetch need no new prop on the shared component.
+              * structure does not jump (Section 19.1), and they stay *enabled*.
+              * They were previously wrapped in `<fieldset disabled={loading}>`,
+              * which drops focus to `<body>` every time it flips -- once per
+              * search pause on this screen. The guard bought nothing: a page
+              * click only writes the URL, the list effect discards the
+              * superseded response through its `ignore` flag, and `pending`
+              * already stops `Pagination` from stating a range or acting on a
+              * clamp computed from a total it is about to replace.
               *
               * `countless` is the one case that reads the row count instead:
               * with no header there is no total to be zero, and the rows are
@@ -629,23 +658,21 @@ export default function MyTickets() {
               * still works and the rows keep a control beneath them.
               */}
             {loadState === "loaded" && (countless ? items.length === 0 : totalItems === 0) ? null : (
-            <fieldset disabled={loading} className="border-0 p-0 m-0">
-              <Pagination
-                pageNumber={query.pageNumber}
-                pageSize={query.pageSize}
-                totalItems={totalItems}
-                pending={stale}
-                /*
-                 * A correction replaces the address it corrects. Pushing would
-                 * leave the out-of-range entry behind, and Back would land on
-                 * it, clamp again, and push again -- a page the user can never
-                 * navigate back past. A Previous/Next/page-number click is never
-                 * a correction, so it still pushes.
-                 */
-                onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber }, correctingPage)}
-                onPageSizeChange={(pageSize) => commitQuery({ ...query, pageSize, pageNumber: 1 })}
-              />
-            </fieldset>
+            <Pagination
+              pageNumber={query.pageNumber}
+              pageSize={query.pageSize}
+              totalItems={totalItems}
+              pending={stale}
+              /*
+               * A correction replaces the address it corrects. Pushing would
+               * leave the out-of-range entry behind, and Back would land on it,
+               * clamp again, and push again -- a page the user can never
+               * navigate back past. A Previous/Next/page-number click is never
+               * a correction, so it still pushes.
+               */
+              onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber }, correctingPage)}
+              onPageSizeChange={(pageSize) => commitQuery({ ...query, pageSize, pageNumber: 1 })}
+            />
             )}
           </>
         )}

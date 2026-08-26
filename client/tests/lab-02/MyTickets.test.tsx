@@ -166,8 +166,22 @@ function renderMyTicketsWithHistory(entries: string[], initialIndex: number) {
   );
 }
 
+/*
+ * The row is no longer the control and carries no accessible name of its own.
+ * The Ticket Number cell holds the link, so that is what identifies the row.
+ */
+function rowLink(ticketNumber: string): HTMLElement {
+  return screen.getByRole("link", { name: `Open ticket ${ticketNumber}` });
+}
+
 function rowFor(ticketNumber: string): HTMLElement {
-  return screen.getByRole("row", { name: `Open ticket ${ticketNumber}` });
+  const row = rowLink(ticketNumber).closest("tr");
+
+  if (row === null) {
+    throw new Error(`No row found for ${ticketNumber}`);
+  }
+
+  return row;
 }
 
 beforeEach(() => {
@@ -298,7 +312,9 @@ describe("UI-16 My Tickets empty and no-results states", () => {
 
     renderMyTickets();
 
-    expect(await screen.findByRole("row", { name: "Open ticket TKT-20260820-A81F3C9D7B21" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Open ticket TKT-20260820-A81F3C9D7B21" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Ticket pagination" })).toBeInTheDocument();
     /* No total to vouch for, so no range is claimed over the rows. */
     expect(screen.queryByText(/Showing/)).toBeNull();
@@ -810,7 +826,8 @@ describe("UI-22 My Tickets pagination and list projection", () => {
     stubApi();
     renderMyTickets();
 
-    const row = await screen.findByRole("row", { name: /Open ticket TKT-20260820-A81F3C9D7B21/ });
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+    const row = rowFor("TKT-20260820-A81F3C9D7B21");
 
     expect(within(row).getByText("VPN disconnects every ten minutes")).toBeInTheDocument();
     expect(within(row).getByText("Network")).toBeInTheDocument();
@@ -838,7 +855,8 @@ describe("UI-22 My Tickets pagination and list projection", () => {
 
     renderMyTickets();
 
-    const row = await screen.findByRole("row", { name: /Open ticket TKT-20260827-A81F3C9D7B21/ });
+    await screen.findByText("TKT-20260827-A81F3C9D7B21");
+    const row = rowFor("TKT-20260827-A81F3C9D7B21");
 
     expect(within(row).getByText("2026-08-27")).toBeInTheDocument();
     expect(within(row).queryByText("2026-08-26")).toBeNull();
@@ -856,27 +874,22 @@ describe("UI-32 and UI-37 My Tickets accessibility", () => {
     }
   });
 
-  it("opens Ticket Detail by click, Enter, and Space", async () => {
+  it("opens Ticket Detail by row click and by Enter on the row link", async () => {
     stubApi();
 
     for (const activate of [
-      async (row: HTMLElement) => userEvent.click(row),
-      async (row: HTMLElement) => {
-        row.focus();
+      /* Pointer: the whole row is the target (ui-spec 16.1). */
+      async () => userEvent.click(rowFor("TKT-20260820-A81F3C9D7B21")),
+      /* Keyboard: the link is the control, and Enter activates it natively. */
+      async () => {
+        rowLink("TKT-20260820-A81F3C9D7B21").focus();
         await userEvent.keyboard("{Enter}");
-      },
-      async (row: HTMLElement) => {
-        row.focus();
-        await userEvent.keyboard(" ");
       },
     ]) {
       const view = renderMyTickets();
       await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
-      const row = rowFor("TKT-20260820-A81F3C9D7B21");
-      expect(row).toHaveAttribute("tabindex", "0");
-
-      await activate(row);
+      await activate();
 
       expect(await screen.findByRole("heading", { name: "Ticket Detail" })).toBeInTheDocument();
       view.unmount();
@@ -884,14 +897,76 @@ describe("UI-32 and UI-37 My Tickets accessibility", () => {
     }
   });
 
+  /*
+   * The row used to be `tabIndex={0}` with an `aria-label` and a hand-rolled
+   * Enter/Space handler, which put an activatable thing in the tab order that
+   * announced itself as a row. A `role` cannot fix that on a `<tr>` without
+   * breaking the table's row semantics, so the control moved into the cell.
+   */
+  it("keeps the row out of the tab order and puts a real link in the cell", async () => {
+    stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    expect(rowFor("TKT-20260820-A81F3C9D7B21")).not.toHaveAttribute("tabindex");
+
+    const link = rowLink("TKT-20260820-A81F3C9D7B21");
+
+    /* A real href, so the row can also be opened in a new tab. */
+    expect(link).toHaveAttribute("href", "/tickets/0f0e8a9f-6d9e-4a1a-9f0e-1b2c3d4e5f60");
+    /* WCAG 2.5.3: the visible Ticket Number is inside the accessible name. */
+    expect(link).toHaveTextContent("TKT-20260820-A81F3C9D7B21");
+
+    /* Focusable on its own, which is what the row no longer needs to be. */
+    link.focus();
+    expect(link).toHaveFocus();
+  });
+
   it("spells out Priority and Status instead of relying on colour", async () => {
     stubApi(() => ({ body: [ticket({ requestedPriority: "MEDIUM" })], pagination: meta() }));
 
     renderMyTickets();
 
-    const row = await screen.findByRole("row", { name: /Open ticket/ });
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const row = rowFor("TKT-20260820-A81F3C9D7B21");
     expect(within(row).getByText("MEDIUM")).toBeInTheDocument();
     expect(within(row).getByText("NEW")).toBeInTheDocument();
+  });
+
+  /*
+   * The toolbar and the pagination controls used to be disabled while a fetch
+   * was in flight, the latter through `<fieldset disabled={loading}>`. Disabling
+   * a focused control moves focus to `<body>`, and this screen fetches on every
+   * search pause -- so a keyboard user was thrown out of the toolbar every
+   * 400ms while typing. The guard bought nothing the `ignore` flag in the list
+   * effect did not already provide.
+   */
+  it("keeps keyboard focus where it was while a fetch is in flight", async () => {
+    let release: (() => void) | null = null;
+    stubApi(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ body: [ticket()], pagination: meta() });
+        }),
+    );
+
+    renderMyTickets();
+
+    const sort = await screen.findByLabelText("Sort by");
+    sort.focus();
+    expect(sort).toHaveFocus();
+
+    /* Still focused, and still operable, while the request is outstanding. */
+    expect(sort).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Filters/ })).not.toBeDisabled();
+    expect(document.activeElement).not.toBe(document.body);
+
+    await act(async () => {
+      release?.();
+    });
+
+    expect(sort).toHaveFocus();
   });
 
   it("gives the chip remove control an accessible name and a visible tooltip", async () => {
