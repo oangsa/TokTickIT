@@ -1,9 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
+/*
+ * `$transaction` takes the array form, so the double resolves the promises the
+ * read path handed it. Recording the options is the point: `REPEATABLE READ` is
+ * what makes the page and the count one snapshot, and PostgreSQL's default
+ * `READ COMMITTED` would take a fresh snapshot per statement and quietly not.
+ */
 const prismaMock = vi.hoisted(() => ({
   developmentRequester: { findFirst: vi.fn() },
   ticket: { findMany: vi.fn(), count: vi.fn() },
+  $transaction: vi.fn(
+    async (operations: Promise<unknown>[], _options?: { isolationLevel?: string }) =>
+      Promise.all(operations),
+  ),
 }));
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
@@ -365,6 +375,45 @@ describe("Ticket list sorting (API-30)", () => {
     await expectRejected("sort=createdAt", "sort");
     await expectRejected("sort=summary:sideways", "sort");
     await expectRejected("sort=id:desc", "sort");
+  });
+});
+
+describe("Ticket list snapshot consistency (BR-40)", () => {
+  /*
+   * The page and the count have to describe the same instant, or `X-Pagination`
+   * can state a total the rendered rows contradict -- "Showing 1-10 of 9" after
+   * a concurrent insert or soft-delete lands between the two reads.
+   *
+   * The isolation level is asserted rather than assumed, because it is the only
+   * part that does the work: PostgreSQL's default `READ COMMITTED` takes a
+   * fresh snapshot per statement, so a transaction at the default level would
+   * pass a "both are in a transaction" assertion while changing nothing.
+   */
+  it("reads the page and the count in one REPEATABLE READ snapshot", async () => {
+    await list().expect(200);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+
+    const [operations, options] = prismaMock.$transaction.mock.calls[0];
+
+    expect(operations).toHaveLength(2);
+    expect(options).toEqual({ isolationLevel: "RepeatableRead" });
+  });
+
+  it("skips the transaction for a page no row can sit on", async () => {
+    /*
+     * An unreachable `skip` reads no rows, leaving a single count statement --
+     * already its own snapshot, so a transaction would buy nothing. The count
+     * still runs, which is what keeps `X-Pagination` complete.
+     */
+    prismaMock.ticket.count.mockResolvedValue(3);
+
+    const response = await list(`pageNumber=${Number.MAX_SAFE_INTEGER}&pageSize=100`).expect(200);
+
+    expect(response.body).toEqual([]);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.ticket.findMany).not.toHaveBeenCalled();
+    expect(JSON.parse(response.headers["x-pagination"]).totalItems).toBe(3);
   });
 });
 

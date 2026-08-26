@@ -121,25 +121,42 @@ export async function listTicketsForRequester(
   const reachable = Number.isSafeInteger(skip);
 
   /*
-   * ponytail: two statements rather than one snapshot -- a concurrent insert
-   * can shift `totalItems` between the page read and the count. Wrap both in
-   * `$transaction` if the count ever has to be exact to the row.
+   * The page and the count are one snapshot, not two statements.
+   *
+   * A concurrent insert or soft-delete between them would otherwise put a
+   * `X-Pagination` total on a page it does not describe -- "Showing 1-10 of 9",
+   * or a `totalPages` the rendered rows contradict. `REPEATABLE READ` is
+   * load-bearing and not decoration: PostgreSQL's default `READ COMMITTED`
+   * takes a fresh snapshot per *statement*, so wrapping these two in a
+   * transaction at the default level would have changed nothing at all.
+   *
+   * A read-only `REPEATABLE READ` transaction cannot raise a serialization
+   * failure on PostgreSQL -- only writers conflict -- so this adds no retry
+   * path. The array form keeps both statements in one round trip.
    *
    * The default `where`/`orderBy` matches the partial index
    * `ticket (requester_id, created_at DESC, id DESC) WHERE deleted = false`.
    */
-  const [rows, totalItems] = await Promise.all([
-    reachable
-      ? prisma.ticket.findMany({
-          where,
-          orderBy,
-          select: TICKET_LIST_SELECT,
-          skip,
-          take: query.pageSize,
-        })
-      : [],
-    prisma.ticket.count({ where }),
-  ]);
+  const [rows, totalItems] = reachable
+    ? await prisma.$transaction(
+        [
+          prisma.ticket.findMany({
+            where,
+            orderBy,
+            select: TICKET_LIST_SELECT,
+            skip,
+            take: query.pageSize,
+          }),
+          prisma.ticket.count({ where }),
+        ],
+        { isolationLevel: "RepeatableRead" },
+      )
+    : /*
+       * An unreachable page reads no rows, so there is only the count -- and a
+       * single statement is its own snapshot. Opening a transaction for it
+       * would buy nothing.
+       */
+      [[] as TicketListRow[], await prisma.ticket.count({ where })];
 
   return {
     items: rows.map(toTicketListItemDTO),

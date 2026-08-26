@@ -9,6 +9,8 @@ const prismaMock = vi.hoisted(() => ({
   },
   category: { findMany: vi.fn() },
   ticket: { findMany: vi.fn(), count: vi.fn() },
+  /* The list read path takes its page and count in one snapshot. */
+  $transaction: vi.fn(async (operations: Promise<unknown>[]) => Promise.all(operations)),
 }));
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
