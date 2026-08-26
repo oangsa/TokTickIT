@@ -340,6 +340,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     }
 
     setRemoving(true);
+    setFailure(null);
 
     try {
       await callApi("/api/attachments/collection", {
@@ -412,7 +413,13 @@ export function AttachmentSection(props: AttachmentSectionProps) {
           </p>
         </div>
 
-        {failure === null ? null : (
+        {/*
+          While the removal dialog is open it renders this itself: an alert on the
+          card behind the backdrop is in the DOM but not on the screen, and
+          ui-spec Section 25.3 requires the failure to be visible where the user
+          can act on it.
+        */}
+        {failure === null || confirmRemoval ? null : (
           <p role="alert" className="tt-invalid-text">
             {failure}
           </p>
@@ -481,6 +488,12 @@ export function AttachmentSection(props: AttachmentSectionProps) {
           </>
         }
       >
+        {failure === null ? null : (
+          <p role="alert" className="tt-invalid-text">
+            {failure}
+          </p>
+        )}
+
         {selectedRows.map((row) => (
           <RemovalReasonField
             key={row.key}

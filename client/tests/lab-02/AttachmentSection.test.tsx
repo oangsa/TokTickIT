@@ -369,6 +369,65 @@ describe("UI-25 per-file Attachment lifecycle on Create Ticket", () => {
   });
 });
 
+describe("UI-10 Pending rows survive a Ticket-create 4xx", () => {
+  it("keeps the prepared rows and their IDs on the form after a rejected submit", async () => {
+    const { calls } = stubApi();
+    /* The create call is the only one that fails; the pre-upload still works. */
+    const realFetch = globalThis.fetch as unknown as (...args: unknown[]) => Promise<unknown>;
+    vi.stubGlobal("fetch", async (url: string, init?: { method?: string }) => {
+      if (init?.method === "POST" && String(url).endsWith("/api/tickets")) {
+        calls.push({ url: String(url), method: "POST", body: undefined, headers: {} });
+        return {
+          ok: false,
+          status: 400,
+          headers: new Headers(),
+          json: async () => ({
+            statusCode: 400,
+            code: "VALIDATION_ERROR",
+            message: "Never rendered.",
+            error: "Bad Request",
+            details: [{ field: "summary", message: "Summary must contain 3-150 characters." }],
+          }),
+        };
+      }
+
+      return realFetch(url, init);
+    });
+
+    renderAt("/tickets/new");
+
+    await userEvent.upload(await screen.findByLabelText("Add Attachment"), pngFile());
+    await waitFor(() => expect(within(rowFor("vpn-error.png")).getByText("Pending")).toBeInTheDocument());
+
+    await userEvent.selectOptions(screen.getByLabelText(/^Category/), "1");
+    await userEvent.selectOptions(screen.getByLabelText(/^Related System/), "1");
+    await userEvent.selectOptions(screen.getByLabelText(/^Requested Priority/), "HIGH");
+    await userEvent.type(screen.getByLabelText(/^Summary/), "VPN keeps dropping");
+    await userEvent.type(
+      screen.getByLabelText(/^Description/),
+      "The VPN tunnel drops about ten minutes after it connects.",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
+
+    await waitFor(() =>
+      expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/api/tickets"))).toBe(
+        true,
+      ),
+    );
+
+    /*
+     * A 4xx is a confirmed failure with nothing committed, so the prepared rows
+     * are still the user's: they must not be dropped, re-uploaded, or cleaned up.
+     */
+    expect(within(rowFor("vpn-error.png")).getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Attachments 1/5" })).toBeInTheDocument();
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(0);
+    expect(
+      calls.filter((call) => call.method === "POST" && call.url.endsWith("/api/attachments")),
+    ).toHaveLength(1);
+  });
+});
+
 describe("UI-26 the x/5 count and the Add control", () => {
   it("counts only Active Attachments and excludes Removed ones", async () => {
     stubApi();
@@ -616,7 +675,8 @@ describe("UI-30 an all-or-nothing removal failure", () => {
     await userEvent.type(within(dialog).getByLabelText(/router-log\.pdf/), "Duplicate document.");
     await userEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    /* The failure has to be inside the dialog the user is still looking at. */
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "The attachments could not be removed. Nothing was changed.",
     );
 

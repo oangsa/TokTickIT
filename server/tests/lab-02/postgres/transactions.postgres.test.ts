@@ -997,3 +997,190 @@ describe.sequential("PG-04 mixed Attachment batch rollback", () => {
     });
   }, 30_000);
 });
+
+/*
+ * The AttachmentService query shapes, executed by a real engine.
+ *
+ * These calls combine `omit` with `include` and use `omit` on a `create`, and
+ * every other test of them runs against a Prisma double that would accept any
+ * shape at all. A mock cannot say whether Prisma builds valid SQL from them, and
+ * an invalid one would be a 500 on the most ordinary request in the feature.
+ */
+describe.sequential("AttachmentService query shapes against PostgreSQL", () => {
+  let target: TestDatabaseTarget;
+  let prisma: PrismaClient;
+  let fixture: Fixture;
+
+  const SHAPE_ACTOR = "query.shapes@example.com";
+
+  beforeAll(async () => {
+    target = assertLab2TestDatabase();
+    prisma = createTestPrisma(target);
+
+    const requester = await prisma.developmentRequester.create({
+      data: { name: "Query Shape Requester", email: SHAPE_ACTOR, createdBy: "system", updatedBy: "system" },
+    });
+    const category = await prisma.category.create({
+      data: { name: `Shape Category ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
+    });
+    const relatedSystem = await prisma.relatedSystem.create({
+      data: { name: `Shape System ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
+    });
+    const suffix = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
+    const ticket = await prisma.ticket.create({
+      data: {
+        publicId: randomUUID(),
+        ticketNumber: `TKT-20260826-${suffix}`,
+        requesterId: requester.id,
+        categoryId: category.id,
+        relatedSystemId: relatedSystem.id,
+        summary: "Attachment query shapes",
+        requestedPriority: RequestedPriority.LOW,
+        description: "A Ticket used to exercise the bound-Attachment read shapes.",
+        createdBy: "system",
+        updatedBy: "system",
+      },
+    });
+
+    fixture = {
+      requesterId: requester.id,
+      categoryId: category.id,
+      relatedSystemId: relatedSystem.id,
+      ticketId: ticket.id,
+    };
+  }, 120_000);
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("creates a Pending Attachment and reads it back without its bytes", async () => {
+    const service = new AttachmentService(prisma);
+
+    const created = await service.createPending({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      file: { filename: "shape.png", data: Buffer.from([1, 2, 3, 4]) },
+    });
+
+    expect(created).toMatchObject({
+      ticketPublicId: null,
+      originalName: "shape.png",
+      extension: "png",
+      mimeType: "image/png",
+      sizeBytes: 4,
+      deleted: false,
+    });
+    expect(created).not.toHaveProperty("data");
+
+    const metadata = await service.findMetadata(fixture.requesterId, created.attachmentId);
+    expect(metadata).toMatchObject({ attachmentId: created.attachmentId, ticketPublicId: null });
+    expect(metadata).not.toHaveProperty("data");
+
+    const binary = await service.findBinary(fixture.requesterId, created.attachmentId);
+    expect(binary?.data).toEqual(Buffer.from([1, 2, 3, 4]));
+    /* `size_bytes = octet_length(data)` is a database CHECK, not a claim. */
+    expect(binary?.sizeBytes).toBe(binary?.data.length);
+  }, 30_000);
+
+  it("resolves the owning Ticket public id for a bound Attachment", async () => {
+    const service = new AttachmentService(prisma);
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: fixture.ticketId },
+      select: { publicId: true },
+    });
+
+    const created = await service.createForTicket({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      publicId: ticket?.publicId ?? "",
+      file: { filename: "bound.pdf", data: Buffer.from([5, 6]) },
+    });
+
+    expect(created.ticketPublicId).toBe(ticket?.publicId);
+
+    const metadata = await service.findMetadata(fixture.requesterId, created.attachmentId);
+    expect(metadata?.ticketPublicId).toBe(ticket?.publicId);
+  }, 30_000);
+
+  it("hides an Attachment owned by another Requester behind the same empty answer", async () => {
+    const service = new AttachmentService(prisma);
+    const other = await prisma.developmentRequester.create({
+      data: {
+        name: "Other Requester",
+        email: `other-${randomUUID()}@example.com`,
+        createdBy: "system",
+        updatedBy: "system",
+      },
+    });
+
+    const mine = await service.createPending({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      file: { filename: "private.png", data: Buffer.from([7]) },
+    });
+
+    /* Ownership holds as an outcome, not as the presence of a predicate object. */
+    expect(await service.findMetadata(other.id, mine.attachmentId)).toBeNull();
+    expect(await service.findBinary(other.id, mine.attachmentId)).toBeNull();
+    await expect(
+      service.deleteCollection({
+        requesterId: other.id,
+        actor: "other@example.com",
+        items: [{ attachmentId: mine.attachmentId, reason: "" }],
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+
+    expect(
+      await prisma.attachment.count({ where: { storageKey: mine.attachmentId } }),
+    ).toBe(1);
+  }, 30_000);
+
+  it("retains the binary and the reason across a soft removal", async () => {
+    const service = new AttachmentService(prisma);
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: fixture.ticketId },
+      select: { publicId: true },
+    });
+
+    const created = await service.createForTicket({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      publicId: ticket?.publicId ?? "",
+      file: { filename: "removable.pdf", data: Buffer.from([8, 9, 10]) },
+    });
+
+    await service.deleteCollection({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      items: [{ attachmentId: created.attachmentId, reason: "  Duplicate document.  " }],
+    });
+
+    const metadata = await service.findMetadata(fixture.requesterId, created.attachmentId);
+    expect(metadata).toMatchObject({
+      deleted: true,
+      removalReason: "Duplicate document.",
+      updatedBy: SHAPE_ACTOR,
+    });
+
+    /* Readable as metadata, unavailable as bytes (BR-59, BR-65). */
+    await expect(
+      service.findBinary(fixture.requesterId, created.attachmentId),
+    ).rejects.toMatchObject({ statusCode: 410 });
+
+    const stored = await prisma.attachment.findUnique({
+      where: { storageKey: created.attachmentId },
+      select: { data: true },
+    });
+    expect(stored?.data.length).toBe(3);
+
+    /* And it cannot be removed a second time. */
+    await expect(
+      service.deleteCollection({
+        requesterId: fixture.requesterId,
+        actor: SHAPE_ACTOR,
+        items: [{ attachmentId: created.attachmentId, reason: "Removing it again." }],
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  }, 30_000);
+});
