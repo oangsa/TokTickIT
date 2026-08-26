@@ -5,6 +5,7 @@ import { createCorsMiddleware } from "./middleware/cors.js";
 import { requestLog } from "./middleware/requestLog.js";
 import { requireRequesterContext } from "./middleware/requesterContext.js";
 import { transport } from "./middleware/transport.js";
+import { attachmentsRouter } from "./routes/attachments.js";
 import { referenceDataRouter } from "./routes/referenceData.js";
 import { ticketsRouter } from "./routes/tickets.js";
 
@@ -43,6 +44,11 @@ app.use("/api", referenceDataRouter);
 // Issue 21 — Ticket creation
 // ---------------------------------------------------------------------------
 app.use("/api", ticketsRouter);
+
+// ---------------------------------------------------------------------------
+// Issue 24 — Attachment lifecycle
+// ---------------------------------------------------------------------------
+app.use("/api", attachmentsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

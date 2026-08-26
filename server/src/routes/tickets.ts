@@ -2,7 +2,9 @@ import { NextFunction, Request, Response, Router } from "express";
 
 import { ApiError } from "../http/errors.js";
 import { setPaginationHeader } from "../http/pagination.js";
+import { uploadSingleFile } from "../http/upload.js";
 import { getPrisma } from "../prisma.js";
+import { AttachmentService } from "../services/attachmentService.js";
 import { runCreateTicket } from "../services/createTicketFlow.js";
 import { parseCreateTicketRequest, parseIdempotencyKey } from "../services/ticketCreateRequest.js";
 import { listTicketsForRequester } from "../services/ticketListService.js";
@@ -54,6 +56,35 @@ ticketsRouter.post("/tickets", async (req: Request, res: Response, next: NextFun
     next(error);
   }
 });
+
+/*
+ * Direct upload to an existing owned Ticket (api-spec Section 11.5). Distinct
+ * from `POST /api/attachments`: this one persists an Active Attachment bound to
+ * a Ticket that already exists, where that one creates an unbound Pending row
+ * for a Ticket that does not exist yet. The five-Active limit and the insert
+ * share one `Serializable` transaction inside the service.
+ */
+ticketsRouter.post(
+  "/tickets/:publicId/attachments",
+  uploadSingleFile,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const file = req.file as Express.Multer.File;
+      const service = new AttachmentService(getPrisma());
+
+      const attachment = await service.createForTicket({
+        requesterId: req.requesterId as number,
+        actor: req.requesterEmail as string,
+        publicId: req.params.publicId,
+        file: { filename: file.originalname, data: file.buffer },
+      });
+
+      res.status(201).json(attachment);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 /*
  * Ticket Detail (api-spec Section 8.6). The Requester comes from
