@@ -95,7 +95,7 @@ CREATE TABLE related_system (
 CREATE TABLE ticket (
   id SERIAL NOT NULL,
   public_id UUID NOT NULL,
-  ticket_number VARCHAR(25) NOT NULL,
+  ticket_number CHAR(25) NOT NULL,
   requester_id INTEGER NOT NULL,
   category_id INTEGER NOT NULL,
   related_system_id INTEGER NOT NULL,
@@ -258,15 +258,8 @@ CREATE INDEX attachment_uploader_ticket_idx
 CREATE INDEX idempotency_record_expires_at_id_idx
   ON idempotency_record (expires_at, id);
 
--- Indexed on the bare column, exactly as `summary` and `description` are.
--- `gin_trgm_ops` refuses `character`, so a CHAR(25) column forces the index
--- onto the expression `(ticket_number::text)` -- and then nothing reaches it,
--- because Prisma emits `ticket_number ILIKE $1` with no cast and PostgreSQL
--- matches an expression index only against that same expression. Ticket
--- Numbers are exactly 25 characters by the format CHECK above, so VARCHAR(25)
--- stores precisely what CHAR(25) did, with no blank padding to reason about.
 CREATE INDEX ticket_ticket_number_trgm_idx
-  ON ticket USING GIN (ticket_number gin_trgm_ops);
+  ON ticket USING GIN ((ticket_number::text) gin_trgm_ops);
 CREATE INDEX ticket_summary_trgm_idx
   ON ticket USING GIN (summary gin_trgm_ops);
 CREATE INDEX ticket_description_trgm_idx
