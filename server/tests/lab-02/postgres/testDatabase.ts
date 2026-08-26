@@ -117,11 +117,35 @@ function assertGuardedTarget(target: TestDatabaseTarget): TestDatabaseTarget {
   return guardedTarget;
 }
 
-export function createTestPrisma(target: TestDatabaseTarget): PrismaClient {
+/*
+ * `onQuery` opts one client into query logging. It is off by default because a
+ * logging client emits an event per statement for every case in a suite, and
+ * only the tests that assert the *emitted SQL* -- rather than the rows it
+ * returns -- have any use for it.
+ */
+export function createTestPrisma(
+  target: TestDatabaseTarget,
+  onQuery?: (sql: string) => void,
+): PrismaClient {
   const guardedTarget = assertGuardedTarget(target);
-  return new PrismaClient({
+
+  if (onQuery === undefined) {
+    return new PrismaClient({
+      adapter: new PrismaPg({ connectionString: guardedTarget.url }),
+    });
+  }
+
+  const client = new PrismaClient({
     adapter: new PrismaPg({ connectionString: guardedTarget.url }),
+    log: [{ emit: "event", level: "query" }],
   });
+
+  (client as unknown as { $on: (event: "query", handler: (e: { query: string }) => void) => void }).$on(
+    "query",
+    (event) => onQuery(event.query),
+  );
+
+  return client;
 }
 
 function testProcessEnvironment(target: TestDatabaseTarget): NodeJS.ProcessEnv {

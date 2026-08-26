@@ -1251,7 +1251,21 @@ categoryId + CONTAINS          invalid
 
 ### 9.8 `IN` Values
 
-`IN` requires a JSON array containing 1-100 unique values. Every value must pass the resource field's typed conversion and enum/reference/string rules.
+`IN` requires a JSON array of unique values. Every value must pass the resource field's typed conversion and enum/reference/string rules.
+
+The accepted array length depends on what the database can do with the field:
+
+| Field | Values | Why |
+| --- | --- | --- |
+| `categoryId`, `relatedSystemId`, `requestedPriority`, `currentStatus` | 1-100 | Renders as one indexable `IN (...)`. |
+| `ticketNumber` | 1-100 | Values are folded to uppercase (Section 9.9) and also render as one indexable `IN (...)`. |
+| `summary`, `description` | 1-10 | Free text. BR-33 requires case-insensitive matching, which renders as one `ILIKE` per value and cannot be served by an index. |
+
+Exceeding the field's limit is a `400 VALIDATION_ERROR` on `filters[i].value`.
+
+The lower free-text bound is a cost limit, not a semantic one. Measured on 30,000 rows, a single free-text `IN`: 10 values stayed on the trigram index at 6.5 ms, 25 values tipped the planner to a sequential scan at 454 ms, and 100 values cost 1,210 ms. Forcing `enable_seqscan = off` at 100 values did not recover it, so no plan makes the shape cheap. `filters` accepts up to 20 expressions, so an unbounded free-text `IN` would let one request cost seconds of server CPU.
+
+Uniqueness is judged *after* conversion, so for a folded field two spellings of one value are a repeat: `["tkt-20260820-a81f3c9d7b21", "TKT-20260820-A81F3C9D7B21"]` is rejected.
 
 Valid:
 
@@ -1291,7 +1305,12 @@ Examples:
 "2" -> number 2 for categoryId
 "2026-08-20T00:00:00Z" -> Date for createdAt
 "HIGH" -> RequestedPriority.HIGH
+"tkt-20260820-a81f3c9d7b21" -> "TKT-20260820-A81F3C9D7B21" for ticketNumber
 ```
+
+`ticketNumber` values are folded to uppercase for every condition. The column carries `CHECK (ticket_number ~ '^TKT-[0-9]{8}-[0-9A-F]{12}$')`, anchored at both ends, so no stored value can contain a lowercase letter — folding the input and comparing case-sensitively is the same match BR-33 requires. It is also a different query plan: an insensitive comparison renders as `ILIKE`, and an insensitive `IN` of 100 values became 100 unindexable `ILIKE`s at 1,430 ms on 30,000 rows, where the folded form is one `IN (...)` on `ticket_ticket_number_key` at 0.238 ms. Callers may submit any case and see no behavioral difference.
+
+`summary` and `description` are free text with no such constraint, so they keep `mode: "insensitive"` and the lower `IN` bound in Section 9.8.
 
 Failed conversion returns `400 Validation Error` and never reaches Prisma/database query construction.
 

@@ -192,10 +192,23 @@ export function buildFilter(expression: QueryExpression): QueryFilter {
    * OR group a client can compose: `buildWhere` still places the result as a
    * single `AND` member, so it cannot widen a caller's fixed predicate.
    *
-   * ponytail: 100 values is 100 ILIKE comparisons against no usable index. The
-   * `IN` cardinality cap and the caller's own scope predicate bound it, and no
-   * screen sends this shape. Narrow the cap for text fields, or lower them to a
-   * case-sensitive `in`, if a real caller ever makes it hurt.
+   * This expansion is the expensive rendering in this module, and the cost is
+   * now bounded by the caller rather than left to the note that used to sit
+   * here. Measured on 30,000 rows: one insensitive `IN` of 100 text values was
+   * a sequential scan at 1,210-1,430ms, and `enable_seqscan = off` did not
+   * rescue it, so no plan makes the shape fast.
+   *
+   * The resource closes it from both sides. `ticketQueryValidator.ts` folds the
+   * fields whose stored domain is already case-constrained -- `ticketNumber`,
+   * by its format CHECK -- and marks them case-sensitive, so they never reach
+   * this branch at all and render as one indexable `IN (...)` (0.238ms for 100
+   * values). What is left is genuinely free text, and that is capped at
+   * `MAX_FREE_TEXT_IN_VALUES`, which keeps it on a BitmapOr over the trigram
+   * index (6.5ms for 10 values).
+   *
+   * Both levers are the resource's to pull, which is why they live there: this
+   * module is not allowed to know that one column has a constrained character
+   * domain, nor which of a resource's fields are worth a lower bound.
    */
   if (condition === "IN" && caseInsensitive === true && Array.isArray(value)) {
     return {

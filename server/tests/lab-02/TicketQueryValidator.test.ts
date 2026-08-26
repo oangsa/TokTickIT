@@ -9,6 +9,7 @@ import { REQUESTED_PRIORITIES } from "../../src/services/ticketCreateRequest.js"
 import {
   MAX_FILTER_EXPRESSIONS,
   MAX_FILTER_VALUE_LENGTH,
+  MAX_FREE_TEXT_IN_VALUES,
   MAX_IN_VALUES,
   MAX_REFERENCE_ID,
   MAX_SEARCH_LENGTH,
@@ -314,6 +315,95 @@ describe("Ticket filter value conversion", () => {
         filters({ field: "createdAt", condition: "GREATER", value: "0001-01-01" }),
       ).filters[0].value,
     ).toEqual(new Date("0001-01-01"));
+  });
+
+  /*
+   * `ticket_number` is CHECK-constrained to `^TKT-[0-9]{8}-[0-9A-F]{12}$`, so no
+   * stored value can hold a lowercase letter. Folding the input and comparing
+   * case-sensitively is therefore the same match BR-33 asks for, and it is the
+   * difference between an indexable `IN (...)` and 100 unindexable `ILIKE`s:
+   * 0.238ms against 1,430ms on 30,000 rows.
+   */
+  it("folds a ticketNumber value and drops the insensitive flag", () => {
+    const query = parseTicketListQuery(
+      filters({ field: "ticketNumber", condition: "IN", value: ["tkt-20260820-a81f3c9d7b21"] }),
+    );
+
+    expect(query.filters[0].value).toEqual(["TKT-20260820-A81F3C9D7B21"]);
+    /* The flag is what would turn `IN (...)` back into an OR of `ILIKE`. */
+    expect(query.filters[0].caseInsensitive).toBe(false);
+  });
+
+  it.each([["EQUAL"], ["NOTEQUAL"], ["CONTAINS"], ["STARTWITH"], ["ENDWITH"]])(
+    "folds a ticketNumber %s value too, so the whole field stays indexable",
+    (condition) => {
+      const query = parseTicketListQuery(
+        filters({ field: "ticketNumber", condition, value: "tkt-2026" }),
+      );
+
+      expect(query.filters[0].value).toBe("TKT-2026");
+      expect(query.filters[0].caseInsensitive).toBe(false);
+    },
+  );
+
+  it("reads two spellings of one ticketNumber as the repeat they are", () => {
+    /* Uniqueness is judged after folding, so these are one value, not two. */
+    expectRejected(
+      filters({ field: "ticketNumber", condition: "IN", value: ["TKT-A", "tkt-a"] }),
+      "filters[0].value",
+    );
+  });
+
+  it("leaves free text case-insensitive rather than folding it", () => {
+    /* `summary` has no constrained domain, so folding would change the match. */
+    const query = parseTicketListQuery(
+      filters({ field: "summary", condition: "IN", value: ["Mixed Case"] }),
+    );
+
+    expect(query.filters[0].value).toEqual(["Mixed Case"]);
+    expect(query.filters[0].caseInsensitive).toBe(true);
+  });
+
+  /*
+   * A free-text `IN` is the one filter shape whose cost scales with the value
+   * count rather than the result, because each value becomes its own `ILIKE`.
+   * Measured on 30,000 rows: 10 values stayed on the trigram index at 6.5ms,
+   * 25 tipped to a sequential scan at 454ms, and 100 cost 1,210ms.
+   */
+  it("bounds a free-text IN lower than a field that stays indexable", () => {
+    const free = (count: number) =>
+      filters({
+        field: "summary",
+        condition: "IN",
+        value: Array.from({ length: count }, (_unused, index) => `summary ${index}`),
+      });
+
+    expect(
+      parseTicketListQuery(free(MAX_FREE_TEXT_IN_VALUES)).filters[0].value,
+    ).toHaveLength(MAX_FREE_TEXT_IN_VALUES);
+    expectRejected(free(MAX_FREE_TEXT_IN_VALUES + 1), "filters[0].value");
+
+    /* `ticketNumber` keeps the full contract range: it renders as one `IN`. */
+    const numbers = Array.from(
+      { length: MAX_IN_VALUES },
+      (_unused, index) => `TKT-20260820-${index.toString(16).padStart(12, "0").toUpperCase()}`,
+    );
+
+    expect(
+      parseTicketListQuery(filters({ field: "ticketNumber", condition: "IN", value: numbers }))
+        .filters[0].value,
+    ).toHaveLength(MAX_IN_VALUES);
+
+    /* So do the reference and enum fields, which were never the expensive case. */
+    expect(
+      parseTicketListQuery(
+        filters({
+          field: "categoryId",
+          condition: "IN",
+          value: Array.from({ length: MAX_IN_VALUES }, (_unused, index) => index + 1),
+        }),
+      ).filters[0].value,
+    ).toHaveLength(MAX_IN_VALUES);
   });
 
   it("bounds a string filter value the way search is bounded", () => {

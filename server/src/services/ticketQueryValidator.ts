@@ -65,6 +65,24 @@ export const MAX_REFERENCE_ID = 2_147_483_647;
 export const MAX_FILTER_EXPRESSIONS = 20;
 export const MIN_IN_VALUES = 1;
 export const MAX_IN_VALUES = 100;
+/*
+ * A free-text `IN` cannot be served by any index, and it is the one filter
+ * shape whose cost scales with the value count rather than with the result.
+ *
+ * BR-33 makes string conditions case-insensitive, and Prisma silently ignores
+ * `mode` for `in`, so `queryBuilder.ts` expands an insensitive `IN` into the OR
+ * of insensitive equality it means -- which PostgreSQL renders as one `ILIKE`
+ * per value. Measured on 30,000 rows: 10 values stayed on a BitmapOr over the
+ * trigram index at 54ms, 25 values tipped the planner to a sequential scan at
+ * 454ms, and 100 values cost 1,210ms. Forcing `enable_seqscan = off` at 100
+ * did not help (1,405ms), so this is not a planner misestimate -- no plan
+ * exists that makes the shape fast.
+ *
+ * `ticketNumber` is exempt because it is not free text: see
+ * UPPERCASE_DOMAIN_FIELDS, which turns its comparisons back into indexable
+ * equality and keeps the full 1-100 range at 0.194ms.
+ */
+export const MAX_FREE_TEXT_IN_VALUES = 10;
 export const DEFAULT_PAGE_NUMBER = 1;
 export const DEFAULT_PAGE_SIZE = 10;
 export const MAX_PAGE_SIZE = 100;
@@ -113,6 +131,26 @@ const ENUM_VALUES: Record<string, readonly string[]> = {
   requestedPriority: REQUESTED_PRIORITIES,
   currentStatus: TICKET_STATUSES,
 };
+
+/*
+ * Fields whose stored values can only ever be uppercase, because a database
+ * CHECK says so. `ticket_number` carries
+ * `CHECK (ticket_number ~ '^TKT-[0-9]{8}-[0-9A-F]{12}$')`, anchored at both
+ * ends, so no row can hold a lowercase letter in it.
+ *
+ * That makes case-folding the *input* and comparing case-sensitively exactly
+ * equivalent to matching case-insensitively -- BR-33 is satisfied by the column
+ * domain rather than by `mode: "insensitive"`. The difference is what the
+ * database can do with it: an insensitive comparison renders as `ILIKE` and an
+ * `IN` of 100 becomes 100 unindexable `ILIKE`s at 1,430ms, while the folded
+ * case-sensitive form is a single `IN (...)` served by
+ * `ticket_ticket_number_key` at 0.194ms on the same 30,000 rows.
+ *
+ * This is resource knowledge, so it lives here and not in the shared builder:
+ * QueryBuilder is not allowed to know that one Ticket column has a constrained
+ * character domain.
+ */
+const UPPERCASE_DOMAIN_FIELDS = new Set<TicketFilterField>(["ticketNumber"]);
 
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
 
@@ -203,7 +241,13 @@ function convertValue(
         return undefined;
       }
 
-      return raw;
+      /*
+       * Folded here rather than at the comparison, so `convertInValues` judges
+       * uniqueness on the folded value: `["tkt-...", "TKT-..."]` is one value
+       * for a field that cannot tell them apart, and is now reported as the
+       * repeat it is instead of becoming two identical comparisons.
+       */
+      return UPPERCASE_DOMAIN_FIELDS.has(field) ? raw.toUpperCase() : raw;
     }
 
     case "reference": {
@@ -293,10 +337,20 @@ function convertInValues(
     return undefined;
   }
 
-  if (raw.length < MIN_IN_VALUES || raw.length > MAX_IN_VALUES) {
+  /*
+   * Free text is the expensive case and takes the lower bound; everything else,
+   * `ticketNumber` included, keeps the full contract range because every one of
+   * them ends up as an indexable `IN (...)`.
+   */
+  const maximum =
+    TICKET_FILTER_FIELDS[field] === "string" && !UPPERCASE_DOMAIN_FIELDS.has(field)
+      ? MAX_FREE_TEXT_IN_VALUES
+      : MAX_IN_VALUES;
+
+  if (raw.length < MIN_IN_VALUES || raw.length > maximum) {
     details.push({
       field: path,
-      message: `IN values must contain ${MIN_IN_VALUES}-${MAX_IN_VALUES} values.`,
+      message: `IN values must contain ${MIN_IN_VALUES}-${maximum} values.`,
     });
     return undefined;
   }
@@ -484,7 +538,15 @@ function readFilters(query: Record<string, unknown>, details: ErrorDetail[]): Qu
       field: ticketField,
       condition: ticketCondition,
       value,
-      caseInsensitive: TICKET_FILTER_FIELDS[ticketField] === "string",
+      /*
+       * A folded field is already matched case-insensitively by its own domain,
+       * so asking for `mode: "insensitive"` on top would only turn an indexable
+       * `=` or `IN (...)` back into an `ILIKE` that means the same thing and
+       * cannot use an index.
+       */
+      caseInsensitive:
+        TICKET_FILTER_FIELDS[ticketField] === "string" &&
+        !UPPERCASE_DOMAIN_FIELDS.has(ticketField),
     });
   });
 

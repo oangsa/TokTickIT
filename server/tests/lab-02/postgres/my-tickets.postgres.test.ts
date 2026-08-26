@@ -479,6 +479,111 @@ describe.sequential("Lab 2 My Tickets PostgreSQL read path", () => {
     expect(result.pagination.totalItems).toBe(2);
   });
 
+  /*
+   * `ticket_number` is CHECK-constrained to `^TKT-[0-9]{8}-[0-9A-F]{12}$`, so a
+   * stored value can never hold a lowercase letter. The validator folds the
+   * input and drops `mode: "insensitive"`, which is the same match BR-33 asks
+   * for and a completely different query plan: the expansion into one `ILIKE`
+   * per value was a sequential scan, and this is a single `IN (...)` on the
+   * unique index. This asserts the *match*, since a fold that broke
+   * case-insensitivity would be a silent correctness regression, not a slow one.
+   */
+  it("matches a lowercase ticketNumber IN, which the fold must not cost", async () => {
+    const numbers = [
+      ticketNumber("BBBBBBBBBBB3").toLowerCase(),
+      ticketNumber("BBBBBBBBBBB5").toUpperCase(),
+    ];
+
+    const result = await list(
+      { filters: JSON.stringify([{ field: "ticketNumber", condition: "IN", value: numbers }]) },
+      fixture.bobId,
+    );
+
+    expect(suffixes(result.items).sort()).toEqual(["BBBBBBBBBBB3", "BBBBBBBBBBB5"]);
+    expect(result.pagination.totalItems).toBe(2);
+  });
+
+  it("emits a folded ticketNumber IN as one indexable IN list, not an OR of ILIKE", async () => {
+    /*
+     * This has to go through the read path, not raw SQL. An `EXPLAIN` of a
+     * hand-written `ticket_number IN (...)` proves only that PostgreSQL can
+     * index an `IN` -- which was never in doubt, and which passes just as well
+     * against the unfolded code. What the fold changes is the SQL *Prisma emits*,
+     * so the emitted SQL is what is captured and asserted.
+     *
+     * Unfolded, BR-33 forced `mode: "insensitive"`, which Prisma drops for `in`;
+     * `queryBuilder.ts` therefore expanded it into an OR of one insensitive
+     * `EQUAL` per value, and PostgreSQL rendered each as `ILIKE`. A B-tree
+     * cannot answer `ILIKE` at any size, so the plan fell to one trigram scan
+     * per value, and at 100 values on 30,000 rows it abandoned indexes entirely
+     * for a 1,430ms sequential scan. `ticket_number` is CHECK-constrained to
+     * `^TKT-[0-9]{8}-[0-9A-F]{12}$`, so folding the input is the same match with
+     * a plan the unique index can serve: 0.238ms for the same 100 values.
+     */
+    const logged: string[] = [];
+    const logging = createTestPrisma(target, (sql) => logged.push(sql));
+
+    try {
+      await listTicketsForRequester(
+        logging,
+        fixture.bobId,
+        parseTicketListQuery({
+          filters: JSON.stringify([
+            {
+              field: "ticketNumber",
+              condition: "IN",
+              /* Lower-cased, so a fold has to happen for these to match at all. */
+              value: [ticketNumber("BBBBBBBBBBB3").toLowerCase(), ticketNumber("BBBBBBBBBBB5").toLowerCase()],
+            },
+          ]),
+        }),
+      );
+    } finally {
+      await logging.$disconnect();
+    }
+
+    const select = logged.find((sql) => sql.includes("FROM \"public\".\"ticket\""));
+
+    expect(select).toBeDefined();
+    /*
+     * One parameterized `IN` list, which PostgreSQL plans as `= ANY` on the
+     * unique index -- and crucially not the per-value `ILIKE` the insensitive
+     * expansion used to produce. The values are bound parameters and so do not
+     * appear here; that the *folded* value is what gets bound is proved by the
+     * lowercase-input case above, which returns the rows.
+     */
+    expect(select).toContain('"ticket_number" IN (');
+    expect(select).not.toContain("ILIKE");
+  });
+
+  it("can serve that IN list from the unique index rather than a scan", async () => {
+    /*
+     * The other half of the chain: the shape above is one the planner can put on
+     * `ticket_ticket_number_key`. `enable_seqscan = off` removes the cost
+     * question -- this fixture is a few dozen rows, where a scan is genuinely
+     * cheapest and the planner is right to pick it -- leaving the structural one.
+     */
+    const numbers = ["BBBBBBBBBBB3", "BBBBBBBBBBB5"]
+      .map((suffix) => `'${ticketNumber(suffix)}'`)
+      .join(", ");
+
+    const plan = await prisma.$transaction(async (tx) => {
+      /* LOCAL, so the setting dies with the transaction rather than riding a
+       * pooled connection into another test. */
+      await tx.$executeRawUnsafe("SET LOCAL enable_seqscan = off");
+
+      return tx.$queryRawUnsafe<Array<Record<string, string>>>(
+        `EXPLAIN (COSTS OFF) SELECT id FROM ticket WHERE ticket_number IN (${numbers})`,
+      );
+    });
+
+    const text = plan.map((row) => Object.values(row).join(" ")).join("\n");
+
+    expect(text).toContain("ticket_ticket_number_key");
+    /* `~~*` is ILIKE: the rendering the fold exists to avoid. */
+    expect(text).not.toContain("~~*");
+  });
+
   it("sorts Priority semantically rather than alphabetically", async () => {
     /* Alphabetically HIGH < LOW < MEDIUM, so an enum sorted as text would put
      * LOW second. PostgreSQL sorts an enum by declaration order

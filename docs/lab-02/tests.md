@@ -1570,6 +1570,73 @@ One item remains open and is recorded rather than fixed:
 | Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
 | Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 195 tests. |
 
+### 4.5.30 Issue #22 free-text `IN` cost, the last open item
+
+Section 4.5.29 left one recorded item: an insensitive `IN` on a text field is one
+`ILIKE` per value against no usable index. It was measured rather than argued,
+and the measurement was worse than the note claimed. On 30,000 seeded rows, one
+`IN` of 100 values on `ticket_number`:
+
+| Values | Plan | Time |
+| --- | --- | --- |
+| 1 | Bitmap Index Scan, trigram | 8.6 ms |
+| 5 | BitmapOr over 5 trigram scans | 30 ms |
+| 10 | BitmapOr over 10 trigram scans | 54 ms |
+| 25 | **Sequential scan** | 454 ms |
+| 50 | Sequential scan | 720 ms |
+| 100 | Sequential scan | 1,430 ms |
+| 100, `enable_seqscan = off` | Sequential-equivalent | 1,405 ms |
+
+The forced row is the important one: this is not a planner misestimate. No plan
+exists that makes an OR of 100 `ILIKE` cheap. The equivalent case-sensitive
+`IN (...)` over the same values was an Index Scan on `ticket_ticket_number_key`
+at **0.194 ms** — roughly 7,400x — and `filters` accepts 20 expressions, so one
+authenticated `GET` could buy seconds of server CPU.
+
+The resource closes it from both sides, because both levers are resource
+knowledge that `queryBuilder.ts` is not allowed to hold:
+
+1. **`ticketNumber` is folded, not matched insensitively.** The column carries
+   `CHECK (ticket_number ~ '^TKT-[0-9]{8}-[0-9A-F]{12}$')`, anchored at both
+   ends, so no stored value can hold a lowercase letter. Folding the input to
+   uppercase and comparing case-sensitively is therefore *the same match* BR-33
+   requires, and it is what turns the condition back into one indexable
+   `IN (...)`: **1,430 ms to 0.238 ms** for the same 100 values. The fold applies
+   to every condition on the field, so `EQUAL`, `NOTEQUAL`, `CONTAINS`,
+   `STARTWITH`, and `ENDWITH` stop rendering as `ILIKE` too. Because uniqueness
+   is judged after conversion, two spellings of one Ticket Number are now
+   correctly reported as the repeat they are.
+2. **Free text keeps its semantics and takes a lower bound.** `summary` and
+   `description` have no constrained domain, so folding them would change the
+   match. They keep `mode: "insensitive"` and are capped at
+   `MAX_FREE_TEXT_IN_VALUES = 10`, chosen off the table above as the last row
+   that stays on the trigram index: **6.5 ms**. Reference and enum fields keep
+   the full 1-100 range, since they were never the expensive case.
+
+api-spec Sections 9.8 and 9.9 are updated: 9.8 now states the per-field `IN`
+bounds and the measurement behind the free-text one, and 9.9 documents the
+`ticketNumber` fold and why it is invisible to callers.
+
+The `ponytail:` note in `queryBuilder.ts` is replaced by the measured outcome
+rather than deleted, so the expansion still carries its cost and who bounds it.
+
+Test honesty note: the first version of the PostgreSQL plan assertion ran
+`EXPLAIN` over hand-written SQL and passed against the unfolded code, because it
+only proved that PostgreSQL can index an `IN` — which was never in question. It
+was rewritten to capture the SQL **Prisma actually emits** for a real
+`listTicketsForRequester` call, which is what the fold changes, and confirmed to
+fail against the restored pre-fix validator. A companion case still asserts by
+forced `EXPLAIN` that the emitted shape is one the unique index can serve; it is
+labelled as the structural half rather than presented as proof of the fix.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| All guarded PostgreSQL suites | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres` | `server/`; `postgres:16-alpine` in the `toktickit-lab2-test-postgres` container on `localhost:55432` | Passed — 5 files, 52 tests. |
+| Full server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 424 tests. |
+| Backend typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+| Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 195 tests. |
+
 
 ## 5. Reusable QueryBuilder Test Principle
 
