@@ -616,7 +616,13 @@ function AttachmentTableRow({
         <AttachmentState state={row.state} />
       </td>
       <td>
-        <div className="d-flex gap-1">
+        {/*
+          Wrapping, not scrolling: `.tt-table` is `table-layout: fixed`, so on a
+          narrow viewport this cell is narrow too, and three controls in a
+          non-wrapping row would spill out of it rather than stack (ui-spec
+          Sections 21.3 and 30.5).
+        */}
+        <div className="d-flex flex-wrap gap-1">
           {hasBinary ? (
             <IconButton
               label={`Preview ${row.name}`}
