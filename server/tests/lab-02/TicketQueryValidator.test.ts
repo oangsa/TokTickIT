@@ -390,6 +390,37 @@ describe("Ticket filter value conversion", () => {
     },
   );
 
+  /*
+   * A day that does not exist in its month is the one malformed date neither
+   * the shape check nor `new Date` catches: `MakeDay` rolls it forward, so
+   * "2026-02-30" parsed to 2026-03-02 and the filter silently meant a moment
+   * two days from the one asked for -- a 200 with confidently wrong rows.
+   * "2026-13-45" only ever failed because month 13 falls outside the ISO
+   * grammar and drops to the fallback parser; a day out of range for its month
+   * stays inside the grammar.
+   */
+  it.each([
+    ["2026-02-30", "February 30th"],
+    ["2026-02-29", "February 29th of a common year"],
+    ["1900-02-29", "February 29th of a century that is not a leap year"],
+    ["2026-04-31", "April 31st"],
+    ["2026-01-32", "a day past the end of any month"],
+    ["2026-01-00", "day zero"],
+    ["2026-00-10", "month zero"],
+    ["2026-06-31T23:59:59+07:00", "an impossible day carrying a time and an offset"],
+  ])("rejects %s (%s) rather than rolling it forward", (value) => {
+    expectRejected(filters({ field: "createdAt", condition: "GREATER", value }), "filters[0].value");
+  });
+
+  it.each([["2024-02-29"], ["2000-02-29"], ["2026-01-31"], ["2026-12-31T23:59:59.999Z"]])(
+    "accepts %s, so the calendar check keeps both leap-year rules",
+    (value) => {
+      const query = parseTicketListQuery(filters({ field: "createdAt", condition: "GREATER", value }));
+
+      expect(query.filters[0].value).toEqual(new Date(value));
+    },
+  );
+
   it.each([["URGENT"], ["high"], [1], [null]])("rejects %s as a Priority value", (value) => {
     expectRejected(filters({ field: "requestedPriority", condition: "EQUAL", value }), "filters[0].value");
   });

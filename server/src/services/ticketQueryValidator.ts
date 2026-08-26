@@ -120,11 +120,30 @@ const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
  * api-spec Section 9.9 calls these values ISO-8601, and `new Date` alone does
  * not enforce that: it reads "5" as 2001-05-01 and "Dec 5 2026" as a date, so a
  * filter would silently mean something the caller never asked for. The shape is
- * checked here and `new Date` still rejects a well-shaped impossible date such
- * as "2026-13-45".
+ * checked here, and `new Date` rejects an out-of-range hour, minute, or second
+ * on its own. The date parts are captured because the one thing neither the
+ * pattern nor `new Date` catches is a day that does not exist in its month.
  */
 const ISO_DATE_TIME_PATTERN =
-  /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+  /^(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+
+/*
+ * `new Date` does not reject an impossible day: `MakeDay` rolls it forward, so
+ * "2026-02-30" parses to 2026-03-02 and a filter silently means a date two days
+ * from the one asked for. The check is arithmetic rather than another round
+ * trip through `Date`, because `Date.UTC(26, 0, 1)` is 1926 -- a four-digit year
+ * below 100 would fail a comparison it should pass.
+ */
+function isCalendarDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  return day <= daysInMonth[month - 1];
+}
 
 export interface TicketListQuery {
   search?: QuerySearch;
@@ -223,12 +242,18 @@ function convertValue(
     }
 
     case "datetime": {
-      if (typeof raw !== "string" || !ISO_DATE_TIME_PATTERN.test(raw)) {
+      const shape = typeof raw === "string" ? ISO_DATE_TIME_PATTERN.exec(raw) : null;
+
+      if (
+        shape === null ||
+        !isCalendarDate(Number(shape[1]), Number(shape[2]), Number(shape[3]))
+      ) {
         details.push({ field: path, message: `${field} values must be ISO-8601 date-times.` });
         return undefined;
       }
 
-      const parsed = new Date(raw);
+      /* `shape.input` is `raw`, already narrowed to a string by the match. */
+      const parsed = new Date(shape.input);
 
       /*
        * PostgreSQL has no year zero: its era runs 1 BC to 1 AD with nothing
