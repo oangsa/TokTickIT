@@ -406,3 +406,14 @@
 .tt-row-link:focus-visible {
   text-decoration: underline;
 }
+
+/*
+ * Attachment preview (ui-spec Section 24). A PDF gets a tall frame so the
+ * browser's own inline viewer has room; an image is sized by `img-fluid` and
+ * keeps its aspect ratio without help.
+ */
+.tt-attachment-preview {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--tt-border);
+}

@@ -318,15 +318,25 @@ describe("UI-36 Attachment metadata on Ticket Detail", () => {
     expect(within(removed).queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("does not expose Attachment behavior owned by Issue #24", async () => {
+  /*
+   * Issue #24 landed the behavior this case used to assert was absent. The page
+   * now mounts the shared Attachment card, so what it owes is the wiring: the
+   * Add control, and controls on the Active row only. The behavior itself is
+   * `AttachmentSection.test.tsx`.
+   */
+  it("mounts the Attachment controls on the Active row only", async () => {
     renderDetail();
     await screen.findByRole("heading", { name: "Attachments 1/5" });
 
-    expect(screen.queryByRole("button", { name: /add attachment/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /preview/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Add Attachment")).toBeEnabled();
+
+    const active = screen.getByText("vpn-error.png").closest("tr") as HTMLElement;
+    expect(within(active).getByRole("button", { name: "Preview vpn-error.png" })).toBeInTheDocument();
+    expect(within(active).getByRole("button", { name: "Download" })).toBeInTheDocument();
+    expect(within(active).getByRole("checkbox", { name: "Select vpn-error.png" })).toBeInTheDocument();
+
+    /* Still read-only in every other respect (FR-22). */
+    expect(screen.queryByRole("button", { name: /edit|assign|transition|comment/i })).not.toBeInTheDocument();
   });
 });
 

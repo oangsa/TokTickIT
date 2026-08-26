@@ -1,13 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
 
-import {
-  ApiResponseError,
-  Attachment,
-  InvalidRequesterContextError,
-  Ticket,
-} from "../api.js";
-import { AttachmentState } from "../components/AttachmentState.js";
+import { ApiResponseError, InvalidRequesterContextError, Ticket } from "../api.js";
+import { AttachmentSection } from "../attachments/AttachmentSection.js";
 import { Card } from "../components/Card.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { ReadOnlyField } from "../components/ReadOnlyField.js";
@@ -15,15 +10,6 @@ import { Skeleton } from "../components/Skeleton.js";
 import { SuccessMessage } from "../components/SuccessMessage.js";
 import { useRequesterApi } from "../requester/useRequesterApi.js";
 import { ticketDate, ticketDateTime } from "../tickets/ticketDate.js";
-
-/* BR-51: five Active Attachments per Ticket. Removed ones do not count. */
-const MAX_ACTIVE_ATTACHMENTS = 5;
-
-/*
- * `md` (768px) is the same cut My Tickets uses for secondary metadata. Issue
- * #24 adds the selection and action columns when their behavior exists.
- */
-const SECONDARY_COLUMN = "d-none d-md-table-cell";
 
 /*
  * Navigation state is caller-controlled, so it is narrowed the same way
@@ -45,81 +31,6 @@ function readCreatedTicketNumber(state: unknown): string | null {
 }
 
 /*
- * Decimal units, because the rule the UI states to the user is decimal:
- * ui-spec Section 22.3 fixes the per-file limit at 5,000,000 bytes and calls it
- * "5 MB". Binary divisors would render a file at that exact limit as 4.8 MB,
- * next to a screen promising a maximum of 5 MB.
- */
-function formatSize(bytes: number): string {
-  if (bytes < 1000) {
-    return `${bytes} B`;
-  }
-
-  const kilobytes = bytes / 1000;
-
-  return kilobytes < 1000 ? `${kilobytes.toFixed(1)} KB` : `${(kilobytes / 1000).toFixed(1)} MB`;
-}
-
-function AttachmentRow({ attachment }: { attachment: Attachment }) {
-  return (
-    <tr>
-      <td>
-        {attachment.originalName}
-        {/*
-          Section 26 shows the removal reason as secondary metadata rather than
-          as a permanently wide column of its own.
-        */}
-        {attachment.deleted && attachment.removalReason !== null ? (
-          <div className="small text-secondary">Removal reason: {attachment.removalReason}</div>
-        ) : null}
-      </td>
-      <td className={SECONDARY_COLUMN}>{attachment.extension.toUpperCase()}</td>
-      <td>{formatSize(attachment.sizeBytes)}</td>
-      <td className={SECONDARY_COLUMN}>{ticketDateTime(attachment.createdAt)}</td>
-      <td>
-        {/* The state name is the visible text, so it never reads by colour alone. */}
-        <AttachmentState state={attachment.deleted ? "Removed" : "Active"} />
-      </td>
-    </tr>
-  );
-}
-
-/* ui-spec Section 21: Attachments are a separate card from Ticket Information. */
-function AttachmentsCard({ attachments }: { attachments: Attachment[] }) {
-  const activeCount = attachments.filter((attachment) => !attachment.deleted).length;
-
-  return (
-    <Card className="mt-4" title={`Attachments ${activeCount}/${MAX_ACTIVE_ATTACHMENTS}`}>
-      {attachments.length === 0 ? (
-        <p className="text-secondary mb-0">No attachments.</p>
-      ) : (
-        <table className="table tt-table align-middle mb-0">
-          <thead>
-            <tr>
-              <th scope="col">File Name</th>
-              <th scope="col" className={SECONDARY_COLUMN}>
-                Type
-              </th>
-              <th scope="col">Size</th>
-              <th scope="col" className={SECONDARY_COLUMN}>
-                Uploaded At
-              </th>
-              <th scope="col">Status</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {attachments.map((attachment) => (
-              <AttachmentRow key={attachment.attachmentId} attachment={attachment} />
-            ))}
-          </tbody>
-        </table>
-      )}
-    </Card>
-  );
-}
-
-/*
  * Requester-owned Ticket Detail (ui-spec Section 20, api-spec Section 8.6).
  *
  * Read-only in Lab 2 (FR-22): no comments, internal notes, actions taken,
@@ -133,6 +44,8 @@ export default function RequesterTicketDetail() {
   const navigate = useNavigate();
   const callApi = useRequesterApi();
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  /* Bumped after an Attachment add or removal, to re-read committed state. */
+  const [reloadCount, setReloadCount] = useState(0);
   /*
    * `location.state` is persisted in the history entry, so a reload or a Back
    * into this entry hands the creation state straight back. The confirmation
@@ -196,7 +109,7 @@ export default function RequesterTicketDetail() {
     return () => {
       ignore = true;
     };
-  }, [callApi, navigate, publicId]);
+  }, [callApi, navigate, publicId, reloadCount]);
 
   /* Section 20.1: the Ticket Number is the strongest ticket-specific identifier. */
   const heading = ticket?.ticketNumber ?? createdTicketNumber;
@@ -276,7 +189,17 @@ export default function RequesterTicketDetail() {
             </div>
           </Card>
 
-          <AttachmentsCard attachments={ticket.attachments} />
+          {/*
+            Issue 24 owns Attachment behavior; the card is shared with Create
+            Ticket. A successful add or removal re-reads the Ticket rather than
+            patching the list in place, so what is drawn is what committed.
+          */}
+          <AttachmentSection
+            mode="detail"
+            ticketPublicId={ticket.publicId}
+            attachments={ticket.attachments}
+            onChanged={() => setReloadCount((count) => count + 1)}
+          />
         </>
       )}
     </>

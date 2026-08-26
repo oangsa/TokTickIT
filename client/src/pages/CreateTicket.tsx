@@ -8,6 +8,7 @@ import {
   Ticket,
 } from "../api.js";
 import { Button } from "../components/Button.js";
+import { AttachmentSection } from "../attachments/AttachmentSection.js";
 import { Card } from "../components/Card.js";
 import { ErrorState } from "../components/ErrorState.js";
 import { Form } from "../components/Form.js";
@@ -133,6 +134,13 @@ export default function CreateTicket() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null);
+  /*
+   * AC-16: an intended file that is still Uploading, or that Failed or was
+   * Invalid, blocks Submit until it is retried successfully or explicitly
+   * removed. Submitting anyway would create the Ticket as though the file had
+   * uploaded, which is the one outcome the contract rules out.
+   */
+  const [unresolvedFiles, setUnresolvedFiles] = useState(false);
 
   /*
    * BR-24. The key belongs to one logical payload: an unchanged retry reuses it
@@ -353,13 +361,42 @@ export default function CreateTicket() {
     navigate("/tickets");
   }
 
+  /*
+   * BR-25 and ui-spec Section 12.4. Discarding the draft also releases the
+   * Pending rows it prepared, through the unified collection endpoint with an
+   * empty reason for each -- Pending rows ignore the reason, and inventing an
+   * Active-removal reason here would be the client asserting something about a
+   * lifecycle state it does not know the row is in.
+   *
+   * Best effort on purpose: the request is not awaited and its failure is
+   * swallowed, because the user asked to leave and a forgotten Pending row is
+   * already covered by the 24-hour orphan sweep. It is only safe at all because
+   * the endpoint hard-deletes a row solely while it is still unbound: a row that
+   * a create already bound is not silently soft-removed by this call.
+   *
+   * Only reached from a confirmed discard, which is the one moment the draft is
+   * known not to have been submitted.
+   */
   function handleConfirmDiscard(): void {
+    const preparedIds = draft.attachmentIds;
+
     setConfirmDiscard(false);
     clearRecovery();
     setRecovery(null);
     setDraft(EMPTY_DRAFT);
     keyRef.current = null;
     signatureRef.current = null;
+
+    if (preparedIds.length > 0) {
+      void callApi("/api/attachments/collection", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: preparedIds.map((attachmentId) => ({ attachmentId, reason: "" })),
+        }),
+      }).catch(() => undefined);
+    }
+
     navigate("/tickets");
   }
 
@@ -492,14 +529,22 @@ export default function CreateTicket() {
           </Card>
 
           {/*
-           * Attachments are the Issue #24 seam. The draft already carries the
-           * final prepared Pending `attachmentIds`, which is what the submission
-           * sends; the upload cards, their states, and Retry belong to that Issue.
-           */}
-          <Card>
-            <h2 className="h6 fw-semibold">Attachments</h2>
-            <p className="text-secondary mb-0">Attachment upload is added in Issue 24.</p>
-          </Card>
+            Each valid selection is pre-uploaded on its own and becomes a Pending
+            row; the prepared IDs are what the submission sends. They are written
+            into the draft rather than held here, because they are part of the
+            payload the idempotency key is derived from.
+          */}
+          <AttachmentSection
+            mode="create"
+            onPendingIdsChange={(attachmentIds) =>
+              setDraft((current) =>
+                current.attachmentIds.join(",") === attachmentIds.join(",")
+                  ? current
+                  : { ...current, attachmentIds },
+              )
+            }
+            onUnresolvedChange={setUnresolvedFiles}
+          />
 
           {recovery !== null ? (
             <Card>
@@ -523,7 +568,12 @@ export default function CreateTicket() {
             <Button variant="secondary" type="button" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" busy={submitting} disabled={submitting}>
+            <Button
+              variant="primary"
+              type="submit"
+              busy={submitting}
+              disabled={submitting || unresolvedFiles}
+            >
               Submit Ticket
             </Button>
           </div>

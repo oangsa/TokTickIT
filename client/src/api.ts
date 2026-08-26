@@ -146,11 +146,22 @@ export function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSign
   return controller.signal;
 }
 
-export async function apiFetch<T>(
+/*
+ * Everything up to a verified successful `Response`: headers, the requester
+ * context header, the merged deadline, and the error classification that decides
+ * between `InvalidRequesterContextError` and `ApiResponseError`.
+ *
+ * It is separate from `apiFetch` only so the binary path can share it. An
+ * Attachment preview is fetched rather than linked precisely because it needs
+ * the requester header (api-spec Section 12.3), and it has to fail exactly the
+ * way every other request fails -- a blob path with its own error handling would
+ * be the one place a `REQUESTER_CONTEXT_INVALID` stopped clearing the session.
+ */
+async function requestApi(
   path: string,
   init?: ApiRequestInit,
   requesterId?: number,
-): Promise<T> {
+): Promise<Response> {
   const { onResponse, ...requestInit } = init ?? {};
   const headers: Record<string, string> = { ...init?.headers };
 
@@ -185,6 +196,16 @@ export async function apiFetch<T>(
 
   onResponse?.(response);
 
+  return response;
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init?: ApiRequestInit,
+  requesterId?: number,
+): Promise<T> {
+  const response = await requestApi(path, init, requesterId);
+
   if (response.status === 204) {
     return undefined as T;
   }
@@ -192,6 +213,23 @@ export async function apiFetch<T>(
   return (await response.json().catch(() => {
     throw new Error("Could not read the API response.");
   })) as T;
+}
+
+/*
+ * The Attachment binary path (ui-spec Section 24). The response is checked
+ * before the body is read -- `requestApi` throws on a non-OK answer, so an error
+ * envelope is never handed to the caller as if it were file content.
+ */
+export async function apiFetchBlob(
+  path: string,
+  init?: ApiRequestInit,
+  requesterId?: number,
+): Promise<Blob> {
+  const response = await requestApi(path, init, requesterId);
+
+  return await response.blob().catch(() => {
+    throw new Error("Could not read the API response.");
+  });
 }
 
 /* The one Lab 2 endpoint that must not send X-Requester-Id (api-spec Section 3.1). */
