@@ -725,6 +725,28 @@ against an existing database unless explicitly approved.
 
 Never assume data may be discarded.
 
+**Every Prisma CLI command targets the shared Supabase database by default.**
+`prisma.config.ts` resolves the migration connection as
+`process.env.DIRECT_URL || env("DATABASE_URL")`, and `.env.local` sets
+`DIRECT_URL` to the Supabase direct connection. Two consequences:
+
+- Exporting `DATABASE_URL` does **not** retarget anything. `DIRECT_URL` wins,
+  and the export is silently ignored — `prisma migrate deploy` reports success
+  against Supabase while the local container it was meant for stays empty.
+- `TEST_DATABASE_URL` retargets the guarded PostgreSQL suites only. It has no
+  effect on the Prisma CLI.
+
+To run a Prisma CLI command against a disposable local target, override
+`DIRECT_URL` itself and confirm the reported datasource line before trusting the
+result:
+
+```bash
+DIRECT_URL="$TEST_DATABASE_URL" npx prisma migrate status   # prints the host it resolved
+```
+
+`prisma migrate status` is read-only and names its target, so it is the safe way
+to check where a command would land before running one that writes.
+
 ---
 
 ## 10. REST API contracts

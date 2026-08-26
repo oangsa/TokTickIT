@@ -1454,6 +1454,122 @@ One finding was reported and deliberately left open:
 | Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
 | Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 190 tests. |
 
+### 4.5.29 Issue #22 fifth review fix pass
+
+A fifth outsider review traced the read path and the screen end to end and
+produced four defects. A follow-up pass then closed every item the four previous
+passes had recorded as deliberately open. This section supersedes the counts in
+Section 4.5.28.
+
+Review findings:
+
+1. **An impossible calendar day was accepted and silently rolled forward.**
+   `ticketQueryValidator.ts` shape-checked a datetime value against an ISO-8601
+   pattern and relied on `new Date` to reject anything the pattern let through,
+   on the stated assumption that a well-shaped impossible date fails the parse.
+   That holds only when the month is out of range: `"2026-13-45"` falls outside
+   the ECMAScript grammar and drops to the fallback parser, which answers `NaN`.
+   A day out of range for its month stays inside the grammar, so `MakeDay` rolls
+   it forward — `"2026-02-30"` parsed to `2026-03-02`, and
+   `createdAt GREATER "2026-02-30"` answered `200` with rows two days from the
+   ones asked for. The pattern now captures the date parts and `isCalendarDate`
+   checks them arithmetically rather than through a second `Date` round trip,
+   because `Date.UTC(26, 0, 1)` is 1926 and a four-digit year below 100 would
+   fail a comparison it should pass. Both leap-year rules hold: `2024-02-29` and
+   `2000-02-29` are accepted, `2026-02-29` and `1900-02-29` are not.
+2. **The Created At column contradicted the Ticket Number in the same row.**
+   `MyTickets.tsx` rendered `createdAt.slice(0, 10)`, which is the UTC date,
+   while the Ticket Number embeds the `Asia/Bangkok` business date (BR-01-03).
+   For the seven hours a day the calendars differ, one row read
+   `TKT-20260827-...` beside a Created At of `2026-08-26`. It now formats
+   through a pinned `en-CA`/`Asia/Bangkok` `Intl.DateTimeFormat`: the same
+   `YYYY-MM-DD` shape and the same per-machine and CI stability the slice was
+   chosen for, on the calendar the row already commits to.
+3. **A dropped `X-Pagination` header picked the wrong empty state and removed
+   every pagination control.** `readPaginationHeader` answers `null` for a
+   header a proxy stripped or mangled, and the derived zero that stood in for
+   the total answered both of the questions the total owns wrong: a Requester
+   with no Tickets was shown "No tickets found. Try changing your search or
+   filters" over a query they never ran, and a full page of rows lost its
+   controls because the mount guard saw a total of zero. Both sites now fall
+   back to the row count through one `countless` predicate. `stale` is
+   unchanged, so the control still states no range and runs no clamp against a
+   total nobody sent.
+4. **`query` was an unused dependency of the list effect.** The effect reads only
+   `request`, which is derived from it, so depending on both refetched whenever
+   an address changed without changing the API request — `/tickets` and
+   `/tickets?pageNumber=1` build the same one.
+
+Previously open items, all now closed:
+
+5. **The Lab 2 migration had been edited after it was applied.** The
+   `CHAR(25)` → `VARCHAR(25)` change and the trigram index rebuild recorded in
+   Section 4.5.28 were made in place in `20260822000000_lab2_data_model`, which
+   changes that migration's checksum and fails `prisma migrate deploy` against
+   any database that already ran it — the practice AGENTS.md Section 9 forbids
+   outright. That migration is restored byte-for-byte to what was applied, and
+   the change now lives in the forward migration
+   `20260826000000_ticket_number_varchar`, which drops the index, alters the
+   column, and recreates the index on the bare column. The index is dropped
+   *before* the type change on purpose: `ALTER COLUMN ... TYPE` rebuilds
+   dependent indexes at their own definition, which would reproduce the
+   `(ticket_number::text)` cast and leave the index exactly as unreachable as
+   before. The two-migration chain reaches the same final state, verified by
+   applying it to an empty database and reading back `character varying(25)`
+   and `gin (ticket_number gin_trgm_ops)`.
+6. **The Ticket row was focusable but had no role.** The `<tr>` carried
+   `tabIndex={0}`, an `aria-label`, and a hand-rolled Enter/Space handler, so it
+   was in the tab order announcing itself as a row rather than as something
+   activatable — and a `role` that would fix that cannot go on a `<tr>` without
+   breaking the table's own row semantics. The Ticket Number cell now holds a
+   real `<Link>`: link role, native Enter activation, a real `href` that can be
+   opened in a new tab, and an accessible name containing the visible Ticket
+   Number (WCAG 2.5.3). The row keeps `onClick` as a pointer convenience and
+   `.tt-row:has(.tt-row-link:focus-visible)` draws the ring. ui-spec Section
+   16.2 permits this explicitly — "activatable with Enter/Space where the chosen
+   implementation pattern supports it".
+7. **A disabled fieldset dropped keyboard focus on every fetch.** The pagination
+   controls were wrapped in `<fieldset disabled={loading}>` and the Filters
+   button and Sort select carried `disabled={loading}` of their own. Disabling a
+   focused control moves focus to `<body>`, and this screen fetches once per
+   search pause, so a keyboard user was thrown out of the toolbar every 400 ms
+   while typing. The guard is removed rather than replaced with a hand-rolled
+   substitute, because it bought nothing: `commitQuery` only writes the URL, the
+   list effect discards the superseded response through its `ignore` flag, and
+   `pending` already stops `Pagination` from stating a range or acting on a
+   clamp computed from a total it is about to replace. This closes the finding
+   left open as unverified in Section 4.5.26, without needing the real browser
+   Issue #25 owns.
+8. **The page read and the count were two statements, not one snapshot.** The
+   `ponytail:` deferral in `ticketListService.ts` is now taken: both run inside
+   one `$transaction` at `REPEATABLE READ`. The isolation level is the whole
+   fix and is asserted by name, because PostgreSQL's default `READ COMMITTED`
+   takes a fresh snapshot per statement — a transaction at the default level
+   would satisfy a "both are in a transaction" assertion while changing nothing.
+   A read-only `REPEATABLE READ` transaction cannot raise a serialization
+   failure on PostgreSQL, so this adds no retry path. An unreachable page still
+   skips the transaction, since a lone count statement is its own snapshot.
+
+Every new case was confirmed to fail against restored pre-fix source — 5 server
+and 3 client for the review findings, then 1 server and 4 client for the
+previously open items — before the fixed files were put back.
+
+One item remains open and is recorded rather than fixed:
+
+- **`IN` on a text field is up to 100 `ILIKE` comparisons against no usable
+  index.** The `ponytail:` note in `queryBuilder.ts` is unchanged. The `IN`
+  cardinality cap, the 20-expression limit, and the caller's own scope predicate
+  bound it, and the Requester UI emits `IN` only for reference and enum fields.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| All guarded PostgreSQL suites | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres` | `server/`; `postgres:16-alpine` in the `toktickit-lab2-test-postgres` container on `localhost:55432` | Passed — 5 files, 49 tests. |
+| Migration chain applied from empty | `DIRECT_URL=<lab2_test_url> npx prisma migrate deploy` | `server/`; same disposable container | Passed — 3 migrations applied; `ticket_number` reads back `character varying(25)` and the trigram index `gin (ticket_number gin_trgm_ops)`. |
+| Full server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 415 tests. |
+| Backend typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+| Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 195 tests. |
+
 
 ## 5. Reusable QueryBuilder Test Principle
 
