@@ -974,6 +974,120 @@ is present, and no Attachment binary `data` is loaded or returned to build it.
 The `NODE_ENV` reading described at the end of Section 4.5.21 remains a
 deliberate non-blocking follow-up and was not changed in this pass.
 
+### 4.5.23 Issue #22 verification evidence
+
+The following checks were run on 2026-08-26 from the listed package
+directories. The disposable PostgreSQL password is intentionally redacted. Two
+disposable databases on the same throwaway PostgreSQL 16 instance at
+`localhost:55432` were used - `toktickit_lab2_test` for `TEST_DATABASE_URL` and
+`toktickit_lab1_dev` for `DATABASE_URL`/`DIRECT_URL`, migrated and seeded first,
+for the reason given in Section 4.5. The normal development database was never
+used, migrated, seeded, or reset; the seed target was confirmed by counting rows
+in the disposable database afterwards.
+
+Issue #22 changed no Prisma schema, migration, or seed file. The existing
+partial index `ticket (requester_id, created_at DESC, id DESC) WHERE deleted =
+false` already matches the ownership predicate and the default ordering, and the
+existing `pg_trgm` GIN indexes already cover the case-insensitive search, so no
+schema change was required or made.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Disposable Lab 1 target migration | `DATABASE_URL=<lab1_dev_url> DIRECT_URL=<same> npx prisma migrate deploy` | Disposable `toktickit_lab1_dev` | Passed — both forward migrations applied. |
+| Disposable Lab 1 target seed | `DATABASE_URL=<lab1_dev_url> DIRECT_URL=<same> npm run prisma:seed` | Disposable `toktickit_lab1_dev` | Passed — seeded 4 categories, 7 related systems, and 5 development requesters; a direct row count against the disposable target confirmed 4/7/5. |
+| Issue #22 focused gate | `npx vitest run tests/lab-02/QueryBuilder.test.ts tests/lab-02/TicketQueryValidator.test.ts tests/lab-02/my-tickets.api.test.ts tests/lab-02/cors.api.test.ts` | `server/`; Prisma is mocked in both API files, so no database target was involved | Passed — 4 files, 161 tests. |
+| Full server suite, single invocation | `NODE_ENV=test DATABASE_URL=<lab1_dev_url> DIRECT_URL=<same> TEST_DATABASE_URL=<lab2_test_url> npm test` | Both disposable databases | Passed — 23 files, 406 tests, including the four guarded PostgreSQL files (`migration-upgrade`, `transactions`, `idempotency`, `testDatabase`), which passed unchanged as expected for an Issue that touched no schema, migration, or seed file. |
+| Backend build | `npm run build` | `server/` | Passed — `tsc` completed with no output. |
+| Issue #22 client focused gate | `npx vitest run tests/lab-02/MyTickets.test.tsx` | `client/` | Passed — 1 file, 33 tests. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 7 files, 183 tests. |
+| Frontend typecheck/build | `npm run build` | `client/` | Passed — TypeScript and the Vite production build. |
+| Diff hygiene | `git status --short`, `git diff --stat` | repository | Passed — 10 modified files and 9 new paths, all inside `server/src`, `server/tests`, `client/src`, `client/tests`, and `docs/lab-02`. |
+
+Three consequences of this Issue reached files it does not own, and are recorded
+here rather than left to look incidental:
+
+- The client fetch doubles in `ApplicationShell.test.tsx`, `CreateTicket.test.tsx`,
+  and `RequesterSelection.test.tsx` returned `{ ok, status, json }` with no
+  `headers`. My Tickets is the first caller to read a response header, so those
+  doubles were completed rather than having production code defend against an
+  incomplete fake.
+- `CreateTicket.test.tsx` routed by path only, so its `POST /api/tickets`
+  fall-through also answered the new list read. It now branches on the method.
+- One `getByRole("navigation")` in `ApplicationShell.test.tsx` became ambiguous
+  once the list renders its own pagination landmark, and now names the sidebar.
+
+`userEvent` deadlocks under Vitest fake timers — reproduced on a bare `<input>`
+with no application code involved — so UI-18 drives the debounce with the change
+event it listens to instead. `apiFetch` arms an 8 s `AbortSignal.timeout`, which
+is also faked in that block, so no case may advance near it.
+
+Responsive and visual browser coverage and the manual browser smoke were not run
+in this pass; the responsive/visual evidence remains assigned to Issue #25.
+
+The counts in the table above are superseded by Section 4.5.24, which records
+the tree as it stands after the Issue #22 review fixes.
+
+### 4.5.24 Issue #22 review fix verification
+
+Two review findings were fixed after the Section 4.5.23 pass, so the counts
+recorded there no longer describe the tree. This section supersedes them.
+
+1. `MyTickets.tsx` unmounted the pagination controls whenever a settled load
+   returned no rows. BR-38 makes a page past the last one a `200` with an empty
+   array, so the row count alone cannot separate that from a genuinely empty
+   result — only the total can. A shared or restored `?pageNumber=5` therefore
+   settled on the no-results state with no control left to correct it, because
+   the clamp `Pagination` reports through `onPageChange` needs the component
+   mounted to fire. The condition now reads the total instead of the row count,
+   which keeps the controls for a rowless page of a non-empty result and still
+   hides them for a true empty one.
+2. The "sorts Priority semantically" case in `TicketQueryValidator.test.ts`
+   claimed in its comment to fail if a migration ever reordered the enum. It
+   could not: it asserted only the identity passthrough, which holds whatever
+   the migration declares. The premise is now asserted directly against the
+   `CREATE TYPE "RequestedPriority"` DDL — the hand-written migration is the
+   only authority on the order PostgreSQL will sort by, so neither
+   `schema.prisma` nor the generated client is read for it.
+
+Both fixes were confirmed non-vacuous by reverting the change under test and
+observing the new case fail: the pagination case failed `expected '5' to be '3'`
+against the old condition, and the enum case failed
+`expected [ 'HIGH', 'MEDIUM', 'LOW' ] to deeply equal [ 'LOW', 'MEDIUM', 'HIGH' ]`
+against a deliberately reordered `CREATE TYPE`. The migration was restored and
+`git diff prisma/` is empty.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #22 focused gate | `npx vitest run tests/lab-02/QueryBuilder.test.ts tests/lab-02/TicketQueryValidator.test.ts tests/lab-02/my-tickets.api.test.ts tests/lab-02/cors.api.test.ts` | `server/`; Prisma is mocked in both API files, so no database target was involved | Passed — 4 files, 170 tests. |
+| Backend build | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Full server suite, non-PostgreSQL | `npm test` | `server/`; no PostgreSQL target configured in this pass | Passed — 19 non-PostgreSQL files, 379 tests; 415 collected across 23 files with the 36 guarded PostgreSQL cases not executed. |
+| Issue #22 client focused gate | `npx vitest run tests/lab-02/MyTickets.test.tsx` | `client/` | Passed — 1 file, 36 tests. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 7 files, 186 tests. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+
+The four guarded PostgreSQL files were **not** re-run in this pass: no
+PostgreSQL target was available to it. Both fixes are confined to a client
+render condition and a test-only assertion, and neither touches the schema, a
+migration, the seed, or any query construction, so the Section 4.5.23 PostgreSQL
+result stands unchanged for them. Responsive, visual, and manual browser
+coverage likewise remain assigned to Issue #25.
+
+Three review findings were reported and deliberately **not** fixed here:
+
+- `GET /api/tickets` has no PostgreSQL-backed case; every assertion in
+  `my-tickets.api.test.ts` is on the arguments handed to a mocked Prisma client.
+  Prisma-level semantics — `mode: "insensitive"` against the `CHAR(25)`
+  `ticket_number`, `NOTEQUAL` on `NOT NULL` columns, the single
+  `Prisma.TicketWhereInput` cast, and the enum sort the fix above pins only at
+  the DDL — remain unexecuted. This is coverage the guarded suites should own.
+- Search terms are passed to Prisma `contains` unescaped, so `%` and `_` in a
+  term act as LIKE wildcards rather than literals. Escaping them is one line in
+  `readSearch`, but it changes matching for `filters` `CONTAINS` too and cannot
+  be verified without the PostgreSQL coverage above.
+- Ticket rows are focusable `<tr>` elements with `aria-label` and no interactive
+  role, so assistive technology announces a row rather than an activatable
+  control.
+
 ## 5. Reusable QueryBuilder Test Principle
 
 The global QueryBuilder follows the reusable infrastructure/repository utility pattern:
@@ -1052,10 +1166,10 @@ cover `ISNULL`, `ISNOTNULL`, and every other approved generic operator.
 | UNIT-03 | Unit | BR-08, BR-71–73, AC-10 | RelatedSystemService: selectable master behavior and historical lookup behavior. | Active/non-deleted systems are selectable; inactive/deleted systems are rejected for new Ticket creation while historical metadata can still resolve. | tests/lab-02/RelatedSystemService.test.ts | Passed — 3 tests |
 | UNIT-04 | Unit | BR-01–03, AC-07 | Ticket Number formatting/generation helper: Bangkok date, format, uppercase 12-hex suffix, deterministic injected time/random behavior. | Generated candidate matches `TKT-YYYYMMDD-RRRRRRRRRRRR`; business date uses Asia/Bangkok. Persistence/collision retry is not owned by this helper. | tests/lab-02/TicketNumber.test.ts | Passed |
 | UNIT-05 | Unit | FR-07–12, BR-01–25, AC-06–12 | TicketService: creation, Pending-Attachment validation/binding, trimming, NEW status, requester/audit derivation, replay-first ordering, collision retry, ownership, and detail. | A new attempt atomically creates the Ticket and binds every referenced Pending row under a guarded `UPDATE` that conflicts rather than rebinding a row a competing create already took; completed same-hash replay returns the existing Ticket without mutable Pending validation; collision retries remain bounded and roll each failed attempt back to its savepoint. | tests/lab-02/TicketService.test.ts | Passed |
-| UNIT-06 | Unit | BR-26–43, BR-75, AC-24–30, AC-55 | Ticket query request validator/normalizer: Ticket field whitelist, exact condition matrix, searchFields whitelist/uniqueness, typed number/date/enum/IN conversion, nullable compatibility, query-complexity bounds, invalid rejection, and direct-client boundary. | Only Ticket-approved bounded input reaches QueryBuilder/Prisma; search >200 chars, >20 filters, duplicate search fields, `IN` outside 1–100 unique values, invalid combinations/enums/shapes/conversions fail before data access. | tests/lab-02/TicketQueryValidator.test.ts | Not Run |
-| UNIT-07 | Unit | BR-28–33, DoD | Global QueryBuilder filter construction for `CONTAINS`, `STARTWITH`, `ENDWITH`, `EQUAL`, `NOTEQUAL`, `GREATER`, `LESSER`, `GREATEROREQUAL`, `LESSEROREQUAL`, `ISNULL`, `ISNOTNULL`, and `IN`. | Representative validated/typed inputs for every approved generic operator produce the expected reusable Prisma filter expression, including both null operators and `IN`; no Ticket field/permission rules are embedded here. | tests/lab-02/QueryBuilder.test.ts | Not Run |
-| UNIT-08 | Unit | BR-26, BR-30, AC-24 | Global QueryBuilder multi-field search construction after resource validation. | The resource-approved search fields are supplied as validated inputs, are OR-combined, and the search fragment can be AND-combined with resource filters/fixed predicates. | tests/lab-02/QueryBuilder.test.ts | Not Run |
-| UNIT-09 | Unit | BR-34–35, AC-27–28 | Global QueryBuilder generic order construction plus resource-owned Ticket sort translation. | Generic asc/desc ordering is constructed correctly; Ticket-specific semantic priority ordering remains outside generic hard-coded QueryBuilder domain logic. | tests/lab-02/QueryBuilder.test.ts | Not Run |
+| UNIT-06 | Unit | BR-26–43, BR-75, AC-24–30, AC-55 | Ticket query request validator/normalizer: Ticket field whitelist, exact condition matrix, searchFields whitelist/uniqueness, typed number/date/enum/IN conversion, nullable compatibility, query-complexity bounds, invalid rejection, and direct-client boundary. | Only Ticket-approved bounded input reaches QueryBuilder/Prisma; search >200 chars, >20 filters, duplicate search fields, `IN` outside 1–100 unique values, invalid combinations/enums/shapes/conversions fail before data access. | tests/lab-02/TicketQueryValidator.test.ts | Passed |
+| UNIT-07 | Unit | BR-28–33, DoD | Global QueryBuilder filter construction for `CONTAINS`, `STARTWITH`, `ENDWITH`, `EQUAL`, `NOTEQUAL`, `GREATER`, `LESSER`, `GREATEROREQUAL`, `LESSEROREQUAL`, `ISNULL`, `ISNOTNULL`, and `IN`. | Representative validated/typed inputs for every approved generic operator produce the expected reusable Prisma filter expression, including both null operators and `IN`; no Ticket field/permission rules are embedded here. | tests/lab-02/QueryBuilder.test.ts | Passed |
+| UNIT-08 | Unit | BR-26, BR-30, AC-24 | Global QueryBuilder multi-field search construction after resource validation. | The resource-approved search fields are supplied as validated inputs, are OR-combined, and the search fragment can be AND-combined with resource filters/fixed predicates. | tests/lab-02/QueryBuilder.test.ts | Passed |
+| UNIT-09 | Unit | BR-34–35, AC-27–28 | Global QueryBuilder generic order construction plus resource-owned Ticket sort translation. | Generic asc/desc ordering is constructed correctly; Ticket-specific semantic priority ordering remains outside generic hard-coded QueryBuilder domain logic. | tests/lab-02/QueryBuilder.test.ts | Passed |
 | UNIT-10 | Unit | BR-18–24, BR-82, AC-11–12, AC-42–43, AC-51–52, AC-65 | IdempotencyService: requester+key scope, exact canonical SHA-256 hashing, fresh/stale `PROCESSING` behavior, fencing ownership, valid state transition, current-state replay, logical expiry boundaries, concurrency, and controlled-failure rules. | Canonical UTF-8 SHA-256 is deterministic 64-character lowercase hex; UUIDs are normalized to canonical lowercase strings, duplicate values fail, and sorting is lexicographically ascending; `[A,B] == [B,A]`, `[A,B] != [A,C]`; fresh means `now < processingStartedAt + 300 seconds`, stale/reclaim-eligible means `now >= processingStartedAt + 300 seconds`, so `4m 59.999s` is fresh and `5m 00.000s` is stale; fresh same hash waits and fresh different hash conflicts; stale same hash conditionally reclaims and resets `processingStartedAt`, stale different hash conflicts without deletion; losing concurrent reclaimers resume wait/replay; exact status/hash/lease ownership passes fencing while any mismatch produces no mutation and resumes resolution; COMPLETED same hash replays and different hash conflicts; valid PROCESSING transitions to COMPLETED; later resource mutations do not change the original hash; 24-hour completed expiry remains independent. | tests/lab-02/IdempotencyService.test.ts | Passed |
 | UNIT-11 | Unit | BR-44–50, BR-61–64, BR-77, AC-13–16, AC-56, AC-58 | AttachmentService pre-upload validation: Pending creation, allowed extension/case, exact byte size, cross-platform basename/control/UTF-8-byte validation, MIME derivation, and duplicate original names. | Valid upload creates owned Pending metadata; extension uses validated basename; zero-byte and `5,000,001`-byte files fail; `4,999,999`-byte and `5,000,000`-byte files pass; unsafe/>255-byte names fail; MIME derives from extension. | tests/lab-02/AttachmentService.test.ts | Not Run |
 | UNIT-12 | Unit | BR-47, BR-50–56, AC-06, AC-17–18, AC-44 | Attachment lifecycle, 24-hour expiry, Ticket binding, deterministic processing, direct existing-Ticket add, and active-five limit. | Pending binds once and becomes Active; expiry targets only unbound Pending; direct existing-Ticket upload creates Active; Removed rows do not count toward five. | tests/lab-02/AttachmentService.test.ts | Not Run |
@@ -1088,24 +1202,24 @@ cover `ISNULL`, `ISNOTNULL`, and every other approved generic operator.
 | API-18 | API | BR-21–24 | Controlled failed Ticket/binding attempt is not completed. | Confirmed transaction failure leaves no COMPLETED result, Ticket, or partial binding; its owned PROCESSING claim is safely removed rather than changed to FAILED, and unchanged retry may execute again with Pending IDs. An abandoned claim fixture has no committed Ticket or Attachment mutation. | tests/lab-02/ticket-idempotency.api.test.ts | Passed |
 | API-19 | API | BR-22, AC-42, AC-65 | Fenced new/reclaimed-attempt final mutable-state validation. | The resource transaction locks the claim, verifies PROCESSING + expected hash + exact retained `processingStartedAt`, and holds the lock through commit/rollback; only a matching owner performs final Category/System/Pending validation and mutation; a mismatch performs no mutation and resumes wait/replay; completed replay bypasses current mutable validation; missing/cross-scope Pending safely 404s, owned non-bindable conflicts, and controlled 4xx is not completed. | tests/lab-02/ticket-idempotency.api.test.ts | Passed |
 | API-20 | API | BR-23–24 | Ambiguous 5xx recovery and compensation safety. | Same-key unchanged retry may recover a committed Ticket; Pending cleanup hard-deletes only still-Pending rows and cannot soft-remove now-Active evidence. | tests/lab-02/ticket-idempotency.api.test.ts | Partial — the same-key unchanged retry recovering a committed Ticket is covered; the Pending-cleanup half needs `DELETE /api/attachments/collection` and is owned by Issue #24 |
-| API-21 | API | AC-21 | My Tickets ownership, non-deleted scope, and `TicketListItemDTO` projection. | Only current-requester non-deleted Tickets are returned; every required list field is present; `description`, requester fields, `attachments`, `createdBy`, `updatedBy`, `updatedAt`, and `deleted` are absent. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-22 | API | AC-24 | Search matching and normalization. | Case-insensitive search, trimming, supplied fields OR together, including a Description-only match even though Description is absent from `TicketListItemDTO`; blank search = no search; searchFields without active search ignored. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-23 | API | AC-24 | searchFields validation. | Nonblank search without searchFields and unknown/non-whitelisted active search field return 400. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-24 | API | AC-25 | Valid URL-encoded JSON filters. | Valid filters are parsed/normalized and forwarded as typed expressions. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-25 | API | AC-26 | Malformed filters JSON / non-array root. | 400 Validation Error before query execution. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-26 | API | AC-26 | Unsupported filter field. | 400 before repository/Prisma call. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-27 | API | AC-26 | Disallowed Ticket field/condition combinations. | Direct API requests for every representative disallowed Ticket pairing, including generic-compatible but Ticket-forbidden operators and `ISNULL`/`ISNOTNULL`, return 400 before QueryBuilder/Prisma data-access execution; frontend restrictions are not treated as sufficient validation. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-28 | API | AC-25–26 | Invalid `IN` values. | Empty/non-array/comma-string `IN` value fails; typed non-empty array accepted. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-29 | API | AC-24–25 | Search/filter logical composition. | Search fields form one OR group; search group and each filter are AND-combined; multiple filters use AND. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-30 | API | AC-27–28 | Ticket sorting. | Default `createdAt DESC, id DESC`; approved Ticket Number/Summary directions; semantic Priority order; malformed/unsupported sort returns 400. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-31 | API | AC-29 | Pagination defaults and valid values. | Defaults page 1/size 10; pageSize 1–100 accepted. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-32 | API | AC-29 | Invalid pagination values. | pageNumber <1, pageSize outside 1–100, and explicitly blank/invalid parse values return 400. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-33 | API | AC-30 | Beyond-final-page behavior. | 200 with empty array; not treated as error. | tests/lab-02/my-tickets.api.test.ts | Not Run |
-| API-34 | API | AC-30 | `X-Pagination` response contract. | Header contains pageNumber/pageSize/totalItems/totalPages/hasPreviousPage/hasNextPage with correct zero-item behavior. | tests/lab-02/my-tickets.api.test.ts | Not Run |
+| API-21 | API | AC-21 | My Tickets ownership, non-deleted scope, and `TicketListItemDTO` projection. | Only current-requester non-deleted Tickets are returned; every required list field is present; `description`, requester fields, `attachments`, `createdBy`, `updatedBy`, `updatedAt`, and `deleted` are absent. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-22 | API | AC-24 | Search matching and normalization. | Case-insensitive search, trimming, supplied fields OR together, including a Description-only match even though Description is absent from `TicketListItemDTO`; blank search = no search; searchFields without active search ignored. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-23 | API | AC-24 | searchFields validation. | Nonblank search without searchFields and unknown/non-whitelisted active search field return 400. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-24 | API | AC-25 | Valid URL-encoded JSON filters. | Valid filters are parsed/normalized and forwarded as typed expressions. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-25 | API | AC-26 | Malformed filters JSON / non-array root. | 400 Validation Error before query execution. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-26 | API | AC-26 | Unsupported filter field. | 400 before repository/Prisma call. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-27 | API | AC-26 | Disallowed Ticket field/condition combinations. | Direct API requests for every representative disallowed Ticket pairing, including generic-compatible but Ticket-forbidden operators and `ISNULL`/`ISNOTNULL`, return 400 before QueryBuilder/Prisma data-access execution; frontend restrictions are not treated as sufficient validation. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-28 | API | AC-25–26 | Invalid `IN` values. | Empty/non-array/comma-string `IN` value fails; typed non-empty array accepted. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-29 | API | AC-24–25 | Search/filter logical composition. | Search fields form one OR group; search group and each filter are AND-combined; multiple filters use AND. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-30 | API | AC-27–28 | Ticket sorting. | Default `createdAt DESC, id DESC`; approved Ticket Number/Summary directions; semantic Priority order; malformed/unsupported sort returns 400. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-31 | API | AC-29 | Pagination defaults and valid values. | Defaults page 1/size 10; pageSize 1–100 accepted. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-32 | API | AC-29 | Invalid pagination values. | pageNumber <1, pageSize outside 1–100, and explicitly blank/invalid parse values return 400. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-33 | API | AC-30 | Beyond-final-page behavior. | 200 with empty array; not treated as error. | tests/lab-02/my-tickets.api.test.ts | Passed |
+| API-34 | API | AC-30 | `X-Pagination` response contract. | Header contains pageNumber/pageSize/totalItems/totalPages/hasPreviousPage/hasNextPage with correct zero-item behavior. | tests/lab-02/my-tickets.api.test.ts | Passed |
 | API-35 | API | AC-21 | Owned Ticket Detail. | 200 complete full TicketDTO for current requester's non-deleted Ticket, including Description, Requester, Attachment, and audit/lifecycle fields. | tests/lab-02/ticket-detail.api.test.ts | Not Run |
 | API-36 | API | AC-22 | Ticket outside current Requester scope. | Same centralized 404 as unavailable Ticket; no owner identity or protected resource data. | tests/lab-02/ticket-detail.api.test.ts | Not Run |
 | API-37 | API | AC-23 | Missing, malformed, or logically deleted Ticket route identifier. | Centralized 404 behavior for all three cases. | tests/lab-02/ticket-detail.api.test.ts | Not Run |
-| API-38 | API | BR-72–73 | Historical Category/System metadata on existing Ticket. | Full TicketDTO and TicketListItemDTO still return historical Category/System names after the master becomes inactive/logically deleted; such masters remain excluded from new-attempt selection validation. | tests/lab-02/ticket-detail.api.test.ts; tests/lab-02/my-tickets.api.test.ts | Not Run |
+| API-38 | API | BR-72–73 | Historical Category/System metadata on existing Ticket. | Full TicketDTO and TicketListItemDTO still return historical Category/System names after the master becomes inactive/logically deleted; such masters remain excluded from new-attempt selection validation. | tests/lab-02/ticket-detail.api.test.ts; tests/lab-02/my-tickets.api.test.ts | Partial — the `TicketListItemDTO` half passes in `my-tickets.api.test.ts`; the full `TicketDTO` half needs `GET /api/tickets/:publicId` and is owned by Issue #23. |
 | API-39 | API | AC-13 | Standalone `POST /api/attachments` pre-upload. | Exactly one `file` returns 201 full Pending AttachmentDTO with opaque storage key, `ticketPublicId: null`, deleted false, derived MIME, and audit metadata. | tests/lab-02/attachments.api.test.ts | Not Run |
 | API-40 | API | AC-14 | Unsupported Attachment extension. | 415 `UNSUPPORTED_MEDIA_TYPE`; no usable Attachment created. | tests/lab-02/attachments.api.test.ts | Not Run |
 | API-41 | API | AC-15 | Attachment size boundaries. | `4,999,999` and `5,000,000` bytes are accepted when other rules pass; `5,000,001` bytes returns `413 PAYLOAD_TOO_LARGE` and creates no usable Attachment. | tests/lab-02/attachments.api.test.ts | Not Run |
@@ -1133,9 +1247,9 @@ cover `ISNULL`, `ISNOTNULL`, and every other approved generic operator.
 | API-63 | API | AC-40 | `X-Request-Id` propagation/generation. | Valid incoming UUID is echoed; missing/malformed gets generated UUID; success and error responses include the resolved header. | tests/lab-02/error-contract.api.test.ts | Passed |
 | API-64 | API | AC-40 | Request-correlation logging safety using mocked logger/spies. | Logs correlate request ID/method/route/status/safe error info; binary data, secrets, DB URL, and unnecessarily sensitive payload content are not logged. | tests/lab-02/error-contract.api.test.ts | Passed |
 | API-65 | API | BR-74 | Ticket deletion route absence and default deletion state. | `DELETE /api/tickets/:publicId` is not registered; a newly created Ticket has `deleted = false`. | tests/lab-02/create-ticket.api.test.ts | Passed |
-| API-66 | API | FR-31, BR-40, AC-30, AC-40 | Explicit Lab 2 CORS policy and browser-readable response headers. | Preflight permits `Content-Type`, `X-Requester-Id`, `Idempotency-Key`, and `X-Request-Id`; responses expose both `X-Pagination` and `X-Request-Id`; Ticket-list response includes both readable values. | tests/lab-02/cors.api.test.ts | Partial — the header policy and preflight header list are covered by `cors.api.test.ts`; the Ticket-list `X-Pagination` value needs `GET /api/tickets` and is owned by Issue #22. |
+| API-66 | API | FR-31, BR-40, AC-30, AC-40 | Explicit Lab 2 CORS policy and browser-readable response headers. | Preflight permits `Content-Type`, `X-Requester-Id`, `Idempotency-Key`, and `X-Request-Id`; responses expose both `X-Pagination` and `X-Request-Id`; Ticket-list response includes both readable values. | tests/lab-02/cors.api.test.ts | Passed |
 | API-67 | API | BR-16, BR-51, AC-22 | Ticket create references an Attachment outside requester scope. | Same centralized 404 as unavailable; no Ticket or binding is created and owner/existence details are absent. | tests/lab-02/create-ticket.api.test.ts | Passed |
-| API-68 | API | AC-55 | Ticket-list query complexity bounds. | Search >200 chars, >20 filters, duplicate searchFields, and `IN` outside 1–100 unique typed values return 400 before QueryBuilder/repository/Prisma. | tests/lab-02/my-tickets.api.test.ts | Not Run |
+| API-68 | API | AC-55 | Ticket-list query complexity bounds. | Search >200 chars, >20 filters, duplicate searchFields, and `IN` outside 1–100 unique typed values return 400 before QueryBuilder/repository/Prisma. | tests/lab-02/my-tickets.api.test.ts | Passed |
 | API-69 | API | AC-47 | Direct-upload Serializable transaction retry mapping. | Active count and insert run in one PostgreSQL `Serializable` transaction; only supported serialization/deadlock transient failures are retried, with a small bounded randomized delay and at most three total attempts including the first; validation `400`, scope/not-found `404`, business-limit `409`, payload-size `413`, unsupported-media `415`, and other ordinary business errors are not retried; a retry that observes five Active rows returns `409`, and contention-only exhaustion returns centralized `500 INTERNAL_SERVER_ERROR`. The test does not assert exact backoff milliseconds and no `503 SERVICE_UNAVAILABLE` variant exists. | tests/lab-02/attachments.api.test.ts | Not Run |
 | API-70 | API | AC-54, AC-58 | Multipart boundary and binary hardening on both upload/access paths. | Missing/duplicate/unexpected/empty/path-like/control/Unicode/overlong files and exact size boundaries map correctly; binary responses use derived MIME, `nosniff`, safe dual filename parameters, `no-store`, and merged `Vary`. | tests/lab-02/attachments.api.test.ts | Not Run |
 | API-71 | API | AC-57 | Exact-origin CORS configuration. | Allowed origin succeeds with required allow/expose headers; disallowed/wildcard origins do not; missing/invalid allowlist fails startup outside development/test; origin-less API calls remain valid. | tests/lab-02/cors.api.test.ts | Passed |
@@ -1184,14 +1298,14 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-12 | UI | BR-23–24 | Ambiguous Ticket-create recovery. | Unchanged POST retries with the same key; completed 200 recovers same Ticket and Active Attachments without duplicate, cleanup damage, or re-upload. | tests/lab-02/CreateTicket.test.tsx | Partial — the unchanged same-key retry and the completed `200` recovering the same Ticket without a duplicate are covered; the Active-Attachment, cleanup-damage, and no-re-upload halves are owned by Issue #24 |
 | UI-13 | UI | AC-43 | Frontend Idempotency-Key lifecycle. | First logical submission gets a UUID; unchanged canonical retry and reordered same IDs reuse it; Ticket-field or final Attachment-set change generates a new key. | tests/lab-02/CreateTicket.test.tsx | Passed — including the reordered-set case, asserted against `payloadSignature` because the draft's `attachmentIds` are written by the Issue #24 controls |
 | UI-14 | UI | AC-45 | Create Ticket Cancel/discard. | Untouched empty draft cancels directly; dirty and/or known Pending draft requires confirmation; confirm sends best-effort Pending cleanup, clears fields/files, and returns to `/tickets`. | tests/lab-02/CreateTicket.test.tsx | Partial — the direct cancel, the confirmation, Keep editing, and the confirmed discard clearing the draft and recovery record are covered; the best-effort Pending cleanup call is owned by Issue #24 |
-| UI-15 | UI | AC-33 | My Tickets loading/table/stale-data prevention. | Skeleton rows during load; required table structure; stale previous-requester Tickets never render during context change. | tests/lab-02/MyTickets.test.tsx | Not Run |
-| UI-16 | UI | AC-34 | My Tickets empty dataset vs no-results states. | Shared EmptyState shows correct distinct copy/actions for true empty dataset and active-query no-results. | tests/lab-02/MyTickets.test.tsx | Not Run |
-| UI-17 | UI | AC-39 | My Tickets load failure. | Page-level list failure navigates to standalone `/error` with safe state. | tests/lab-02/MyTickets.test.tsx | Not Run |
-| UI-18 | UI | AC-24 | `SEARCH_DEBOUNCE_MS = 400` search debounce and API query mapping. | Using controlled/fake timers, typing starts the inactivity window and no search request occurs before 400 ms of inactivity; advancing to the exact 400 ms boundary triggers exactly one request with `searchFields=ticketNumber,summary,description`; the new effective search resets `pageNumber` to 1. No real-time sleep is used. | tests/lab-02/MyTickets.test.tsx | Not Run |
-| UI-19 | UI | AC-31 | Filter modal multi-select draft/apply/cancel/reset. | Category/System/Priority/Status are multi-select; Cancel discards; Reset clears draft only; Apply commits/fetches and page resets to 1. | tests/lab-02/MyTickets.test.tsx | Not Run |
-| UI-20 | UI | AC-31–32 | Filter count/chips/removal/Clear Filters. | Applied count + removable chips update; chip removal fetches page 1; Clear Filters available whenever query active, clears search/filters, preserves sort. | tests/lab-02/MyTickets.test.tsx | Not Run |
-| UI-21 | UI | AC-28 | Sort control mapping. | All approved Newest/Oldest/Ticket Number/Summary/Priority options map to exact API sort semantics. | tests/lab-02/MyTickets.test.tsx | Not Run |
-| UI-22 | UI | AC-29–30 | Pagination/page-size UI and list projection consumption. | Page controls use X-Pagination state; 10/20/30/50/100 choices; navigation/page-size changes fetch correct query; UI renders from TicketListItemDTO without requiring excluded fields. | tests/lab-02/MyTickets.test.tsx | Not Run |
+| UI-15 | UI | AC-33 | My Tickets loading/table/stale-data prevention. | Skeleton rows during load; required table structure; stale previous-requester Tickets never render during context change. | tests/lab-02/MyTickets.test.tsx | Passed |
+| UI-16 | UI | AC-34 | My Tickets empty dataset vs no-results states. | Shared EmptyState shows correct distinct copy/actions for true empty dataset and active-query no-results. | tests/lab-02/MyTickets.test.tsx | Passed |
+| UI-17 | UI | AC-39 | My Tickets load failure. | Page-level list failure navigates to standalone `/error` with safe state. | tests/lab-02/MyTickets.test.tsx | Passed |
+| UI-18 | UI | AC-24 | `SEARCH_DEBOUNCE_MS = 400` search debounce and API query mapping. | Using controlled/fake timers, typing starts the inactivity window and no search request occurs before 400 ms of inactivity; advancing to the exact 400 ms boundary triggers exactly one request with `searchFields=ticketNumber,summary,description`; the new effective search resets `pageNumber` to 1. No real-time sleep is used. | tests/lab-02/MyTickets.test.tsx | Passed |
+| UI-19 | UI | AC-31 | Filter modal multi-select draft/apply/cancel/reset. | Category/System/Priority/Status are multi-select; Cancel discards; Reset clears draft only; Apply commits/fetches and page resets to 1. | tests/lab-02/MyTickets.test.tsx | Passed |
+| UI-20 | UI | AC-31–32 | Filter count/chips/removal/Clear Filters. | Applied count + removable chips update; chip removal fetches page 1; Clear Filters available whenever query active, clears search/filters, preserves sort. | tests/lab-02/MyTickets.test.tsx | Passed |
+| UI-21 | UI | AC-28 | Sort control mapping. | All approved Newest/Oldest/Ticket Number/Summary/Priority options map to exact API sort semantics. | tests/lab-02/MyTickets.test.tsx | Passed |
+| UI-22 | UI | AC-29–30 | Pagination/page-size UI and list projection consumption. | Page controls use X-Pagination state; 10/20/30/50/100 choices; navigation/page-size changes fetch correct query; UI renders from TicketListItemDTO without requiring excluded fields. | tests/lab-02/MyTickets.test.tsx | Passed |
 | UI-23 | UI | FR-21–23 | Ticket Detail read-only information. | Ticket Number, createdAt-as-Ticket-Date, status, priority, requester name/email, category/system, summary/description render read-only with no edit/status workflow. | tests/lab-02/RequesterTicketDetail.test.tsx | Not Run |
 | UI-24 | UI | AC-22, AC-39 | Ticket Detail page-load ownership 404, unavailable 404, generic 403, and 500. | Requester-scope failure uses safe 404 without owner/A data; all page-level variants navigate to standalone `/error`; Back targets `/tickets`. | tests/lab-02/RequesterTicketDetail.test.tsx | Not Run |
 | UI-25 | UI | AC-13, AC-15, AC-16, AC-44 | Attachment per-file lifecycle presentation and client size boundaries. | Uploading, Failed/Retry, Invalid, Pending, Active, and Removed are distinct; `4,999,999` and `5,000,000` bytes remain valid, `5,000,001` bytes is Invalid, sibling success may become Pending but unresolved intended files block submit, and referenced Pending becomes Active after create. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
@@ -1201,7 +1315,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-29 | UI | AC-19 | Per-selected-Attachment removal reasons. | One required 3–200 char trimmed reason per selected active file; invalid reason blocks delete request. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-30 | UI | AC-19 | Atomic batch-removal UI failure. | Failed all-or-nothing API request leaves all selected rows in previous state; no partial Removed UI. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-31 | UI | AC-39 | Global Error page variants. | 403/404/500 safe copy; standalone no sidebar; no backend internals; explicit Back routes `/tickets` rather than browser history. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Passed for shared error foundation — `ApplicationShell.test.tsx` verifies safe 403, 404, and 500 variants, generic fallback for missing or unsupported route state, and safe standalone `/error` rendering without the application shell. Feature-specific paths may exercise the same shared error foundation in later issues. |
-| UI-32 | UI | AC-38 | Shared accessibility contract across UI suites. | Semantic controls, labels/required/errors, keyboard operability, visible focus, aria-live for meaningful async states, icon accessible names plus mandatory tooltip/hover-focus labels, modal focus management, and non-color-only states. | tests/lab-02/RequesterSelection.test.tsx; tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/CreateTicket.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/ErrorPage.test.tsx | Partial — the shared primitives and shell landmarks/keyboard behavior pass in `ApplicationShell.test.tsx` and `SharedComponents.test.tsx`. Per-screen coverage follows the screens in Issues #20–#23. |
+| UI-32 | UI | AC-38 | Shared accessibility contract across UI suites. | Semantic controls, labels/required/errors, keyboard operability, visible focus, aria-live for meaningful async states, icon accessible names plus mandatory tooltip/hover-focus labels, modal focus management, and non-color-only states. | tests/lab-02/RequesterSelection.test.tsx; tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/CreateTicket.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/ErrorPage.test.tsx | Partial — the shared primitives and shell landmarks/keyboard behavior pass in `ApplicationShell.test.tsx` and `SharedComponents.test.tsx`. My Tickets adds its own coverage in `MyTickets.test.tsx`; Ticket Detail and Attachments follow in Issue #23. |
 | UI-33 | UI | AC-51–53 | Ambiguous-create recovery persistence and expiry. | Recovery record stores requester/key time/original normalized payload only while ambiguous; reload offers explicit resume without auto-submit; success/failure/discard/switch/expiry clears it; current replay rendering includes later Attachment mutations. | tests/lab-02/CreateTicket.test.tsx | Partial — the requester-scoped record, the approved field set, the explicit no-auto-submit resume, the 24-hour deadline, and clearing on success/failure/discard/switch are covered; the later-Attachment replay rendering is owned by Issue #24 |
 | UI-34 | UI | AC-54 | Requester-header binary fetch and Blob URL lifecycle. | Preview/download checks response before body, sends X-Requester-Id, uses known originalName for download, and revokes URLs on close/replacement/unmount/after download; direct binary navigation is not used. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-35 | UI | AC-61 | State-less global-error fallback. | Missing/invalid navigation state renders safe generic 500 copy; arbitrary backend text is ignored; Back chooses `/tickets` with valid Requester context and `/requesters` without it. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Passed — global-error regression coverage verifies safe 403/404/500 copy, generic fallback for missing/invalid/restored state, rejection of caller-controlled backend copy and `backPath`, deterministic Back routing based on Requester context, and route-focus behavior. |
