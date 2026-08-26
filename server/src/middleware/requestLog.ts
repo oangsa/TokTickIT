@@ -1,5 +1,14 @@
 import type { NextFunction, Request, Response } from "express";
 
+function routeKey(req: Request): string {
+  if (!req.route) {
+    return "unmatched";
+  }
+
+  const path = String(req.route.path);
+  return /^\/api(?:\/|$)/.test(path) ? path : `/api${path}`;
+}
+
 /*
  * api-spec Section 17: one structured line per request, built from an explicit
  * allowlist. The raw URL/query string, headers, bodies, Requester names and
@@ -17,7 +26,7 @@ export function requestLog(req: Request, res: Response, next: NextFunction): voi
       JSON.stringify({
         requestId: req.requestId ?? null,
         method: req.method,
-        route: req.route ? `${req.baseUrl}${req.route.path}` : "unmatched",
+        route: routeKey(req),
         status: res.statusCode,
         durationMs: Math.round(durationMs),
         errorCode,

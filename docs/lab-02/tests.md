@@ -1677,6 +1677,266 @@ The final verification was run against the reviewed tree, with
 | Client build | `npm run build` | `client/` | Passed — Vite build completed. |
 
 
+### 4.5.32 Issue #23 Ticket Detail close gate
+
+`GET /api/tickets/:publicId` and the read-only Ticket Detail screen were added
+together with the four files the Issue #23 gate names. Ownership is enforced
+inside the Prisma `where` rather than as a check on the answer, so the tests
+assert the predicate itself (`{ publicId, requesterId, deleted: false }`) as
+well as the response: an out-of-scope Ticket and a missing one produce
+byte-identical 404 envelopes, and a malformed identifier is rejected before the
+table is read so the `@db.Uuid` cast cannot turn it into a 500.
+
+`ErrorPage.test.tsx` is not new coverage. The global-error suite already existed
+inside `ApplicationShell.test.tsx`; it was moved into the file the gate names,
+along with its two helpers, so the same assertions run under the required
+filename rather than being duplicated. `ApplicationShell.test.tsx` keeps only
+its shell-level `/error` checks.
+
+Non-vacuity was established per side rather than in bulk. With
+`routes/tickets.ts` and `ticketService.ts` restored to their pre-change state,
+5 of the 24 server cases fail — the remaining 19 pass vacuously, because an
+unregistered route answers the same centralized 404 the tests expect for a
+miss, which is exactly why the 200-path and predicate assertions carry the
+proof. With `RequesterTicketDetail.tsx` restored to its Issue #23 placeholder,
+all 15 client detail cases fail.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #23 focused server gate | `npx vitest run tests/lab-02/ticket-detail.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 2 files, 24 tests. |
+| Server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 20 files, 444 tests. |
+| Server typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Issue #23 focused client gate | `npx vitest run tests/lab-02/RequesterTicketDetail.test.tsx tests/lab-02/ErrorPage.test.tsx` | `client/` | Passed — 2 files, 31 tests. |
+| Client full test suite | `npx vitest run` | `client/` | Passed — 9 files, 210 tests. |
+| Client typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+| Client build | `npm run build` | `client/` | Passed — Vite build completed. |
+
+Nothing in this change touches the schema, a migration, or the seed — the
+detail read is a single `findFirst` on the existing `ticket_public_id` unique
+index — so no Prisma CLI command was run beyond the `migrate deploy` the
+PostgreSQL suites perform against their own disposable target.
+
+### 4.5.33 Issue #23 scrutiny pass and fixes
+
+The change above was then reviewed end to end from outside and six findings
+were fixed.
+
+The creation confirmation was read from `location.state` unconditionally, and
+`location.state` is persisted in the history entry, so a reload or a Back into
+the detail entry re-announced "Ticket TKT-… was created." for a Ticket created
+long before. `ErrorPage` already discards restored state through
+`useNavigationType() === "POP"`; Ticket Detail now applies the same test, with
+a regression case that renders the entry as the router's own initial one.
+
+`Last Updated` and an Attachment's `Uploaded At` were formatted with
+`ticketDate`, which exists to keep `createdAt` on the same `Asia/Bangkok`
+business calendar the Ticket Number commits to (BR-01-03). Neither field
+carries that contract, and date alone renders two audits on one day
+identically, so both now use a `ticketDateTime` formatter pinned to the same
+locale and time zone with `hourCycle: "h23"`.
+
+Both page-level failure paths pushed `/error`, so Back out of the error screen
+returned to the route that had just failed, which failed again and pushed
+another entry. Ticket Detail and My Tickets now replace instead; `ErrorPage`
+reads `REPLACE` as a live navigation, so the status-specific copy still
+resolves.
+
+The detail effect refetched on a `publicId` change without clearing `ticket`,
+which would have rendered the previous Ticket's number, summary, and
+description under the new identifier until the fetch landed. Unreachable
+through the current UI, and closed with one `setTicket(null)`.
+
+`requestLog` built its `route` field from `req.baseUrl` at `finish`. Express
+restores `baseUrl` as an error propagates out of the router, so one endpoint
+logged `/api/tickets/:publicId` on its `200` and `/tickets/:publicId` on its
+`404` — two aggregation keys for the endpoint that answers `404` by design. The
+key is now derived from `req.route.path` alone with the service's single mount
+prefix restored, and is identical on both outcomes.
+
+Ownership was asserted only as the shape of the `where` handed to a mocked
+Prisma client, which passes whether or not the engine applies it.
+`ticket-detail.postgres.test.ts` (PG-16) now proves it as an outcome. Its
+non-vacuity was checked by widening the predicate to `{ publicId }` and
+dropping the Attachment `omit`: 3 of its 5 cases fail.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #23 focused server gate | `npx vitest run tests/lab-02/ticket-detail.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 2 files, 24 tests. |
+| Ticket Detail PostgreSQL suite | `npx vitest run tests/lab-02/postgres/ticket-detail.postgres.test.ts` | `server/`; `postgres:16-alpine` on the guarded target | Passed — 5 tests. |
+| Server suite, all files | `npx vitest run` | `server/`; live PostgreSQL target | Passed — 26 files, 501 tests. |
+| Server typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Issue #23 focused client gate | `npx vitest run tests/lab-02/RequesterTicketDetail.test.tsx tests/lab-02/ErrorPage.test.tsx` | `client/` | Passed — 2 files, 32 tests. |
+| Client full test suite | `npx vitest run` | `client/` | Passed — 9 files, 211 tests. |
+| Client typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+
+Two review findings were deliberately left standing. The Attachment table ships
+its selection checkbox and its preview/download/remove controls inert, which
+reads against ui-spec Section 21.3's "required actions must remain usable" — the
+behavior is owned by Issue #24 and the labels are what UI-37 assigns to this
+Issue, so the controls stay and #24 wires them. Ticket Detail also renders
+Created By, Updated By, and Last Updated, which ui-spec Section 20.2 does not
+list among its required fields; the Issue's own acceptance criteria name the
+audit fields, so they stay visible pending a reviewer's call.
+
+### 4.5.34 Issue #23 second scrutiny pass and fixes
+
+A second outside pass read the change against ui-spec Section 26, which the
+first pass had not reached, and four findings were fixed.
+
+The Attachment table applied half of Section 26. A Removed row hid its Remove
+control but still rendered Preview and Download, and its `removalReason` — read
+from the database, carried through `AttachmentDTO`, and asserted in
+`ticket-detail.api.test.ts` — was never rendered at all. Section 26 is explicit
+on both halves: a Removed row is not selectable and exposes no Preview, no
+Download, and no Remove, and its removal reason is shown as secondary metadata
+rather than as a permanently wide column. The row now renders an em dash where
+its controls were, drops its selection checkbox, and carries
+`Removal reason: …` beneath the file name. This supersedes the standing note in
+Section 4.5.33 for Removed rows only: the inert controls on **Active** rows are
+still Issue #24's to wire, and the labels UI-37 assigns remain there.
+
+Attachment sizes were formatted with binary divisors labelled `KB`/`MB`, while
+the rule the UI states to the user is decimal — ui-spec Section 22.3 fixes the
+per-file limit at `5,000,000` bytes and calls it "5 MB". A file at exactly that
+limit rendered as `4.8 MB` on a screen promising a maximum of 5 MB. The
+formatter now divides by 1000, so the fixtures read `281.3 KB` and `4.1 KB`.
+
+The creation confirmation printed the Ticket Number carried in navigation
+state, even though it renders only after the fetch has landed and the
+authoritative number is in hand. Navigation state is caller-controlled: it is
+now trusted to say that a Ticket was just created, never which one, and the
+banner reads `ticket.ticketNumber`. The heading still falls back to the state
+value while the fetch is in flight, which is the one moment there is nothing
+else to show.
+
+`routeKey` restored its `/api` prefix on any path that merely started with
+those four characters, so a future router path such as `/apikeys` would have
+been logged without its prefix. The test is now segment-anchored
+(`/^\/api(\/|$)/`), and the route key itself gained the coverage the earlier
+fix never had: `ticket-detail.api.test.ts` captures the emitted log lines and
+asserts the `200` and the `404` produce the identical key.
+
+Non-vacuity was checked per fix rather than in bulk. With the page's Section 26
+handling, decimal units, and banner source restored to their pre-fix form, 4 of
+the 18 client detail cases fail; with `routeKey` restored to the `req.baseUrl`
+form, the new server log case fails.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #23 focused server gate | `npx vitest run tests/lab-02/ticket-detail.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 2 files, 25 tests. |
+| Server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 20 files, 445 tests. |
+| Server typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Issue #23 focused client gate | `npx vitest run tests/lab-02/RequesterTicketDetail.test.tsx tests/lab-02/ErrorPage.test.tsx` | `client/` | Passed — 2 files, 34 tests. |
+| Client full test suite | `npx vitest run` | `client/` | Passed — 9 files, 213 tests. |
+| Client typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+| Client build | `npm run build` | `client/` | Passed — Vite build completed. |
+
+The guarded PostgreSQL suites were not re-run in this pass: no target is
+reachable from this session, and every fix is client-side apart from the
+`routeKey` regex, which no PostgreSQL case exercises. Their last recorded run
+is Section 4.5.33. One documentation defect was fixed alongside: the PG-16 row
+in Section 7 sat behind a blank line and therefore rendered as literal pipe
+text rather than as a row of the table above it.
+
+### 4.5.35 Issue #23 final fix-then-ship pass
+
+The final outside review found that navigation state could claim any loaded
+Ticket had just been created: the page narrowed `created` and `ticketNumber`,
+but used the number only as a truthy flag. The success message now renders only
+when that carried official Ticket Number exactly matches the fetched
+`ticket.ticketNumber`. The mismatch regression fails against the previous
+implementation.
+
+Issue #23 also exposed disabled selection, Add, Preview, Download, and Remove
+controls before Issue #24 supplied their behavior. Besides making read-only UI
+look interactive, the three minimum-width icon buttons could not fit inside the
+fixed-layout mobile action cell. Issue #23 now renders only Attachment metadata:
+File Name, Type, Size, Uploaded At, lifecycle Status, and Removed reason. Type
+and Uploaded At remain secondary columns below the `md` breakpoint; selection
+and action UI arrives with its real behavior in Issue #24. A regression asserts
+that no Attachment button or checkbox is exposed.
+
+Two unrelated changes were removed from this Issue: My Tickets no longer
+changes its error navigation history, and the global request logger plus its
+Ticket Detail aggregation test returned to their pre-Issue behavior. The
+`CreateTicket.test.tsx` API double was also corrected to distinguish the Ticket
+collection from `GET /api/tickets/:publicId`; the full client run had exposed
+five unhandled date-format errors because the detail request incorrectly
+received the list response. Its creation-navigation case now reaches the real
+Detail page and asserts the official heading and confirmation.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #23 focused server gate | `npx vitest run tests/lab-02/ticket-detail.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 2 files, 24 tests. |
+| Server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 20 files, 444 tests. |
+| Issue #23 focused client gate | `npx vitest run tests/lab-02/RequesterTicketDetail.test.tsx tests/lab-02/ErrorPage.test.tsx` | `client/` | Passed — 2 files, 33 tests. |
+| Create-to-Detail integration-focused client gate | `npx vitest run tests/lab-02/CreateTicket.test.tsx tests/lab-02/RequesterTicketDetail.test.tsx tests/lab-02/ErrorPage.test.tsx` | `client/` | Passed — 3 files, 71 tests. |
+| Client full test suite | `npx vitest run` | `client/` | Passed — 9 files, 212 tests; existing React key/`act` warnings remain. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Client build | `npm run build` | `client/` | Passed — TypeScript and Vite build completed. |
+
+No schema, migration, seed, persistence, or REST contract changed. The PG-16
+result remains the engine evidence recorded in Section 4.5.33; this pass did not
+rerun PostgreSQL because its fixes are presentation, navigation-state, test
+double, and scope cleanup only.
+
+### 4.5.36 Issue #23 final review closure
+
+The final review found no application defect. Its PostgreSQL verification
+failure reproduced in the isolated PG-16 suite at `resetTestSchema`, before any
+migration, Ticket Detail query, or assertion ran. The documented disposable
+`toktickit-lab2-test-postgres` container was absent. Starting that container
+with the existing untracked synthetic test credential made PG-16 pass, and the
+same target then supported a clean full server run. This rules out the Detail
+query and test orchestration as causes of the earlier failure.
+
+Responsive and visual browser evidence was not pulled forward. Section 14
+assigns the root Playwright tooling and `responsive-visual.spec.ts` to Issue
+#25; adding that tooling on the Issue #23 branch would cross the approved Issue
+boundary. Issue #23 retains its responsive implementation evidence in the
+fixed-layout, wrapping Attachment table and breakpoint-hidden secondary
+columns, while RESP-03 and VIS-03 remain honestly `Not Run` until Issue #25.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Ticket Detail PostgreSQL suite | `npx vitest run tests/lab-02/postgres/ticket-detail.postgres.test.ts` | `server/`; documented disposable `postgres:16-alpine` target | Passed — 1 file, 5 tests. |
+| Full server suite | `npx vitest run` | `server/`; same guarded disposable PostgreSQL target | Passed — 26 files, 501 tests. |
+| Issue #23 focused server gate | `npx vitest run tests/lab-02/ticket-detail.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 2 files, 24 tests. |
+| Issue #23 focused client gate | `npx vitest run tests/lab-02/RequesterTicketDetail.test.tsx tests/lab-02/ErrorPage.test.tsx` | `client/` | Passed — 2 files, 33 tests. |
+| Full client suite | `npx vitest run --silent --reporter=dot` | `client/` | Passed — 9 files, 212 tests. Existing React key/`act` warnings remain unrelated. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Client build | `npm run build` | `client/` | Passed — TypeScript and Vite build completed. |
+
+No application source, schema, migration, seed, persistence behavior, or REST
+contract changed in this closure pass.
+
+### 4.5.37 Issue #23 route-log aggregation fix
+
+The final ship request closed the remaining observability defect. The structured
+request logger read `req.baseUrl` only after the response finished. Express
+restores that value while a centralized error leaves a mounted router, so Ticket
+Detail logged its owned `200` as `/api/tickets/:publicId` and its expected hidden
+`404` as `/tickets/:publicId`. One endpoint therefore produced two aggregation
+keys based only on outcome.
+
+The logger now normalizes the registered route template itself and never reads
+the raw URL. A regression captures an owned hit and a hidden miss and requires
+both log records to use `/api/tickets/:publicId`. It failed before the fix with
+the exact split above.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #23 focused server gate | `npm test -- --run tests/lab-02/ticket-detail.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 2 files, 25 tests. |
+| Server suite, non-PostgreSQL | `npm test -- --run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 20 files, 445 tests. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Issue #23 focused client gate | `npm test -- --run tests/lab-02/RequesterTicketDetail.test.tsx tests/lab-02/ErrorPage.test.tsx` | `client/` | Passed — 2 files, 33 tests. |
+| Client build | `npm run build` | `client/` | Passed — TypeScript and Vite build completed. |
+
+PostgreSQL was not rerun because this fix changes logging only; it does not
+touch Prisma, SQL, schema, migrations, or persistence behavior.
+
 ## 5. Reusable QueryBuilder Test Principle
 
 The global QueryBuilder follows the reusable infrastructure/repository utility pattern:
@@ -1805,10 +2065,10 @@ cover `ISNULL`, `ISNOTNULL`, and every other approved generic operator.
 | API-32 | API | AC-29 | Invalid pagination values. | pageNumber <1, pageSize outside 1–100, and explicitly blank/invalid parse values return 400. | tests/lab-02/my-tickets.api.test.ts | Passed |
 | API-33 | API | AC-30 | Beyond-final-page behavior. | 200 with empty array; not treated as error. | tests/lab-02/my-tickets.api.test.ts | Passed |
 | API-34 | API | AC-30 | `X-Pagination` response contract. | Header contains pageNumber/pageSize/totalItems/totalPages/hasPreviousPage/hasNextPage with correct zero-item behavior. | tests/lab-02/my-tickets.api.test.ts | Passed |
-| API-35 | API | AC-21 | Owned Ticket Detail. | 200 complete full TicketDTO for current requester's non-deleted Ticket, including Description, Requester, Attachment, and audit/lifecycle fields. | tests/lab-02/ticket-detail.api.test.ts | Not Run |
-| API-36 | API | AC-22 | Ticket outside current Requester scope. | Same centralized 404 as unavailable Ticket; no owner identity or protected resource data. | tests/lab-02/ticket-detail.api.test.ts | Not Run |
-| API-37 | API | AC-23 | Missing, malformed, or logically deleted Ticket route identifier. | Centralized 404 behavior for all three cases. | tests/lab-02/ticket-detail.api.test.ts | Not Run |
-| API-38 | API | BR-72–73 | Historical Category/System metadata on existing Ticket. | Full TicketDTO and TicketListItemDTO still return historical Category/System names after the master becomes inactive/logically deleted; such masters remain excluded from new-attempt selection validation. | tests/lab-02/ticket-detail.api.test.ts; tests/lab-02/my-tickets.api.test.ts | Partial — the `TicketListItemDTO` half passes in `my-tickets.api.test.ts`; the full `TicketDTO` half needs `GET /api/tickets/:publicId` and is owned by Issue #23. |
+| API-35 | API | AC-21 | Owned Ticket Detail. | 200 complete full TicketDTO for current requester's non-deleted Ticket, including Description, Requester, Attachment, and audit/lifecycle fields. | tests/lab-02/ticket-detail.api.test.ts | Passed — the owning Requester receives the full `TicketDTO` with Description, Requester fields, active and Removed Attachment metadata, and audit fields; the stored bytes and the internal row ids stay out of the response. |
+| API-36 | API | AC-22 | Ticket outside current Requester scope. | Same centralized 404 as unavailable Ticket; no owner identity or protected resource data. | tests/lab-02/ticket-detail.api.test.ts | Passed — ownership and `deleted = false` are asserted as members of the Prisma `where`, and the out-of-scope answer is byte-identical to the missing-Ticket answer. |
+| API-37 | API | AC-23 | Missing, malformed, or logically deleted Ticket route identifier. | Centralized 404 behavior for all three cases. | tests/lab-02/ticket-detail.api.test.ts | Passed — missing, malformed, and logically deleted identifiers all answer the same centralized 404; a malformed identifier is rejected before the table is read, so the `@db.Uuid` cast cannot turn it into a 500. |
+| API-38 | API | BR-72–73 | Historical Category/System metadata on existing Ticket. | Full TicketDTO and TicketListItemDTO still return historical Category/System names after the master becomes inactive/logically deleted; such masters remain excluded from new-attempt selection validation. | tests/lab-02/ticket-detail.api.test.ts; tests/lab-02/my-tickets.api.test.ts | Passed — both halves now execute: the `TicketListItemDTO` half in `my-tickets.api.test.ts`, and the full `TicketDTO` half in `ticket-detail.api.test.ts`, where Category and Related System rows marked inactive and deleted still resolve their names and the join is asserted to carry no active/deleted predicate. |
 | API-39 | API | AC-13 | Standalone `POST /api/attachments` pre-upload. | Exactly one `file` returns 201 full Pending AttachmentDTO with opaque storage key, `ticketPublicId: null`, deleted false, derived MIME, and audit metadata. | tests/lab-02/attachments.api.test.ts | Not Run |
 | API-40 | API | AC-14 | Unsupported Attachment extension. | 415 `UNSUPPORTED_MEDIA_TYPE`; no usable Attachment created. | tests/lab-02/attachments.api.test.ts | Not Run |
 | API-41 | API | AC-15 | Attachment size boundaries. | `4,999,999` and `5,000,000` bytes are accepted when other rules pass; `5,000,001` bytes returns `413 PAYLOAD_TOO_LARGE` and creates no usable Attachment. | tests/lab-02/attachments.api.test.ts | Not Run |
@@ -1869,6 +2129,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-13 | PostgreSQL Integration | BR-21, BR-51, AC-06 | A competing writer binds a referenced Pending Attachment after the create transaction's non-locking Pending read, using separate connections. | The binding `UPDATE` re-checks Pending state under the row lock and affects fewer rows than were read, so the create resolves `409` instead of moving the Attachment off the winning Ticket; no losing Ticket, binding, or COMPLETED result commits and the owned claim is removed. | tests/lab-02/postgres/transactions.postgres.test.ts | Passed |
 | PG-14 | PostgreSQL Integration | BR-03, AC-07 | A Ticket Number unique violation followed by a retry inside the same transaction. | The violation puts the transaction into PostgreSQL's aborted state (`25P02`), so each attempt runs inside a savepoint and a failed attempt rolls back to it; the retry then inserts normally and the bounded BR-03 retry is reachable rather than dead. | tests/lab-02/postgres/transactions.postgres.test.ts | Passed |
 | PG-15 | PostgreSQL Integration | BR-26–39, BR-72–73, AC-21–30, AC-55 | The My Tickets read path executed by an engine: two Requesters whose rows match each other's search terms and filters, a logically deleted row, a wide `createdAt` tie, and a Ticket on reference rows that later go inactive and deleted. | Ownership holds as an outcome rather than as the presence of a `{ requesterId }` object — neither Requester's rows, totals, or pages reach the other, including under a search that matches both; the deleted row is absent from rows and totals alike; a Ticket matches through Description alone while the DTO omits it; `mode: "insensitive"` reaches the comparison for `contains`, for `not`, and for the `IN` the builder expands into insensitive equality, including against `ticket_number`; Priority sorts by enum declaration order rather than alphabetically; the search OR-group ANDs with every filter; paging is complete and duplicate-free past a wide tie and beyond the final page; a LIKE wildcard carried in a search term or an `EQUAL` value is matched as a literal rather than as pattern syntax, so a case-insensitive `EQUAL` stays equality even though Prisma renders it as `ILIKE`; and historical Category and Related System names survive both master rows going inactive and deleted. | tests/lab-02/postgres/my-tickets.postgres.test.ts | Passed — 13 tests |
+| PG-16 | PostgreSQL Integration | BR-72–73, AC-21–23 | The Ticket Detail read executed by an engine: two Requesters, a logically deleted Ticket, one bound Attachment, and Category/Related System rows that are inactive and deleted. | Ownership holds as an outcome rather than as the presence of a `{ requesterId }` object — another Requester's existing, non-deleted Ticket resolves to `null` when asked for by its real identifier, in both directions, and so does the owner's own logically deleted Ticket; the owned read returns the full DTO with its Attachment metadata; historical Category and Related System names still resolve after both master rows go inactive and deleted; and the emitted SQL never selects the Attachment `data` column. | tests/lab-02/postgres/ticket-detail.postgres.test.ts | Passed — 5 tests |
 
 ## 8. Planned UI Tests
 
@@ -1896,21 +2157,21 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-20 | UI | AC-31–32 | Filter count/chips/removal/Clear Filters. | Applied count + removable chips update; chip removal fetches page 1; Clear Filters available whenever query active, clears search/filters, preserves sort. | tests/lab-02/MyTickets.test.tsx | Passed |
 | UI-21 | UI | AC-28 | Sort control mapping. | All approved Newest/Oldest/Ticket Number/Summary/Priority options map to exact API sort semantics. | tests/lab-02/MyTickets.test.tsx | Passed |
 | UI-22 | UI | AC-29–30 | Pagination/page-size UI and list projection consumption. | Page controls use X-Pagination state; 10/20/30/50/100 choices; navigation/page-size changes fetch correct query; UI renders from TicketListItemDTO without requiring excluded fields. | tests/lab-02/MyTickets.test.tsx | Passed |
-| UI-23 | UI | FR-21–23 | Ticket Detail read-only information. | Ticket Number, createdAt-as-Ticket-Date, status, priority, requester name/email, category/system, summary/description render read-only with no edit/status workflow. | tests/lab-02/RequesterTicketDetail.test.tsx | Not Run |
-| UI-24 | UI | AC-22, AC-39 | Ticket Detail page-load ownership 404, unavailable 404, generic 403, and 500. | Requester-scope failure uses safe 404 without owner/A data; all page-level variants navigate to standalone `/error`; Back targets `/tickets`. | tests/lab-02/RequesterTicketDetail.test.tsx | Not Run |
+| UI-23 | UI | FR-21–23 | Ticket Detail read-only information. | Ticket Number, createdAt-as-Ticket-Date, status, priority, requester name/email, category/system, summary/description render read-only with no edit/status workflow. | tests/lab-02/RequesterTicketDetail.test.tsx | Passed — every required field renders with its value as a `readOnly` control rather than a disabled one, the Ticket Date reads from `createdAt` on the business calendar, and no comment, note, assignment, transition, or deletion control exists on the page. |
+| UI-24 | UI | AC-22, AC-39 | Ticket Detail page-load ownership 404, unavailable 404, generic 403, and 500. | Requester-scope failure uses safe 404 without owner/A data; all page-level variants navigate to standalone `/error`; Back targets `/tickets`. | tests/lab-02/RequesterTicketDetail.test.tsx | Passed — 404, 403, 500, and a transport failure each land on the standalone `/error` screen with its own safe copy, no sidebar, no backend text, and Back resolved to `/tickets`. |
 | UI-25 | UI | AC-13, AC-15, AC-16, AC-44 | Attachment per-file lifecycle presentation and client size boundaries. | Uploading, Failed/Retry, Invalid, Pending, Active, and Removed are distinct; `4,999,999` and `5,000,000` bytes remain valid, `5,000,001` bytes is Invalid, sibling success may become Pending but unresolved intended files block submit, and referenced Pending becomes Active after create. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-26 | UI | AC-18 | Attachment `x/5` count and Add behavior. | Count includes only active; Removed excluded; at 5/5 Add disabled; no extra max-limit explanatory paragraph. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-27 | UI | AC-20, AC-38 | Attachment preview modal. | Pending and Active owned supported image/PDF fixtures open the modal; Download is available; Escape/close works; focus trap/return and accessible modal semantics hold. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-28 | UI | AC-19 | Batch Attachment selection. | Only Active Ticket Detail rows are selectable; selected count and Remove Selected behave correctly; Create Ticket transient/Pending states and Removed rows are not selectable for Active removal. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-29 | UI | AC-19 | Per-selected-Attachment removal reasons. | One required 3–200 char trimmed reason per selected active file; invalid reason blocks delete request. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
 | UI-30 | UI | AC-19 | Atomic batch-removal UI failure. | Failed all-or-nothing API request leaves all selected rows in previous state; no partial Removed UI. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
-| UI-31 | UI | AC-39 | Global Error page variants. | 403/404/500 safe copy; standalone no sidebar; no backend internals; explicit Back routes `/tickets` rather than browser history. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Passed for shared error foundation — `ApplicationShell.test.tsx` verifies safe 403, 404, and 500 variants, generic fallback for missing or unsupported route state, and safe standalone `/error` rendering without the application shell. Feature-specific paths may exercise the same shared error foundation in later issues. |
-| UI-32 | UI | AC-38 | Shared accessibility contract across UI suites. | Semantic controls, labels/required/errors, keyboard operability, visible focus, aria-live for meaningful async states, icon accessible names plus mandatory tooltip/hover-focus labels, modal focus management, and non-color-only states. | tests/lab-02/RequesterSelection.test.tsx; tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/CreateTicket.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/ErrorPage.test.tsx | Partial — the shared primitives and shell landmarks/keyboard behavior pass in `ApplicationShell.test.tsx` and `SharedComponents.test.tsx`. My Tickets adds its own coverage in `MyTickets.test.tsx`; Ticket Detail and Attachments follow in Issue #23. |
+| UI-31 | UI | AC-39 | Global Error page variants. | 403/404/500 safe copy; standalone no sidebar; no backend internals; explicit Back routes `/tickets` rather than browser history. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Passed — the error-page suite now lives in `ErrorPage.test.tsx`, which verifies the safe 403, 404, and 500 variants, the generic fallback for missing or unsupported route state, and deterministic Back routing; `ApplicationShell.test.tsx` keeps the shell-level checks that `/error` renders standalone with its own `main` landmark. Ticket Detail exercises the same foundation from a real failed page load. |
+| UI-32 | UI | AC-38 | Shared accessibility contract across UI suites. | Semantic controls, labels/required/errors, keyboard operability, visible focus, aria-live for meaningful async states, icon accessible names plus mandatory tooltip/hover-focus labels, modal focus management, and non-color-only states. | tests/lab-02/RequesterSelection.test.tsx; tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/CreateTicket.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/ErrorPage.test.tsx | Partial — the shared primitives and shell landmarks/keyboard behavior pass in `ApplicationShell.test.tsx` and `SharedComponents.test.tsx`; My Tickets in `MyTickets.test.tsx`; Ticket Detail in `RequesterTicketDetail.test.tsx`, which asserts reachable read-only fields, live-region announcements, textual lifecycle states, and no inert Attachment controls. Attachment actions and their icon-only labels follow in Issue #24. |
 | UI-33 | UI | AC-51–53 | Ambiguous-create recovery persistence and expiry. | Recovery record stores requester/key time/original normalized payload only while ambiguous; reload offers explicit resume without auto-submit; success/failure/discard/switch/expiry clears it; current replay rendering includes later Attachment mutations. | tests/lab-02/CreateTicket.test.tsx | Partial — the requester-scoped record, the approved field set, the explicit no-auto-submit resume, the 24-hour deadline, and clearing on success/failure/discard/switch are covered; the later-Attachment replay rendering is owned by Issue #24 |
 | UI-34 | UI | AC-54 | Requester-header binary fetch and Blob URL lifecycle. | Preview/download checks response before body, sends X-Requester-Id, uses known originalName for download, and revokes URLs on close/replacement/unmount/after download; direct binary navigation is not used. | tests/lab-02/AttachmentSection.test.tsx | Not Run |
-| UI-35 | UI | AC-61 | State-less global-error fallback. | Missing/invalid navigation state renders safe generic 500 copy; arbitrary backend text is ignored; Back chooses `/tickets` with valid Requester context and `/requesters` without it. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Passed — global-error regression coverage verifies safe 403/404/500 copy, generic fallback for missing/invalid/restored state, rejection of caller-controlled backend copy and `backPath`, deterministic Back routing based on Requester context, and route-focus behavior. |
-| UI-36 | UI | AC-38, AC-66 | Automated meaningful presentation/state contract across Create Ticket, Ticket Detail, badges, and Attachment states. | Assert only contract-significant semantics/classes: generated Ticket Number/Date and Requester are read-only/disabled; editable vs read-only and invalid/error states differ; required labels/asterisks and associated errors exist; Submit/Cancel hierarchy and disabled/busy Submit are represented; Detail fields remain read-only; priority/status badges retain visible text; Pending/Active/Removed/Invalid/Failed states have approved visual/semantic markers without color-only meaning. | tests/lab-02/CreateTicket.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx | Not Run |
-| UI-37 | UI | BR-91, AC-38, AC-66 | Representative icon-only control labels and tooltips. | Mobile sidebar, Attachment preview/download/remove, close/dismiss, pagination, and filter/search auxiliary icon-only controls expose an accessible programmatic name and observable tooltip/hover-focus text with the expected action wording; assertions verify user-visible semantics and association, not tooltip-library internals. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/MyTickets.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx | Partial — the mobile sidebar toggle, the modal close control, and the filter-chip remove control assert both an accessible name and an associated visible tooltip. Attachment preview/download/remove follow in Issue #23. Pagination introduces no icon-only control: both arrows carry visible text. |
+| UI-35 | UI | AC-61 | State-less global-error fallback. | Missing/invalid navigation state renders safe generic 500 copy; arbitrary backend text is ignored; Back chooses `/tickets` with valid Requester context and `/requesters` without it. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/ErrorPage.test.tsx | Passed — `ErrorPage.test.tsx` verifies safe 403/404/500 copy, the generic fallback for missing, invalid, and restored (`POP`) state, rejection of caller-controlled backend copy and `backPath`, deterministic Back routing based on Requester context, and route-focus behavior. |
+| UI-36 | UI | AC-38, AC-66 | Automated meaningful presentation/state contract across Create Ticket, Ticket Detail, badges, and Attachment states. | Assert only contract-significant semantics/classes: generated Ticket Number/Date and Requester are read-only/disabled; editable vs read-only and invalid/error states differ; required labels/asterisks and associated errors exist; Submit/Cancel hierarchy and disabled/busy Submit are represented; Detail fields remain read-only; priority/status badges retain visible text; Pending/Active/Removed/Invalid/Failed states have approved visual/semantic markers without color-only meaning. | tests/lab-02/CreateTicket.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx; tests/lab-02/AttachmentSection.test.tsx | Partial — the Ticket Detail half passes in `RequesterTicketDetail.test.tsx`: every value stays read-only, status and priority keep visible text, Attachment badges read Active and Removed as text, Removed Attachments are excluded from the active count, removal reason remains visible, and no selection or Attachment action control appears before Issue #24 owns its behavior. The Attachment upload states follow in Issue #24. |
+| UI-37 | UI | BR-91, AC-38, AC-66 | Representative icon-only control labels and tooltips. | Mobile sidebar, Attachment preview/download/remove, close/dismiss, pagination, and filter/search auxiliary icon-only controls expose an accessible programmatic name and observable tooltip/hover-focus text with the expected action wording; assertions verify user-visible semantics and association, not tooltip-library internals. | tests/lab-02/ApplicationShell.test.tsx; tests/lab-02/SharedComponents.test.tsx; tests/lab-02/AttachmentSection.test.tsx; tests/lab-02/MyTickets.test.tsx | Partial — mobile sidebar, modal close, and filter-chip removal controls carry accessible names and observable tooltips. Ticket Detail Attachment preview/download/remove controls and their evidence follow with functional behavior in Issue #24. Pagination uses visible text rather than icon-only controls. |
 
 ## 9. Planned Responsive Tests
 

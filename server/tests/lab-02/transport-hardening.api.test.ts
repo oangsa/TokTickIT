@@ -9,11 +9,13 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
   },
   category: { findMany: vi.fn() },
+  ticket: { findFirst: vi.fn() },
 }));
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
 import { app } from "../../src/app.js";
+import { ticketRow } from "./support/ticketPrismaMock.js";
 
 const ALICE = {
   id: 1,
@@ -26,6 +28,8 @@ const ALICE = {
   updatedBy: "seed",
   updatedAt: new Date("2026-08-20T01:00:00.000Z"),
 };
+
+const TICKET_PUBLIC_ID = "05a214b4-b957-4ed7-a58e-73f4392b35ec";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -40,6 +44,7 @@ beforeEach(() => {
   prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);
   prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
   prismaMock.category.findMany.mockResolvedValue([]);
+  prismaMock.ticket.findFirst.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -142,5 +147,48 @@ describe("transport hardening (API-72, API-74)", () => {
     const varyValues = res.headers.vary.split(/,\s*/);
     expect(varyValues).toContain("Origin");
     expect(varyValues).not.toContain("X-Requester-Id");
+  });
+
+  /*
+   * Ticket Detail is requester-scoped and answers a 404 far more often than a
+   * 200, so both answers have to carry the same transport treatment: an error
+   * that skipped `no-store` would let a shared cache hand one Requester's
+   * "not found" -- or another's Ticket -- to the next one.
+   */
+  it("sends Cache-Control: no-store on Ticket Detail", async () => {
+    prismaMock.ticket.findFirst.mockResolvedValue(ticketRow());
+
+    const res = await request(app).get(`/api/tickets/${TICKET_PUBLIC_ID}`).set("X-Requester-Id", "1");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("sends Cache-Control: no-store on the Ticket Detail 404", async () => {
+    const res = await request(app).get(`/api/tickets/${TICKET_PUBLIC_ID}`).set("X-Requester-Id", "1");
+
+    expect(res.status).toBe(404);
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("varies Ticket Detail by X-Requester-Id on both the hit and the miss", async () => {
+    prismaMock.ticket.findFirst.mockResolvedValue(ticketRow());
+    const hit = await request(app)
+      .get(`/api/tickets/${TICKET_PUBLIC_ID}`)
+      .set("X-Requester-Id", "1")
+      .set("Origin", "http://localhost:5173");
+
+    prismaMock.ticket.findFirst.mockResolvedValue(null);
+    const miss = await request(app)
+      .get(`/api/tickets/${TICKET_PUBLIC_ID}`)
+      .set("X-Requester-Id", "1")
+      .set("Origin", "http://localhost:5173");
+
+    for (const res of [hit, miss]) {
+      const varyValues = res.headers.vary.split(/,\s*/);
+      expect(varyValues).toContain("Origin");
+      expect(varyValues).toContain("X-Requester-Id");
+      expect(varyValues.filter((value) => value === "Origin")).toHaveLength(1);
+    }
   });
 });

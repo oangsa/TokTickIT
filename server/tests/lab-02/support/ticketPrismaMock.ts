@@ -24,7 +24,7 @@ export const prismaMock = {
   developmentRequester: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
   category: { findMany: vi.fn() },
   relatedSystem: { findMany: vi.fn() },
-  ticket: { findUnique: vi.fn() },
+  ticket: { findUnique: vi.fn(), findFirst: vi.fn() },
   attachment: { findMany: vi.fn() },
   idempotencyRecord: {
     findUnique: vi.fn(),
