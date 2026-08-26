@@ -79,6 +79,13 @@ const TEXT_COMPARABLE = new Set<QueryCondition>([
   "NOTEQUAL",
 ]);
 
+/*
+ * ponytail: `%` and `_` in a value reach PostgreSQL as LIKE wildcards. Prisma
+ * parameterizes the value, so this is not injection and no scope predicate is
+ * weakened, but a search for `100%` matches every row containing `100` and
+ * `TKT_2026` matches `TKT-2026`. Escape the two characters and pass a LIKE
+ * ESCAPE clause here if literal-wildcard search ever has to be correct.
+ */
 function buildFragment(expression: QueryExpression): Record<string, unknown> {
   const { condition, value } = expression;
 

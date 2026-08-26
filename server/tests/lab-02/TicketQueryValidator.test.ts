@@ -8,8 +8,8 @@ import { QueryCondition } from "../../src/services/queryBuilder.js";
 import { REQUESTED_PRIORITIES } from "../../src/services/ticketCreateRequest.js";
 import {
   MAX_FILTER_EXPRESSIONS,
+  MAX_FILTER_VALUE_LENGTH,
   MAX_IN_VALUES,
-  MAX_PAGE_NUMBER,
   MAX_SEARCH_LENGTH,
   TICKET_SORT_FIELDS,
   parseTicketListQuery,
@@ -94,6 +94,19 @@ describe("Ticket list search validation", () => {
   it("requires searchFields when a non-blank search is supplied", () => {
     expectRejected({ search: "vpn" }, "searchFields");
     expectRejected({ search: "vpn", searchFields: "" }, "searchFields");
+  });
+
+  it("reports a repeated searchFields once rather than twice", () => {
+    /*
+     * `?searchFields=a&searchFields=b` arrives as an array, which is a single
+     * problem. Reporting "supplied at most once" and "is required" together
+     * would make one mistake look like two, and the second is not even true.
+     */
+    const error = expectRejected({ search: "vpn", searchFields: ["summary", "description"] });
+    const reported = (error.details ?? []).filter((detail) => detail.field === "searchFields");
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0].message).toBe("searchFields must be supplied at most once.");
   });
 
   it("rejects unknown and repeated search fields", () => {
@@ -251,6 +264,46 @@ describe("Ticket filter value conversion", () => {
     },
   );
 
+  it("bounds a string filter value the way search is bounded", () => {
+    /*
+     * `search` has always been capped at 200; a string filter value had no
+     * bound at all, so only Node's request-line limit stood between a
+     * hand-built URL and a multi-kilobyte `contains` term -- long enough to
+     * defeat the trigram indexes. Nothing longer than the longest filterable
+     * column can match a row, so no legitimate query is lost.
+     */
+    const longest = "a".repeat(MAX_FILTER_VALUE_LENGTH);
+
+    expect(
+      parseTicketListQuery(filters({ field: "description", condition: "CONTAINS", value: longest }))
+        .filters[0].value,
+    ).toBe(longest);
+
+    expectRejected(
+      filters({ field: "description", condition: "CONTAINS", value: `${longest}a` }),
+      "filters[0].value",
+    );
+    /* Every element of an `IN` array goes through the same conversion. */
+    expectRejected(
+      filters({ field: "summary", condition: "IN", value: ["ok", `${longest}a`] }),
+      "filters[0].value",
+    );
+  });
+
+  it("measures a string filter value in characters, not UTF-16 code units", () => {
+    const astral = "\u{1F600}".repeat(MAX_FILTER_VALUE_LENGTH);
+
+    expect(
+      parseTicketListQuery(filters({ field: "summary", condition: "CONTAINS", value: astral }))
+        .filters[0].value,
+    ).toBe(astral);
+
+    expectRejected(
+      filters({ field: "summary", condition: "CONTAINS", value: `${astral}\u{1F600}` }),
+      "filters[0].value",
+    );
+  });
+
   it("converts a date value to a Date", () => {
     const query = parseTicketListQuery(
       filters({ field: "createdAt", condition: "GREATER", value: "2026-08-20T00:00:00.000Z" }),
@@ -262,6 +315,28 @@ describe("Ticket filter value conversion", () => {
   it.each([["not-a-date"], [20260820], [null]])("rejects %s as a date value", (value) => {
     expectRejected(filters({ field: "createdAt", condition: "GREATER", value }), "filters[0].value");
   });
+
+  /*
+   * `new Date` alone reads "5" as 2001-05-01 and "Dec 5 2026" as a date, so
+   * without a shape check the filter would silently mean a moment the caller
+   * never asked for. "2026-13-45" is the reverse case: right shape, impossible
+   * date, still rejected by the parse.
+   */
+  it.each([["5"], ["2026"], ["Dec 5 2026"], ["08/20/2026"], ["2026-13-45"]])(
+    "rejects %s as a non-ISO-8601 date value",
+    (value) => {
+      expectRejected(filters({ field: "createdAt", condition: "GREATER", value }), "filters[0].value");
+    },
+  );
+
+  it.each([["2026-08-20"], ["2026-08-20T09:30:00Z"], ["2026-08-20T09:30:00+07:00"]])(
+    "accepts %s as an ISO-8601 date value",
+    (value) => {
+      const query = parseTicketListQuery(filters({ field: "createdAt", condition: "GREATER", value }));
+
+      expect(query.filters[0].value).toEqual(new Date(value));
+    },
+  );
 
   it.each([["URGENT"], ["high"], [1], [null]])("rejects %s as a Priority value", (value) => {
     expectRejected(filters({ field: "requestedPriority", condition: "EQUAL", value }), "filters[0].value");
@@ -411,17 +486,21 @@ describe("Ticket pagination bounds", () => {
     expectRejected({ pageNumber }, "pageNumber");
   });
 
-  it("accepts the largest page number and rejects one past it", () => {
+  it("puts no ceiling on pageNumber", () => {
     /*
-     * The bound exists so `(pageNumber - 1) * pageSize` stays an integer the
-     * database engine accepts. Without it a hand-edited address turns the
-     * empty page BR-38 promises into a 500.
+     * api-spec Section 9.12 states the rule as `pageNumber >= 1` and makes an
+     * out-of-range page a 200 with an empty array, so a ceiling here would
+     * answer a valid request with a 400. The `skip` a large page produces is
+     * `ticketListService.ts`'s to handle.
      */
-    expect(parseTicketListQuery({ pageNumber: String(MAX_PAGE_NUMBER) }).pageNumber).toBe(
-      MAX_PAGE_NUMBER,
+    expect(parseTicketListQuery({ pageNumber: "1000001" }).pageNumber).toBe(1_000_001);
+    expect(parseTicketListQuery({ pageNumber: String(Number.MAX_SAFE_INTEGER) }).pageNumber).toBe(
+      Number.MAX_SAFE_INTEGER,
     );
-    expectRejected({ pageNumber: String(MAX_PAGE_NUMBER + 1) }, "pageNumber");
-    expectRejected({ pageNumber: String(Number.MAX_SAFE_INTEGER) }, "pageNumber");
+  });
+
+  it("still rejects a pageNumber outside the safe-integer range", () => {
+    expectRejected({ pageNumber: String(Number.MAX_SAFE_INTEGER + 2) }, "pageNumber");
   });
 
   it.each([["0"], ["101"], ["1.5"], ["abc"], [""]])("rejects pageSize %s", (pageSize) => {

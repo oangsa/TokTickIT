@@ -241,12 +241,43 @@ export default function MyTickets() {
   const loading = loadState === "loading";
   const appliedCount = filterCount(query);
   const queryActive = hasActiveQuery(query);
+  /* Absent while a fetch is in flight, and while the query is rejected. */
+  const totalItems = pagination?.totalItems ?? 0;
   /*
    * "No tickets yet" is a claim about the Requester, not about this page of
    * this query, so it needs the total as well as an inactive query: page 5 of
    * three unfiltered Tickets is empty without the Requester being.
    */
-  const trulyEmpty = !queryActive && (pagination?.totalItems ?? 0) === 0;
+  const trulyEmpty = !queryActive && totalItems === 0;
+  /*
+   * A page past the last one answers 200 with an empty array (BR-38), so this
+   * page is being corrected rather than displayed: `Pagination` reports its
+   * clamp back through `onPageChange` on the next effect. The guard mirrors the
+   * one the control itself uses -- a genuinely empty result set has
+   * `totalItems: 0` and every page of it is equally empty, so it is not a
+   * correction and must keep its own empty state.
+   */
+  const correctingPage =
+    pagination !== null && pagination.totalItems > 0 && query.pageNumber > pagination.totalPages;
+
+  /*
+   * One always-mounted live region (ui-spec 29.7), the same pattern
+   * `RequesterSelection` uses and for the same reason: a `role="status"` node
+   * inserted into the DOM with its text already present is announced
+   * inconsistently, because assistive technology reports mutations to a region
+   * already in the accessibility tree. The region stays put and only its text
+   * changes.
+   *
+   * It also owns the result announcement now that `Pagination` is no longer a
+   * live region of its own. The rejected-query state is left to `ErrorState`'s
+   * `role="alert"`; announcing it here too would announce it twice.
+   */
+  const announcement =
+    loadState === "loading"
+      ? "Loading tickets"
+      : loadState === "loaded"
+        ? `${totalItems} ticket${totalItems === 1 ? "" : "s"}`
+        : "";
 
   const filterLabels = useMemo(() => {
     const byId = (rows: MasterDataItem[]) =>
@@ -384,6 +415,11 @@ export default function MyTickets() {
           </div>
         ) : null}
 
+        {/* Skeleton rows are decorative, so the screen owns the announcement. */}
+        <p role="status" className="visually-hidden">
+          {announcement}
+        </p>
+
         {loadState === "invalid" ? (
           <ErrorState
             title="This search could not be run."
@@ -393,12 +429,6 @@ export default function MyTickets() {
           />
         ) : (
           <>
-            {loading ? (
-              <p role="status" className="visually-hidden">
-                Loading tickets
-              </p>
-            ) : null}
-
             <div>
               <table className="table tt-table align-middle mb-0">
                 <thead>
@@ -464,7 +494,7 @@ export default function MyTickets() {
               </table>
             </div>
 
-            {!loading && items.length === 0 ? (
+            {!loading && items.length === 0 && !correctingPage ? (
               trulyEmpty ? (
                 <EmptyState
                   title="No tickets yet."
@@ -504,13 +534,20 @@ export default function MyTickets() {
               * disables every control inside it, so the ones that cannot safely
               * operate mid-fetch need no new prop on the shared component.
               */}
-            {loadState === "loaded" && (pagination?.totalItems ?? 0) === 0 ? null : (
+            {loadState === "loaded" && totalItems === 0 ? null : (
             <fieldset disabled={loading} className="border-0 p-0 m-0">
               <Pagination
                 pageNumber={query.pageNumber}
                 pageSize={query.pageSize}
-                totalItems={pagination?.totalItems ?? 0}
-                onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber })}
+                totalItems={totalItems}
+                /*
+                 * A correction replaces the address it corrects. Pushing would
+                 * leave the out-of-range entry behind, and Back would land on
+                 * it, clamp again, and push again -- a page the user can never
+                 * navigate back past. A Previous/Next/page-number click is never
+                 * a correction, so it still pushes.
+                 */
+                onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber }, correctingPage)}
                 onPageSizeChange={(pageSize) => commitQuery({ ...query, pageSize, pageNumber: 1 })}
               />
             </fieldset>

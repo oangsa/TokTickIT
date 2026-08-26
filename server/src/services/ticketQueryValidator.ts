@@ -44,6 +44,15 @@ export const SORT_DIRECTIONS = ["asc", "desc"] as const;
 
 /* BR-75 / api-spec Sections 9.3, 9.4, 9.8, 9.12. */
 export const MAX_SEARCH_LENGTH = 200;
+/*
+ * `search` is bounded at 200, but a string *filter* value had no bound at all,
+ * so only Node's request-line limit stood between a hand-built URL and a
+ * multi-kilobyte `contains` term -- long enough to defeat the trigram indexes
+ * and turn one request into a scan. 2000 is the longest filterable text column
+ * (`description`); `summary` is 150 and `ticketNumber` is 25, so nothing longer
+ * than this can match a row anyway and no legitimate query is lost.
+ */
+export const MAX_FILTER_VALUE_LENGTH = 2000;
 export const MAX_FILTER_EXPRESSIONS = 20;
 export const MIN_IN_VALUES = 1;
 export const MAX_IN_VALUES = 100;
@@ -51,14 +60,12 @@ export const DEFAULT_PAGE_NUMBER = 1;
 export const DEFAULT_PAGE_SIZE = 10;
 export const MAX_PAGE_SIZE = 100;
 /*
- * A page past the last one is a 200 with an empty array (BR-38), so this bound
- * is not about the data: it is about `skip`. `(pageNumber - 1) * pageSize` is
- * computed before Prisma sees it, and an unbounded `pageNumber` pushes that
- * product past the engine's integer range, which fails as a 500 rather than as
- * the empty page BR-38 promises. At the maximum `pageSize` this still allows
- * 100,000,000 rows to be paged through.
+ * `pageNumber` deliberately has no upper bound. api-spec Section 9.12 states
+ * the rule as `pageNumber >= 1` and makes an out-of-range page a 200 with an
+ * empty array, not an error, so a ceiling here would answer a valid request
+ * with a 400. The `skip` this produces is the read path's problem, and
+ * `ticketListService.ts` handles it there without contradicting the contract.
  */
-export const MAX_PAGE_NUMBER = 1_000_000;
 
 type TicketFieldKind = "string" | "reference" | "enum" | "datetime";
 
@@ -99,6 +106,16 @@ const ENUM_VALUES: Record<string, readonly string[]> = {
 };
 
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
+
+/*
+ * api-spec Section 9.9 calls these values ISO-8601, and `new Date` alone does
+ * not enforce that: it reads "5" as 2001-05-01 and "Dec 5 2026" as a date, so a
+ * filter would silently mean something the caller never asked for. The shape is
+ * checked here and `new Date` still rejects a well-shaped impossible date such
+ * as "2026-13-45".
+ */
+const ISO_DATE_TIME_PATTERN =
+  /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
 
 export interface TicketListQuery {
   search?: QuerySearch;
@@ -149,6 +166,15 @@ function convertValue(
         return undefined;
       }
 
+      /* Code points, not UTF-16 units, for the same reason `readSearch` counts them. */
+      if ([...raw].length > MAX_FILTER_VALUE_LENGTH) {
+        details.push({
+          field: path,
+          message: `${field} values must contain at most ${MAX_FILTER_VALUE_LENGTH} characters.`,
+        });
+        return undefined;
+      }
+
       return raw;
     }
 
@@ -185,7 +211,7 @@ function convertValue(
     }
 
     case "datetime": {
-      if (typeof raw !== "string") {
+      if (typeof raw !== "string" || !ISO_DATE_TIME_PATTERN.test(raw)) {
         details.push({ field: path, message: `${field} values must be ISO-8601 date-times.` });
         return undefined;
       }
@@ -280,10 +306,18 @@ function readSearch(query: Record<string, unknown>, details: ErrorDetail[]): Que
   const rawFields = readSingleQueryValue(query.searchFields, "searchFields", details);
 
   if (rawFields === undefined || rawFields.trim().length === 0) {
-    details.push({
-      field: "searchFields",
-      message: "searchFields is required when search is supplied.",
-    });
+    /*
+     * A `searchFields` supplied more than once has already reported itself.
+     * Restating the requirement on top of that would turn one problem into two
+     * details describing the same parameter.
+     */
+    if (query.searchFields === undefined || typeof query.searchFields === "string") {
+      details.push({
+        field: "searchFields",
+        message: "searchFields is required when search is supplied.",
+      });
+    }
+
     return undefined;
   }
 
@@ -453,11 +487,14 @@ function readPagingValue(
   field: "pageNumber" | "pageSize",
   fallback: number,
   minimum: number,
-  maximum: number,
+  maximum: number | undefined,
   details: ErrorDetail[],
 ): number {
   const raw = readSingleQueryValue(query[field], field, details);
-  const message = `${field} must be between ${minimum} and ${maximum}.`;
+  const message =
+    maximum === undefined
+      ? `${field} must be a whole number of at least ${minimum}.`
+      : `${field} must be between ${minimum} and ${maximum}.`;
 
   /*
    * api-spec Section 9.14: an absent parameter takes the default, but an
@@ -475,7 +512,7 @@ function readPagingValue(
 
   const value = Number(raw);
 
-  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+  if (!Number.isSafeInteger(value) || value < minimum || (maximum !== undefined && value > maximum)) {
     details.push({ field, message });
     return fallback;
   }
@@ -495,14 +532,7 @@ export function parseTicketListQuery(query: unknown): TicketListQuery {
   const search = readSearch(query, details);
   const filters = readFilters(query, details);
   const order = readOrder(query, details);
-  const pageNumber = readPagingValue(
-    query,
-    "pageNumber",
-    DEFAULT_PAGE_NUMBER,
-    1,
-    MAX_PAGE_NUMBER,
-    details,
-  );
+  const pageNumber = readPagingValue(query, "pageNumber", DEFAULT_PAGE_NUMBER, 1, undefined, details);
   const pageSize = readPagingValue(query, "pageSize", DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE, details);
 
   if (details.length > 0) {

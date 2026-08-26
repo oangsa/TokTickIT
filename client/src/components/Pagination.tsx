@@ -102,13 +102,33 @@ export function Pagination({
 
   return (
     <nav aria-label="Ticket pagination" className="d-flex flex-wrap align-items-center gap-3 mt-3">
-      <p className="mb-0 small text-secondary" aria-live="polite">
-        <span className="d-none d-lg-inline">
-          Showing {firstItem}–{lastItem} of {totalItems}
-        </span>
-        <span className="d-lg-none">
-          Page {page} of {pageCount}
-        </span>
+      {/*
+        * Not a live region. The page that renders this control owns one
+        * always-mounted `role="status"` announcement (ui-spec 29.7); a second
+        * one here announced the range again on every fetch, and announced it
+        * wrong -- see the range guard below.
+        *
+        * A caller unmounts this control for a genuinely empty result set, so
+        * `totalItems === 0` inside a rendered `Pagination` means the refetch
+        * that will supply the real total is still in flight. Printing the
+        * derived range there reads "Showing 0–0 of 0" underneath the caller's
+        * skeleton rows, which contradicts them. The line keeps its height with
+        * a non-breaking space so the surrounding structure does not jump
+        * (ui-spec 19.1).
+        */}
+      <p className="mb-0 small text-secondary">
+        {totalItems === 0 ? (
+          "\u00a0"
+        ) : (
+          <>
+            <span className="d-none d-lg-inline">
+              Showing {firstItem}–{lastItem} of {totalItems}
+            </span>
+            <span className="d-lg-none">
+              Page {page} of {pageCount}
+            </span>
+          </>
+        )}
       </p>
 
       <label className="d-flex align-items-center gap-2 mb-0 small">

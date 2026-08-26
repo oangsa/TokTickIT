@@ -9,6 +9,9 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
 import { app } from "../../src/app.js";
+import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import { listTicketsForRequester } from "../../src/services/ticketListService.js";
+import { parseTicketListQuery } from "../../src/services/ticketQueryValidator.js";
 
 /*
  * API-21 to API-34, API-38, and API-68 (AC-21, AC-24-30, AC-55).
@@ -102,6 +105,31 @@ describe("Ticket list ownership and projection (API-21)", () => {
 
     expect(findManyArgs().where.AND).toContainEqual({ requesterId: BOB.id });
     expect(findManyArgs().where.AND).not.toContainEqual({ requesterId: ALICE.id });
+  });
+
+  it("refuses to read at all without a resolved Requester", async () => {
+    /*
+     * The route reads `req.requesterId`, which is optional on the Express type
+     * and reaches the service through an `as number` cast. Prisma reads
+     * `undefined` in a `where` as "predicate not supplied", so an unresolved
+     * Requester would drop the ownership predicate entirely and answer 200 with
+     * every Requester's rows and counts. `requireRequesterContext` covers this
+     * route today, which is why this is asserted against the service directly:
+     * the guard is the only thing making the leak unreachable, and this makes a
+     * future gap in it loud instead of silent.
+     */
+    for (const requesterId of [undefined, null, 0, -1, 1.5, Number.NaN]) {
+      await expect(
+        listTicketsForRequester(
+          prismaMock as unknown as PrismaClient,
+          requesterId as unknown as number,
+          parseTicketListQuery({}),
+        ),
+      ).rejects.toThrow(/resolved Requester/);
+    }
+
+    expect(prismaMock.ticket.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.ticket.count).not.toHaveBeenCalled();
   });
 
   it("returns exactly the TicketListItemDTO fields", async () => {
@@ -366,8 +394,36 @@ describe("Ticket list pagination (API-31 to API-34)", () => {
     await expectRejected("pageSize=", "pageSize");
   });
 
-  it("rejects a page number past the bound instead of computing an unusable skip", async () => {
-    await expectRejected(`pageNumber=${Number.MAX_SAFE_INTEGER}`, "pageNumber");
+  it("answers an unreachable page number with 200 and an empty array", async () => {
+    /*
+     * api-spec Section 9.12 makes an out-of-range page a 200 with an empty
+     * array and puts no ceiling on `pageNumber`, so this must not be a 400. The
+     * page is unreachable -- `skip` leaves the safe-integer range -- so the row
+     * read is skipped and only the count runs, which keeps X-Pagination
+     * complete enough for the client to walk back to a real page.
+     */
+    prismaMock.ticket.count.mockResolvedValue(3);
+
+    const response = await list(`pageNumber=${Number.MAX_SAFE_INTEGER}`).expect(200);
+
+    expect(response.body).toEqual([]);
+    expect(prismaMock.ticket.findMany).not.toHaveBeenCalled();
+    expect(JSON.parse(response.headers["x-pagination"])).toMatchObject({
+      pageNumber: Number.MAX_SAFE_INTEGER,
+      totalItems: 3,
+      totalPages: 1,
+      hasPreviousPage: true,
+      hasNextPage: false,
+    });
+  });
+
+  it("still reads rows for a large but reachable page number", async () => {
+    prismaMock.ticket.findMany.mockResolvedValue([]);
+    prismaMock.ticket.count.mockResolvedValue(3);
+
+    await list("pageNumber=1000001&pageSize=10").expect(200);
+
+    expect(findManyArgs()).toMatchObject({ skip: 10_000_000, take: 10 });
   });
 
   it("returns 200 with an empty array beyond the final page", async () => {

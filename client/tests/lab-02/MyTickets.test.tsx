@@ -204,7 +204,40 @@ describe("UI-15 My Tickets loading and stale-scope prevention", () => {
     });
 
     expect(await screen.findByText("TKT-20260820-A81F3C9D7B21")).toBeInTheDocument();
-    expect(screen.queryByRole("status")).toBeNull();
+    /*
+     * The region stays mounted and only its text changes (ui-spec 29.7). A
+     * `role="status"` node inserted with its text already present is announced
+     * inconsistently, so unmounting it between states would make the loading
+     * announcement above unreliable rather than merely redundant.
+     */
+    expect(screen.getByRole("status")).toHaveTextContent("1 ticket");
+  });
+
+  it("never claims a result range while the rows are still in flight", async () => {
+    let release: (result: ListResult) => void = () => undefined;
+    stubApi(() => new Promise<ListResult>((resolve) => (release = resolve)));
+
+    renderMyTickets();
+
+    /*
+     * The controls stay in place during the fetch so the structure does not
+     * jump (ui-spec 19.1), but the caller has cleared the counts, so the range
+     * derived from them would read "Showing 0–0 of 0" underneath the skeleton
+     * rows and contradict them.
+     */
+    const nav = screen.getByRole("navigation", { name: "Ticket pagination" });
+
+    expect(nav.textContent).not.toMatch(/Showing/);
+    expect(nav.textContent).not.toMatch(/Page \d+ of/);
+
+    await act(async () => {
+      release({
+        body: [ticket()],
+        pagination: meta({ pageSize: 10, totalItems: 47, totalPages: 5, hasNextPage: true }),
+      });
+    });
+
+    expect(await screen.findByText(/Showing 1–10 of 47/)).toBeInTheDocument();
   });
 
   it("never renders a previous Requester's rows once the Requester changes", async () => {
@@ -624,6 +657,35 @@ describe("UI-22 My Tickets pagination and list projection", () => {
     expect(await screen.findByText("TKT-20260820-A81F3C9D7B21")).toBeInTheDocument();
     expect(screen.queryByText("No tickets found.")).toBeNull();
     expect(screen.getByRole("navigation", { name: "Ticket pagination" })).toBeInTheDocument();
+  });
+
+  it("lets Back leave a page that had to be corrected", async () => {
+    /*
+     * The clamp corrects the address, so it has to replace it. Pushing would
+     * leave `?pageNumber=5` behind, and Back would land on it, clamp again, and
+     * push again -- an entry the user can never navigate back past.
+     */
+    let requested = 0;
+
+    const { calls } = stubApi(() => {
+      requested += 1;
+
+      return requested === 1
+        ? { body: [], pagination: meta({ pageNumber: 5, totalItems: 25, totalPages: 3, hasPreviousPage: true }) }
+        : {
+            body: [ticket()],
+            pagination: meta({ pageNumber: 3, totalItems: 25, totalPages: 3, hasPreviousPage: true }),
+          };
+    });
+
+    renderMyTicketsWithHistory(["/tickets?search=vpn", "/tickets?pageNumber=5"], 1);
+
+    await waitFor(() => expect(lastListQuery(calls).get("pageNumber")).toBe("3"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+
+    await waitFor(() => expect(lastListQuery(calls).get("search")).toBe("vpn"));
+    expect(screen.getByLabelText("Search")).toHaveValue("vpn");
   });
 
   it("offers the five approved page sizes", async () => {

@@ -1088,6 +1088,205 @@ Three review findings were reported and deliberately **not** fixed here:
   role, so assistive technology announces a row rather than an activatable
   control.
 
+The counts in this section are superseded by Section 4.5.26, which records the
+tree as it stands after the third Issue #22 review fix pass.
+
+### 4.5.25 Issue #22 second review fix pass
+
+A second outsider review of the Issue #22 change produced five fixes. The counts
+below are superseded by Section 4.5.26.
+
+1. **The pagination clamp pushed a history entry.** `MyTickets.tsx` passed the
+   same `onPageChange` callback to both a user page change and the correction
+   `Pagination` reports for a page past the last one, and that callback pushed.
+   A shared or restored `?pageNumber=5` therefore left the out-of-range address
+   in history: Back landed on it, the clamp fired again, and it pushed again, so
+   the user could never navigate back past that entry. A correction now replaces
+   the address it corrects; a Previous/Next/page-number click still pushes.
+2. **Both empty states could describe a page that was about to be corrected.**
+   The clamp runs in a passive effect, so the render before it committed and
+   painted "No tickets found. / Try changing your search or filters." with a
+   Clear Filters button, on an address with neither a search nor a filter
+   active. The same predicate that decides push-versus-replace now suppresses
+   both empty states while a correction is pending. Guarded on
+   `totalItems > 0` exactly as `Pagination`'s own clamp is, so a genuinely empty
+   result set keeps its true-empty state.
+3. **`MAX_PAGE_NUMBER = 1_000_000` contradicted the specification it cited.**
+   api-spec Section 9.12 states the rule as `pageNumber >= 1` and makes an
+   out-of-range page a `200` with an empty array, so the ceiling answered a
+   valid request with a `400`, and `TicketQueryValidator.test.ts` had locked
+   that in. The comment justified the bound by integer overflow of `skip`, which
+   does not hold at 1,000,000: `skip` is a `number`, PostgreSQL `OFFSET` is
+   `bigint`, and `Number.isSafeInteger` already guards the real ceiling. The
+   constant is removed. `pageNumber` is now bounded only by the safe-integer
+   range, and `ticketListService.ts` skips the row read — running the count
+   alone, so `X-Pagination` stays complete — when `(pageNumber - 1) * pageSize`
+   leaves that range. The specification did not change; the code moved to it.
+4. **Datetime filter values were not actually checked for ISO-8601.**
+   `new Date(raw)` alone reads `"5"` as 2001-05-01 and `"Dec 5 2026"` as a date,
+   so a `createdAt` filter could silently mean a moment the caller never asked
+   for while the rejection message promised ISO-8601. The shape is now checked
+   before parsing, and `new Date` still rejects a well-shaped impossible date
+   such as `"2026-13-45"`.
+5. **`?searchFields=a&searchFields=b` reported one problem as two details.**
+   The array was rejected as "supplied at most once" and then again as
+   "required when search is supplied", the second of which is not true. Only the
+   first is now reported.
+
+Two review findings were deliberately not fixed and are recorded instead, both
+carried forward from Section 4.5.24's pass:
+
+- **No PostgreSQL execution coverage of the list read path.** Every assertion in
+  `my-tickets.api.test.ts` reads the arguments handed to a mocked
+  `ticket.findMany`/`count`. Ownership is proved as "the `where` contains
+  `{ requesterId }`", not as "another Requester's rows do not come back", and
+  the composed `AND`, `mode: "insensitive"` on `not`, and semantic Priority
+  ordering are never executed by an engine. The `postgres/` harness already
+  exists; this is the largest remaining unknown in the feature.
+- **Unescaped LIKE wildcards in search terms.** `%` and `_` reach PostgreSQL as
+  wildcards, so `100%` matches every row containing `100`. Prisma parameterizes
+  the value, so this is not injection and no scope predicate is weakened. The
+  ceiling and its upgrade path are now marked at `queryBuilder.ts` rather than
+  recorded only in `ai-use.md`.
+
+Every new case was confirmed non-vacuous by restoring the pre-fix source and
+observing it fail: 8 server cases failed against the previous
+`ticketQueryValidator.ts`/`ticketListService.ts`, and the Back case failed
+against the previous `MyTickets.tsx`. All three files were restored from a
+copy taken before the revert, and the fixed suites pass again.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #22 focused gate | `npx vitest run tests/lab-02/QueryBuilder.test.ts tests/lab-02/TicketQueryValidator.test.ts tests/lab-02/my-tickets.api.test.ts tests/lab-02/cors.api.test.ts` | `server/`; Prisma is mocked in both API files, so no database target was involved | Passed — 4 files, 181 tests. |
+| Full server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 390 tests. |
+| Backend typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Backend build | `npm run build` | `server/` | Passed — `tsc` produced no diagnostics. |
+| Issue #22 client focused gate | `npx vitest run tests/lab-02/MyTickets.test.tsx` | `client/` | Passed — 1 file, 37 tests. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 7 files, 187 tests. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+| Frontend build | `npm run build` | `client/` | Passed — `tsc && vite build` completed. |
+| Guarded PostgreSQL suites | `npm test` | `server/`; no reachable target | Not run — 3 files fail at connection with `password authentication failed for user "lab2_test"` (`28P01`). Pre-existing environmental state, unrelated to these fixes: no schema, migration, seed, or query construction changed. |
+
+
+### 4.5.26 Issue #22 third review fix pass
+
+A third outsider review produced five fixes. This section supersedes the counts
+in Section 4.5.25.
+
+1. **An unresolved Requester would have widened the read to every Requester.**
+   `routes/tickets.ts` reads `req.requesterId`, which is optional on the Express
+   type, and passes it through an `as number` cast. Prisma reads `undefined` in
+   a `where` as "predicate not supplied", so `{ requesterId }` would have
+   collapsed to `{}` and answered `200` with every Requester's rows, counts, and
+   `X-Pagination` -- failing open, with nothing to log. `requireRequesterContext`
+   covers this route today and the cast was the only thing hiding the shape from
+   the compiler, so the risk was latent rather than live. It is now closed where
+   all callers route through it: `listTicketsForRequester` rejects a requesterId
+   that is not a positive safe integer before building the `where`, which turns a
+   future gap in the guard's cover into a loud `500` instead of a scope leak.
+   Contrast the create path, where a missing requesterId already fails loudly on
+   the foreign key; only the read path could fail silently.
+2. **The pagination footer claimed a result range while the rows were still in
+   flight.** `MyTickets.tsx` clears `pagination` before each request and keeps
+   the controls mounted so the structure does not jump (ui-spec Section 19.1),
+   so the range derived from a zero total painted "Showing 0–0 of 0" underneath
+   the skeleton rows and contradicted them. The control is unmounted by its
+   caller for a genuinely empty result set, so a zero total inside a rendered
+   `Pagination` means a fetch is pending; the range line now yields to a
+   height-preserving placeholder in exactly that case.
+3. **The range was also an `aria-live` region, so the false zero was
+   announced.** Every search pause, sort change, and page click announced
+   "Showing 0–0 of 0" and then corrected itself, which reports the loading state
+   as an empty result and blurs two states ui-spec Section 19 requires to stay
+   distinct. `Pagination` is no longer a live region at all; the page owns one
+   announcement, which is the next fix.
+4. **The loading announcement was mounted only while loading.** A `role="status"`
+   node inserted into the DOM with its text already present is announced
+   inconsistently, because assistive technology reports mutations to a region
+   already in the accessibility tree -- so the announcement ui-spec Section 29.7
+   asks for often never fired, and `MyTickets.test.tsx` asserted the region's
+   *absence* after load, locking the shape in. `RequesterSelection.tsx` already
+   solves this in the same repository against the same specification section, so
+   its pattern was reused rather than re-derived: the region stays mounted and
+   only its text changes, and it now carries the result count that the removed
+   `Pagination` live region used to announce.
+5. **String filter values had no length bound.** `search` has always been capped
+   at 200 characters, but a string filter value was unbounded, so only Node's
+   request-line limit stood between a hand-built URL and a multi-kilobyte
+   `contains` term -- long enough to defeat `ticket_summary_trgm_idx` and
+   `ticket_description_trgm_idx` and turn one request into a scan. Values are now
+   capped at `MAX_FILTER_VALUE_LENGTH = 2000`, the longest filterable text column
+   (`description`); `summary` is 150 and `ticketNumber` is 25, so nothing longer
+   could match a row and no legitimate query is lost. Counted in code points, for
+   the same reason `readSearch` counts them, and applied to every element of an
+   `IN` array because they share one conversion.
+
+The `28P01` connection failure recorded in Sections 4.5.24 and 4.5.25 was not an
+unreachable target. The `toktickit-lab2-test-postgres` container was running and
+listening on `localhost:55432` throughout; the `TEST_DATABASE_URL` password in
+the untracked local `.env.local` had simply drifted from the container's
+`POSTGRES_PASSWORD`. Supplying the container's own credential ran all four
+guarded suites to a pass. Those earlier sections are left as written -- they
+record what each pass observed -- but their "no reachable target" reading was
+wrong, and no pass since Issue #18 needed to skip PostgreSQL for the reason it
+gave.
+
+This does **not** close the finding below. The harness works; it has no coverage
+of the Ticket list read path.
+
+Two review findings were deliberately not fixed and are recorded instead, both
+carried forward from Section 4.5.25's pass:
+
+- **No PostgreSQL execution coverage of the list read path.** Still the largest
+  remaining unknown in the feature, and now known to be unwritten coverage
+  rather than an unavailable target: the four guarded suites pass against a real
+  engine, and none of them touches `GET /api/tickets`. Every assertion in
+  `my-tickets.api.test.ts` reads the arguments handed to a mocked
+  `ticket.findMany`/`count`. AC-21 is proved as "the `where` contains
+  `{ requesterId }`", not as "another Requester's rows do not come back", and
+  the composed `AND`, `mode: "insensitive"` on `not`, semantic Priority
+  ordering, and `contains` against a `CHAR(25)` `ticket_number` are never
+  executed by an engine. Fix 1 above narrows the ownership question but does not
+  answer it: it proves the predicate cannot be dropped, not that PostgreSQL
+  applies it as intended. Writing it is now a matter of adding a suite to a
+  working harness.
+- **Unescaped LIKE wildcards in search terms.** Unchanged. `%` and `_` reach
+  PostgreSQL as wildcards, so `100%` matches every row containing `100`. Prisma
+  parameterizes the value, so this is not injection and no scope predicate is
+  weakened. The ceiling and its upgrade path stay marked at `queryBuilder.ts`.
+
+One finding was raised and left open as unverified rather than fixed:
+
+- **A disabled fieldset drops keyboard focus on every fetch.**
+  `MyTickets.tsx` wraps the pagination controls in `<fieldset disabled={loading}>`
+  because ui-spec Section 19.1 requires controls that cannot safely operate
+  during a fetch to be disabled. Clicking Next therefore disables the control
+  under the user's focus, and the browser blurs to `<body>`. This was reasoned
+  from the HTML disabled-fieldset rule, not observed: jsdom does not model it
+  faithfully, so no test here can confirm or refute it, and the available fixes
+  (`aria-disabled` with guarded handlers, or explicit focus restoration) trade a
+  specification-mandated mechanism for a hand-rolled one. Recorded for a pass
+  that can verify in a real browser.
+
+Every new case was confirmed non-vacuous by restoring the pre-fix source and
+observing it fail: 3 server cases failed against the previous
+`ticketListService.ts`/`ticketQueryValidator.ts`, and 2 client cases failed
+against the previous `Pagination.tsx`/`MyTickets.tsx`. All four files were
+restored from a copy taken before the revert, and the fixed suites pass again.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #22 focused gate | `npx vitest run tests/lab-02/QueryBuilder.test.ts tests/lab-02/TicketQueryValidator.test.ts tests/lab-02/my-tickets.api.test.ts tests/lab-02/cors.api.test.ts` | `server/`; Prisma is mocked in both API files, so no database target was involved | Passed — 4 files, 184 tests. |
+| Full server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 393 tests. |
+| Backend typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Backend build | `npm run build` | `server/` | Passed — `tsc` produced no diagnostics. |
+| Issue #22 client focused gate | `npx vitest run tests/lab-02/MyTickets.test.tsx` | `client/` | Passed — 1 file, 38 tests. |
+| Frontend full test suite | `npm test` | `client/` | Passed — 7 files, 188 tests. |
+| Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+| Frontend build | `npm run build` | `client/` | Passed — `tsc && vite build` completed. |
+| Guarded PostgreSQL suites | `TEST_DATABASE_URL=... npx vitest run tests/lab-02/postgres` | `server/`; `postgres:16-alpine` in the `toktickit-lab2-test-postgres` container on `localhost:55432` | Passed — 4 files, 36 tests. |
+
+
 ## 5. Reusable QueryBuilder Test Principle
 
 The global QueryBuilder follows the reusable infrastructure/repository utility pattern:
