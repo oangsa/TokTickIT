@@ -53,6 +53,15 @@ export const MAX_SEARCH_LENGTH = 200;
  * than this can match a row anyway and no legitimate query is lost.
  */
 export const MAX_FILTER_VALUE_LENGTH = 2000;
+/*
+ * `categoryId` and `relatedSystemId` are `Int`, so PostgreSQL stores them in an
+ * `INTEGER` column. A safe-integer check alone let `3000000000` through to
+ * Prisma, which answered `P2020 ValueOutOfRange` -- an unhandled error the
+ * contract then reported as a 500 for what is a malformed query parameter.
+ * A reference id above the column's range cannot identify a row, so this is a
+ * conversion failure like any other and belongs on the 400 with the rest.
+ */
+export const MAX_REFERENCE_ID = 2_147_483_647;
 export const MAX_FILTER_EXPRESSIONS = 20;
 export const MIN_IN_VALUES = 1;
 export const MAX_IN_VALUES = 100;
@@ -191,8 +200,11 @@ function convertValue(
             ? Number(raw)
             : Number.NaN;
 
-      if (!Number.isSafeInteger(candidate) || candidate <= 0) {
-        details.push({ field: path, message: `${field} values must be positive integers.` });
+      if (!Number.isSafeInteger(candidate) || candidate <= 0 || candidate > MAX_REFERENCE_ID) {
+        details.push({
+          field: path,
+          message: `${field} values must be positive integers no greater than ${MAX_REFERENCE_ID}.`,
+        });
         return undefined;
       }
 
@@ -218,7 +230,18 @@ function convertValue(
 
       const parsed = new Date(raw);
 
-      if (Number.isNaN(parsed.getTime())) {
+      /*
+       * PostgreSQL has no year zero: its era runs 1 BC to 1 AD with nothing
+       * between. JavaScript does have one, and the pattern above admits it, so
+       * "0000-01-01" parsed to a perfectly valid Date and then failed in the
+       * database as `22008 date/time field value out of range` -- a 500 for a
+       * malformed parameter, the same shape of gap as the reference bound.
+       *
+       * The year is read in UTC rather than off the string, because an offset
+       * can carry an in-range local year out of range once normalised:
+       * "0001-01-01T00:00:00+14:00" is 0000-12-31T10:00:00Z.
+       */
+      if (Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1) {
         details.push({ field: path, message: `${field} values must be ISO-8601 date-times.` });
         return undefined;
       }

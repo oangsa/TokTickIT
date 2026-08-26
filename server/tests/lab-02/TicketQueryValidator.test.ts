@@ -10,6 +10,7 @@ import {
   MAX_FILTER_EXPRESSIONS,
   MAX_FILTER_VALUE_LENGTH,
   MAX_IN_VALUES,
+  MAX_REFERENCE_ID,
   MAX_SEARCH_LENGTH,
   TICKET_SORT_FIELDS,
   parseTicketListQuery,
@@ -263,6 +264,57 @@ describe("Ticket filter value conversion", () => {
       expectRejected(filters({ field: "categoryId", condition: "EQUAL", value }), "filters[0].value");
     },
   );
+
+  it("bounds a reference value at what an INTEGER column can hold", () => {
+    /*
+     * A safe integer is not a storable one. `3000000000` passed the old check
+     * and reached Prisma, which answered `P2020 ValueOutOfRange` -- reported as
+     * a 500 for what is a malformed query parameter. The bound is the column's,
+     * so nothing that could identify a row is lost.
+     */
+    expect(
+      parseTicketListQuery(
+        filters({ field: "categoryId", condition: "EQUAL", value: MAX_REFERENCE_ID }),
+      ).filters[0].value,
+    ).toBe(MAX_REFERENCE_ID);
+
+    expectRejected(
+      filters({ field: "categoryId", condition: "EQUAL", value: MAX_REFERENCE_ID + 1 }),
+      "filters[0].value",
+    );
+    expectRejected(
+      filters({ field: "relatedSystemId", condition: "EQUAL", value: Number.MAX_SAFE_INTEGER }),
+      "filters[0].value",
+    );
+    /* Every element of an `IN` array goes through the same conversion. */
+    expectRejected(
+      filters({ field: "categoryId", condition: "IN", value: [1, MAX_REFERENCE_ID + 1] }),
+      "filters[0].value",
+    );
+  });
+
+  it("rejects a year PostgreSQL cannot represent", () => {
+    /*
+     * PostgreSQL has no year zero; JavaScript does, so `new Date` accepted
+     * "0000-01-01" and the database answered `22008` -- another 500 for a
+     * malformed parameter. The offset case matters too: the local year is in
+     * range and the normalised one is not.
+     */
+    expectRejected(
+      filters({ field: "createdAt", condition: "GREATER", value: "0000-01-01" }),
+      "filters[0].value",
+    );
+    expectRejected(
+      filters({ field: "createdAt", condition: "GREATER", value: "0001-01-01T00:00:00+14:00" }),
+      "filters[0].value",
+    );
+
+    expect(
+      parseTicketListQuery(
+        filters({ field: "createdAt", condition: "GREATER", value: "0001-01-01" }),
+      ).filters[0].value,
+    ).toEqual(new Date("0001-01-01"));
+  });
 
   it("bounds a string filter value the way search is bounded", () => {
     /*
