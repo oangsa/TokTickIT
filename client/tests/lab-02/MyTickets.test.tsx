@@ -600,6 +600,85 @@ describe("UI-21 My Tickets sort options", () => {
 });
 
 describe("UI-22 My Tickets pagination and list projection", () => {
+  it("keeps the page list in place across a refetch rather than collapsing it", async () => {
+    /*
+     * Zeroing the total for the length of the fetch collapsed `pageCount` to 1,
+     * so the list went "1 2 3 4 5" -> "1" -> "1 2 3 4 5" on every sort, filter,
+     * or page change. That is the layout jump ui-spec 19.1 asks the controls
+     * that stay mounted to avoid.
+     */
+    let served = 0;
+    stubApi(() => {
+      served += 1;
+
+      if (served === 1) {
+        return {
+          body: [ticket()],
+          pagination: meta({ pageSize: 10, totalItems: 47, totalPages: 5, hasNextPage: true }),
+        };
+      }
+
+      return new Promise<ListResult>(() => undefined);
+    });
+
+    renderMyTickets();
+    await screen.findByText(/Showing 1–10 of 47/);
+
+    const nav = screen.getByRole("navigation", { name: "Ticket pagination" });
+    const pageNumbers = () =>
+      within(nav)
+        .getAllByRole("button", { name: /^\d+$/ })
+        .map((button) => button.textContent);
+
+    expect(pageNumbers()).toEqual(["1", "2", "3", "4", "5"]);
+
+    await userEvent.selectOptions(screen.getByLabelText("Sort by"), ["createdAt:asc"]);
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Loading tickets"));
+
+    expect(pageNumbers()).toEqual(["1", "2", "3", "4", "5"]);
+    /* The shape is held; the exact range is not, because those rows are gone. */
+    expect(nav.textContent).not.toMatch(/Showing/);
+  });
+
+  it("does not clamp a restored page against the previous query's total", async () => {
+    /*
+     * The cost of holding the total across a fetch: for that window it belongs
+     * to the previous query. Here it says two pages while the address being
+     * fetched asks for page five, so an unguarded clamp would commit page two
+     * and discard the page-five response that was already in flight.
+     */
+    let served = 0;
+    const { calls } = stubApi(() => {
+      served += 1;
+
+      if (served === 1) {
+        return {
+          body: [ticket()],
+          pagination: meta({ pageSize: 10, totalItems: 15, totalPages: 2, hasNextPage: true }),
+        };
+      }
+
+      return new Promise<ListResult>(() => undefined);
+    });
+
+    renderMyTicketsWithHistory(["/tickets?pageNumber=5", "/tickets"], 1);
+    await screen.findByText(/Showing 1–10 of 15/);
+
+    await userEvent.click(screen.getByRole("button", { name: "Go back" }));
+
+    await waitFor(() => expect(listCalls(calls)).toHaveLength(2));
+    expect(lastListQuery(calls).get("pageNumber")).toBe("5");
+
+    /* A clamp would show up as a third request carrying pageNumber=2. */
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(listCalls(calls)).toHaveLength(2);
+    expect(lastListQuery(calls).get("pageNumber")).toBe("5");
+  });
+
   it("renders the range from X-Pagination rather than the row count", async () => {
     stubApi(() => ({
       body: [ticket()],

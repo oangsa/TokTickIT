@@ -27,7 +27,8 @@ import {
  *   presence of a `{ requesterId }` object;
  * - `mode: "insensitive"` actually reaching the comparison, including on `not`,
  *   which Prisma types permit but documents narrowly;
- * - `contains` against `ticket_number`, which is `CHAR(25)` rather than `TEXT`;
+ * - `contains` against `ticket_number`, whose trigram index only serves the
+ *   search once the column is `VARCHAR` rather than `CHAR`;
  * - semantic Priority ordering, which rests on PostgreSQL sorting an enum by
  *   declaration order and was previously pinned only by reading the DDL;
  * - the `createdAt DESC, id DESC` tiebreaker, which no single-row fixture and
@@ -39,7 +40,7 @@ import {
 
 const TICKET_DATE = "2026-08-20";
 
-/* `ticket_number` is CHAR(25): "TKT-" + 8 + "-" + 12 is exactly 25, so a value
+/* `ticket_number` is VARCHAR(25): "TKT-" + 8 + "-" + 12 is exactly 25, so a value
  * of this shape is never blank-padded and never compared against padding. */
 function ticketNumber(suffix: string): string {
   const value = `TKT-${TICKET_DATE.replaceAll("-", "")}-${suffix}`;
@@ -411,10 +412,10 @@ describe.sequential("Lab 2 My Tickets PostgreSQL read path", () => {
     expect(result.items[0]).not.toHaveProperty("description");
   });
 
-  it("searches case-insensitively, including against the CHAR(25) Ticket Number", async () => {
-    /* `mode: "insensitive"` becomes ILIKE, and `ticket_number` is CHAR(25)
-     * rather than TEXT, so this is the one search field whose column type could
-     * change the comparison. */
+  it("searches case-insensitively, including against the Ticket Number", async () => {
+    /* `mode: "insensitive"` becomes ILIKE, and `ticket_number` is the one search
+     * field with its own column type and a fixed-length format, so it is where
+     * the column type could change the comparison. */
     const upper = await search("VPN DISCONNECTS");
     const lower = await search("vpn disconnects");
 
@@ -453,6 +454,29 @@ describe.sequential("Lab 2 My Tickets PostgreSQL read path", () => {
     );
 
     expect(suffixes(exact.items)).toEqual(["BBBBBBBBBBB3"]);
+  });
+
+  it("matches a string IN case-insensitively, as BR-33 requires of every string condition", async () => {
+    /* Prisma accepts `mode` beside `in` and then silently drops it, so an `IN`
+     * emitted as one stayed case-sensitive on the same field where `EQUAL`
+     * matched any case. The builder expands it into the OR of insensitive
+     * equality it means; this is the assertion that the expansion reaches the
+     * engine rather than only the fragment. */
+    const result = await list(
+      {
+        filters: JSON.stringify([
+          {
+            field: "summary",
+            condition: "IN",
+            value: ["disk at 100% capacity", "PRINTER_ROOM OFFLINE"],
+          },
+        ]),
+      },
+      fixture.bobId,
+    );
+
+    expect(suffixes(result.items).sort()).toEqual(["BBBBBBBBBBB3", "BBBBBBBBBBB5"]);
+    expect(result.pagination.totalItems).toBe(2);
   });
 
   it("sorts Priority semantically rather than alphabetically", async () => {

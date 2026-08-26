@@ -6,6 +6,14 @@ interface PaginationProps {
   pageNumber: number;
   pageSize: number;
   totalItems: number;
+  /*
+   * A fetch is in flight, so `totalItems` still describes the previous query.
+   * The control keeps its shape -- that is the point of holding the old total
+   * rather than zeroing it -- but must neither state a range it cannot vouch
+   * for nor act on a clamp computed from a total about to be replaced. Only the
+   * caller knows this; the component cannot tell a stale total from a fresh one.
+   */
+  pending?: boolean;
   pageSizeOptions?: number[];
   onPageChange: (pageNumber: number) => void;
   onPageSizeChange: (pageSize: number) => void;
@@ -49,6 +57,7 @@ export function Pagination({
   pageNumber,
   pageSize,
   totalItems,
+  pending = false,
   pageSizeOptions = DEFAULT_PAGE_SIZES,
   onPageChange,
   onPageSizeChange,
@@ -70,12 +79,13 @@ export function Pagination({
    * converges and the next fetch matches what is rendered.
    *
    * `totalItems > 0` guards the report, and it is load-bearing rather than an
-   * optimisation. `totalItems: 0` is what a caller renders while a refetch is in
-   * flight, and it collapses `pageCount` to 1: reporting there would knock a user
-   * on page 3 back to page 1 and discard the page-3 response that was about to
-   * arrive. A genuinely empty result set needs no report either — every page of
+   * optimisation. A genuinely empty result set needs no report — every page of
    * it is equally empty, and the clamped display already reads "Page 1 of 1" —
    * so the report is only owed once a real total contradicts the caller.
+   *
+   * `pending` guards it for the other direction: mid-fetch the total belongs to
+   * the previous query, and clamping against it would knock a user on page 3
+   * back to page 1 and discard the page-3 response that was about to arrive.
    *
    * `onPageChange` is read through a ref: callers commonly pass an inline arrow,
    * and depending on its identity would re-run this on every render.
@@ -84,10 +94,10 @@ export function Pagination({
   onPageChangeRef.current = onPageChange;
 
   useEffect(() => {
-    if (totalItems > 0 && pageNumber !== page) {
+    if (!pending && totalItems > 0 && pageNumber !== page) {
       onPageChangeRef.current(page);
     }
-  }, [pageNumber, page, totalItems]);
+  }, [pageNumber, page, totalItems, pending]);
 
   const firstItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
   const lastItem = Math.min(page * pageSize, totalItems);
@@ -112,12 +122,16 @@ export function Pagination({
         * `totalItems === 0` inside a rendered `Pagination` means the refetch
         * that will supply the real total is still in flight. Printing the
         * derived range there reads "Showing 0–0 of 0" underneath the caller's
-        * skeleton rows, which contradicts them. The line keeps its height with
-        * a non-breaking space so the surrounding structure does not jump
+        * skeleton rows, which contradicts them. `pending` suppresses the same
+        * line for the same reason once a caller holds the previous total across
+        * the fetch: the page list can keep its shape, because it is about to be
+        * replaced by something close to it, but a range is an exact claim about
+        * rows that are no longer on screen. The line keeps its height with a
+        * non-breaking space so the surrounding structure does not jump
         * (ui-spec 19.1).
         */}
       <p className="mb-0 small text-secondary">
-        {totalItems === 0 ? (
+        {pending || totalItems === 0 ? (
           "\u00a0"
         ) : (
           <>

@@ -1368,8 +1368,8 @@ remains open and still needs a real browser, which is Issue #25's scope.
 ### 4.5.28 Issue #22 fourth review fix pass
 
 A fourth outsider review traced the read path against a live `postgres:16-alpine`
-engine with Prisma query logging on. It produced one real defect and two nits.
-This section supersedes the counts in Section 4.5.27.
+engine with Prisma query logging and `EXPLAIN` on. It produced three defects and
+two nits. This section supersedes the counts in Section 4.5.27.
 
 1. **A LIKE wildcard in a value was read as pattern syntax, and case-insensitive
    `EQUAL` was therefore not equality.** Prisma parameterizes the value, so `%`
@@ -1407,28 +1407,52 @@ This section supersedes the counts in Section 4.5.27.
    The first commit now pushes; every subsequent one still replaces, so Back
    does not walk the search letter by letter.
 
-Two findings were reported and deliberately left open:
+4. **`IN` was case-sensitive on a text field where `EQUAL` was not.** BR-33
+   makes every string search/filter condition case-insensitive without
+   qualification, and api-spec Section 9.7 lists `IN` in the String row, so this
+   was a rule violation rather than a documented wart. Prisma honours `mode` for
+   `equals`, `contains`, `startsWith`, `endsWith`, and `not` only and silently
+   ignores it for `in`, so the flag could not be emitted: against the same field
+   and value, `EQUAL "battery at 100% capacity"` matched while
+   `IN ["battery at 100% capacity"]` returned nothing. `buildFilter` now expands
+   an insensitive `IN` into the OR of insensitive equality it means, one level
+   deep, each branch inheriting the wildcard escape. `buildWhere` still places
+   the result as a single `AND` member, so it is a server-side rendering of one
+   whitelisted condition and not a nested OR group a client can compose. The
+   Requester UI was unaffected throughout: it emits `IN` only for reference and
+   enum fields.
+5. **`ticket_ticket_number_trgm_idx` could never be used.** The index was
+   created on the expression `(ticket_number::text)` because `gin_trgm_ops`
+   refuses a `character` column, while Prisma emits `ticket_number ILIKE $1`
+   with no cast — and PostgreSQL matches an expression index only against that
+   same expression. `EXPLAIN` over 30,000 rows returned `Seq Scan on ticket`
+   even under `enable_seqscan = off`, which distinguishes an index the planner
+   declined from one it could not use at all; `summary` under the same forcing
+   switched to a Bitmap Index Scan, so the two indexes were not equivalent.
+   Ticket Numbers are exactly 25 characters by the format `CHECK`, so `CHAR(25)`
+   bought nothing that `VARCHAR(25)` does not, and it also carried the
+   blank-padding semantics every string comparison had to be reasoned about
+   against. The column is now `VARCHAR(25)` and the index sits on the bare
+   column, matching `summary` and `description`; `schema.prisma` declares it, so
+   the drift where the migration held an index the schema could not express is
+   closed as well. The suite now asserts plan reachability rather than index
+   existence, since every existing assertion passed while the index was dead.
 
-- **`IN` is case-sensitive on a text field where `EQUAL` is not.** Prisma
-  honours `mode` for `equals`, `contains`, `startsWith`, `endsWith`, and `not`
-  only, and silently ignores it for `in`; `queryBuilder.ts` therefore refuses to
-  emit a flag the database will not act on. The asymmetry is real and reachable
-  by a direct API client, but resolving it is an api-spec Section 9.7 decision
-  (drop `IN` from the string row, or state the difference), not a code fix. The
-  Requester UI is unaffected: it emits `IN` only for reference and enum fields.
-- **`ticket_ticket_number_trgm_idx` is unreachable from this query path.** The
-  migration indexes the expression `(ticket_number::text)`, while Prisma emits
-  `ticket_number ILIKE ...` with no cast, so the index never matches; it is also
-  absent from `schema.prisma`, which cannot express an expression index. The
-  index predates Issue #22 and is outside this change's diff.
+One finding was reported and deliberately left open:
+
+- **The `X-Pagination` count and the page read are two statements, not one
+  snapshot.** A concurrent insert can shift `totalItems` between them. This is
+  the pre-existing `ponytail:` note in `ticketListService.ts`, unchanged: the
+  fix is to wrap both in `$transaction`, and it is only owed if the count ever
+  has to be exact to the row.
 
 | Check | Command | Environment / target | Result |
 | --- | --- | --- | --- |
-| PostgreSQL read-path suite | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres/my-tickets.postgres.test.ts` | `server/`; `postgres:16-alpine` in the `toktickit-lab2-test-postgres` container on `localhost:55432` | Passed — 12 tests. |
-| Full server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 397 tests. |
+| All guarded PostgreSQL suites | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres` | `server/`; `postgres:16-alpine` in the `toktickit-lab2-test-postgres` container on `localhost:55432` | Passed — 5 files, 49 tests. |
+| Full server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 399 tests. |
 | Backend typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
 | Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
-| Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 188 tests. |
+| Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 190 tests. |
 
 
 ## 5. Reusable QueryBuilder Test Principle
@@ -1622,7 +1646,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-12 | PostgreSQL Integration | BR-19–24, BR-82, AC-65 | Old-owner fencing after reclaim, using separate connections and the exact retained lease timestamp. | A owns PROCESSING; its lease becomes stale; B atomically reclaims and obtains a new `processing_started_at`; A resumes with the old value and its locked status/hash/timestamp fencing check fails before mutation; B alone performs final validation, creates, binds, and completes; exactly one Ticket and one Attachment-binding set commit. The claim lock blocks reclaim while held. | tests/lab-02/postgres/idempotency.postgres.test.ts | Passed |
 | PG-13 | PostgreSQL Integration | BR-21, BR-51, AC-06 | A competing writer binds a referenced Pending Attachment after the create transaction's non-locking Pending read, using separate connections. | The binding `UPDATE` re-checks Pending state under the row lock and affects fewer rows than were read, so the create resolves `409` instead of moving the Attachment off the winning Ticket; no losing Ticket, binding, or COMPLETED result commits and the owned claim is removed. | tests/lab-02/postgres/transactions.postgres.test.ts | Passed |
 | PG-14 | PostgreSQL Integration | BR-03, AC-07 | A Ticket Number unique violation followed by a retry inside the same transaction. | The violation puts the transaction into PostgreSQL's aborted state (`25P02`), so each attempt runs inside a savepoint and a failed attempt rolls back to it; the retry then inserts normally and the bounded BR-03 retry is reachable rather than dead. | tests/lab-02/postgres/transactions.postgres.test.ts | Passed |
-| PG-15 | PostgreSQL Integration | BR-26–39, BR-72–73, AC-21–30, AC-55 | The My Tickets read path executed by an engine: two Requesters whose rows match each other's search terms and filters, a logically deleted row, a wide `createdAt` tie, and a Ticket on reference rows that later go inactive and deleted. | Ownership holds as an outcome rather than as the presence of a `{ requesterId }` object — neither Requester's rows, totals, or pages reach the other, including under a search that matches both; the deleted row is absent from rows and totals alike; a Ticket matches through Description alone while the DTO omits it; `mode: "insensitive"` reaches the comparison for `contains` and for `not`, including against the `CHAR(25)` `ticket_number`; Priority sorts by enum declaration order rather than alphabetically; the search OR-group ANDs with every filter; paging is complete and duplicate-free past a wide tie and beyond the final page; a LIKE wildcard carried in a search term or an `EQUAL` value is matched as a literal rather than as pattern syntax, so a case-insensitive `EQUAL` stays equality even though Prisma renders it as `ILIKE`; and historical Category and Related System names survive both master rows going inactive and deleted. | tests/lab-02/postgres/my-tickets.postgres.test.ts | Passed — 12 tests |
+| PG-15 | PostgreSQL Integration | BR-26–39, BR-72–73, AC-21–30, AC-55 | The My Tickets read path executed by an engine: two Requesters whose rows match each other's search terms and filters, a logically deleted row, a wide `createdAt` tie, and a Ticket on reference rows that later go inactive and deleted. | Ownership holds as an outcome rather than as the presence of a `{ requesterId }` object — neither Requester's rows, totals, or pages reach the other, including under a search that matches both; the deleted row is absent from rows and totals alike; a Ticket matches through Description alone while the DTO omits it; `mode: "insensitive"` reaches the comparison for `contains`, for `not`, and for the `IN` the builder expands into insensitive equality, including against `ticket_number`; Priority sorts by enum declaration order rather than alphabetically; the search OR-group ANDs with every filter; paging is complete and duplicate-free past a wide tie and beyond the final page; a LIKE wildcard carried in a search term or an `EQUAL` value is matched as a literal rather than as pattern syntax, so a case-insensitive `EQUAL` stays equality even though Prisma renders it as `ILIKE`; and historical Category and Related System names survive both master rows going inactive and deleted. | tests/lab-02/postgres/my-tickets.postgres.test.ts | Passed — 13 tests |
 
 ## 8. Planned UI Tests
 

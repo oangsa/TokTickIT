@@ -51,6 +51,20 @@ import {
 
 type LoadState = "loading" | "loaded" | "invalid";
 
+/*
+ * The pagination metadata, tagged with the request it answered.
+ *
+ * The tag is what lets the total be held across a fetch without ever being
+ * mistaken for a fresh one. It cannot be replaced by the `loading` flag: that
+ * flag is set in this screen's own effect, and a child's effects flush before
+ * its parent's, so `Pagination` would run one clamp against the previous
+ * query's total before the flag arrived.
+ */
+interface LoadedPagination {
+  request: string;
+  metadata: PaginationMetadata;
+}
+
 const PRIORITY_VARIANT = {
   LOW: "pale",
   MEDIUM: "medium",
@@ -85,10 +99,16 @@ export default function MyTickets() {
   const [params, setParams] = useSearchParams();
 
   const query = useMemo(() => readTicketQuery(params), [params]);
+  /*
+   * The query as the API receives it. It is both what the effect sends and the
+   * tag the held pagination carries, so "which request does this total describe"
+   * is answered by one value rather than by two that could drift apart.
+   */
+  const request = useMemo(() => buildTicketListSearch(query), [query]);
 
   const [searchInput, setSearchInput] = useState(query.search);
   const [items, setItems] = useState<TicketListItem[]>([]);
-  const [pagination, setPagination] = useState<PaginationMetadata | null>(null);
+  const [pagination, setPagination] = useState<LoadedPagination | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   /* Non-null means the filter modal is open, and is also the draft itself. */
   const [filterDraft, setFilterDraft] = useState<FilterSelection | null>(null);
@@ -176,23 +196,39 @@ export default function MyTickets() {
     return () => clearTimeout(timer);
   }, [searchInput, query, commitQuery]);
 
+  /*
+   * AC-36. `callApi` changes identity with the Requester, so this is the one
+   * effect that fires on a scope change and not on an ordinary query change:
+   * the previous Requester's count must be gone before anything of the new
+   * scope renders. `RequesterGuard` also unmounts this screen on a Requester
+   * change, which would drop the state anyway; the rule is stated here rather
+   * than left resting on that, so a future change to the guard cannot quietly
+   * turn a held total into a cross-scope leak.
+   */
+  useEffect(() => {
+    setPagination(null);
+  }, [callApi]);
+
   useEffect(() => {
     let ignore = false;
 
     /*
-     * Cleared before the request rather than after it: on a Requester change
-     * the previous scope's rows and counts must be gone before anything of the
-     * new scope renders (AC-36).
+     * Rows are cleared before the request rather than after it: stale rows
+     * under a new query are visibly wrong, and the skeleton belongs in their
+     * place. `pagination` is deliberately kept, tagged with the request it
+     * answered. Dropping it collapsed the page list from "1 2 3 … 40" to a
+     * single "1" and back on every fetch -- the layout jump ui-spec 19.1 asks
+     * the mounted controls to avoid -- while the tag keeps the held total from
+     * being stated as a range or acted on as a clamp.
      */
     setItems([]);
-    setPagination(null);
     setLoadState("loading");
 
     async function load(): Promise<void> {
       try {
         let metadata: PaginationMetadata | null = null;
 
-        const data = await callApi<TicketListItem[]>(`/api/tickets?${buildTicketListSearch(query)}`, {
+        const data = await callApi<TicketListItem[]>(`/api/tickets?${request}`, {
           onResponse: (response) => {
             metadata = readPaginationHeader(response.headers.get("X-Pagination"));
           },
@@ -203,7 +239,7 @@ export default function MyTickets() {
         }
 
         setItems(data);
-        setPagination(metadata);
+        setPagination(metadata === null ? null : { request, metadata });
         setLoadState("loaded");
       } catch (error) {
         if (ignore) {
@@ -238,19 +274,27 @@ export default function MyTickets() {
     return () => {
       ignore = true;
     };
-  }, [callApi, query, navigate]);
+  }, [callApi, request, query, navigate]);
 
   const loading = loadState === "loading";
   const appliedCount = filterCount(query);
   const queryActive = hasActiveQuery(query);
-  /* Absent while a fetch is in flight, and while the query is rejected. */
-  const totalItems = pagination?.totalItems ?? 0;
+  /*
+   * True while the held total belongs to a request other than the one on
+   * screen -- across a fetch, and before the first one answers. Derived at
+   * render time, never from `loadState`: `Pagination`'s clamp is a child effect
+   * and would run once against the previous query's total before an
+   * effect-assigned flag could reach it.
+   */
+  const stale = pagination === null || pagination.request !== request;
+  /* Held across a fetch so the page list keeps its shape; see `stale`. */
+  const totalItems = pagination?.metadata.totalItems ?? 0;
   /*
    * "No tickets yet" is a claim about the Requester, not about this page of
    * this query, so it needs the total as well as an inactive query: page 5 of
    * three unfiltered Tickets is empty without the Requester being.
    */
-  const trulyEmpty = !queryActive && totalItems === 0;
+  const trulyEmpty = !stale && !queryActive && totalItems === 0;
   /*
    * A page past the last one answers 200 with an empty array (BR-38), so this
    * page is being corrected rather than displayed: `Pagination` reports its
@@ -260,7 +304,10 @@ export default function MyTickets() {
    * correction and must keep its own empty state.
    */
   const correctingPage =
-    pagination !== null && pagination.totalItems > 0 && query.pageNumber > pagination.totalPages;
+    !stale &&
+    pagination !== null &&
+    pagination.metadata.totalItems > 0 &&
+    query.pageNumber > pagination.metadata.totalPages;
 
   /*
    * One always-mounted live region (ui-spec 29.7), the same pattern
@@ -281,7 +328,7 @@ export default function MyTickets() {
    * mangled, and announcing "0 tickets" over rendered rows would contradict
    * the screen, so the rows answer for themselves in that one case.
    */
-  const announcedCount = pagination?.totalItems ?? items.length;
+  const announcedCount = !stale && pagination !== null ? pagination.metadata.totalItems : items.length;
   const announcement =
     loadState === "loading"
       ? "Loading tickets"
@@ -550,6 +597,7 @@ export default function MyTickets() {
                 pageNumber={query.pageNumber}
                 pageSize={query.pageSize}
                 totalItems={totalItems}
+                pending={stale}
                 /*
                  * A correction replaces the address it corrects. Pushing would
                  * leave the out-of-range entry behind, and Back would land on

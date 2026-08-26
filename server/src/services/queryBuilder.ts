@@ -70,6 +70,9 @@ export type QueryFilter = Record<string, unknown>;
  * `contains`, `startsWith`, `endsWith`, and `not` only: the flag is silently
  * ignored for `in`, and the match stays case-sensitive. Emitting a flag that
  * does nothing would promise a caller a semantic the database does not deliver.
+ *
+ * An insensitive `IN` is still honoured -- `buildFilter` expands it into the OR
+ * of insensitive equality it means, so it never reaches this table as `IN`.
  */
 const TEXT_COMPARABLE = new Set<QueryCondition>([
   "CONTAINS",
@@ -169,7 +172,40 @@ function buildFragment(expression: QueryExpression): Record<string, unknown> {
 }
 
 export function buildFilter(expression: QueryExpression): QueryFilter {
-  return { [expression.field]: buildFragment(expression) };
+  const { field, condition, value, caseInsensitive } = expression;
+
+  /*
+   * BR-33 makes every string filter condition case-insensitive, and `IN` is one
+   * of them for `ticketNumber`, `summary`, and `description` (api-spec Section
+   * 9.7). Prisma cannot deliver it directly: its `StringFilter` accepts `mode`
+   * beside `in`, so the flag typechecks, but Prisma honours it for `equals`,
+   * `contains`, `startsWith`, `endsWith`, and `not` only and silently drops it
+   * for `in` -- which left `IN ["abc"]` case-sensitive on the same field where
+   * `EQUAL "abc"` matched "ABC".
+   *
+   * `IN` means "equals any of", so it is expanded into exactly that: the OR of
+   * one insensitive `EQUAL` per value. The recursion is one level deep, since
+   * `EQUAL` is not `IN`, and each branch picks up the wildcard escape on its way
+   * through `buildFragment`.
+   *
+   * This is a server-side rendering of one whitelisted condition, not a nested
+   * OR group a client can compose: `buildWhere` still places the result as a
+   * single `AND` member, so it cannot widen a caller's fixed predicate.
+   *
+   * ponytail: 100 values is 100 ILIKE comparisons against no usable index. The
+   * `IN` cardinality cap and the caller's own scope predicate bound it, and no
+   * screen sends this shape. Narrow the cap for text fields, or lower them to a
+   * case-sensitive `in`, if a real caller ever makes it hurt.
+   */
+  if (condition === "IN" && caseInsensitive === true && Array.isArray(value)) {
+    return {
+      OR: value.map((entry) =>
+        buildFilter({ field, condition: "EQUAL", value: entry, caseInsensitive: true }),
+      ),
+    };
+  }
+
+  return { [field]: buildFragment(expression) };
 }
 
 /*

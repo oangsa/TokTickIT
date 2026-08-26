@@ -79,9 +79,43 @@ describe("QueryBuilder generic condition construction (UNIT-07)", () => {
     // `equals`, `contains`, `startsWith`, `endsWith`, and `not` only, and
     // silently ignores it for `in`. A flag the database ignores must not be
     // emitted, or the fragment promises a semantic no row will be matched by.
+    expect(buildFilter({ field: "title", condition: "IN", value: ["a", "b"] })).toEqual({
+      title: { in: ["a", "b"] },
+    });
+  });
+
+  it("expands an insensitive IN into the OR of insensitive equality it means", () => {
+    // BR-33 makes every string filter condition case-insensitive, and `IN` is
+    // one of them. Since Prisma drops `mode` for `in`, honouring the rule means
+    // rendering the condition as what it says: equals any of these.
     expect(
       buildFilter({ field: "title", condition: "IN", value: ["a", "b"], caseInsensitive: true }),
-    ).toEqual({ title: { in: ["a", "b"] } });
+    ).toEqual({
+      OR: [
+        { title: { equals: "a", mode: "insensitive" } },
+        { title: { equals: "b", mode: "insensitive" } },
+      ],
+    });
+
+    // The expansion inherits the wildcard escape rather than reintroducing the
+    // pattern-widening it removes.
+    expect(
+      buildFilter({ field: "title", condition: "IN", value: ["100%"], caseInsensitive: true }),
+    ).toEqual({ OR: [{ title: { equals: "100\\%", mode: "insensitive" } }] });
+  });
+
+  it("keeps an expanded IN as one AND member beside the caller's fixed predicates", () => {
+    // The expansion is a server-side rendering of one whitelisted condition,
+    // not a nested OR group a client composed. Flattened into the AND it would
+    // become a top-level disjunction and widen `authorId: 7`.
+    expect(
+      buildWhere({
+        base: [{ authorId: 7 }],
+        filters: [{ field: "title", condition: "IN", value: ["a"], caseInsensitive: true }],
+      }),
+    ).toEqual({
+      AND: [{ authorId: 7 }, { OR: [{ title: { equals: "a", mode: "insensitive" } }] }],
+    });
   });
 
   it("escapes LIKE wildcards in every pattern-rendered condition", () => {
@@ -125,11 +159,11 @@ describe("QueryBuilder generic condition construction (UNIT-07)", () => {
   });
 
   it("never escapes a value no LIKE pattern will read", () => {
-    // `IN` renders as `IN (...)`, so an escape here would make the caller
-    // search for a literal backslash that no row holds.
-    expect(
-      buildFilter({ field: "title", condition: "IN", value: ["100%"], caseInsensitive: true }),
-    ).toEqual({ title: { in: ["100%"] } });
+    // A case-sensitive `IN` renders as `IN (...)`, so an escape here would make
+    // the caller search for a literal backslash that no row holds.
+    expect(buildFilter({ field: "title", condition: "IN", value: ["100%"] })).toEqual({
+      title: { in: ["100%"] },
+    });
 
     // Only a string can carry a wildcard.
     expect(buildFilter({ field: "authorId", condition: "EQUAL", value: 7 })).toEqual({

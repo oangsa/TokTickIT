@@ -93,11 +93,6 @@ const varchar = (length: number): ExpectedColumnType => [
   "varchar",
   length,
 ];
-const character = (length: number): ExpectedColumnType => [
-  "character",
-  "bpchar",
-  length,
-];
 const nativeEnum = (name: string): ExpectedColumnType => [
   "USER-DEFINED",
   name,
@@ -141,7 +136,7 @@ const EXPECTED_COLUMNS = {
   ticket: {
     id: column(INTEGER, { defaultPattern: /nextval/ }),
     public_id: column(UUID),
-    ticket_number: column(character(25)),
+    ticket_number: column(varchar(25)),
     requester_id: column(INTEGER),
     category_id: column(INTEGER),
     related_system_id: column(INTEGER),
@@ -503,6 +498,31 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
     for (const name of ["ticket_ticket_number_trgm_idx", "ticket_summary_trgm_idx", "ticket_description_trgm_idx"]) {
       expect(indexByName.get(name)?.toLowerCase()).toContain("gin");
       expect(indexByName.get(name)).toContain("gin_trgm_ops");
+    }
+
+    /*
+     * Existing is not the same as reachable. `ticket_ticket_number_trgm_idx`
+     * was created on the expression `(ticket_number::text)`, because
+     * `gin_trgm_ops` refuses a `character` column -- and every assertion above
+     * passed while the planner could never use it, since Prisma emits
+     * `ticket_number ILIKE $1` with no cast. `enable_seqscan = off` removes the
+     * cost question and leaves only the structural one: can this index serve
+     * the search the application actually issues?
+     */
+    for (const column of ["ticket_number", "summary", "description"]) {
+      const plan = await prisma.$transaction(async (tx) => {
+        /* LOCAL, so the setting dies with the transaction rather than riding a
+         * pooled connection into another test. */
+        await tx.$executeRawUnsafe("SET LOCAL enable_seqscan = off");
+
+        return tx.$queryRawUnsafe<Array<Record<string, string>>>(
+          `EXPLAIN (COSTS OFF) SELECT id FROM ticket WHERE ${column} ILIKE '%abcdef%'`,
+        );
+      });
+
+      const text = plan.map((row) => Object.values(row).join(" ")).join("\n");
+
+      expect(text).toContain(`ticket_${column}_trgm_idx`);
     }
 
     const extensions = await prisma.$queryRaw<Array<{ extname: string }>>`
