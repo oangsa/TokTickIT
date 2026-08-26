@@ -84,6 +84,59 @@ describe("QueryBuilder generic condition construction (UNIT-07)", () => {
     ).toEqual({ title: { in: ["a", "b"] } });
   });
 
+  it("escapes LIKE wildcards in every pattern-rendered condition", () => {
+    // `%`, `_`, and `\` are parameterized by Prisma, so they are not injection,
+    // but PostgreSQL still reads them as pattern syntax. Unescaped, CONTAINS
+    // "100%" matches "1009" and STARTWITH "a_b" matches "axb".
+    expect(buildFilter({ field: "title", condition: "CONTAINS", value: "100%" })).toEqual({
+      title: { contains: "100\\%" },
+    });
+
+    expect(buildFilter({ field: "title", condition: "STARTWITH", value: "a_b" })).toEqual({
+      title: { startsWith: "a\\_b" },
+    });
+
+    expect(buildFilter({ field: "title", condition: "ENDWITH", value: "c\\d" })).toEqual({
+      title: { endsWith: "c\\\\d" },
+    });
+
+    // The backslash is escaped first, or it would double-escape what follows.
+    expect(buildFilter({ field: "title", condition: "CONTAINS", value: "\\%" })).toEqual({
+      title: { contains: "\\\\\\%" },
+    });
+  });
+
+  it("escapes EQUAL and NOTEQUAL only once they are case-insensitive", () => {
+    // Prisma renders an insensitive `equals` as ILIKE, so without this an
+    // equality filter silently becomes a pattern match: EQUAL "100%" would
+    // return "1009" as well.
+    expect(
+      buildFilter({ field: "title", condition: "EQUAL", value: "100%", caseInsensitive: true }),
+    ).toEqual({ title: { equals: "100\\%", mode: "insensitive" } });
+
+    expect(
+      buildFilter({ field: "title", condition: "NOTEQUAL", value: "100%", caseInsensitive: true }),
+    ).toEqual({ title: { not: "100\\%", mode: "insensitive" } });
+
+    // Case-sensitive `equals` is a plain `=`, where a wildcard is already literal.
+    expect(buildFilter({ field: "title", condition: "EQUAL", value: "100%" })).toEqual({
+      title: { equals: "100%" },
+    });
+  });
+
+  it("never escapes a value no LIKE pattern will read", () => {
+    // `IN` renders as `IN (...)`, so an escape here would make the caller
+    // search for a literal backslash that no row holds.
+    expect(
+      buildFilter({ field: "title", condition: "IN", value: ["100%"], caseInsensitive: true }),
+    ).toEqual({ title: { in: ["100%"] } });
+
+    // Only a string can carry a wildcard.
+    expect(buildFilter({ field: "authorId", condition: "EQUAL", value: 7 })).toEqual({
+      authorId: { equals: 7 },
+    });
+  });
+
   it("never adds insensitive mode to a comparison condition", () => {
     expect(
       buildFilter({
@@ -108,6 +161,19 @@ describe("QueryBuilder multi-field search construction (UNIT-08)", () => {
       OR: [
         { title: { contains: "vpn", mode: "insensitive" } },
         { body: { contains: "vpn", mode: "insensitive" } },
+      ],
+    });
+  });
+
+  it("escapes a wildcard in the term on every field of the group", () => {
+    // A search reaches the same pattern rendering as a CONTAINS filter, so the
+    // escape has to hold here too: "100%" must not match "1009".
+    expect(
+      buildSearchGroup({ fields: ["title", "body"], term: "100%", caseInsensitive: true }),
+    ).toEqual({
+      OR: [
+        { title: { contains: "100\\%", mode: "insensitive" } },
+        { body: { contains: "100\\%", mode: "insensitive" } },
       ],
     });
   });

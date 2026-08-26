@@ -225,6 +225,51 @@ function ticketSeeds(fixture: Fixture): TicketSeed[] {
       requestedPriority: RequestedPriority.LOW,
       createdAt: at("16"),
     },
+    /*
+     * Two pairs that differ only where a LIKE pattern would stop distinguishing
+     * them: `%` against any run of characters, `_` against any single one. A
+     * term carrying either must match the literal row and only it.
+     */
+    {
+      suffix: "BBBBBBBBBBB3",
+      requesterId: bobId,
+      categoryId: hardwareId,
+      relatedSystemId: printerId,
+      summary: "Disk at 100% capacity",
+      description: "The literal-percent row.",
+      requestedPriority: RequestedPriority.MEDIUM,
+      createdAt: at("17"),
+    },
+    {
+      suffix: "BBBBBBBBBBB4",
+      requesterId: bobId,
+      categoryId: hardwareId,
+      relatedSystemId: printerId,
+      summary: "Disk at 1009 capacity",
+      description: "Matches only if the percent is read as a wildcard.",
+      requestedPriority: RequestedPriority.MEDIUM,
+      createdAt: at("18"),
+    },
+    {
+      suffix: "BBBBBBBBBBB5",
+      requesterId: bobId,
+      categoryId: hardwareId,
+      relatedSystemId: printerId,
+      summary: "Printer_Room offline",
+      description: "The literal-underscore row.",
+      requestedPriority: RequestedPriority.LOW,
+      createdAt: at("19"),
+    },
+    {
+      suffix: "BBBBBBBBBBB6",
+      requesterId: bobId,
+      categoryId: hardwareId,
+      relatedSystemId: printerId,
+      summary: "PrinterXRoom offline",
+      description: "Matches only if the underscore is read as a wildcard.",
+      requestedPriority: RequestedPriority.LOW,
+      createdAt: at("20"),
+    },
   ];
 }
 
@@ -238,7 +283,14 @@ const ALICE_DEFAULT_ORDER = [
   "AAAAAAAAAAA7",
 ];
 
-const BOB_SUFFIXES = ["BBBBBBBBBBB1", "BBBBBBBBBBB2"];
+const BOB_SUFFIXES = [
+  "BBBBBBBBBBB1",
+  "BBBBBBBBBBB2",
+  "BBBBBBBBBBB3",
+  "BBBBBBBBBBB4",
+  "BBBBBBBBBBB5",
+  "BBBBBBBBBBB6",
+];
 
 /*
  * Carol's Tickets all share one creation instant. Two tied rows prove nothing:
@@ -372,6 +424,35 @@ describe.sequential("Lab 2 My Tickets PostgreSQL read path", () => {
     const byNumber = await search("aaaaaaaaaaa3");
 
     expect(suffixes(byNumber.items)).toEqual(["AAAAAAAAAAA3"]);
+  });
+
+  it("reads a LIKE wildcard in a search term and an EQUAL value as a literal", async () => {
+    /* Prisma parameterizes the value, so `%` and `_` are never injection -- but
+     * PostgreSQL still reads them as pattern syntax, and unescaped they widen
+     * the match past the term the Requester typed. */
+    const percent = await search("100%", {}, fixture.bobId);
+
+    expect(suffixes(percent.items)).toEqual(["BBBBBBBBBBB3"]);
+
+    const underscore = await search("Printer_Room", {}, fixture.bobId);
+
+    expect(suffixes(underscore.items)).toEqual(["BBBBBBBBBBB5"]);
+
+    /* The sharper half: `mode: "insensitive"` makes Prisma render `equals` as
+     * ILIKE, so an unescaped EQUAL is not equality at all -- "Disk at 1009
+     * capacity" would answer an exact-match filter for "100%". The value is
+     * lower-cased here so the escape is shown not to have cost the
+     * case-insensitivity it travels with. */
+    const exact = await list(
+      {
+        filters: JSON.stringify([
+          { field: "summary", condition: "EQUAL", value: "disk at 100% capacity" },
+        ]),
+      },
+      fixture.bobId,
+    );
+
+    expect(suffixes(exact.items)).toEqual(["BBBBBBBBBBB3"]);
   });
 
   it("sorts Priority semantically rather than alphabetically", async () => {

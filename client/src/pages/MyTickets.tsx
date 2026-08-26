@@ -98,8 +98,10 @@ export default function MyTickets() {
   /*
    * The only writer of the committed query, so no caller can forget the page
    * reset ui-spec Section 13.3 requires. The debounced search replaces its
-   * entry: pushing one per typing pause would make Back walk the search
-   * letter by letter.
+   * entry once a search is already committed: pushing one per typing pause
+   * would make Back walk the search letter by letter. The first commit still
+   * pushes, or the entry it replaced would be the unsearched list itself and
+   * Back would leave the screen rather than clear the search.
    */
   const commitQuery = useCallback(
     (next: TicketQuery, replace = false) => {
@@ -168,7 +170,7 @@ export default function MyTickets() {
 
     const timer = setTimeout(() => {
       committedSearch.current = searchInput.trim();
-      commitQuery({ ...query, search: searchInput.trim(), pageNumber: 1 }, true);
+      commitQuery({ ...query, search: searchInput.trim(), pageNumber: 1 }, query.search !== "");
     }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
@@ -272,11 +274,19 @@ export default function MyTickets() {
    * live region of its own. The rejected-query state is left to `ErrorState`'s
    * `role="alert"`; announcing it here too would announce it twice.
    */
+  /*
+   * The header, not the row count, is the authority on how many Tickets the
+   * query found -- one page of ten out of forty-seven announces forty-seven.
+   * `readPaginationHeader` still returns null for a header a proxy dropped or
+   * mangled, and announcing "0 tickets" over rendered rows would contradict
+   * the screen, so the rows answer for themselves in that one case.
+   */
+  const announcedCount = pagination?.totalItems ?? items.length;
   const announcement =
     loadState === "loading"
       ? "Loading tickets"
       : loadState === "loaded"
-        ? `${totalItems} ticket${totalItems === 1 ? "" : "s"}`
+        ? `${announcedCount} ticket${announcedCount === 1 ? "" : "s"}`
         : "";
 
   const filterLabels = useMemo(() => {

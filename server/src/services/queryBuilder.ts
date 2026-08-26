@@ -80,14 +80,47 @@ const TEXT_COMPARABLE = new Set<QueryCondition>([
 ]);
 
 /*
- * ponytail: `%` and `_` in a value reach PostgreSQL as LIKE wildcards. Prisma
- * parameterizes the value, so this is not injection and no scope predicate is
- * weakened, but a search for `100%` matches every row containing `100` and
- * `TKT_2026` matches `TKT-2026`. Escape the two characters and pass a LIKE
- * ESCAPE clause here if literal-wildcard search ever has to be correct.
+ * Conditions Prisma always renders as a SQL `LIKE`/`ILIKE` pattern, whatever
+ * `mode` says. `EQUAL` and `NOTEQUAL` join them only when the caller asked for
+ * insensitivity, because that is what turns Prisma's `equals`/`not` from `=`
+ * and `<>` into `ILIKE` and `NOT ILIKE`.
  */
+const ALWAYS_LIKE_PATTERN = new Set<QueryCondition>(["CONTAINS", "STARTWITH", "ENDWITH"]);
+
+/*
+ * A value bound into a LIKE pattern is parameterized by Prisma, so `%` and `_`
+ * inside it are never injection and never weaken a caller's scope predicate --
+ * but they are still read as wildcards, and that quietly breaks the meaning of
+ * the condition. Unescaped, `CONTAINS "100%"` matches "1009", `CONTAINS
+ * "Printer_Room"` matches "PrinterXRoom", and -- worst -- a case-insensitive
+ * `EQUAL` stops being equality at all, because it is an `ILIKE` underneath.
+ *
+ * Escaping belongs here rather than in a resource validator: which Prisma
+ * filter becomes a pattern is this module's own rendering decision, and a
+ * resource cannot know it without duplicating the table above. `\` is escaped
+ * first, or it would double-escape the sequences added after it.
+ *
+ * `\` is the default LIKE escape character on PostgreSQL and MySQL, and this
+ * project is PostgreSQL-only. SQLite has no default escape character and would
+ * need an explicit `ESCAPE` clause, which Prisma does not expose.
+ */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
 function buildFragment(expression: QueryExpression): Record<string, unknown> {
-  const { condition, value } = expression;
+  const { condition } = expression;
+  const insensitive = expression.caseInsensitive === true && TEXT_COMPARABLE.has(condition);
+  const raw = expression.value;
+  /*
+   * Only a string can carry a wildcard, and only a pattern-rendered condition
+   * reads one. `IN` is neither: it renders as `IN (...)` with `mode` ignored,
+   * so escaping there would make a caller search for a literal backslash.
+   */
+  const value =
+    typeof raw === "string" && (insensitive || ALWAYS_LIKE_PATTERN.has(condition))
+      ? escapeLikePattern(raw)
+      : raw;
 
   /*
    * The `never` default is load-bearing: adding a condition to
@@ -128,7 +161,7 @@ function buildFragment(expression: QueryExpression): Record<string, unknown> {
     }
   })();
 
-  if (expression.caseInsensitive === true && TEXT_COMPARABLE.has(condition)) {
+  if (insensitive) {
     fragment.mode = "insensitive";
   }
 
