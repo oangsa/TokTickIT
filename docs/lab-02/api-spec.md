@@ -1251,7 +1251,20 @@ categoryId + CONTAINS          invalid
 
 ### 9.8 `IN` Values
 
-`IN` requires a JSON array containing 1-100 unique values. Every value must pass the resource field's typed conversion and enum/reference/string rules.
+`IN` requires a JSON array containing 1–100 unique values.
+
+Every value must pass the resource field's typed conversion and
+enum/reference/string validation rules.
+
+Exceeding this bound is a `400 VALIDATION_ERROR` on `filters[i].value`.
+
+Implementation note: case-insensitive free-text `IN` may be more expensive than
+reference/enum `IN` because it is rendered as multiple `ILIKE` comparisons. Lab
+2 nevertheless preserves the approved public bound of 1–100 values. The
+generic/requester scope, `deleted = false` predicate, maximum 20 filter
+expressions, and bounded page size remain in force.
+
+Uniqueness is judged *after* conversion, so for a folded field two spellings of one value are a repeat: `["tkt-20260820-a81f3c9d7b21", "TKT-20260820-A81F3C9D7B21"]` is rejected.
 
 Valid:
 
@@ -1291,7 +1304,13 @@ Examples:
 "2" -> number 2 for categoryId
 "2026-08-20T00:00:00Z" -> Date for createdAt
 "HIGH" -> RequestedPriority.HIGH
+"tkt-20260820-a81f3c9d7b21" -> "TKT-20260820-A81F3C9D7B21" for ticketNumber
 ```
+
+`ticketNumber` values are folded to uppercase for every condition. The column carries `CHECK (ticket_number ~ '^TKT-[0-9]{8}-[0-9A-F]{12}$')`, anchored at both ends, so no stored value can contain a lowercase letter — folding the input and comparing case-sensitively is the same match BR-33 requires. It is also a different query plan: an insensitive comparison renders as `ILIKE`, and an insensitive `IN` of 100 values became 100 unindexable `ILIKE`s at 1,430 ms on 30,000 rows, where the folded form is one `IN (...)` on `ticket_ticket_number_key` at 0.238 ms. Callers may submit any case and see no behavioral difference.
+
+`summary` and `description` are free text with no constrained domain, so they
+keep `mode: "insensitive"`; their public `IN` cardinality follows Section 9.8.
 
 Failed conversion returns `400 Validation Error` and never reaches Prisma/database query construction.
 

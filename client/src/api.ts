@@ -82,6 +82,12 @@ export class InvalidRequesterContextError extends Error {
  */
 export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
   headers?: Record<string, string>;
+  /*
+   * Reads the response itself, for the one thing the parsed body cannot carry:
+   * a header. It runs only for a successful response, so error-path callers --
+   * and the fetch doubles in the tests -- never need a `headers` object at all.
+   */
+  onResponse?: (response: Response) => void;
 }
 
 export interface ApiErrorDetail {
@@ -145,6 +151,7 @@ export async function apiFetch<T>(
   init?: ApiRequestInit,
   requesterId?: number,
 ): Promise<T> {
+  const { onResponse, ...requestInit } = init ?? {};
   const headers: Record<string, string> = { ...init?.headers };
 
   if (requesterId !== undefined) {
@@ -154,7 +161,7 @@ export async function apiFetch<T>(
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
 
   const response = await fetch(`${API_URL}${path}`, {
-    ...init,
+    ...requestInit,
     headers,
     signal: init?.signal ? mergeSignals(timeout, init.signal) : timeout,
   }).catch(() => {
@@ -175,6 +182,8 @@ export async function apiFetch<T>(
       Array.isArray(envelope?.details) ? envelope.details : [],
     );
   }
+
+  onResponse?.(response);
 
   if (response.status === 204) {
     return undefined as T;
@@ -239,4 +248,66 @@ export interface Ticket {
   updatedBy: string;
   updatedAt: string;
   deleted: boolean;
+}
+
+/* api-spec Section 5.6. The bounded My Tickets projection: no Description, no
+ * Requester, no Attachments, no audit or lifecycle fields. Description stays
+ * searchable on the backend even though it never appears here. */
+export interface TicketListItem {
+  publicId: string;
+  ticketNumber: string;
+  categoryId: number;
+  categoryName: string;
+  relatedSystemId: number;
+  relatedSystemName: string;
+  summary: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  currentStatus: "NEW";
+  createdAt: string;
+}
+
+/* api-spec Section 9.13, carried in the `X-Pagination` response header. */
+export interface PaginationMetadata {
+  pageNumber: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+/*
+ * The header is server-controlled, but it still crosses a parse boundary: a
+ * proxy that drops it, or any malformed value, must leave the list rendering
+ * rather than throwing inside a render path.
+ */
+export function readPaginationHeader(value: string | null): PaginationMetadata | null {
+  if (value === null) {
+    return null;
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return null;
+  }
+
+  const candidate = parsed as Record<string, unknown>;
+  const numeric = ["pageNumber", "pageSize", "totalItems", "totalPages"] as const;
+
+  if (numeric.some((key) => typeof candidate[key] !== "number")) {
+    return null;
+  }
+
+  if (typeof candidate.hasPreviousPage !== "boolean" || typeof candidate.hasNextPage !== "boolean") {
+    return null;
+  }
+
+  return candidate as unknown as PaginationMetadata;
 }

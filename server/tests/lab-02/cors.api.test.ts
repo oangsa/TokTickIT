@@ -8,6 +8,9 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
   },
   category: { findMany: vi.fn() },
+  ticket: { findMany: vi.fn(), count: vi.fn() },
+  /* The list read path takes its page and count in one snapshot. */
+  $transaction: vi.fn(async (operations: Promise<unknown>[]) => Promise.all(operations)),
 }));
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
@@ -32,15 +35,14 @@ beforeEach(() => {
   prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);
   prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
   prismaMock.category.findMany.mockResolvedValue([]);
+  prismaMock.ticket.findMany.mockResolvedValue([]);
+  prismaMock.ticket.count.mockResolvedValue(0);
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// API-66's "Ticket-list response includes both readable values" half needs
-// `GET /api/tickets`, which is Issue #22. This file covers the header policy
-// only.
 describe("CORS (API-66, API-71)", () => {
   it("falls back to the Vite dev origin in development, test, and unset environments", () => {
     expect(resolveAllowedOrigins({})).toEqual(["http://localhost:5173"]);
@@ -96,6 +98,24 @@ describe("CORS (API-66, API-71)", () => {
       .set("Origin", "http://localhost:5173");
 
     expect(res.headers["access-control-expose-headers"]).toBe("X-Pagination,X-Request-Id");
+  });
+
+  it("makes both readable values present on a Ticket-list response", async () => {
+    // The other half of API-66: the allowlist above only promises the headers
+    // are readable, so the collection response has to actually carry them.
+    const res = await request(app)
+      .get("/api/tickets")
+      .set("Origin", "http://localhost:5173")
+      .set("X-Requester-Id", String(ALICE.id));
+
+    expect(res.status).toBe(200);
+    expect(res.headers["access-control-expose-headers"]).toBe("X-Pagination,X-Request-Id");
+    expect(JSON.parse(res.headers["x-pagination"])).toMatchObject({
+      pageNumber: 1,
+      pageSize: 10,
+      totalItems: 0,
+    });
+    expect(res.headers["x-request-id"]).toBeTruthy();
   });
 
   it("permits the four Lab 2 request headers on preflight", async () => {

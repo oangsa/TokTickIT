@@ -98,7 +98,7 @@ function renderAtWithHistory(entries: Entry[], initialIndex: number, requester?:
 
 /* RequesterSelection fetches on mount; without a stub, fetch is undefined in jsdom. */
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => [] })));
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, headers: new Headers(), json: async () => [] })));
 });
 
 afterEach(() => {
@@ -324,7 +324,10 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
 
     const toggle = screen.getByRole("button", { name: "Open navigation menu" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle.getAttribute("aria-controls")).toBe(screen.getByRole("navigation").id);
+    expect(toggle.getAttribute("aria-controls")).toBe(
+      // My Tickets renders its own pagination landmark, so name the sidebar.
+      screen.getByRole("navigation", { name: "Main" }).id,
+    );
 
     await userEvent.click(toggle);
 
@@ -523,7 +526,7 @@ describe("UI-04 invalid requester context recovery", () => {
 
   it("sends the stored Requester as X-Requester-Id", async () => {
     const fetchMock = vi.fn(
-      async (_url: string, _init?: ApiRequestInit) => ({ ok: true, status: 200, json: async () => [] }),
+      async (_url: string, _init?: ApiRequestInit) => ({ ok: true, status: 200, headers: new Headers(), json: async () => [] }),
     );
     vi.stubGlobal("fetch", fetchMock);
     const { result } = renderApi();
@@ -543,7 +546,7 @@ describe("UI-04 invalid requester context recovery", () => {
       vi.fn(async () => ({
         ok: false,
         status: 400,
-        json: async () => ({
+        headers: new Headers(), json: async () => ({
           statusCode: 400,
           code: "REQUESTER_CONTEXT_INVALID",
           message: "The requester context is invalid.",
@@ -567,7 +570,7 @@ describe("UI-04 invalid requester context recovery", () => {
       vi.fn(async () => ({
         ok: false,
         status: 400,
-        json: async () => ({
+        headers: new Headers(), json: async () => ({
           statusCode: 400,
           code: "BAD_REQUEST",
           message: "The request is invalid.",
@@ -593,7 +596,7 @@ describe("UI-04 invalid requester context recovery", () => {
       vi.fn(async () => ({
         ok: false,
         status: 400,
-        json: async () => ({
+        headers: new Headers(), json: async () => ({
           statusCode: 400,
           code: "BAD_REQUEST",
           message: "The request is invalid.",
@@ -747,7 +750,7 @@ describe("UI-04 obsolete requester-scoped requests", () => {
         return {
           ok: false,
           status: 400,
-          json: async () => ({
+          headers: new Headers(), json: async () => ({
             statusCode: 400,
             code: "REQUESTER_CONTEXT_INVALID",
             message: "The requester context is invalid.",

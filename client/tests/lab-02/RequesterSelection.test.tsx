@@ -34,7 +34,7 @@ const REQUESTERS = [
 
 function stubJson(body: unknown, ok = true, status = 200) {
   const fetchMock = vi.fn(
-    async (_url: string, _init?: ApiRequestInit) => ({ ok, status, json: async () => body }),
+    async (_url: string, _init?: ApiRequestInit) => ({ ok, status, headers: new Headers(), json: async () => body }),
   );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -154,7 +154,7 @@ describe("UI-01 Development Requester Selection", () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new Error("The request failed (HTTP 500)."))
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => REQUESTERS });
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), json: async () => REQUESTERS });
     vi.stubGlobal("fetch", fetchMock);
     renderSelection();
 
