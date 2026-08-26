@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import { RequestedPriority } from "../../../src/generated/prisma/enums.js";
 import type { PrismaClient } from "../../../src/generated/prisma/client.js";
+import { AttachmentService } from "../../../src/services/attachmentService.js";
 import { runCreateTicket } from "../../../src/services/createTicketFlow.js";
 import { parseCreateTicketRequest } from "../../../src/services/ticketCreateRequest.js";
 import {
@@ -826,5 +827,173 @@ describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
     });
     expect(claim?.status).toBe("COMPLETED");
     expect(claim?.ticketId).toBe(tickets[0].id);
+  }, 30_000);
+});
+
+/*
+ * PG-04. The collection endpoint mixes an irreversible hard delete with a
+ * reversible soft removal in one transaction, so "all or nothing" is the only
+ * property that keeps a failed batch from destroying a Pending row while leaving
+ * an Active one untouched. A mocked `$transaction` cannot show that; a real
+ * ROLLBACK can.
+ */
+describe.sequential("PG-04 mixed Attachment batch rollback", () => {
+  let target: TestDatabaseTarget;
+  let prisma: PrismaClient;
+  let fixture: Fixture;
+
+  const BATCH_ACTOR = "collection.rollback@example.com";
+
+  beforeAll(async () => {
+    target = assertLab2TestDatabase();
+    prisma = createTestPrisma(target);
+
+    /* Its own identities: the suite shares one database across describes, and
+     * `development_requester.email` is unique. */
+    const requester = await prisma.developmentRequester.create({
+      data: { name: "Batch Rollback Requester", email: BATCH_ACTOR, createdBy: "system", updatedBy: "system" },
+    });
+    const category = await prisma.category.create({
+      data: { name: `Batch Category ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
+    });
+    const relatedSystem = await prisma.relatedSystem.create({
+      data: { name: `Batch System ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
+    });
+    const suffix = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
+    const ticket = await prisma.ticket.create({
+      data: {
+        publicId: randomUUID(),
+        ticketNumber: `TKT-20260826-${suffix}`,
+        requesterId: requester.id,
+        categoryId: category.id,
+        relatedSystemId: relatedSystem.id,
+        summary: "Batch rollback fixture",
+        requestedPriority: RequestedPriority.MEDIUM,
+        description: "A Ticket owning the Active Attachment in the mixed batch.",
+        createdBy: "system",
+        updatedBy: "system",
+      },
+    });
+
+    fixture = {
+      requesterId: requester.id,
+      categoryId: category.id,
+      relatedSystemId: relatedSystem.id,
+      ticketId: ticket.id,
+    };
+  }, 120_000);
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  /*
+   * The failure is injected inside the transaction, after the first mutation has
+   * already been issued: the second `updateMany` raises where a lost race, a
+   * constraint, or a dropped connection would.
+   */
+  function clientFailingAfter(mutations: number): PrismaClient {
+    let seen = 0;
+
+    return new Proxy(prisma, {
+      get(realClient, property, receiver) {
+        if (property !== "$transaction") {
+          return Reflect.get(realClient, property, receiver);
+        }
+
+        return (work: (tx: unknown) => Promise<unknown>) =>
+          realClient.$transaction(async (tx) =>
+            work(
+              new Proxy(tx, {
+                get(realTx, txProperty, txReceiver) {
+                  if (txProperty !== "attachment") {
+                    return Reflect.get(realTx, txProperty, txReceiver);
+                  }
+
+                  return new Proxy(realTx.attachment, {
+                    get(model, operation, modelReceiver) {
+                      const original = Reflect.get(model, operation, modelReceiver);
+
+                      if (operation !== "deleteMany" && operation !== "updateMany") {
+                        return original;
+                      }
+
+                      return async (args: unknown) => {
+                        seen += 1;
+
+                        if (seen > mutations) {
+                          throw new Error("Injected failure after the batch began mutating.");
+                        }
+
+                        return (original as (input: unknown) => Promise<unknown>)(args);
+                      };
+                    },
+                  });
+                },
+              }),
+            ),
+          );
+      },
+    }) as PrismaClient;
+  }
+
+  it("commits a mixed Pending hard delete and Active soft removal together", async () => {
+    const pending = await createAttachment(prisma, fixture, { originalName: "draft.bin" });
+    const active = await createAttachment(prisma, fixture, {
+      ticketId: fixture.ticketId,
+      originalName: "evidence.bin",
+    });
+
+    await new AttachmentService(prisma).deleteCollection({
+      requesterId: fixture.requesterId,
+      actor: BATCH_ACTOR,
+      items: [
+        { attachmentId: pending.storageKey, reason: "" },
+        { attachmentId: active.storageKey, reason: "Uploaded the wrong document." },
+      ],
+    });
+
+    expect(await prisma.attachment.count({ where: { id: pending.id } })).toBe(0);
+
+    const removed = await prisma.attachment.findUnique({ where: { id: active.id } });
+    expect(removed).toMatchObject({
+      deleted: true,
+      removalReason: "Uploaded the wrong document.",
+      updatedBy: BATCH_ACTOR,
+      ticketId: fixture.ticketId,
+    });
+    /* The binary is retained: a Removed Attachment is evidence, not a tombstone. */
+    expect(removed?.data.length).toBeGreaterThan(0);
+  }, 30_000);
+
+  it("leaves no partial hard deletion or soft removal when the batch fails midway", async () => {
+    const pending = await createAttachment(prisma, fixture, { originalName: "keep-draft.bin" });
+    const active = await createAttachment(prisma, fixture, {
+      ticketId: fixture.ticketId,
+      originalName: "keep-evidence.bin",
+    });
+
+    await expect(
+      new AttachmentService(clientFailingAfter(1)).deleteCollection({
+        requesterId: fixture.requesterId,
+        actor: BATCH_ACTOR,
+        items: [
+          { attachmentId: pending.storageKey, reason: "" },
+          { attachmentId: active.storageKey, reason: "Uploaded the wrong document." },
+        ],
+      }),
+    ).rejects.toThrow(/Injected failure/);
+
+    /* The Pending row survives even though its delete was issued first. */
+    const survivor = await prisma.attachment.findUnique({ where: { id: pending.id } });
+    expect(survivor).not.toBeNull();
+    expect(survivor).toMatchObject({ ticketId: null, deleted: false });
+
+    const untouched = await prisma.attachment.findUnique({ where: { id: active.id } });
+    expect(untouched).toMatchObject({
+      deleted: false,
+      removalReason: null,
+      updatedBy: "system",
+    });
   }, 30_000);
 });

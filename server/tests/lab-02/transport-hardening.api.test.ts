@@ -10,11 +10,13 @@ const prismaMock = vi.hoisted(() => ({
   },
   category: { findMany: vi.fn() },
   ticket: { findFirst: vi.fn() },
+  attachment: { findFirst: vi.fn() },
 }));
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
 import { app } from "../../src/app.js";
+import { binaryParser } from "./support/binaryResponse.js";
 import { ticketRow } from "./support/ticketPrismaMock.js";
 
 const ALICE = {
@@ -45,6 +47,7 @@ beforeEach(() => {
   prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
   prismaMock.category.findMany.mockResolvedValue([]);
   prismaMock.ticket.findFirst.mockResolvedValue(null);
+  prismaMock.attachment.findFirst.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -190,5 +193,93 @@ describe("transport hardening (API-72, API-74)", () => {
       expect(varyValues).toContain("X-Requester-Id");
       expect(varyValues.filter((value) => value === "Origin")).toHaveLength(1);
     }
+  });
+});
+
+/*
+ * API-70, binary half. A binary response is the one Lab 2 answer that writes its
+ * own `Content-Type`, so it is also the one that could quietly drop the
+ * transport treatment every other response inherits from the middleware.
+ */
+describe("binary response hardening (API-70)", () => {
+  const ATTACHMENT_KEY = "eb87467e-b209-4a18-bbc6-c8c5a4dccf95";
+  const BYTES = Buffer.from([0x25, 0x50, 0x44, 0x46]);
+
+  function arrangeBinary(originalName = "incident-report.pdf"): void {
+    prismaMock.attachment.findFirst.mockResolvedValue({
+      data: new Uint8Array(BYTES),
+      mimeType: "application/pdf",
+      originalName,
+      sizeBytes: BYTES.length,
+      deleted: false,
+    });
+  }
+
+  it.each([
+    ["preview", "inline"],
+    ["download", "attachment"],
+  ])("hardens the %s response", async (route, disposition) => {
+    arrangeBinary();
+
+    const res = await request(app)
+      .get(`/api/attachments/${ATTACHMENT_KEY}/${route}`)
+      .set("X-Requester-Id", "1")
+      .set("Origin", "http://localhost:5173")
+      .buffer(true)
+      .parse(binaryParser);
+
+    expect(res.status).toBe(200);
+    /* The MIME is derived from the approved extension, so sniffing is refused. */
+    expect(res.headers["content-type"]).toBe("application/pdf");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["content-length"]).toBe(String(BYTES.length));
+    expect(res.headers["content-disposition"]).toBe(
+      `${disposition}; filename="incident-report.pdf"; filename*=UTF-8\'\'incident-report.pdf`,
+    );
+    expect(res.headers["cache-control"]).toBe("no-store");
+
+    const varyValues = res.headers.vary.split(/,\s*/);
+    expect(varyValues).toContain("Origin");
+    expect(varyValues).toContain("X-Requester-Id");
+    expect(varyValues.filter((value: string) => value === "Origin")).toHaveLength(1);
+  });
+
+  it("never lets a hostile file name escape the Content-Disposition header", async () => {
+    arrangeBinary('re"port\\;.pdf');
+
+    const res = await request(app)
+      .get(`/api/attachments/${ATTACHMENT_KEY}/download`)
+      .set("X-Requester-Id", "1")
+      .buffer(true)
+      .parse(binaryParser);
+
+    const disposition = res.headers["content-disposition"];
+    const quoted = disposition.slice(
+      disposition.indexOf('filename="') + 10,
+      disposition.indexOf('";'),
+    );
+
+    expect(quoted).not.toContain('"');
+    expect(quoted).not.toContain("\\");
+    expect(disposition).toContain("filename*=UTF-8\'\'");
+  });
+
+  it("keeps the transport treatment on the 410 a Removed Attachment answers", async () => {
+    prismaMock.attachment.findFirst.mockResolvedValue({
+      data: new Uint8Array(BYTES),
+      mimeType: "application/pdf",
+      originalName: "old.pdf",
+      sizeBytes: BYTES.length,
+      deleted: true,
+    });
+
+    const res = await request(app)
+      .get(`/api/attachments/${ATTACHMENT_KEY}/preview`)
+      .set("X-Requester-Id", "1")
+      .set("Origin", "http://localhost:5173");
+
+    expect(res.status).toBe(410);
+    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(res.headers.vary.split(/,\s*/)).toContain("X-Requester-Id");
   });
 });
