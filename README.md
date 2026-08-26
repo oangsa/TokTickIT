@@ -58,7 +58,7 @@ remains the only UI library.
 | `/requesters` | Development Requester Selection — loads active Requesters from `GET /api/requesters`, stores the choice in `sessionStorage`, and navigates to `/tickets` |
 | `/tickets` | My Tickets (placeholder until Issue 22) |
 | `/tickets/new` | Create Ticket (placeholder until Issue 21) |
-| `/tickets/:publicId` | Requester Ticket Detail (placeholder until Issue 23) |
+| `/tickets/:publicId` | Requester Ticket Detail — read-only, requester-scoped, backed by `GET /api/tickets/:publicId` |
 | `/error` | Standalone global error page |
 
 The selected Requester is kept in `sessionStorage` as a Lab 2 testing
@@ -66,9 +66,9 @@ mechanism; it is not authentication. The Requester Selection screen at
 `/requesters` loads the active Development Requesters from
 `GET /api/requesters`, stores the choice in `sessionStorage`, and navigates to
 `/tickets`, so the requester routes are now reachable through the UI. The
-application is drivable end to end up to the screens still owned by Issues
-#21, #22, and #23 (Create Ticket, My Tickets, and Ticket Detail remain
-placeholders).
+application is drivable end to end from Requester selection through Ticket
+creation, My Tickets, and Ticket Detail. Attachment upload, preview, download,
+and removal remain owned by Issue #24.
 
 ## Lab 2 status
 

@@ -1,11 +1,13 @@
 import { NextFunction, Request, Response, Router } from "express";
 
+import { ApiError } from "../http/errors.js";
 import { setPaginationHeader } from "../http/pagination.js";
 import { getPrisma } from "../prisma.js";
 import { runCreateTicket } from "../services/createTicketFlow.js";
 import { parseCreateTicketRequest, parseIdempotencyKey } from "../services/ticketCreateRequest.js";
 import { listTicketsForRequester } from "../services/ticketListService.js";
 import { parseTicketListQuery } from "../services/ticketQueryValidator.js";
+import { findTicketForRequester } from "../services/ticketService.js";
 
 export const ticketsRouter = Router();
 
@@ -48,6 +50,32 @@ ticketsRouter.post("/tickets", async (req: Request, res: Response, next: NextFun
     });
 
     res.status(status).json(ticket);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+ * Ticket Detail (api-spec Section 8.6). The Requester comes from
+ * `requireRequesterContext`, and the ownership and soft-delete predicates live
+ * inside the query rather than in a check on the answer. Every miss -- missing,
+ * malformed, logically deleted, or owned by someone else -- resolves to the one
+ * centralized 404, so the response cannot be read as a statement about who owns
+ * what (AC-22).
+ */
+ticketsRouter.get("/tickets/:publicId", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const ticket = await findTicketForRequester(
+      getPrisma(),
+      req.requesterId as number,
+      req.params.publicId,
+    );
+
+    if (ticket === null) {
+      throw new ApiError("NOT_FOUND");
+    }
+
+    res.json(ticket);
   } catch (error) {
     next(error);
   }

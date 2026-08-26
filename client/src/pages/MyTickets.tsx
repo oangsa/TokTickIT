@@ -22,6 +22,7 @@ import { Select } from "../components/Select.js";
 import { Skeleton } from "../components/Skeleton.js";
 import { TextInput } from "../components/TextInput.js";
 import { useRequesterApi } from "../requester/useRequesterApi.js";
+import { ticketDate } from "../tickets/ticketDate.js";
 import {
   EMPTY_FILTERS,
   FILTER_FIELDS,
@@ -79,28 +80,6 @@ const SKELETON_ROWS = 5;
  * shell uses elsewhere.
  */
 const SECONDARY_COLUMN = "d-none d-md-table-cell";
-
-/*
- * `createdAt` arrives as a UTC instant, and slicing the ISO string rendered the
- * UTC date -- which contradicted the Ticket Number beside it. The Ticket Number
- * embeds the `Asia/Bangkok` business date (BR-01-03), so between 17:00 and
- * 24:00 UTC the same row read `TKT-20260827-...` next to a Created At of
- * 2026-08-26. The business calendar is the one the row already commits to.
- *
- * Both the locale and the time zone are pinned, so this renders identically on
- * every machine and in CI -- the reason the slice was chosen originally, kept.
- * `en-CA` formats as `YYYY-MM-DD`, the same shape the slice produced.
- */
-const LIST_DATE = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Bangkok",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function ticketDate(createdAt: string): string {
-  return LIST_DATE.format(new Date(createdAt));
-}
 
 function readSelection(select: HTMLSelectElement): string[] {
   return Array.from(select.selectedOptions, (option) => option.value);

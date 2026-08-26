@@ -86,7 +86,11 @@ function stubApi(create?: () => StubbedResult | Promise<StubbedResult>) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => REQUESTERS };
     }
 
-    /* My Tickets reads the same path; the create fall-through must not answer it. */
+    if (init?.method !== "POST" && /\/api\/tickets\/[^?]/.test(url)) {
+      return { ok: true, status: 200, headers: new Headers(), json: async () => TICKET };
+    }
+
+    /* My Tickets reads the collection path; the create fall-through must not answer it. */
     if (init?.method !== "POST" && url.includes("/api/tickets")) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => [] };
     }
@@ -388,9 +392,8 @@ describe("Create Ticket submission", () => {
 
     await user.click(submitButton());
 
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Submit Ticket" })).toBeNull(),
-    );
+    expect(await screen.findByRole("heading", { name: TICKET.ticketNumber })).toBeInTheDocument();
+    expect(screen.getByText(`Ticket ${TICKET.ticketNumber} was created.`)).toBeInTheDocument();
   });
 
   it("prevents a duplicate submission while one is in flight", async () => {

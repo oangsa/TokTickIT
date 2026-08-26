@@ -115,6 +115,59 @@ export function toTicketDTO(ticket: TicketWithRelations): TicketDTO {
   };
 }
 
+/*
+ * The public route identifier for Ticket Detail (api-spec Section 8.6).
+ *
+ * `ticketCreateRequest.ts` and `transport.ts` keep their own copies for the
+ * same reason they do not share with each other: one guards a body field, one a
+ * header, and this one guards a route parameter. Three contracts that happen to
+ * agree on a shape today are not one contract.
+ */
+const PUBLIC_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/*
+ * Ticket Detail read (api-spec Section 8.6). Ownership and the soft-delete flag
+ * are part of the `where`, not a check on the result, so there is no route,
+ * header, or hand-made request that reaches a Ticket this Requester does not
+ * own. A miss of any kind returns null and the route answers the one
+ * centralized 404, so cross-owner existence is never distinguishable from
+ * absence (BR-17a, AC-22).
+ */
+export async function findTicketForRequester(
+  prisma: PrismaClient,
+  requesterId: number,
+  publicId: string,
+): Promise<TicketDTO | null> {
+  /*
+   * The route reads `req.requesterId`, which is optional on the Express type
+   * and arrives here through an `as number` cast. Prisma reads `undefined` in a
+   * `where` as "predicate not supplied", so an unresolved Requester would drop
+   * the ownership predicate and answer 200 with another Requester's Ticket.
+   * `requireRequesterContext` covers this route today; this makes a future gap
+   * in that cover a loud 500 instead of a scope leak.
+   */
+  if (!Number.isSafeInteger(requesterId) || requesterId <= 0) {
+    throw new Error("findTicketForRequester requires a resolved Requester.");
+  }
+
+  /*
+   * A malformed identifier is the same 404 as a missing one (api-spec Section
+   * 4.4). It must not reach Prisma to get there: `publicId` is `@db.Uuid`, and
+   * a failed cast is a 500 that also names the column.
+   */
+  if (!PUBLIC_ID_PATTERN.test(publicId)) {
+    return null;
+  }
+
+  const ticket = await prisma.ticket.findFirst({
+    where: { publicId, requesterId, deleted: false },
+    include: TICKET_DTO_INCLUDE,
+  });
+
+  return ticket === null ? null : toTicketDTO(ticket);
+}
+
 function isTicketNumberCollision(error: unknown): boolean {
   if (typeof error !== "object" || error === null || !("code" in error)) {
     return false;

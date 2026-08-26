@@ -53,6 +53,22 @@ function ticket(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/* The full TicketDTO the detail route answers with (api-spec Section 5.5). */
+function detailTicket() {
+  return {
+    ...ticket(),
+    requesterId: ALICE.id,
+    requesterName: ALICE.name,
+    requesterEmail: "alice@example.com",
+    description: "The VPN client drops the tunnel.",
+    attachments: [],
+    createdBy: "alice@example.com",
+    updatedBy: "alice@example.com",
+    updatedAt: "2026-08-20T02:00:00.000Z",
+    deleted: false,
+  };
+}
+
 function meta(overrides: Partial<PaginationMetadata> = {}): PaginationMetadata {
   return {
     pageNumber: 1,
@@ -108,6 +124,14 @@ function stubApi(list: () => ListResult | Promise<ListResult> = () => DEFAULT_LI
           { ...masterRow(BOB.id, BOB.name), email: "bob@example.com" },
         ],
       };
+    }
+
+    /*
+     * Ticket Detail, so the navigation cases land on the real page rather than
+     * handing the list array to a screen that expects one Ticket.
+     */
+    if (/\/api\/tickets\/[^?]/.test(url)) {
+      return { ok: true, status: 200, headers: new Headers(), json: async () => detailTicket() };
     }
 
     const result = await list();
@@ -891,7 +915,7 @@ describe("UI-32 and UI-37 My Tickets accessibility", () => {
 
       await activate();
 
-      expect(await screen.findByRole("heading", { name: "Ticket Detail" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Back to My Tickets" })).toBeInTheDocument();
       view.unmount();
       sessionStorage.clear();
     }
