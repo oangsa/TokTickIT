@@ -1,15 +1,618 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+
+import {
+  ApiResponseError,
+  InvalidRequesterContextError,
+  MasterDataItem,
+  PaginationMetadata,
+  TicketListItem,
+  readPaginationHeader,
+} from "../api.js";
+import { Badge } from "../components/Badge.js";
+import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { EmptyState } from "../components/EmptyState.js";
+import { ErrorState } from "../components/ErrorState.js";
+import { FilterChip } from "../components/FilterChip.js";
+import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
+import { Pagination } from "../components/Pagination.js";
+import { Select } from "../components/Select.js";
+import { Skeleton } from "../components/Skeleton.js";
+import { TextInput } from "../components/TextInput.js";
+import { useRequesterApi } from "../requester/useRequesterApi.js";
+import {
+  EMPTY_FILTERS,
+  FILTER_FIELDS,
+  FilterSelection,
+  INITIAL_QUERY,
+  PRIORITY_OPTIONS,
+  SEARCH_DEBOUNCE_MS,
+  SORT_OPTIONS,
+  STATUS_OPTIONS,
+  TicketQuery,
+  buildTicketListSearch,
+  filterCount,
+  hasActiveQuery,
+  readTicketQuery,
+  selectedFilters,
+  writeTicketQuery,
+} from "../tickets/ticketListQuery.js";
 
-/* Placeholder for My Tickets. Issue 22 adds search, filters, the table, and pagination. */
+/*
+ * My Tickets (ui-spec Sections 13-19, 30.3, 32).
+ *
+ * The committed query lives in the URL, so a reload, the Back button, and a
+ * shared address all restore the same list. `searchInput` is the only
+ * uncommitted state: it becomes part of the query after
+ * SEARCH_DEBOUNCE_MS of inactivity.
+ */
+
+type LoadState = "loading" | "loaded" | "invalid";
+
+const PRIORITY_VARIANT = {
+  LOW: "pale",
+  MEDIUM: "medium",
+  HIGH: "strong",
+} as const;
+
+const SKELETON_ROWS = 5;
+
+/*
+ * The three columns ui-spec Section 16.3 hides below 768px. Bootstrap's `md`
+ * breakpoint is exactly that cut -- deliberately not the `lg` (992px) the
+ * shell uses elsewhere.
+ */
+const SECONDARY_COLUMN = "d-none d-md-table-cell";
+
+/*
+ * `createdAt` is rendered as its ISO date. There is no date library in the
+ * client, and a localized format would render differently per machine and per
+ * timezone, including in CI.
+ */
+function ticketDate(createdAt: string): string {
+  return createdAt.slice(0, 10);
+}
+
+function readSelection(select: HTMLSelectElement): string[] {
+  return Array.from(select.selectedOptions, (option) => option.value);
+}
+
 export default function MyTickets() {
+  const navigate = useNavigate();
+  const callApi = useRequesterApi();
+  const [params, setParams] = useSearchParams();
+
+  const query = useMemo(() => readTicketQuery(params), [params]);
+
+  const [searchInput, setSearchInput] = useState(query.search);
+  const [items, setItems] = useState<TicketListItem[]>([]);
+  const [pagination, setPagination] = useState<PaginationMetadata | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  /* Non-null means the filter modal is open, and is also the draft itself. */
+  const [filterDraft, setFilterDraft] = useState<FilterSelection | null>(null);
+  const [categories, setCategories] = useState<MasterDataItem[]>([]);
+  const [relatedSystems, setRelatedSystems] = useState<MasterDataItem[]>([]);
+
+  /*
+   * The only writer of the committed query, so no caller can forget the page
+   * reset ui-spec Section 13.3 requires. The debounced search replaces its
+   * entry: pushing one per typing pause would make Back walk the search
+   * letter by letter.
+   */
+  const commitQuery = useCallback(
+    (next: TicketQuery, replace = false) => {
+      setParams(writeTicketQuery(next), { replace });
+    },
+    [setParams],
+  );
+
+  /* Filter option names, and the labels the applied chips use. */
+  useEffect(() => {
+    let ignore = false;
+
+    async function load(): Promise<void> {
+      try {
+        const [loadedCategories, loadedSystems] = await Promise.all([
+          callApi<MasterDataItem[]>("/api/categories"),
+          callApi<MasterDataItem[]>("/api/related-systems"),
+        ]);
+
+        if (!ignore) {
+          setCategories(loadedCategories);
+          setRelatedSystems(loadedSystems);
+        }
+      } catch {
+        /*
+         * Reference data only names the filter choices. Losing it must not take
+         * the Ticket list down with it, so the filter options stay empty and
+         * the list keeps its own state.
+         */
+        if (!ignore) {
+          setCategories([]);
+          setRelatedSystems([]);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      ignore = true;
+    };
+  }, [callApi]);
+
+  /*
+   * What the debounce below last sent. The committed query can also change
+   * underneath the box -- Back, Forward, or a pasted address -- and the box has
+   * to follow it, or the debounce would read the restored search as a stale
+   * value and immediately commit the empty box over it. Comparing against this
+   * rather than against `query.search` keeps that resync from rewriting the box
+   * mid-keystroke when the change is the debounce's own commit landing.
+   */
+  const committedSearch = useRef(query.search);
+
+  useEffect(() => {
+    if (query.search !== committedSearch.current) {
+      committedSearch.current = query.search;
+      setSearchInput(query.search);
+    }
+  }, [query.search]);
+
+  useEffect(() => {
+    /* Already committed, and the guard also stops a commit/re-run loop. */
+    if (searchInput.trim() === query.search) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      committedSearch.current = searchInput.trim();
+      commitQuery({ ...query, search: searchInput.trim(), pageNumber: 1 }, true);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, query, commitQuery]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    /*
+     * Cleared before the request rather than after it: on a Requester change
+     * the previous scope's rows and counts must be gone before anything of the
+     * new scope renders (AC-36).
+     */
+    setItems([]);
+    setPagination(null);
+    setLoadState("loading");
+
+    async function load(): Promise<void> {
+      try {
+        let metadata: PaginationMetadata | null = null;
+
+        const data = await callApi<TicketListItem[]>(`/api/tickets?${buildTicketListSearch(query)}`, {
+          onResponse: (response) => {
+            metadata = readPaginationHeader(response.headers.get("X-Pagination"));
+          },
+        });
+
+        if (ignore) {
+          return;
+        }
+
+        setItems(data);
+        setPagination(metadata);
+        setLoadState("loaded");
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+
+        /*
+         * `useRequesterApi` has already cleared the context and `RequesterGuard`
+         * is unmounting this subtree; navigating to the error page would race it.
+         */
+        if (error instanceof InvalidRequesterContextError) {
+          return;
+        }
+
+        /*
+         * A rejected query is the user's to correct, so it stays on the page
+         * with the toolbar usable (ui-spec Section 35). Everything else is a
+         * page-level failure and goes to the global error experience
+         * (Section 19.4).
+         */
+        if (error instanceof ApiResponseError && error.status === 400) {
+          setLoadState("invalid");
+          return;
+        }
+
+        navigate("/error", { state: { status: 500 } });
+      }
+    }
+
+    void load();
+
+    return () => {
+      ignore = true;
+    };
+  }, [callApi, query, navigate]);
+
+  const loading = loadState === "loading";
+  const appliedCount = filterCount(query);
+  const queryActive = hasActiveQuery(query);
+  /*
+   * "No tickets yet" is a claim about the Requester, not about this page of
+   * this query, so it needs the total as well as an inactive query: page 5 of
+   * three unfiltered Tickets is empty without the Requester being.
+   */
+  const trulyEmpty = !queryActive && (pagination?.totalItems ?? 0) === 0;
+
+  const filterLabels = useMemo(() => {
+    const byId = (rows: MasterDataItem[]) =>
+      new Map(rows.map((row) => [String(row.id), row.name] as const));
+
+    return {
+      categoryId: byId(categories),
+      relatedSystemId: byId(relatedSystems),
+    };
+  }, [categories, relatedSystems]);
+
+  function chipLabel(field: (typeof FILTER_FIELDS)[number], value: string): string {
+    if (field === "categoryId" || field === "relatedSystemId") {
+      return filterLabels[field].get(value) ?? value;
+    }
+
+    return value;
+  }
+
+  function removeFilterValue(field: (typeof FILTER_FIELDS)[number], value: string): void {
+    commitQuery({
+      ...query,
+      [field]: query[field].filter((entry) => entry !== value),
+      pageNumber: 1,
+    });
+  }
+
+  function clearFilters(): void {
+    setSearchInput("");
+    /* Sort survives: ui-spec Section 14.5 clears the query, not the ordering. */
+    commitQuery({ ...query, ...EMPTY_FILTERS, search: "", pageNumber: 1 });
+  }
+
+  /*
+   * Recovery from a rejected query, which `clearFilters` cannot provide. The
+   * parameter at fault may be one the toolbar cannot reach -- `pageSize`,
+   * `pageNumber`, or an unknown `sort` from a hand-edited or shared address --
+   * and the pagination control that would correct it is not rendered while the
+   * error is showing. Clearing only the search and filters would then rebuild
+   * the identical address, so nothing would refetch and the button would do
+   * nothing at all. Every parameter goes back to its default instead.
+   */
+  function resetQuery(): void {
+    setSearchInput("");
+    commitQuery(INITIAL_QUERY);
+  }
+
+  function applyFilters(): void {
+    if (filterDraft === null) {
+      return;
+    }
+
+    commitQuery({ ...query, ...filterDraft, pageNumber: 1 });
+    setFilterDraft(null);
+  }
+
+  const columns = [
+    { label: "Ticket Number", secondary: false },
+    { label: "Summary", secondary: false },
+    { label: "Category", secondary: true },
+    { label: "Related System", secondary: true },
+    { label: "Priority", secondary: false },
+    { label: "Status", secondary: false },
+    { label: "Created At", secondary: true },
+  ];
+
   return (
     <>
-      <PageHeader title="My Tickets" />
+      <PageHeader
+        title="My Tickets"
+        subtitle="View and manage your support requests."
+        actions={
+          <Button variant="primary" onClick={() => navigate("/tickets/new")}>
+            + Create Ticket
+          </Button>
+        }
+      />
+
       <Card>
-        <EmptyState title="No tickets yet." description="Ticket listing is added in Issue 22." />
+        <div className="d-flex flex-wrap align-items-end gap-3">
+          <div className="flex-grow-1" style={{ minWidth: "16rem" }}>
+            <TextInput
+              label="Search"
+              type="search"
+              value={searchInput}
+              maxLength={200}
+              placeholder="Search by ticket number, summary, or description..."
+              helpText="Search ticket number, summary, or description"
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
+          </div>
+
+          <div className="mb-3">
+            <Button
+              variant="secondary"
+              disabled={loading}
+              onClick={() => setFilterDraft(selectedFilters(query))}
+            >
+              Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
+            </Button>
+          </div>
+
+          <div style={{ minWidth: "14rem" }}>
+            <Select
+              label="Sort by"
+              value={query.sort}
+              disabled={loading}
+              onChange={(event) => commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        {queryActive ? (
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+            {FILTER_FIELDS.flatMap((field) =>
+              query[field].map((value) => (
+                <FilterChip
+                  key={`${field}:${value}`}
+                  label={chipLabel(field, value)}
+                  removeLabel={`Remove filter ${chipLabel(field, value)}`}
+                  onRemove={() => removeFilterValue(field, value)}
+                />
+              )),
+            )}
+
+            <Button variant="tertiary" className="ms-auto" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          </div>
+        ) : null}
+
+        {loadState === "invalid" ? (
+          <ErrorState
+            title="This search could not be run."
+            description="Reset the search, filters, sorting, and page size, then try again."
+            onRetry={resetQuery}
+            retryLabel="Reset Search"
+          />
+        ) : (
+          <>
+            {loading ? (
+              <p role="status" className="visually-hidden">
+                Loading tickets
+              </p>
+            ) : null}
+
+            <div>
+              <table className="table tt-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    {columns.map((column) => (
+                      <th
+                        key={column.label}
+                        scope="col"
+                        className={column.secondary ? SECONDARY_COLUMN : undefined}
+                      >
+                        {column.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {loading
+                    ? Array.from({ length: SKELETON_ROWS }, (_unused, row) => (
+                        <tr key={`skeleton-${row}`}>
+                          {columns.map((column) => (
+                            <td
+                              key={column.label}
+                              className={column.secondary ? SECONDARY_COLUMN : undefined}
+                            >
+                              <Skeleton height="1.25rem" />
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    : items.map((item) => (
+                        <tr
+                          key={item.publicId}
+                          className="tt-row"
+                          tabIndex={0}
+                          aria-label={`Open ticket ${item.ticketNumber}`}
+                          onClick={() => navigate(`/tickets/${item.publicId}`)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              /* Space would scroll the page instead. */
+                              event.preventDefault();
+                              navigate(`/tickets/${item.publicId}`);
+                            }
+                          }}
+                        >
+                          <td>{item.ticketNumber}</td>
+                          <td>{item.summary}</td>
+                          <td className={SECONDARY_COLUMN}>{item.categoryName}</td>
+                          <td className={SECONDARY_COLUMN}>{item.relatedSystemName}</td>
+                          <td>
+                            {/* Never colour alone: the level is always spelled out. */}
+                            <Badge variant={PRIORITY_VARIANT[item.requestedPriority]}>
+                              {item.requestedPriority}
+                            </Badge>
+                          </td>
+                          <td>
+                            <Badge variant="pale">{item.currentStatus}</Badge>
+                          </td>
+                          <td className={SECONDARY_COLUMN}>{ticketDate(item.createdAt)}</td>
+                        </tr>
+                      ))}
+                </tbody>
+              </table>
+            </div>
+
+            {!loading && items.length === 0 ? (
+              trulyEmpty ? (
+                <EmptyState
+                  title="No tickets yet."
+                  description="Create your first support ticket."
+                  action={
+                    <Button variant="primary" onClick={() => navigate("/tickets/new")}>
+                      Create Ticket
+                    </Button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  title="No tickets found."
+                  description="Try changing your search or filters."
+                  action={
+                    <Button variant="secondary" onClick={clearFilters}>
+                      Clear Filters
+                    </Button>
+                  }
+                />
+              )
+            ) : null}
+
+            {/*
+              * Hidden on a total of zero, not on a row count of zero: an empty
+              * result set has an empty state that owns the whole card, and
+              * "Showing 0-0 of 0" beneath it would contradict it. A page past
+              * the last one is also rowless but has a real total, and there the
+              * controls must stay -- `Pagination` reports its own clamp back
+              * through `onPageChange`, which is what moves a shared or restored
+              * `?pageNumber=5` onto the last real page. Unmounting it on the
+              * row count would strand that address on "No tickets found" with
+              * no control left to correct it.
+              *
+              * During a fetch the controls stay in place so the surrounding
+              * structure does not jump (Section 19.1); a disabled fieldset
+              * disables every control inside it, so the ones that cannot safely
+              * operate mid-fetch need no new prop on the shared component.
+              */}
+            {loadState === "loaded" && (pagination?.totalItems ?? 0) === 0 ? null : (
+            <fieldset disabled={loading} className="border-0 p-0 m-0">
+              <Pagination
+                pageNumber={query.pageNumber}
+                pageSize={query.pageSize}
+                totalItems={pagination?.totalItems ?? 0}
+                onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber })}
+                onPageSizeChange={(pageSize) => commitQuery({ ...query, pageSize, pageNumber: 1 })}
+              />
+            </fieldset>
+            )}
+          </>
+        )}
       </Card>
+
+      <Modal
+        open={filterDraft !== null}
+        title="Filters"
+        onClose={() => setFilterDraft(null)}
+        footer={
+          <div className="d-flex justify-content-between w-100">
+            {/* Reset clears the draft only, and never fetches (Section 14.3). */}
+            <Button variant="tertiary" onClick={() => setFilterDraft(EMPTY_FILTERS)}>
+              Reset
+            </Button>
+
+            <div className="d-flex gap-2">
+              <Button variant="secondary" onClick={() => setFilterDraft(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={applyFilters}>
+                Apply
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <Select
+          label="Category"
+          multiple
+          size={4}
+          value={filterDraft?.categoryId ?? []}
+          onChange={(event) =>
+            setFilterDraft((draft) =>
+              draft === null ? draft : { ...draft, categoryId: readSelection(event.target) },
+            )
+          }
+        >
+          {categories.map((category) => (
+            <option key={category.id} value={String(category.id)}>
+              {category.name}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Related System"
+          multiple
+          size={4}
+          value={filterDraft?.relatedSystemId ?? []}
+          onChange={(event) =>
+            setFilterDraft((draft) =>
+              draft === null ? draft : { ...draft, relatedSystemId: readSelection(event.target) },
+            )
+          }
+        >
+          {relatedSystems.map((system) => (
+            <option key={system.id} value={String(system.id)}>
+              {system.name}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Requested Priority"
+          multiple
+          size={3}
+          value={filterDraft?.requestedPriority ?? []}
+          onChange={(event) =>
+            setFilterDraft((draft) =>
+              draft === null ? draft : { ...draft, requestedPriority: readSelection(event.target) },
+            )
+          }
+        >
+          {PRIORITY_OPTIONS.map((priority) => (
+            <option key={priority} value={priority}>
+              {priority}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Status"
+          multiple
+          size={2}
+          value={filterDraft?.currentStatus ?? []}
+          onChange={(event) =>
+            setFilterDraft((draft) =>
+              draft === null ? draft : { ...draft, currentStatus: readSelection(event.target) },
+            )
+          }
+        >
+          {STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </Select>
+      </Modal>
     </>
   );
 }

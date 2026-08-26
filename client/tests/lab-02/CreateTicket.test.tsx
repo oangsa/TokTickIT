@@ -75,19 +75,24 @@ function stubApi(create?: () => StubbedResult | Promise<StubbedResult>) {
     calls.push({ url, init });
 
     if (url.includes("/api/categories")) {
-      return { ok: true, status: 200, json: async () => CATEGORIES };
+      return { ok: true, status: 200, headers: new Headers(), json: async () => CATEGORIES };
     }
 
     if (url.includes("/api/related-systems")) {
-      return { ok: true, status: 200, json: async () => SYSTEMS };
+      return { ok: true, status: 200, headers: new Headers(), json: async () => SYSTEMS };
     }
 
     if (url.includes("/api/requesters")) {
-      return { ok: true, status: 200, json: async () => REQUESTERS };
+      return { ok: true, status: 200, headers: new Headers(), json: async () => REQUESTERS };
+    }
+
+    /* My Tickets reads the same path; the create fall-through must not answer it. */
+    if (init?.method !== "POST" && url.includes("/api/tickets")) {
+      return { ok: true, status: 200, headers: new Headers(), json: async () => [] };
     }
 
     const result = await (create?.() ?? { ok: true, status: 201, body: TICKET });
-    return { ok: result.ok, status: result.status, json: async () => result.body };
+    return { ok: result.ok, status: result.status, headers: new Headers(), json: async () => result.body };
   });
 
   vi.stubGlobal("fetch", fetchMock);
@@ -200,12 +205,12 @@ describe("Create Ticket form", () => {
       "fetch",
       vi.fn(async (url: string) => {
         if (fail) {
-          return { ok: false, status: 500, json: async () => ({ code: "INTERNAL_SERVER_ERROR" }) };
+          return { ok: false, status: 500, headers: new Headers(), json: async () => ({ code: "INTERNAL_SERVER_ERROR" }) };
         }
         return {
           ok: true,
           status: 200,
-          json: async () => (url.includes("categories") ? CATEGORIES : SYSTEMS),
+          headers: new Headers(), json: async () => (url.includes("categories") ? CATEGORIES : SYSTEMS),
         };
       }),
     );
@@ -397,10 +402,10 @@ describe("Create Ticket submission", () => {
         calls.push({ url, init });
 
         if (url.includes("/api/categories")) {
-          return { ok: true, status: 200, json: async () => CATEGORIES };
+          return { ok: true, status: 200, headers: new Headers(), json: async () => CATEGORIES };
         }
         if (url.includes("/api/related-systems")) {
-          return { ok: true, status: 200, json: async () => SYSTEMS };
+          return { ok: true, status: 200, headers: new Headers(), json: async () => SYSTEMS };
         }
 
         return new Promise(() => {});
@@ -422,10 +427,10 @@ describe("Create Ticket submission", () => {
       "fetch",
       vi.fn(async (url: string) => {
         if (url.includes("/api/categories")) {
-          return { ok: true, status: 200, json: async () => CATEGORIES };
+          return { ok: true, status: 200, headers: new Headers(), json: async () => CATEGORIES };
         }
         if (url.includes("/api/related-systems")) {
-          return { ok: true, status: 200, json: async () => SYSTEMS };
+          return { ok: true, status: 200, headers: new Headers(), json: async () => SYSTEMS };
         }
         return new Promise(() => {});
       }),
