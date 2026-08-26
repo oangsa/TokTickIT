@@ -65,24 +65,6 @@ export const MAX_REFERENCE_ID = 2_147_483_647;
 export const MAX_FILTER_EXPRESSIONS = 20;
 export const MIN_IN_VALUES = 1;
 export const MAX_IN_VALUES = 100;
-/*
- * A free-text `IN` cannot be served by any index, and it is the one filter
- * shape whose cost scales with the value count rather than with the result.
- *
- * BR-33 makes string conditions case-insensitive, and Prisma silently ignores
- * `mode` for `in`, so `queryBuilder.ts` expands an insensitive `IN` into the OR
- * of insensitive equality it means -- which PostgreSQL renders as one `ILIKE`
- * per value. Measured on 30,000 rows: 10 values stayed on a BitmapOr over the
- * trigram index at 54ms, 25 values tipped the planner to a sequential scan at
- * 454ms, and 100 values cost 1,210ms. Forcing `enable_seqscan = off` at 100
- * did not help (1,405ms), so this is not a planner misestimate -- no plan
- * exists that makes the shape fast.
- *
- * `ticketNumber` is exempt because it is not free text: see
- * UPPERCASE_DOMAIN_FIELDS, which turns its comparisons back into indexable
- * equality and keeps the full 1-100 range at 0.194ms.
- */
-export const MAX_FREE_TEXT_IN_VALUES = 10;
 export const DEFAULT_PAGE_NUMBER = 1;
 export const DEFAULT_PAGE_SIZE = 10;
 export const MAX_PAGE_SIZE = 100;
@@ -337,20 +319,10 @@ function convertInValues(
     return undefined;
   }
 
-  /*
-   * Free text is the expensive case and takes the lower bound; everything else,
-   * `ticketNumber` included, keeps the full contract range because every one of
-   * them ends up as an indexable `IN (...)`.
-   */
-  const maximum =
-    TICKET_FILTER_FIELDS[field] === "string" && !UPPERCASE_DOMAIN_FIELDS.has(field)
-      ? MAX_FREE_TEXT_IN_VALUES
-      : MAX_IN_VALUES;
-
-  if (raw.length < MIN_IN_VALUES || raw.length > maximum) {
+  if (raw.length < MIN_IN_VALUES || raw.length > MAX_IN_VALUES) {
     details.push({
       field: path,
-      message: `IN values must contain ${MIN_IN_VALUES}-${maximum} values.`,
+      message: `IN values must contain ${MIN_IN_VALUES}-${MAX_IN_VALUES} values.`,
     });
     return undefined;
   }

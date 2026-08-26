@@ -1637,6 +1637,45 @@ labelled as the structural half rather than presented as proof of the fix.
 | Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
 | Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 195 tests. |
 
+### 4.5.31 Issue #22 final `IN`-contract alignment verification
+
+The previous pass introduced a 1–10 free-text `IN` ceiling based on query-cost
+measurement. That optimization contradicted the formally approved Issue #22
+acceptance criterion requiring 1–100 unique typed values for `IN`.
+
+The implementation was therefore realigned to the Issue contract:
+`summary` and `description` now accept 1–100 values, while existing
+Ticket Number normalization, case-insensitive free-text semantics, wildcard
+escaping, requester scoping, typed validation, and bounded pagination remain
+unchanged. QueryBuilder remains resource-agnostic; the public cardinality is
+owned by `ticketQueryValidator.ts`.
+
+The final boundary evidence proves:
+
+```text
+summary IN 100     accepted
+summary IN 101     rejected with 400 VALIDATION_ERROR
+description IN 100 accepted
+description IN 101 rejected with 400 VALIDATION_ERROR
+```
+
+The final verification was run against the reviewed tree, with
+`git rev-parse HEAD` reporting
+`9fb5bb00fba04d72079cbd853a59e641be906a6c` as the verification source SHA.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #22 focused server gate | `npx vitest run tests/lab-02/QueryBuilder.test.ts tests/lab-02/TicketQueryValidator.test.ts tests/lab-02/my-tickets.api.test.ts tests/lab-02/cors.api.test.ts` | `server/`; mocked Prisma for API coverage | Passed — 4 files, 221 tests. |
+| My Tickets PostgreSQL suite | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres/my-tickets.postgres.test.ts` | `server/`; guarded disposable `postgres:16-alpine` target | Passed — 1 file, 16 tests. |
+| All guarded PostgreSQL suites | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres` | `server/`; same guarded disposable target | Passed — 5 files, 52 tests. |
+| Server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 430 tests. |
+| Server typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| My Tickets focused client gate | `npx vitest run tests/lab-02/MyTickets.test.tsx` | `client/` | Passed — 1 file, 45 tests. |
+| Client full test suite | `npx vitest run` | `client/` | Passed — 7 files, 195 tests. |
+| Client typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
+| Client build | `npm run build` | `client/` | Passed — Vite build completed. |
+
 
 ## 5. Reusable QueryBuilder Test Principle
 

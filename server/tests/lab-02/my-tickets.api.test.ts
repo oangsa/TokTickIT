@@ -299,6 +299,36 @@ describe("Ticket list filters (API-24 to API-28)", () => {
     expect(findManyArgs().where.AND).toContainEqual({ categoryId: { in: [1, 2, 4] } });
   });
 
+  it.each(["summary", "description"])(
+    "accepts 100 unique %s IN values and reaches Prisma",
+    async (field) => {
+      const values = Array.from({ length: 100 }, (_unused, index) => `${field} ${index}`);
+
+      await list(
+        filterQuery({ field, condition: "IN", value: values }),
+      ).expect(200);
+
+      const { where } = findManyArgs();
+      expect(where.AND).toContainEqual({
+        OR: values.map((value) => ({
+          [field]: { equals: value, mode: "insensitive" },
+        })),
+      });
+    },
+  );
+
+  it.each(["summary", "description"])(
+    "rejects 101 unique %s IN values before Prisma",
+    async (field) => {
+      const values = Array.from({ length: 101 }, (_unused, index) => `${field} ${index}`);
+
+      await expectRejected(
+        filterQuery({ field, condition: "IN", value: values }),
+        "filters[0].value",
+      );
+    },
+  );
+
   it("rejects more than twenty expressions (API-68)", async () => {
     const expression = { field: "summary", condition: "CONTAINS", value: "a" };
     await expectRejected(filterQuery(...Array(21).fill(expression)), "filters");

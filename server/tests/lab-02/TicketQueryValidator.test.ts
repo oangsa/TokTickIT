@@ -9,7 +9,6 @@ import { REQUESTED_PRIORITIES } from "../../src/services/ticketCreateRequest.js"
 import {
   MAX_FILTER_EXPRESSIONS,
   MAX_FILTER_VALUE_LENGTH,
-  MAX_FREE_TEXT_IN_VALUES,
   MAX_IN_VALUES,
   MAX_REFERENCE_ID,
   MAX_SEARCH_LENGTH,
@@ -364,26 +363,23 @@ describe("Ticket filter value conversion", () => {
     expect(query.filters[0].caseInsensitive).toBe(true);
   });
 
-  /*
-   * A free-text `IN` is the one filter shape whose cost scales with the value
-   * count rather than the result, because each value becomes its own `ILIKE`.
-   * Measured on 30,000 rows: 10 values stayed on the trigram index at 6.5ms,
-   * 25 tipped to a sequential scan at 454ms, and 100 cost 1,210ms.
-   */
-  it("bounds a free-text IN lower than a field that stays indexable", () => {
-    const free = (count: number) =>
-      filters({
-        field: "summary",
-        condition: "IN",
-        value: Array.from({ length: count }, (_unused, index) => `summary ${index}`),
-      });
+  it.each(["summary", "description"])(
+    "accepts 1 and 100 values and rejects 101 for free-text %s IN",
+    (field) => {
+      const free = (count: number) =>
+        filters({
+          field,
+          condition: "IN",
+          value: Array.from({ length: count }, (_unused, index) => `${field} ${index}`),
+        });
 
-    expect(
-      parseTicketListQuery(free(MAX_FREE_TEXT_IN_VALUES)).filters[0].value,
-    ).toHaveLength(MAX_FREE_TEXT_IN_VALUES);
-    expectRejected(free(MAX_FREE_TEXT_IN_VALUES + 1), "filters[0].value");
+      expect(parseTicketListQuery(free(1)).filters[0].value).toHaveLength(1);
+      expect(parseTicketListQuery(free(MAX_IN_VALUES)).filters[0].value).toHaveLength(MAX_IN_VALUES);
+      expectRejected(free(MAX_IN_VALUES + 1), "filters[0].value");
+    },
+  );
 
-    /* `ticketNumber` keeps the full contract range: it renders as one `IN`. */
+  it("accepts 100 Ticket Number values", () => {
     const numbers = Array.from(
       { length: MAX_IN_VALUES },
       (_unused, index) => `TKT-20260820-${index.toString(16).padStart(12, "0").toUpperCase()}`,
@@ -392,17 +388,6 @@ describe("Ticket filter value conversion", () => {
     expect(
       parseTicketListQuery(filters({ field: "ticketNumber", condition: "IN", value: numbers }))
         .filters[0].value,
-    ).toHaveLength(MAX_IN_VALUES);
-
-    /* So do the reference and enum fields, which were never the expensive case. */
-    expect(
-      parseTicketListQuery(
-        filters({
-          field: "categoryId",
-          condition: "IN",
-          value: Array.from({ length: MAX_IN_VALUES }, (_unused, index) => index + 1),
-        }),
-      ).filters[0].value,
     ).toHaveLength(MAX_IN_VALUES);
   });
 
