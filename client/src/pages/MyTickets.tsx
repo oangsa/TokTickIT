@@ -81,12 +81,25 @@ const SKELETON_ROWS = 5;
 const SECONDARY_COLUMN = "d-none d-md-table-cell";
 
 /*
- * `createdAt` is rendered as its ISO date. There is no date library in the
- * client, and a localized format would render differently per machine and per
- * timezone, including in CI.
+ * `createdAt` arrives as a UTC instant, and slicing the ISO string rendered the
+ * UTC date -- which contradicted the Ticket Number beside it. The Ticket Number
+ * embeds the `Asia/Bangkok` business date (BR-01-03), so between 17:00 and
+ * 24:00 UTC the same row read `TKT-20260827-...` next to a Created At of
+ * 2026-08-26. The business calendar is the one the row already commits to.
+ *
+ * Both the locale and the time zone are pinned, so this renders identically on
+ * every machine and in CI -- the reason the slice was chosen originally, kept.
+ * `en-CA` formats as `YYYY-MM-DD`, the same shape the slice produced.
  */
+const LIST_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Bangkok",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 function ticketDate(createdAt: string): string {
-  return createdAt.slice(0, 10);
+  return LIST_DATE.format(new Date(createdAt));
 }
 
 function readSelection(select: HTMLSelectElement): string[] {
@@ -274,7 +287,13 @@ export default function MyTickets() {
     return () => {
       ignore = true;
     };
-  }, [callApi, request, query, navigate]);
+    /*
+     * `query` is deliberately absent: the effect reads only `request`, which is
+     * derived from it. Depending on both refetched whenever an address changed
+     * without changing the API request -- `/tickets` and `/tickets?pageNumber=1`
+     * build the same one.
+     */
+  }, [callApi, request, navigate]);
 
   const loading = loadState === "loading";
   const appliedCount = filterCount(query);
@@ -290,11 +309,22 @@ export default function MyTickets() {
   /* Held across a fetch so the page list keeps its shape; see `stale`. */
   const totalItems = pagination?.metadata.totalItems ?? 0;
   /*
+   * No total arrived at all -- a proxy dropped or mangled `X-Pagination`, and
+   * `readPaginationHeader` answered null. The rows are then the only evidence
+   * on screen, and they have to answer the two questions the total would have.
+   * Reading the derived zero as a real count answered both wrong: a Requester
+   * with no Tickets was told "No tickets found. Try changing your search or
+   * filters" over an empty query, and a full page of rows lost every pagination
+   * control because the mount guard below saw a total of zero.
+   */
+  const countless = loadState === "loaded" && pagination === null;
+  /*
    * "No tickets yet" is a claim about the Requester, not about this page of
    * this query, so it needs the total as well as an inactive query: page 5 of
    * three unfiltered Tickets is empty without the Requester being.
    */
-  const trulyEmpty = !stale && !queryActive && totalItems === 0;
+  const trulyEmpty =
+    !queryActive && (countless ? items.length === 0 : !stale && totalItems === 0);
   /*
    * A page past the last one answers 200 with an empty array (BR-38), so this
    * page is being corrected rather than displayed: `Pagination` reports its
@@ -590,8 +620,15 @@ export default function MyTickets() {
               * structure does not jump (Section 19.1); a disabled fieldset
               * disables every control inside it, so the ones that cannot safely
               * operate mid-fetch need no new prop on the shared component.
+              *
+              * `countless` is the one case that reads the row count instead:
+              * with no header there is no total to be zero, and the rows are
+              * the only thing left to decide on. `stale` is still true there,
+              * so the control renders without a range and without a clamp --
+              * it can page nothing it cannot vouch for, but Rows per page
+              * still works and the rows keep a control beneath them.
               */}
-            {loadState === "loaded" && totalItems === 0 ? null : (
+            {loadState === "loaded" && (countless ? items.length === 0 : totalItems === 0) ? null : (
             <fieldset disabled={loading} className="border-0 p-0 m-0">
               <Pagination
                 pageNumber={query.pageNumber}

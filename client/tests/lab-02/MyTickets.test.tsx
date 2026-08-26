@@ -277,6 +277,32 @@ describe("UI-16 My Tickets empty and no-results states", () => {
     expect(screen.getByText("Try changing your search or filters.")).toBeInTheDocument();
     expect(screen.queryByText("No tickets yet.")).toBeNull();
   });
+
+  /*
+   * A proxy can strip `X-Pagination`, and then there is no total at all. The
+   * derived zero that stood in for one answered both of the questions the total
+   * owns wrong: a Requester with nothing was told to change a search they never
+   * ran, and a full page of rows lost every pagination control.
+   */
+  it("still names the true-empty state when no pagination header arrives", async () => {
+    stubApi(() => ({ body: [], pagination: null }));
+
+    renderMyTickets();
+
+    expect(await screen.findByText("No tickets yet.")).toBeInTheDocument();
+    expect(screen.queryByText("No tickets found.")).toBeNull();
+  });
+
+  it("keeps the pagination controls under rows that arrived without a header", async () => {
+    stubApi(() => ({ body: [ticket()], pagination: null }));
+
+    renderMyTickets();
+
+    expect(await screen.findByRole("row", { name: "Open ticket TKT-20260820-A81F3C9D7B21" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Ticket pagination" })).toBeInTheDocument();
+    /* No total to vouch for, so no range is claimed over the rows. */
+    expect(screen.queryByText(/Showing/)).toBeNull();
+  });
 });
 
 describe("UI-17 My Tickets failure and invalid-query states", () => {
@@ -790,6 +816,32 @@ describe("UI-22 My Tickets pagination and list projection", () => {
     expect(within(row).getByText("Network")).toBeInTheDocument();
     expect(within(row).getByText("VPN")).toBeInTheDocument();
     expect(within(row).getByText("2026-08-20")).toBeInTheDocument();
+  });
+
+  /*
+   * The Ticket Number carries the `Asia/Bangkok` business date (BR-01-03), so
+   * Created At has to be read on the same calendar. Slicing the UTC date off
+   * the ISO string made the two halves of one row disagree for the seven hours
+   * a day the calendars differ: 18:00Z on the 26th is already the 27th in
+   * Bangkok, which is the date the Ticket Number states.
+   */
+  it("dates a row on the same calendar its Ticket Number was issued on", async () => {
+    stubApi(() => ({
+      body: [
+        ticket({
+          ticketNumber: "TKT-20260827-A81F3C9D7B21",
+          createdAt: "2026-08-26T18:00:00.000Z",
+        }),
+      ],
+      pagination: meta(),
+    }));
+
+    renderMyTickets();
+
+    const row = await screen.findByRole("row", { name: /Open ticket TKT-20260827-A81F3C9D7B21/ });
+
+    expect(within(row).getByText("2026-08-27")).toBeInTheDocument();
+    expect(within(row).queryByText("2026-08-26")).toBeNull();
   });
 });
 
