@@ -1170,8 +1170,8 @@ copy taken before the revert, and the fixed suites pass again.
 
 ### 4.5.26 Issue #22 third review fix pass
 
-A third outsider review produced five fixes. This section supersedes the counts
-in Section 4.5.25.
+A third outsider review produced five fixes. The counts below are superseded by
+Section 4.5.27.
 
 1. **An unresolved Requester would have widened the read to every Requester.**
    `routes/tickets.ts` reads `req.requesterId`, which is optional on the Express
@@ -1285,6 +1285,85 @@ restored from a copy taken before the revert, and the fixed suites pass again.
 | Frontend typecheck | `npx tsc --noEmit` | `client/` | Passed — no output. |
 | Frontend build | `npm run build` | `client/` | Passed — `tsc && vite build` completed. |
 | Guarded PostgreSQL suites | `TEST_DATABASE_URL=... npx vitest run tests/lab-02/postgres` | `server/`; `postgres:16-alpine` in the `toktickit-lab2-test-postgres` container on `localhost:55432` | Passed — 4 files, 36 tests. |
+
+
+### 4.5.27 Issue #22 PostgreSQL coverage of the list read path
+
+The finding carried unfixed through Sections 4.5.24, 4.5.25, and 4.5.26 is
+closed. `tests/lab-02/postgres/my-tickets.postgres.test.ts` (PG-15) executes the
+My Tickets read path against a real engine, so the claims that lived entirely on
+the Prisma side of the mock boundary are now outcomes rather than argument
+assertions. This section supersedes the counts in Section 4.5.26.
+
+The suite drives `listTicketsForRequester` through `parseTicketListQuery`, so
+each case exercises the real validator to QueryBuilder to Prisma path. It is
+built on a fixture whose rows are designed to be returned wrongly: two
+Requesters whose Tickets match each other's search terms and filters, a
+logically deleted row that would match an active search, a Ticket on reference
+rows that later go inactive and deleted, and forty rows sharing one creation
+instant.
+
+What it settles that the mocked suite could not:
+
+- **Ownership as an outcome.** Neither Requester's rows, totals, or pages reach
+  the other, including under a search term that matches both. AC-21 no longer
+  rests on "the `where` contains `{ requesterId }`".
+- **`mode: "insensitive"` actually reaching the comparison**, for `contains` and
+  for `not` — the latter typed by Prisma but documented narrowly — and against
+  `ticket_number`, which is `CHAR(25)` rather than `TEXT`.
+- **Semantic Priority ordering.** Previously pinned by reading
+  `CREATE TYPE "RequestedPriority"` out of the migration; now asserted as the
+  row order PostgreSQL actually returns. Alphabetically `HIGH < LOW < MEDIUM`,
+  so an enum compared as text would put `LOW` second in a descending sort.
+- **Description searchable while absent from the projection**, and historical
+  Category and Related System names surviving both master rows going inactive
+  and logically deleted.
+- **Paging** complete and duplicate-free across a wide tie and beyond the final
+  page.
+
+Non-vacuity was established per fault rather than in bulk, because removing the
+scope predicate fails all eleven cases at once and isolates nothing:
+
+- Removing `{ requesterId }` and `{ deleted: false }` from the base predicate:
+  11 of 11 fail.
+- Restoring those and setting `caseInsensitive` to `false` in the Ticket
+  validator: exactly the 5 case-sensitivity-dependent cases fail, the other 6
+  pass — which is what shows the case-insensitivity assertions are carried by
+  the flag and not by fixture spelling.
+
+**One claim could not be falsified, and the test says so rather than implying
+otherwise.** Deleting the `id DESC` tiebreaker from `readOrder` leaves every
+case here passing — first at two tied rows, then again at forty paged in sevens,
+which was written specifically to try to break it. PostgreSQL's sort is
+deterministic for a given plan, so no fixture can make it choose a different
+arrangement of tied rows on demand. The tiebreaker is a guarantee about behavior
+PostgreSQL leaves unspecified across plan changes, and that is exactly the shape
+of claim a fixture cannot refute. The wide-tie case was therefore rewritten to
+assert only what it owns -- the walk is complete and duplicate-free -- with the
+measurement recorded in the test itself, and the presence of `id DESC` in the
+emitted `orderBy` stays pinned structurally by `my-tickets.api.test.ts`. An
+earlier draft of this case asserted an exact row order and claimed to prove the
+tiebreaker; it did not, and it was removed rather than kept as a passing test
+that argues for something it cannot show.
+
+One review finding remains open, unchanged:
+
+- **Unescaped LIKE wildcards in search terms.** `%` and `_` reach PostgreSQL as
+  wildcards, so `100%` matches every row containing `100`. Prisma parameterizes
+  the value, so this is not injection and no scope predicate is weakened. It was
+  previously blocked on the coverage this section adds and is now verifiable;
+  the ceiling and upgrade path stay marked at `queryBuilder.ts`.
+
+The `<fieldset disabled>` keyboard-focus finding from Section 4.5.26 also
+remains open and still needs a real browser, which is Issue #25's scope.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| New PostgreSQL suite | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres/my-tickets.postgres.test.ts` | `server/`; `postgres:16-alpine` in the `toktickit-lab2-test-postgres` container on `localhost:55432` | Passed — 11 tests. |
+| All guarded PostgreSQL suites | `NODE_ENV=test TEST_DATABASE_URL=<lab2_test_url> npx vitest run tests/lab-02/postgres` | same target | Passed — 5 files, 47 tests. |
+| Full server suite, non-PostgreSQL | `npx vitest run --exclude 'tests/lab-02/postgres/**'` | `server/` | Passed — 19 files, 393 tests. |
+| Backend typecheck | `npx tsc --noEmit` | `server/` | Passed — no output. |
+| Frontend full test suite | `npx vitest run` | `client/` | Passed — 7 files, 188 tests. |
 
 
 ## 5. Reusable QueryBuilder Test Principle
@@ -1478,6 +1557,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-12 | PostgreSQL Integration | BR-19–24, BR-82, AC-65 | Old-owner fencing after reclaim, using separate connections and the exact retained lease timestamp. | A owns PROCESSING; its lease becomes stale; B atomically reclaims and obtains a new `processing_started_at`; A resumes with the old value and its locked status/hash/timestamp fencing check fails before mutation; B alone performs final validation, creates, binds, and completes; exactly one Ticket and one Attachment-binding set commit. The claim lock blocks reclaim while held. | tests/lab-02/postgres/idempotency.postgres.test.ts | Passed |
 | PG-13 | PostgreSQL Integration | BR-21, BR-51, AC-06 | A competing writer binds a referenced Pending Attachment after the create transaction's non-locking Pending read, using separate connections. | The binding `UPDATE` re-checks Pending state under the row lock and affects fewer rows than were read, so the create resolves `409` instead of moving the Attachment off the winning Ticket; no losing Ticket, binding, or COMPLETED result commits and the owned claim is removed. | tests/lab-02/postgres/transactions.postgres.test.ts | Passed |
 | PG-14 | PostgreSQL Integration | BR-03, AC-07 | A Ticket Number unique violation followed by a retry inside the same transaction. | The violation puts the transaction into PostgreSQL's aborted state (`25P02`), so each attempt runs inside a savepoint and a failed attempt rolls back to it; the retry then inserts normally and the bounded BR-03 retry is reachable rather than dead. | tests/lab-02/postgres/transactions.postgres.test.ts | Passed |
+| PG-15 | PostgreSQL Integration | BR-26–39, BR-72–73, AC-21–30, AC-55 | The My Tickets read path executed by an engine: two Requesters whose rows match each other's search terms and filters, a logically deleted row, a wide `createdAt` tie, and a Ticket on reference rows that later go inactive and deleted. | Ownership holds as an outcome rather than as the presence of a `{ requesterId }` object — neither Requester's rows, totals, or pages reach the other, including under a search that matches both; the deleted row is absent from rows and totals alike; a Ticket matches through Description alone while the DTO omits it; `mode: "insensitive"` reaches the comparison for `contains` and for `not`, including against the `CHAR(25)` `ticket_number`; Priority sorts by enum declaration order rather than alphabetically; the search OR-group ANDs with every filter; paging is complete and duplicate-free past a wide tie and beyond the final page; and historical Category and Related System names survive both master rows going inactive and deleted. | tests/lab-02/postgres/my-tickets.postgres.test.ts | Passed — 11 tests |
 
 ## 8. Planned UI Tests
 
