@@ -12,9 +12,9 @@ Every Acceptance Criterion `AC-01` through `AC-66` is mapped to at least one pla
 
 Historical planning and fix-pass entries in Section 4 are retained for
 traceability. The authoritative release snapshot is Section 15.3: every
-implementation Issue has its own passing focused close gate, and Issue #25's
-final regression is reported separately rather than used to defer a feature
-gate.
+implementation Issue has its own passing focused close gate, Issue #25's final
+regression is reported separately rather than used to defer a feature gate,
+and the post-merge `lab2-staging` integration result is recorded separately.
 
 The test plan intentionally separates:
 
@@ -53,8 +53,8 @@ Not Run
 been recorded at that point in the history. The historical executable snapshot
 uses `Passed` as the prose form of `Pass`; it did not defer any feature close
 gate. Current release-integration status is tracked separately in Section
-15.3, where post-merge staging validation remains pending until the corrected
-evidence PR is merged.
+15.3, where the post-merge staging validation is recorded after the corrected
+evidence PR.
 
 After execution, only these final values are used:
 
@@ -2685,24 +2685,28 @@ as permitted by the handout.
 
 ### 15.3 Issue #26 Release-Evidence Revalidation — 2026-08-27
 
-This correction pass is based on the current `lab2-staging` merge from approved
-PR #48 at `b476a2754fb0510f77512a1a87711daa554255dc`. Its tree matches the
-pre-#46 application baseline at `6ef7ed4` (PR #45); branch
-`feature/26-lab2-release-evidence-correction` re-applies release records only.
-All PostgreSQL work
-used the disposable `postgres:16-alpine` container
+PR [#49](https://github.com/oangsa/TokTickIT/pull/49) was approved and merged
+into `lab2-staging` as `df8da1e16e8cc31591c14a17c873e6f1195cffbb`. Its merge
+tree was verified equal to PR #49's head
+`dff9f4d9304cef8c3de6b2073d8c818b9c0d1b94`; the application, Prisma schema,
+migrations, dependencies, and test sources remain unchanged. The fresh
+post-merge checks below ran against that exact staging tree. This follow-up
+record is prepared on `feature/26-lab2-postmerge-validation`, so no direct
+change is made to `lab2-staging`.
+
+The corrected evidence sequence is [#46](https://github.com/oangsa/TokTickIT/pull/46)
+(historical merge before approval), approved revert [#48](https://github.com/oangsa/TokTickIT/pull/48),
+closed unmerged [#47](https://github.com/oangsa/TokTickIT/pull/47), and approved
+corrected [#49](https://github.com/oangsa/TokTickIT/pull/49). Issue #26 is now
+closed/completed by PR #49's `Closes #26` relation; its closure boundary treats
+the replacement `lab2-staging` → `main` release PR as a separate promotion
+gate. No Supabase, production database, real credentials, PII, or binary
+Attachment data was used.
+
+All PostgreSQL work used the disposable `postgres:16-alpine` container
 `toktickit-lab2-test-postgres` at `127.0.0.1:55432`. The redacted targets were
 `toktickit_lab1_dev` for Lab 1/application tests and `toktickit_lab2_test` for
-guarded Lab 2 PostgreSQL tests and E2E. No Supabase, production database, real
-credentials, PII, or binary Attachment data was used.
-
-The first Issue #26 documentation PR was [#46](https://github.com/oangsa/TokTickIT/pull/46),
-which merged and was later reverted by approved [#48](https://github.com/oangsa/TokTickIT/pull/48).
-PR [#47](https://github.com/oangsa/TokTickIT/pull/47) was closed without merge.
-Issue #26 is reopened; corrected evidence must enter `lab2-staging` through a
-new peer-reviewed [PR #49](https://github.com/oangsa/TokTickIT/pull/49) before a new release PR targets `main`. The executable
-results below are preserved from the unchanged application tree; this
-documentation-only correction has not rerun application tests.
+guarded Lab 2 PostgreSQL tests and E2E.
 
 #### Independent feature close gates
 
@@ -2737,6 +2741,37 @@ tests.
 | Prisma validation/status/drift | `prisma validate` passed; status explicitly named `toktickit_lab2_test` at `127.0.0.1:55432` and reported up to date; diff reported an empty migration |
 | Seed/maintenance | Seed rerun passed; maintenance returned `pendingAttachments: 0`, `idempotencyRecords: 0` |
 | Pinned E2E/responsive/visual | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> npm run test:e2e` — 12 tests, 12 passed in 18.8s: three E2E flows plus nine exact viewport cases |
+
+#### Fresh post-PR #49 `lab2-staging` integration gate
+
+The following checks were rerun on the exact merged staging commit
+`df8da1e16e8cc31591c14a17c873e6f1195cffbb` after PR #49 merged. They are the
+current AC-10 release-integration result; the focused Issue #18–#24 gates and
+the Issue #25 regression above remain separately identified.
+
+| Check | Fresh result |
+| --- | --- |
+| Server regression | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- --silent` — **Pass**, 31 files, 674 tests, 0 skipped |
+| Client regression | `cd client && npm test -- --silent` — **Pass**, 10 files, 258 tests, 0 skipped |
+| Server build | `cd server && npm run build` — **Pass** |
+| Client build | `cd client && npm run build` — **Pass** |
+| Prisma schema | `cd server && NODE_ENV=test DATABASE_URL=<lab2_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npx --no-install prisma validate` — **Pass**, schema valid |
+| Prisma migration status | `cd server && NODE_ENV=test DATABASE_URL=<lab2_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npx --no-install prisma migrate status` — **Pass**, datasource explicitly named `toktickit_lab2_test` at `127.0.0.1:55432`; 3 migrations found and schema up to date |
+| Prisma drift | `cd server && NODE_ENV=test DATABASE_URL=<lab2_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npx --no-install prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` — **Pass**, empty migration |
+| Seed repeat | `cd server && NODE_ENV=test DATABASE_URL=<lab2_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npm run prisma:seed` — **Pass**, 4 Categories, 7 Related Systems, and 5 synthetic Requesters |
+| Maintenance smoke | `cd server && NODE_ENV=test DATABASE_URL=<lab2_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npm run maintenance:cleanup` — **Pass**, `pendingAttachments: 0`, `idempotencyRecords: 0` |
+| Pinned Playwright E2E/responsive/visual | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> npm run test:e2e` — **Pass**, 12/12 in 19.5s: three E2E flows plus nine exact viewport cases at `1440x900`, `820x1180`, and `390x844` |
+| Tracked screenshots | Playwright regenerated the 14 snapshots during the run; they were restored to the committed staging baseline. No screenshot diff is included in this evidence update. |
+
+The local PostgreSQL container was disposable and was removed after validation.
+The merged staging commit also passed GitHub's **Lab 2 Verification** workflow
+([run 42](https://github.com/oangsa/TokTickIT/actions/runs/33091755715)); its
+server and client jobs both passed. **Project Automation** also passed on the
+merge event ([run 144](https://github.com/oangsa/TokTickIT/actions/runs/33091755449))
+and successfully processed the merged PR's linked Issue #26 closure. The
+connected API does not expose the ProjectV2 Status field, so the exact card
+field remains a manual-only limitation; GitHub records Issue #26 as closed with
+reason `completed`.
 
 PR #45's GitHub **Lab 2 Verification** run independently passed for its final
 head: [workflow run 16](https://github.com/oangsa/TokTickIT/actions/runs/33068961531)
@@ -2785,10 +2820,11 @@ unchanged application tree:
 
 The original PR #46 Changes Requested review and its post-merge validation
 remain preserved as historical evidence; PR #46 merged before peer approval.
-PR #48's approval and merge restored
-the pre-#46 baseline; Issue #26 remains open for corrected evidence. A new
-post-correction staging validation is required after [PR #49](https://github.com/oangsa/TokTickIT/pull/49) merges,
-before opening the replacement release PR.
+PR #48's approval and merge restored the pre-#46 baseline. PR #49 then
+reapplied the corrected evidence, was peer-approved, and merged into staging;
+the fresh post-#49 validation is recorded above. Issue #26 is closed by its
+documented closure boundary, while the replacement `lab2-staging` → `main`
+release PR remains a separate promotion step.
 
 ## 16. Completion Rule
 
