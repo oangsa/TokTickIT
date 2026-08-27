@@ -2233,3 +2233,22 @@ Pending items are hard-deleted and Active items are soft-removed together, or no
 `X-Requester-Id` exists only to simulate the current Requester context in Lab 2. The REST resource design, public Ticket/Attachment identifiers, ownership checks, audit fields, and centralized errors are intended to remain reusable when Lab 3 introduces real authentication.
 
 When authentication is introduced, the backend should derive Requester identity from the authenticated principal instead of trusting a client-provided Requester context header. Lab 2 must not represent the current header as secure authentication before that migration occurs.
+
+## 21. Final Implementation and Delivery Evidence
+
+The final REST contract is implemented at the following paths. Results are
+recorded in `docs/lab-02/tests.md` Section 15.3, with each feature gate kept
+separate from the Issue #25 final regression.
+
+| Contract area | Implementation paths | Final result |
+| --- | --- | --- |
+| Requester context, transport, errors, CORS | `server/src/middleware/`, `server/src/http/errors.ts`, `server/src/routes/referenceData.ts` | Issue #20 server gate: 6 files, 64 tests passed. |
+| Reference data | `server/src/services/categoryService.ts`, `server/src/services/relatedSystemService.ts`, `server/src/routes/referenceData.ts` | Covered by Issue #20/#21 focused gates; active/non-deleted and full DTO contracts passed. |
+| Ticket creation and idempotency | `server/src/routes/tickets.ts`, `server/src/services/createTicketFlow.ts`, `server/src/services/idempotencyService.ts`, `server/src/services/ticketService.ts` | Issue #21 server gate: 8 files, 187 tests passed, including real PostgreSQL transactions/idempotency. |
+| My Tickets | `server/src/services/ticketQueryValidator.ts`, `server/src/services/queryBuilder.ts`, `server/src/services/ticketListService.ts`, `server/src/routes/tickets.ts` | Issue #22 server gate: 4 files, 221 tests passed. |
+| Ticket Detail | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts` | Issue #23 server gate: 2 files, 29 tests passed. |
+| Attachment lifecycle | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts` | Issue #24 server gate: 7 files, 195 tests passed, including guarded PostgreSQL concurrency/maintenance/rollback coverage. |
+
+No authentication endpoint, Ticket deletion route, or public cleanup HTTP route
+is included. The five seeded Requesters are synthetic `@example.com` fixtures,
+and the application remains development/test-network-only.
