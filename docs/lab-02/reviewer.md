@@ -16,6 +16,7 @@
 | [#44](https://github.com/oangsa/TokTickIT/pull/44) | feature/24-attachments | Changes requested; subsequently approved and merged into `lab2-staging` |
 | [#45](https://github.com/oangsa/TokTickIT/pull/45) | feature/25-lab2-verification | Approved; merged into `lab2-staging` |
 | [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested, then merged; manual Kanban and post-merge staging validation passed |
+| [#48](https://github.com/oangsa/TokTickIT/pull/48) | feature/46-revert-lab2-release-evidence | Approved; reverted PR #46 into `lab2-staging` |
 
 PR [#30](https://github.com/oangsa/TokTickIT/pull/30) was a closed,
 unmerged duplicate for Issue #18 and is not an integration PR.
@@ -200,6 +201,15 @@ and [Issue #26](https://github.com/oangsa/TokTickIT/issues/26). GitHub retains
 the original Changes Requested review as historical evidence; no later approval
 submission was recorded on the closed PR.
 
+PR #46 was subsequently reverted through [PR #48](https://github.com/oangsa/TokTickIT/pull/48)
+after the release path was withdrawn. @kittipichcha approved the revert
+([review](https://github.com/oangsa/TokTickIT/pull/48#pullrequestreview-5042050179));
+it merged into `lab2-staging` as `b476a2754fb0510f77512a1a87711daa554255dc`.
+The revert changed only PR #46's release documentation, README, `.gitignore`,
+and tracked screenshot evidence; no application or Prisma source changed. PR
+[#47](https://github.com/oangsa/TokTickIT/pull/47) was closed without merging,
+and Issue #26 was reopened for corrected evidence.
+
 PR #44 conversation audit: the GitHub API returned **0 general pull-request
 comments** and **0 inline review comments** (including no inline reply
 threads). Therefore, the two formal reviews above are the complete review and
@@ -276,8 +286,11 @@ How I responded:
   final peer approval preceded the merge.
 - **#46** — acknowledged the review, recorded the manually verified
   Project/Kanban state, completed the post-merge `lab2-staging` validation, and
-  recorded the result in the PR and Issue #26. Release PR #47 was opened only
-  after that validation passed.
+  recorded the result in the PR and Issue #26. The merged evidence PR was later
+  reverted by approved PR #48; the earlier release PR #47 was closed.
+- **#48** — used a dedicated `feature/46-revert-lab2-release-evidence` branch
+  and a peer-reviewed revert commit to restore the pre-#46 staging tree without
+  changing application implementation.
 
 Author's PR replies:
 
@@ -309,10 +322,15 @@ Feature integration sequence verified from GitHub:
 | #23 | `feature/23-ticket-detail` | [#43](https://github.com/oangsa/TokTickIT/pull/43) | Peer approved; merged to `lab2-staging` as `fc92d82`. |
 | #24 | `feature/24-attachments` | [#44](https://github.com/oangsa/TokTickIT/pull/44) | Changes requested, evidence added, then peer approved; merged to `lab2-staging` as `dbbb2a5`. |
 | #25 | `feature/25-lab2-verification` | [#45](https://github.com/oangsa/TokTickIT/pull/45) | Peer review sequence completed; merged to `lab2-staging` as `6ef7ed4`; GitHub server/client verification passed. |
-| #26 | `feature/26-lab2-release-evidence` | [#46](https://github.com/oangsa/TokTickIT/pull/46) | Changes requested, then merged as `ed1f107`; manual Kanban and post-merge `lab2-staging` validation passed. Release PR [#47](https://github.com/oangsa/TokTickIT/pull/47) is open. |
+| #26 | `feature/26-lab2-release-evidence-correction` | [#46](https://github.com/oangsa/TokTickIT/pull/46), [#48](https://github.com/oangsa/TokTickIT/pull/48) | Original evidence PR #46 merged as `ed1f107` and was reverted by approved #48, merged as `b476a27`; Issue #26 is reopened for corrected evidence. |
 
-The current remote `lab2-staging` baseline is `ed1f107`, and local focused,
-full, Prisma, build, and E2E results are recorded in `tests.md` Section 15.3.
+The current remote `lab2-staging` baseline is `b476a27`, whose tree matches the
+pre-#46 application baseline `6ef7ed4`. Local focused, full, Prisma, build, and
+E2E results remain recorded in `tests.md` Section 15.3; this correction branch
+reapplies release evidence only. PR #47 is closed without merge, and no release
+PR is currently open. Issue #26 is open; its current Project/Kanban card state
+after reopening has not been rechecked through the connected API, while the
+prior manual verification remains historical evidence.
 The Project Automation workflow succeeded for the final #25 PR runs
 ([run 120](https://github.com/oangsa/TokTickIT/actions/runs/33068961506),
 [run 122](https://github.com/oangsa/TokTickIT/actions/runs/33069786475)); it
@@ -320,9 +338,8 @@ closed the completed Issues. The connected GitHub API available for this record
 does not expose the ProjectV2 Status field, but the reviewer manually verified
 the final issue/card states as correct in the #46 review. Thus the record claims
 that manual verification, not an API-read status: #17–#25 are
-GitHub-closed/completed, #26 is GitHub-closed/completed, and the single release
-PR is [#47](https://github.com/oangsa/TokTickIT/pull/47), open from
-`lab2-staging` to `main` for separate peer review.
+GitHub-closed/completed, #26 is reopened, and corrected evidence must be
+reviewed before a new release PR is opened from `lab2-staging` to `main`.
 
 ## Final evidence PDF plan (not generated)
 
@@ -342,8 +359,9 @@ Issue list, Project/Kanban state, branch naming, and the `main` →
 
 ### Answer Part 3
 
-Feature PR links #27, #31, #32, #33, #34, #42, #43, #44, #45, and #46; reviewer,
-comments, responses, approvals, changes requested, and merge outcomes.
+Feature PR links #27, #31, #32, #33, #34, #42, #43, #44, #45, and #46, plus
+revert PR #48 and the corrected Issue #26 PR; reviewer, comments, responses,
+approvals, changes requested, and merge outcomes.
 
 ### Answer Part 4
 
@@ -374,6 +392,6 @@ readable `1440x900`, `820x1180`, and `390x844` screenshot evidence.
 ### Answer Part 9
 
 Known warnings/audit findings, visual-check limitation, no-auth/no-public-
-deployment limitation, final staging integration result, open release PR
-[#47](https://github.com/oangsa/TokTickIT/pull/47), and
+deployment limitation, the #46 revert and corrected staging integration result,
+the closed release PR [#47](https://github.com/oangsa/TokTickIT/pull/47), and
 completed/untested/blocked/future work summary.

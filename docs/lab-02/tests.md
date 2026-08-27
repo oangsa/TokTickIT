@@ -2682,21 +2682,24 @@ as permitted by the handout.
 
 ### 15.3 Issue #26 Release-Evidence Revalidation — 2026-08-27
 
-This release-evidence pass reran the final executable tree on the current
-`feature/26-lab2-release-evidence` branch before documentation changes. The
-application tree matches the merged `lab2-staging` integration baseline at
-`6ef7ed4` (PR #45); this branch adds release records only. All PostgreSQL work
+This correction pass is based on the current `lab2-staging` merge from approved
+PR #48 at `b476a2754fb0510f77512a1a87711daa554255dc`. Its tree matches the
+pre-#46 application baseline at `6ef7ed4` (PR #45); branch
+`feature/26-lab2-release-evidence-correction` re-applies release records only.
+All PostgreSQL work
 used the disposable `postgres:16-alpine` container
 `toktickit-lab2-test-postgres` at `127.0.0.1:55432`. The redacted targets were
 `toktickit_lab1_dev` for Lab 1/application tests and `toktickit_lab2_test` for
 guarded Lab 2 PostgreSQL tests and E2E. No Supabase, production database, real
 credentials, PII, or binary Attachment data was used.
 
-The Issue #26 documentation PR is [#46](https://github.com/oangsa/TokTickIT/pull/46)
-and merged into `lab2-staging`. Its reviewer manually verified the
-Project/Kanban state, and the post-merge staging gate below passed. The single
-release PR is [#47](https://github.com/oangsa/TokTickIT/pull/47), open from
-`lab2-staging` to `main` for separate review.
+The first Issue #26 documentation PR was [#46](https://github.com/oangsa/TokTickIT/pull/46),
+which merged and was later reverted by approved [#48](https://github.com/oangsa/TokTickIT/pull/48).
+PR [#47](https://github.com/oangsa/TokTickIT/pull/47) was closed without merge.
+Issue #26 is reopened; corrected evidence must enter `lab2-staging` through a
+new peer-reviewed PR before a new release PR targets `main`. The executable
+results below are preserved from the unchanged application tree; this
+documentation-only correction has not rerun application tests.
 
 #### Independent feature close gates
 
@@ -2755,12 +2758,17 @@ under ignored `artifacts/lab-02/`.
 - Lab 3 authentication, staff workflow, and other later-lab features are not
   included.
 
-#### Post-merge `lab2-staging` validation — 2026-08-27
+#### Reversion baseline validation — 2026-08-27
 
-PR #46 merged into `lab2-staging` at
-`ed1f107c469e5469c78575f9a0a6c7ee2115404b`. The merged staging tree was
-verified identical to the reviewed PR tree before running this gate. Using the
-disposable synthetic PostgreSQL targets, the final state produced:
+Approved PR #48 merged into `lab2-staging` at
+`b476a2754fb0510f77512a1a87711daa554255dc`. The resulting staging tree was
+verified identical to pre-#46 application baseline `6ef7ed4`; the revert changed
+release documentation/evidence only. The previously recorded executable gate
+therefore remains applicable to the application tree, but no new application
+test run is claimed for this correction branch.
+
+The previously recorded executable gate produced the following results on this
+unchanged application tree:
 
 | Check | Result |
 | --- | --- |
@@ -2772,9 +2780,11 @@ disposable synthetic PostgreSQL targets, the final state produced:
 | Playwright | 12/12 passed in 19.0s at `1440x900`, `820x1180`, and `390x844` |
 | Project/Kanban | Reviewer manual verification: correct |
 
-This is the required post-merge staging result. The original PR review remains
-preserved as historical Changes Requested evidence; no later approval was
-recorded on the closed PR. The release PR is [#47](https://github.com/oangsa/TokTickIT/pull/47).
+The original PR #46 Changes Requested review and its post-merge validation
+remain preserved as historical evidence. PR #48's approval and merge restored
+the pre-#46 baseline; Issue #26 remains open for corrected evidence. A new
+post-correction staging validation is required after the correction PR merges,
+before opening the replacement release PR.
 
 ## 16. Completion Rule
 
