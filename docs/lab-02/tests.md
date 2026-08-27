@@ -50,8 +50,11 @@ Not Run
 ```
 
 `Not Run` in an older chronological entry means that the evidence had not yet
-been recorded at that point in the history. The final snapshot uses `Passed`
-as the prose form of `Pass`; no required gate is deferred there.
+been recorded at that point in the history. The historical executable snapshot
+uses `Passed` as the prose form of `Pass`; it did not defer any feature close
+gate. Current release-integration status is tracked separately in Section
+15.3, where post-merge staging validation remains pending until the corrected
+evidence PR is merged.
 
 After execution, only these final values are used:
 
