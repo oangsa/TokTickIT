@@ -1974,8 +1974,8 @@ one that runs.
 | Server suite | `npm test` | `server/` | Passed — 31 files, 663 tests. |
 | Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
 | Maintenance CLI | `DATABASE_URL=<lab2 test url> npm run maintenance:cleanup` | `server/`; disposable test container only | Passed — `{"job":"maintenance:cleanup","pendingAttachments":0,"idempotencyRecords":0}`. Run against the disposable container deliberately: the CLI hard-deletes rows, and the default `DATABASE_URL` is the shared database. |
-| Issue #24 focused client gate | `npm test -- tests/lab-02/AttachmentSection.test.tsx` | `client/` | Passed — 1 file, 29 tests. |
-| Client suite | `npm test` | `client/` | Passed — 10 files, 241 tests. |
+| Issue #24 focused client gate | `npm test -- tests/lab-02/AttachmentSection.test.tsx` | `client/` | Passed — 1 file, 33 tests. |
+| Client suite | `npm test` | `client/` | Passed — 10 files, 245 tests. |
 | Client build | `npm run build` | `client/` | Passed — TypeScript and Vite build completed. |
 
 One coverage gap was closed after the suites first went green. The metadata
@@ -1986,13 +1986,25 @@ engine, along with cross-Requester hiding and the retained binary and reason of
 a soft-removed row, so an invalid query shape fails a test rather than a
 request.
 
-UI-11 is left `Not Run` rather than implemented. It asks a `5xx` Ticket-create
-result to run best-effort Pending cleanup, while this Issue's acceptance
-criteria place cleanup on the confirmed discard and forbid soft-removing a row
-that may already be bound. A `5xx` is ambiguous by definition — the create
-transaction may have committed and bound those exact rows, and UI-12 recovers
-them by replaying the same key. The contradiction is reported rather than
-resolved unilaterally.
+UI-11 was raised as an apparent contradiction with this Issue's acceptance
+criteria and resolved by decision rather than by assumption. The first reading
+was that a `5xx` cleanup could destroy committed Ticket evidence; that reading
+was wrong on mechanism. The empty reason each item carries is refused for an
+Active row, and the batch is all-or-nothing, so a bound row cannot be removed by
+this call at all. The real cost is narrower: when the transaction genuinely
+failed, the released rows are gone and the stored recovery payload still names
+them, so Resume would answer `404`. The decision was to implement UI-11 as
+written and treat a confirmed release as terminal — the recovery record is
+dropped and the rows offer Retry Upload — because a confirmed release proves the
+create never bound them, and a create committing afterwards fails its own
+guarded binding and rolls back.
+
+The Create Ticket `x/5` header counts prepared Pending rows. ui-spec Section
+21.1 states the count as active/5, which on a screen with no Active rows would
+read `0/5` forever and never disable Add, while Section 23.0 caps prepared
+Pending at five. Counting Pending there is the only reading under which the cap
+is visible before a Ticket exists; the header means "slots used of five" on both
+screens.
 
 
 ## 5. Reusable QueryBuilder Test Principle
@@ -2203,8 +2215,8 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-08 | UI | FR-12 | Create Ticket busy submission. | Delayed response causes disabled Submit with spinner while text remains `Submit Ticket`; duplicate click prevented. A context-invalidating `400` is treated as a confirmed non-ambiguous failure, so it discards the stored context and leaves no recovery record instead of offering Resume. | tests/lab-02/CreateTicket.test.tsx | Passed |
 | UI-09 | UI | AC-06, AC-16, AC-44 | Initial pre-upload and atomic submit. | Valid selected files pre-upload one-by-one to Pending; Submit remains blocked for Uploading/Failed/Invalid intended files until Retry succeeds or Remove is explicit; final prepared IDs are sent and success navigates to Active Detail. | tests/lab-02/CreateTicket.test.tsx | Passed — `AttachmentSection.test.tsx` covers a valid selection reaching Pending, the exact size boundaries, an unsupported file staying Invalid beside a valid sibling, Retry after a failed upload, the submit gate, and the prepared IDs reaching the create payload. |
 | UI-10 | UI | AC-10 | Ticket-create 4xx retention. | Stay on form; text/select values and valid Pending cards/IDs remain; server errors map safely; unchanged logical retry reuses the key. | tests/lab-02/CreateTicket.test.tsx | Passed — staying on the form, retaining text/select values, safe server-error mapping, and same-key unchanged retry are covered in `CreateTicket.test.tsx`; the Pending card/ID retention half is covered in `AttachmentSection.test.tsx`, which also asserts that a 4xx triggers no cleanup and no re-upload. |
-| UI-11 | UI | BR-23–24 | Ticket-create unexpected 5xx compensation. | Non-file fields remain; best-effort Pending cleanup uses empty reasons; confirmed deletions show Retry Upload; client never invents an Active-removal reason. | tests/lab-02/CreateTicket.test.tsx | Not Run — blocked on a contradiction between two approved statements, reported rather than resolved unilaterally. This row asks a `5xx` to run best-effort Pending cleanup, while Issue #24's acceptance criteria require cleanup on a confirmed discard and state that no row which may already be bound is ever soft-removed. A `5xx` is ambiguous by definition: the Ticket-create transaction may have committed and bound those exact rows, and UI-12 depends on replaying the same key to recover them. Cleanup is therefore implemented on the confirmed discard only (`AttachmentSection.test.tsx`), and a `5xx` leaves the Pending rows intact for the recovery path. |
-| UI-12 | UI | BR-23–24 | Ambiguous Ticket-create recovery. | Unchanged POST retries with the same key; completed 200 recovers same Ticket and Active Attachments without duplicate, cleanup damage, or re-upload. | tests/lab-02/CreateTicket.test.tsx | Partial — the unchanged same-key retry and the completed `200` recovering the same Ticket without a duplicate are covered in `CreateTicket.test.tsx`; the recovered Ticket's Attachments render Active through the shared card, covered in `AttachmentSection.test.tsx`, and the no-re-upload half is covered by the 4xx-retention case there. Cleanup-damage remains untested because no `5xx` cleanup exists — see UI-11. |
+| UI-11 | UI | BR-23–24 | Ticket-create unexpected 5xx compensation. | Non-file fields remain; best-effort Pending cleanup uses empty reasons; confirmed deletions show Retry Upload; client never invents an Active-removal reason. | tests/lab-02/CreateTicket.test.tsx | Passed — an ambiguous `5xx` releases every prepared Pending row through `DELETE /api/attachments/collection` with an empty reason per item, and the client never invents an Active-removal reason. The empty reason is the safety mechanism rather than a shortcut: the backend ignores it for a Pending row and refuses it for an Active one, and the batch is all-or-nothing, so a row a committed create already bound cannot be removed. That makes the answer informative. A confirmed release means the rows were still Pending, so the create never bound them and a create committing later fails its guarded binding and rolls back; the rows flip to Retry Upload, the recovery record is dropped rather than left to answer `404` forever, and Submit stays blocked until each released file is retried or removed. A refused release changes nothing and the recovery record stands. Non-file fields survive either way. All four cases fail against the page with the release removed. |
+| UI-12 | UI | BR-23–24 | Ambiguous Ticket-create recovery. | Unchanged POST retries with the same key; completed 200 recovers same Ticket and Active Attachments without duplicate, cleanup damage, or re-upload. | tests/lab-02/CreateTicket.test.tsx | Partial — the unchanged same-key retry and the completed `200` recovering the same Ticket without a duplicate are covered in `CreateTicket.test.tsx`; the recovered Ticket's Attachments render Active through the shared card, covered in `AttachmentSection.test.tsx`. The no-re-upload half holds through the refused-release case there: when the create did commit, its rows are Active, the compensation batch is refused, and Resume replays the same key against untouched Attachments. Cleanup damage is structurally excluded rather than merely untested — the empty reason cannot soft-remove a bound row and the guarded hard delete cannot take one. |
 | UI-13 | UI | AC-43 | Frontend Idempotency-Key lifecycle. | First logical submission gets a UUID; unchanged canonical retry and reordered same IDs reuse it; Ticket-field or final Attachment-set change generates a new key. | tests/lab-02/CreateTicket.test.tsx | Passed — including the reordered-set case, asserted against `payloadSignature` because the draft's `attachmentIds` are written by the Issue #24 controls |
 | UI-14 | UI | AC-45 | Create Ticket Cancel/discard. | Untouched empty draft cancels directly; dirty and/or known Pending draft requires confirmation; confirm sends best-effort Pending cleanup, clears fields/files, and returns to `/tickets`. | tests/lab-02/CreateTicket.test.tsx | Passed — the direct cancel, the confirmation, Keep editing, and the confirmed discard clearing the draft and recovery record are covered in `CreateTicket.test.tsx`; the best-effort Pending cleanup call, with an empty reason per item, is covered in `AttachmentSection.test.tsx`. |
 | UI-15 | UI | AC-33 | My Tickets loading/table/stale-data prevention. | Skeleton rows during load; required table structure; stale previous-requester Tickets never render during context change. | tests/lab-02/MyTickets.test.tsx | Passed |

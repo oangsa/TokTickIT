@@ -8,7 +8,11 @@ import {
   Ticket,
 } from "../api.js";
 import { Button } from "../components/Button.js";
-import { AttachmentSection } from "../attachments/AttachmentSection.js";
+import {
+  AttachmentSection,
+  AttachmentSectionHandle,
+} from "../attachments/AttachmentSection.js";
+import { releasePendingAttachments } from "../attachments/pendingCleanup.js";
 import { Card } from "../components/Card.js";
 import { ErrorState } from "../components/ErrorState.js";
 import { Form } from "../components/Form.js";
@@ -141,6 +145,9 @@ export default function CreateTicket() {
    * uploaded, which is the one outcome the contract rules out.
    */
   const [unresolvedFiles, setUnresolvedFiles] = useState(false);
+  /* BR-23 compensation is driven from here but performed by the Attachment card,
+   * which is where the prepared rows and their upload state live. */
+  const attachmentsRef = useRef<AttachmentSectionHandle | null>(null);
 
   /*
    * BR-24. The key belongs to one logical payload: an unchanged retry reuses it
@@ -313,6 +320,30 @@ export default function CreateTicket() {
       setErrors({
         form: "The Ticket submission did not complete. Use Resume Submission Recovery to retry it.",
       });
+
+      /*
+       * BR-23 compensation. The release carries an empty reason per item, so a
+       * row a committed create already bound cannot be removed by it -- the
+       * batch is refused and, being all-or-nothing, nothing changes. That makes
+       * the answer informative rather than merely safe:
+       *
+       * - refused: the rows may be Active on a Ticket that did commit, so the
+       *   recovery record stands and Resume replays the same key.
+       * - confirmed: every row was still Pending, so the create never bound
+       *   them; and a create that commits after this finds them gone, fails its
+       *   guarded binding, and rolls back. Nothing is left to resume, so the
+       *   recovery record is dropped rather than left to answer 404 forever, and
+       *   the rows become re-uploadable through Retry Upload.
+       */
+      const released = (await attachmentsRef.current?.releasePending()) ?? false;
+
+      if (released && isRequesterContextCurrent(token)) {
+        clearRecovery();
+        setRecovery(null);
+        setErrors({
+          form: "The Ticket was not created. Retry the uploads shown below, then submit again.",
+        });
+      }
     } finally {
       if (isRequesterContextCurrent(token)) {
         setSubmitting(false);
@@ -387,15 +418,7 @@ export default function CreateTicket() {
     keyRef.current = null;
     signatureRef.current = null;
 
-    if (preparedIds.length > 0) {
-      void callApi("/api/attachments/collection", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: preparedIds.map((attachmentId) => ({ attachmentId, reason: "" })),
-        }),
-      }).catch(() => undefined);
-    }
+    void releasePendingAttachments(callApi, preparedIds);
 
     navigate("/tickets");
   }
@@ -536,6 +559,7 @@ export default function CreateTicket() {
           */}
           <AttachmentSection
             mode="create"
+            handleRef={attachmentsRef}
             onPendingIdsChange={(attachmentIds) =>
               setDraft((current) =>
                 current.attachmentIds.join(",") === attachmentIds.join(",")

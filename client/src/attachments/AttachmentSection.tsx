@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChangeEvent, MutableRefObject, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { ApiResponseError, Attachment } from "../api.js";
 import { AttachmentState, AttachmentStateName } from "../components/AttachmentState.js";
@@ -15,6 +15,7 @@ import {
   formatSize,
   validateSelectedFile,
 } from "./attachmentRules.js";
+import { releasePendingAttachments } from "./pendingCleanup.js";
 
 /*
  * `md` (768px) is the same cut My Tickets uses for secondary metadata. Filename,
@@ -54,6 +55,8 @@ interface UploadEntry {
 
 interface CreateModeProps {
   mode: "create";
+  /* Receives the compensation handle below; see `AttachmentSectionHandle`. */
+  handleRef?: MutableRefObject<AttachmentSectionHandle | null>;
   /* The prepared Pending IDs, in the order they were accepted. */
   onPendingIdsChange: (attachmentIds: string[]) => void;
   /* True while any intended file is still Uploading, Failed, or Invalid. */
@@ -68,6 +71,20 @@ interface DetailModeProps {
 }
 
 export type AttachmentSectionProps = CreateModeProps | DetailModeProps;
+
+/*
+ * The imperative seam Create Ticket needs for BR-23 compensation. The rows and
+ * their upload state live in this component, so the release has to be driven
+ * from here; what the page owns is the decision to trigger it.
+ */
+export interface AttachmentSectionHandle {
+  /*
+   * Releases every prepared Pending row. Resolves `true` only when the server
+   * confirmed the deletion, which is also the moment the rows flip to a state
+   * that offers Retry Upload.
+   */
+  releasePending: () => Promise<boolean>;
+}
 
 function toRowView(entry: UploadEntry): AttachmentRowView {
   const name = entry.attachment?.originalName ?? entry.file.name;
@@ -296,12 +313,66 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     setEntries((current) => current.filter((candidate) => candidate.key !== key));
 
     if (attachmentId !== null) {
-      void callApi("/api/attachments/collection", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: [{ attachmentId, reason: "" }] }),
-      }).catch(() => undefined);
+      void releasePendingAttachments(callApi, [attachmentId]);
     }
+  }
+
+  /*
+   * BR-23 compensation, driven by Create Ticket after an ambiguous `5xx`.
+   *
+   * A confirmed release is also an answer about the Ticket: the rows were still
+   * Pending, so the create transaction had not bound them, and a create that
+   * commits later finds them gone and rolls itself back rather than binding
+   * around the gap. The rows therefore become re-uploadable rather than
+   * disappearing, which is what Retry Upload is for.
+   *
+   * An unconfirmed release changes nothing at all -- the rows may well be Active
+   * on a Ticket that did commit, and the recovery path is what recovers them.
+   */
+  async function releasePending(): Promise<boolean> {
+    const prepared = entries.filter(
+      (entry) => entry.state === "Pending" && entry.attachment !== null,
+    );
+
+    if (prepared.length === 0) {
+      return false;
+    }
+
+    const released = await releasePendingAttachments(
+      callApi,
+      prepared.map((entry) => entry.attachment?.attachmentId ?? ""),
+    );
+
+    if (!released) {
+      return false;
+    }
+
+    const releasedKeys = new Set(prepared.map((entry) => entry.key));
+
+    setEntries((current) =>
+      current.map((entry) =>
+        releasedKeys.has(entry.key)
+          ? {
+              ...entry,
+              state: "Failed" as const,
+              attachment: null,
+              message: "This prepared file was released. Retry Upload to attach it again.",
+            }
+          : entry,
+      ),
+    );
+
+    return true;
+  }
+
+  /*
+   * Published as a plain ref prop rather than through `forwardRef`: the page
+   * needs one method, not a DOM handle, and `ref` itself stays free for whatever
+   * the element tree wants. The assignment runs on every render so the closure
+   * the page calls always sees the current rows.
+   */
+  if (props.mode === "create" && props.handleRef !== undefined) {
+    props.handleRef.current = { releasePending };
   }
 
   function toggleSelected(attachmentId: string): void {

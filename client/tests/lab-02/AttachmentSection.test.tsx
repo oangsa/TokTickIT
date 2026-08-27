@@ -94,7 +94,10 @@ interface StubbedCall {
 interface StubOptions {
   detailAttachments?: unknown[];
   upload?: () => { ok?: boolean; status?: number; body?: unknown };
-  collectionOk?: boolean;
+  /* Non-2xx status for the collection endpoint; omitted means 204. */
+  collectionStatus?: number;
+  /* Non-2xx status for POST /api/tickets; omitted means a created Ticket. */
+  createStatus?: number;
   binaryOk?: boolean;
 }
 
@@ -147,9 +150,12 @@ function stubApi(options: StubOptions = {}) {
       }
 
       if (url.includes("/api/attachments/collection")) {
-        return options.collectionOk === false
-          ? failure(409, "CONFLICT")
-          : { ok: true, status: 204, headers: new Headers(), json: async () => ({}) };
+        return options.collectionStatus === undefined
+          ? { ok: true, status: 204, headers: new Headers(), json: async () => ({}) }
+          : failure(
+              options.collectionStatus,
+              options.collectionStatus === 400 ? "VALIDATION_ERROR" : "CONFLICT",
+            );
       }
 
       if (url.includes("/preview") || url.includes("/download")) {
@@ -190,7 +196,9 @@ function stubApi(options: StubOptions = {}) {
       }
 
       if (method === "POST" && url.includes("/api/tickets")) {
-        return ok(ticket(), 201);
+        return options.createStatus === undefined
+          ? ok(ticket(), 201)
+          : failure(options.createStatus, "INTERNAL_SERVER_ERROR");
       }
 
       return ok(ticket(options.detailAttachments ?? [ACTIVE, REMOVED]));
@@ -428,6 +436,100 @@ describe("UI-10 Pending rows survive a Ticket-create 4xx", () => {
   });
 });
 
+describe("UI-11 compensation after an ambiguous Ticket-create 5xx", () => {
+  async function submitWith(options: StubOptions) {
+    const { calls } = stubApi(options);
+    renderAt("/tickets/new");
+
+    await userEvent.upload(await screen.findByLabelText("Add Attachment"), pngFile());
+    await waitFor(() => expect(within(rowFor("vpn-error.png")).getByText("Pending")).toBeInTheDocument());
+
+    await userEvent.selectOptions(screen.getByLabelText(/^Category/), "1");
+    await userEvent.selectOptions(screen.getByLabelText(/^Related System/), "1");
+    await userEvent.selectOptions(screen.getByLabelText(/^Requested Priority/), "HIGH");
+    await userEvent.type(screen.getByLabelText(/^Summary/), "VPN keeps dropping");
+    await userEvent.type(
+      screen.getByLabelText(/^Description/),
+      "The VPN tunnel drops about ten minutes after it connects.",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
+
+    return calls;
+  }
+
+  function cleanupCall(calls: StubbedCall[]) {
+    return calls.find((call) => call.method === "DELETE");
+  }
+
+  it("releases the prepared rows with an empty reason each and never invents one", async () => {
+    const calls = await submitWith({ createStatus: 500 });
+
+    await waitFor(() => expect(cleanupCall(calls)).toBeDefined());
+
+    /*
+     * The empty reason is the safety mechanism: the backend ignores it for a
+     * Pending row and refuses it for an Active one, so the client never has to
+     * guess a lifecycle state or invent an Active-removal reason.
+     */
+    const items = JSON.parse(String(cleanupCall(calls)?.body)).items as {
+      attachmentId: string;
+      reason: string;
+    }[];
+    expect(items).toEqual([{ attachmentId: PENDING_ID, reason: "" }]);
+  });
+
+  it("offers Retry Upload and drops the recovery record when the release is confirmed", async () => {
+    await submitWith({ createStatus: 500 });
+
+    const row = await waitFor(() => {
+      const found = rowFor("vpn-error.png");
+      expect(within(found).getByText("Failed")).toBeInTheDocument();
+      return found;
+    });
+
+    expect(within(row).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(within(row).getByText(/Retry Upload to attach it again/)).toBeInTheDocument();
+
+    /*
+     * A confirmed release means the rows were still Pending, so the create never
+     * bound them and nothing is left to resume.
+     */
+    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The Ticket was not created. Retry the uploads shown below, then submit again.",
+    );
+
+    /* Submit stays blocked until the released file is retried or removed. */
+    expect(screen.getByRole("button", { name: "Submit Ticket" })).toBeDisabled();
+  });
+
+  it("keeps the rows Pending and the recovery record when the release is refused", async () => {
+    /* 400: at least one row is Active, so the create did commit after all. */
+    const calls = await submitWith({ createStatus: 500, collectionStatus: 400 });
+
+    await waitFor(() => expect(cleanupCall(calls)).toBeDefined());
+
+    expect(
+      await screen.findByRole("button", { name: "Resume Submission Recovery" }),
+    ).toBeInTheDocument();
+    expect(within(rowFor("vpn-error.png")).getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The Ticket submission did not complete. Use Resume Submission Recovery to retry it.",
+    );
+  });
+
+  it("keeps the non-file fields either way", async () => {
+    await submitWith({ createStatus: 500 });
+
+    await waitFor(() => expect(within(rowFor("vpn-error.png")).getByText("Failed")).toBeInTheDocument());
+
+    expect(screen.getByLabelText(/^Summary/)).toHaveValue("VPN keeps dropping");
+    expect(screen.getByLabelText(/^Description/)).toHaveValue(
+      "The VPN tunnel drops about ten minutes after it connects.",
+    );
+  });
+});
+
 describe("UI-26 the x/5 count and the Add control", () => {
   it("counts only Active Attachments and excludes Removed ones", async () => {
     stubApi();
@@ -662,7 +764,7 @@ describe("UI-29 a required reason per selected Attachment", () => {
 
 describe("UI-30 an all-or-nothing removal failure", () => {
   it("leaves every selected row in its previous state", async () => {
-    stubApi({ detailAttachments: [ACTIVE, SECOND_ACTIVE], collectionOk: false });
+    stubApi({ detailAttachments: [ACTIVE, SECOND_ACTIVE], collectionStatus: 409 });
     renderAt(`/tickets/${PUBLIC_ID}`);
 
     await screen.findByRole("heading", { name: "Attachments 2/5" });
