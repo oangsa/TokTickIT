@@ -2693,11 +2693,10 @@ guarded Lab 2 PostgreSQL tests and E2E. No Supabase, production database, real
 credentials, PII, or binary Attachment data was used.
 
 The Issue #26 documentation PR is [#46](https://github.com/oangsa/TokTickIT/pull/46)
-and targets `lab2-staging`; its review is Changes Requested pending only the
-post-merge staging gate. The reviewer manually verified the Project/Kanban
-state as correct. The single release PR is planned at
-[#47](https://github.com/oangsa/TokTickIT/pull/47), but must not be opened until
-#46 is peer-approved, merged, and the resulting staging ref is revalidated.
+and merged into `lab2-staging`. Its reviewer manually verified the
+Project/Kanban state, and the post-merge staging gate below passed. The single
+release PR is [#47](https://github.com/oangsa/TokTickIT/pull/47), open from
+`lab2-staging` to `main` for separate review.
 
 #### Independent feature close gates
 
@@ -2755,6 +2754,27 @@ under ignored `artifacts/lab-02/`.
   `X-Requester-Id` are not authentication or a privacy boundary.
 - Lab 3 authentication, staff workflow, and other later-lab features are not
   included.
+
+#### Post-merge `lab2-staging` validation — 2026-08-27
+
+PR #46 merged into `lab2-staging` at
+`ed1f107c469e5469c78575f9a0a6c7ee2115404b`. The merged staging tree was
+verified identical to the reviewed PR tree before running this gate. Using the
+disposable synthetic PostgreSQL targets, the final state produced:
+
+| Check | Result |
+| --- | --- |
+| Server regression | 31 files, 674 tests passed; includes Lab 1 and guarded PostgreSQL suites |
+| Client regression | 10 files, 258 tests passed |
+| Server/client builds | Passed |
+| Prisma validation/status/drift | Valid schema; Lab 2 database up to date; empty migration drift |
+| Seed/maintenance | Idempotent seed passed; cleanup returned zero pending Attachments and idempotency records |
+| Playwright | 12/12 passed in 19.0s at `1440x900`, `820x1180`, and `390x844` |
+| Project/Kanban | Reviewer manual verification: correct |
+
+This is the required post-merge staging result. The original PR review remains
+preserved as historical Changes Requested evidence; no later approval was
+recorded on the closed PR. The release PR is [#47](https://github.com/oangsa/TokTickIT/pull/47).
 
 ## 16. Completion Rule
 
