@@ -2069,6 +2069,44 @@ of the final commit.
 No REST route, API payload, Prisma schema, migration, or database contract
 changed in this blocker pass.
 
+### 4.5.41 PR #44 review verification and test-runner serialization
+
+The PR review's verification blocker was rechecked on 2026-08-27. The PR head
+still reported `bb348b570c9129cc914ca9204298a7baa370a616` before this pass. The
+first exact PostgreSQL command reproduced a test-harness defect: the existing
+`fileParallelism` setting was nested where Vitest 2 ignored it, so PostgreSQL
+files reset the shared disposable schema concurrently and 63 of 74 tests were
+skipped after setup failures. The isolated Attachment concurrency file and an
+explicit `--no-file-parallelism` rerun passed. The fix moves serialization into
+the server `npm test` script, making the review's documented commands
+deterministic.
+
+The results below are against the current working tree, which includes that
+uncommitted test-runner fix. They do not claim that the unchanged PR commit
+`bb348b5` passed the exact command before the fix. The two PostgreSQL targets
+were disposable databases in the local `postgres:16-alpine` container:
+`toktickit_lab2_test` for the guarded integration suite and
+`toktickit_lab1_dev` for the full server run. The external development database
+was not used, migrated, seeded, or reset.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Current PR head | `git rev-parse HEAD` | repository | `bb348b570c9129cc914ca9204298a7baa370a616` before this uncommitted fix pass. |
+| Issue #24 focused server gate | `NODE_ENV=test npm test -- tests/lab-02/AttachmentService.test.ts tests/lab-02/MaintenanceService.test.ts tests/lab-02/attachments.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma/API boundary | Passed — 4 files, 164 tests. |
+| Required PostgreSQL close gate | `NODE_ENV=test TEST_DATABASE_URL=<guarded_lab2_test_url> npm test -- tests/lab-02/postgres` | `server/`; disposable `postgres:16-alpine`, `toktickit_lab2_test` | Passed — 8 files, 74 tests. The server test script supplies `--no-file-parallelism`. |
+| Create Ticket + Attachment client gate | `npm test -- tests/lab-02/CreateTicket.test.tsx tests/lab-02/AttachmentSection.test.tsx` | `client/` | Passed — 2 files, 83 tests. Existing React `act(...)` warnings remain in Attachment icon coverage. |
+| Full client suite | `npm test` | `client/` | Passed — 10 files, 257 tests. |
+| Full server suite | `NODE_ENV=test DATABASE_URL=<lab1_dev_url> DIRECT_URL=<same> TEST_DATABASE_URL=<lab2_test_url> npm test` | `server/`; two disposable PostgreSQL targets | Passed — 31 files, 670 tests. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Client build | `npm run build` | `client/` | Passed — TypeScript and Vite production build completed. |
+
+No REST route, API payload, Prisma schema, migration, production database, or
+credential changed. GitHub status checks remain unavailable in this local
+session. `.github/workflows/lab2-verification.yml` now defines the same focused,
+PostgreSQL, full-suite, and build gates with an ephemeral PostgreSQL service;
+it must be committed and pushed before GitHub can run it against the PR head
+and attach CI evidence.
+
 
 ## 5. Reusable QueryBuilder Test Principle
 

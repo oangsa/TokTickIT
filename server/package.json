@@ -10,7 +10,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "maintenance:cleanup": "tsx src/scripts/maintenanceCleanup.ts",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "postinstall": "prisma generate"
   },
   "dependencies": {

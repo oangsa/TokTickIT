@@ -1,0 +1,123 @@
+name: Lab 2 Verification
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches:
+      - main
+      - lab2-staging
+      - "feature/**"
+
+permissions:
+  contents: read
+
+env:
+  LAB1_DATABASE_URL: postgresql://lab2_test@127.0.0.1:5432/toktickit_lab1_dev
+  TEST_DATABASE_URL: postgresql://lab2_test@127.0.0.1:5432/toktickit_lab2_test
+  DATABASE_URL: postgresql://lab2_test@127.0.0.1:5432/toktickit_lab1_dev
+  DIRECT_URL: postgresql://lab2_test@127.0.0.1:5432/toktickit_lab1_dev
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: toktickit_lab2_test
+          POSTGRES_USER: lab2_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lab2_test -d toktickit_lab2_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci
+
+      - name: Create disposable Lab 1 database
+        run: createdb -h 127.0.0.1 -U lab2_test -d toktickit_lab2_test toktickit_lab1_dev
+
+      - name: Apply migrations to disposable Lab 1 database
+        env:
+          DATABASE_URL: ${{ env.LAB1_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB1_DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Seed disposable Lab 1 database
+        env:
+          DATABASE_URL: ${{ env.LAB1_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB1_DATABASE_URL }}
+        run: npm run prisma:seed
+
+      - name: Run Issue #24 focused server gate
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ env.LAB1_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB1_DATABASE_URL }}
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: npm test -- tests/lab-02/AttachmentService.test.ts tests/lab-02/MaintenanceService.test.ts tests/lab-02/attachments.api.test.ts tests/lab-02/transport-hardening.api.test.ts
+
+      - name: Run guarded PostgreSQL close gate
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ env.LAB1_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB1_DATABASE_URL }}
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: npm test -- tests/lab-02/postgres
+
+      - name: Run full server suite
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ env.LAB1_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB1_DATABASE_URL }}
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: npm test
+
+      - name: Build server
+        run: npm run build
+
+  client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci
+
+      - name: Run Create Ticket and Attachment client gate
+        run: npm test -- tests/lab-02/CreateTicket.test.tsx tests/lab-02/AttachmentSection.test.tsx
+
+      - name: Run full client suite
+        run: npm test
+
+      - name: Build client
+        run: npm run build
