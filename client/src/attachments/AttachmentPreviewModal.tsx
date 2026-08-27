@@ -129,9 +129,18 @@ export function AttachmentDownloadButton({
 }) {
   const fetchBlob = useRequesterBlob();
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
+  /*
+   * The failure has to be caught here, the way the preview catches its own. A
+   * download can fail for reasons the row does not show -- the Attachment was
+   * removed from another tab and now answers `410`, or the request never left
+   * the browser -- and without this the promise rejects unhandled and the only
+   * thing the Requester sees is the spinner stopping.
+   */
   async function download(): Promise<void> {
     setBusy(true);
+    setFailed(false);
 
     try {
       const blob = await fetchBlob(`/api/attachments/${encodeURIComponent(attachmentId)}/download`);
@@ -144,14 +153,23 @@ export function AttachmentDownloadButton({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+    } catch {
+      setFailed(true);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Button variant={variant} busy={busy} onClick={() => void download()}>
-      Download
-    </Button>
+    <>
+      <Button variant={variant} busy={busy} onClick={() => void download()}>
+        Download
+      </Button>
+      {failed ? (
+        <p role="alert" className="tt-invalid-text mb-0">
+          {originalName} could not be downloaded.
+        </p>
+      ) : null}
+    </>
   );
 }

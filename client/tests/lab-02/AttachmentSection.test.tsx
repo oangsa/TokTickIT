@@ -99,6 +99,8 @@ interface StubOptions {
   /* Non-2xx status for POST /api/tickets; omitted means a created Ticket. */
   createStatus?: number;
   binaryOk?: boolean;
+  /* Held pre-uploads: every POST /api/attachments waits on this before it answers. */
+  uploadGate?: Promise<void>;
 }
 
 const MASTER_DATA = [{ id: 1, name: "Network", isActive: true, deleted: false }];
@@ -163,6 +165,10 @@ function stubApi(options: StubOptions = {}) {
       }
 
       if (method === "POST" && url.includes("/attachments")) {
+        if (options.uploadGate !== undefined) {
+          await options.uploadGate;
+        }
+
         const result = options.upload?.() ?? {};
 
         if (result.ok === false) {
@@ -850,5 +856,123 @@ describe("Create Ticket discard cleanup", () => {
         items: [{ attachmentId: PENDING_ID, reason: "" }],
       });
     });
+  });
+});
+
+describe("UI-26 the x/5 bound holds while uploads are in flight", () => {
+  it("counts in-flight uploads so a second selection cannot prepare more than five", async () => {
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { calls } = stubApi({ uploadGate: gate });
+
+    renderAt("/tickets/new");
+    const input = await screen.findByLabelText("Add Attachment");
+
+    await userEvent.upload(input, [0, 1, 2, 3].map((index) => pngFile(`evidence-${index}.png`)));
+
+    /*
+     * Nothing has answered yet, so all four rows are still Uploading. They have
+     * to count: reading the room from the settled rows alone would leave it at
+     * five here, take all three files below, and prepare seven Pending rows the
+     * Ticket-create would reject with a 400 the Requester has to unpick by hand.
+     */
+    expect(await screen.findByRole("heading", { name: "Attachments 4/5" })).toBeInTheDocument();
+
+    await userEvent.upload(input, [pngFile("extra-a.png"), pngFile("extra-b.png"), pngFile("extra-c.png")]);
+
+    expect(
+      await screen.findByText("Only 5 attachments can be prepared for a new Ticket."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("extra-a.png")).toBeInTheDocument();
+    expect(screen.queryByText("extra-b.png")).not.toBeInTheDocument();
+    expect(screen.queryByText("extra-c.png")).not.toBeInTheDocument();
+
+    /* Full now, so the control is out of reach rather than merely refusing. */
+    expect(await screen.findByRole("heading", { name: "Attachments 5/5" })).toBeInTheDocument();
+    expect(input).toBeDisabled();
+
+    release();
+
+    await waitFor(() =>
+      expect(within(rowFor("extra-a.png")).getByText("Pending")).toBeInTheDocument(),
+    );
+
+    const uploads = calls.filter(
+      (call) => call.method === "POST" && call.url.endsWith("/api/attachments"),
+    );
+    expect(uploads).toHaveLength(5);
+    expect(screen.getByRole("heading", { name: "Attachments 5/5" })).toBeInTheDocument();
+  });
+});
+
+describe("UI-26 Retry Upload answers to the same x/5 bound", () => {
+  it("cannot prepare a sixth row by retrying a Failed one at the limit", async () => {
+    /* The first two pre-uploads fail; every later one settles Pending. */
+    let attempt = 0;
+    stubApi({
+      upload: () => {
+        attempt += 1;
+        return attempt <= 2 ? { ok: false, status: 500 } : {};
+      },
+    });
+
+    renderAt("/tickets/new");
+    const input = await screen.findByLabelText("Add Attachment");
+
+    await userEvent.upload(input, [0, 1, 2, 3, 4].map((index) => pngFile(`f-${index}.png`)));
+    expect(await screen.findByRole("heading", { name: "Attachments 3/5" })).toBeInTheDocument();
+
+    /* Failed rows free their slots, so two more selections fill the counter. */
+    await userEvent.upload(input, [pngFile("g-0.png"), pngFile("g-1.png")]);
+    expect(await screen.findByRole("heading", { name: "Attachments 5/5" })).toBeInTheDocument();
+
+    /*
+     * Retry is an add path like the file input. Without the bound it would take
+     * the two Failed rows to seven prepared Pending IDs, and the Ticket-create
+     * would answer 400 for a set the card itself had drawn as valid.
+     */
+    expect(within(rowFor("f-0.png")).queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(within(rowFor("f-1.png")).queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Attachments 5/5" })).toBeInTheDocument();
+  });
+
+  it("offers Retry again once a slot is freed", async () => {
+    let attempt = 0;
+    stubApi({
+      upload: () => {
+        attempt += 1;
+        return attempt === 1 ? { ok: false, status: 500 } : {};
+      },
+    });
+
+    renderAt("/tickets/new");
+    const input = await screen.findByLabelText("Add Attachment");
+
+    await userEvent.upload(input, [0, 1, 2, 3, 4].map((index) => pngFile(`f-${index}.png`)));
+    expect(await screen.findByRole("heading", { name: "Attachments 4/5" })).toBeInTheDocument();
+
+    /* One slot is open, so the Failed row can still be retried into it. */
+    await userEvent.click(within(rowFor("f-0.png")).getByRole("button", { name: "Retry" }));
+
+    await waitFor(() =>
+      expect(within(rowFor("f-0.png")).getByText("Pending")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("heading", { name: "Attachments 5/5" })).toBeInTheDocument();
+  });
+});
+
+describe("UI-27 a failed download is reported", () => {
+  it("shows an alert instead of failing silently when the binary cannot be read", async () => {
+    stubApi({ binaryOk: false });
+    renderAt(`/tickets/${PUBLIC_ID}`);
+
+    await screen.findByRole("heading", { name: "Attachments 1/5" });
+    await userEvent.click(within(rowFor("vpn-error.png")).getByRole("button", { name: "Download" }));
+
+    expect(
+      await within(rowFor("vpn-error.png")).findByRole("alert"),
+    ).toHaveTextContent("vpn-error.png could not be downloaded.");
   });
 });

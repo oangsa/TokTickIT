@@ -141,6 +141,13 @@ export function AttachmentSection(props: AttachmentSectionProps) {
 
   const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  /*
+   * What the open confirmation is about, which is not always what the
+   * checkboxes hold: a row's own Remove control confirms that one row. Kept
+   * apart from `selected` so cancelling the dialog gives the Requester their
+   * checkbox selection back instead of the single row they clicked past it.
+   */
+  const [removalTargets, setRemovalTargets] = useState<string[]>([]);
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [reasonErrors, setReasonErrors] = useState<Record<string, string>>({});
@@ -160,8 +167,16 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   /*
    * Removed rows never count (BR-47). On Create Ticket the same counter bounds
    * how many Pending rows may be prepared for the initial create.
+   *
+   * An Uploading row counts too, because it is a Pending row the server has
+   * probably already created -- it just has not answered yet. Counting only the
+   * settled ones lets a second selection made while the first batch is still in
+   * flight compute its room from a stale zero, prepare more than five, and turn
+   * Submit into a 400 the Requester has to unpick by hand.
    */
-  const countedRows = rows.filter((row) => row.state === "Active" || row.state === "Pending");
+  const countedRows = rows.filter(
+    (row) => row.state === "Active" || row.state === "Pending" || row.state === "Uploading",
+  );
   const atLimit = countedRows.length >= MAX_ACTIVE_ATTACHMENTS;
 
   const pendingIds = entries
@@ -288,10 +303,17 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     }
   }
 
+  /*
+   * Retry is an add path like the file input, so it answers to the same bound.
+   * Without the check a Failed row could be re-uploaded past 5/5 -- Failed rows
+   * do not count, so a release or a handful of failures re-opens the input,
+   * and retrying the old rows afterwards prepared more than the create accepts.
+   * The control is hidden at the limit as well; this is the guard behind it.
+   */
   function handleRetry(key: string): void {
     const entry = entries.find((candidate) => candidate.key === key);
 
-    if (entry === undefined) {
+    if (entry === undefined || atLimit) {
       return;
     }
 
@@ -368,12 +390,26 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   /*
    * Published as a plain ref prop rather than through `forwardRef`: the page
    * needs one method, not a DOM handle, and `ref` itself stays free for whatever
-   * the element tree wants. The assignment runs on every render so the closure
-   * the page calls always sees the current rows.
+   * the element tree wants.
+   *
+   * Written in an effect with no dependency array rather than during render, so
+   * it runs after every COMMITTED render and the closure the page calls always
+   * sees the current rows. Assigning during render would also publish a handle
+   * from a render React went on to discard.
    */
-  if (props.mode === "create" && props.handleRef !== undefined) {
-    props.handleRef.current = { releasePending };
-  }
+  const handleRef = props.mode === "create" ? props.handleRef : undefined;
+
+  useEffect(() => {
+    if (handleRef === undefined) {
+      return;
+    }
+
+    handleRef.current = { releasePending };
+
+    return () => {
+      handleRef.current = null;
+    };
+  });
 
   function toggleSelected(attachmentId: string): void {
     setSelected((current) =>
@@ -384,7 +420,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   }
 
   function openRemoval(attachmentIds: string[]): void {
-    setSelected(attachmentIds);
+    setRemovalTargets(attachmentIds);
     setReasons(Object.fromEntries(attachmentIds.map((id) => [id, ""])));
     setReasonErrors({});
     setFailure(null);
@@ -395,7 +431,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   async function submitRemoval(): Promise<void> {
     const errors: Record<string, string> = {};
 
-    for (const attachmentId of selected) {
+    for (const attachmentId of removalTargets) {
       const reason = (reasons[attachmentId] ?? "").trim();
 
       if (reason.length < MIN_REMOVAL_REASON || reason.length > MAX_REMOVAL_REASON) {
@@ -418,7 +454,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: selected.map((attachmentId) => ({
+          items: removalTargets.map((attachmentId) => ({
             attachmentId,
             reason: (reasons[attachmentId] ?? "").trim(),
           })),
@@ -426,7 +462,9 @@ export function AttachmentSection(props: AttachmentSectionProps) {
       });
 
       setConfirmRemoval(false);
-      setSelected([]);
+      /* Only the rows this batch removed leave the selection. */
+      setSelected((current) => current.filter((id) => !removalTargets.includes(id)));
+      setRemovalTargets([]);
       setReasons({});
 
       if (props.mode === "detail") {
@@ -444,8 +482,9 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     }
   }
 
-  const selectedRows = rows.filter(
-    (row) => row.attachmentId !== null && selected.includes(row.attachmentId),
+  /* The rows the confirmation is about, in the order the targets were named. */
+  const removalRows = rows.filter(
+    (row) => row.attachmentId !== null && removalTargets.includes(row.attachmentId),
   );
 
   return (
@@ -532,6 +571,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
                   row={row}
                   mode={props.mode}
                   selected={row.attachmentId !== null && selected.includes(row.attachmentId)}
+                  atLimit={atLimit}
                   onToggleSelected={toggleSelected}
                   onPreview={setPreview}
                   onRetry={handleRetry}
@@ -548,7 +588,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
 
       <Modal
         open={confirmRemoval}
-        title={`Remove ${selectedRows.length} ${selectedRows.length === 1 ? "Attachment" : "Attachments"}`}
+        title={`Remove ${removalRows.length} ${removalRows.length === 1 ? "Attachment" : "Attachments"}`}
         onClose={() => setConfirmRemoval(false)}
         footer={
           <>
@@ -565,7 +605,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
           </p>
         )}
 
-        {selectedRows.map((row) => (
+        {removalRows.map((row) => (
           <RemovalReasonField
             key={row.key}
             name={row.name}
@@ -626,6 +666,8 @@ interface AttachmentTableRowProps {
   row: AttachmentRowView;
   mode: "create" | "detail";
   selected: boolean;
+  /* Retry adds a counted row, so it disappears at 5/5 like the file input. */
+  atLimit: boolean;
   onToggleSelected: (attachmentId: string) => void;
   onPreview: (target: PreviewTarget) => void;
   onRetry: (key: string) => void;
@@ -637,6 +679,7 @@ function AttachmentTableRow({
   row,
   mode,
   selected,
+  atLimit,
   onToggleSelected,
   onPreview,
   onRetry,
@@ -717,7 +760,7 @@ function AttachmentTableRow({
             />
           ) : null}
 
-          {row.state === "Failed" ? (
+          {row.state === "Failed" && !atLimit ? (
             <Button variant="tertiary" onClick={() => onRetry(row.key)}>
               Retry
             </Button>
