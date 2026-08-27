@@ -12,8 +12,8 @@ specification explicitly changes them.
 | Backend | Node.js + Express + TypeScript |
 | Database | PostgreSQL + Prisma |
 | Architecture | REST-style APIs |
-| Testing | Vitest + Supertest |
-| Workflow | Git, GitHub Projects, four Issues, `main`/`dev`/feature branches, Pull Requests, peer review |
+| Testing | Vitest + Supertest; Playwright for approved E2E work |
+| Workflow | Git, GitHub Projects, Issues, `feature/*`/`labX-staging`/`main` branches, Pull Requests, peer review |
 
 Do not replace or introduce alternatives such as:
 
@@ -50,7 +50,6 @@ Use **REST-style APIs**.
 The following are introduced in later labs and must not be implemented unless
 the current assignment explicitly requests them:
 
-- Playwright
 - authentication
 - ticket creation
 - image upload
@@ -128,6 +127,11 @@ Do not create alternative documentation hierarchies such as
 Keep root-level files minimal.
 
 `README.md`, `.gitignore`, and this `AGENTS.md` are valid root-level files.
+When assignment-approved repository-wide Playwright work is introduced, a
+minimal private root `package.json`, committed root lockfile,
+`playwright.config.ts`, and `e2e/` hierarchy are also valid. Keep frontend and
+backend application dependencies in their existing packages; do not introduce
+npm/pnpm workspaces solely for E2E tooling.
 
 Put assignment documentation in the required `docs/` location.
 
@@ -721,6 +725,28 @@ against an existing database unless explicitly approved.
 
 Never assume data may be discarded.
 
+**Every Prisma CLI command targets the shared Supabase database by default.**
+`prisma.config.ts` resolves the migration connection as
+`process.env.DIRECT_URL || env("DATABASE_URL")`, and `.env.local` sets
+`DIRECT_URL` to the Supabase direct connection. Two consequences:
+
+- Exporting `DATABASE_URL` does **not** retarget anything. `DIRECT_URL` wins,
+  and the export is silently ignored — `prisma migrate deploy` reports success
+  against Supabase while the local container it was meant for stays empty.
+- `TEST_DATABASE_URL` retargets the guarded PostgreSQL suites only. It has no
+  effect on the Prisma CLI.
+
+To run a Prisma CLI command against a disposable local target, override
+`DIRECT_URL` itself and confirm the reported datasource line before trusting the
+result:
+
+```bash
+DIRECT_URL="$TEST_DATABASE_URL" npx prisma migrate status   # prints the host it resolved
+```
+
+`prisma migrate status` is read-only and names its target, so it is the safe way
+to check where a command would land before running one that writes.
+
 ---
 
 ## 10. REST API contracts
@@ -894,6 +920,15 @@ assignment-required setup.
 
 Do not perform unrelated README cleanup during feature work.
 
+### AI-use record
+
+For every user prompt that results in Lab 2 work, update
+`docs/lab-02/ai-use.md` during the same task. Add a concise, accurate row that
+summarizes the prompt and states what was done with the result. Do not invent
+prompt history, review outcomes, commands, or verification; when prior prompt
+history is unavailable, record only the prompts available in the current
+session and state that limitation in the reflection.
+
 ---
 
 ## 14. Secrets and privacy
@@ -971,6 +1006,11 @@ Do not change:
 
 versions unless required by the requested work or assignment.
 
+For approved E2E work, pin `@playwright/test` in the minimal private repository
+root package and resolve it locally. Do not rely on an implicit `npx` download.
+Keep MSW, when required for React UI tests, as a pinned client development
+dependency with the committed client lockfile.
+
 Never replace Bootstrap with another UI framework.
 
 Never replace Prisma with another ORM.
@@ -979,20 +1019,22 @@ Never replace Prisma with another ORM.
 
 ## 16. Git and branch discipline
 
-The required workflow uses:
+The required workflow for each lab uses:
 
 ```text
 main
-dev
-feature branches
+  <- labX-staging release Pull Request after all lab Issues are complete
+       <- feature/* Pull Requests, one scoped Issue per branch
 Pull Requests
 peer review
 ```
 
 Respect the repository's existing branch strategy.
 
-Do not directly merge into `main` or `dev` unless explicitly requested and
-permitted by the assignment workflow.
+Do not develop directly on `main` or `labX-staging`. Each Issue is implemented
+on its own `feature/*` branch and enters `labX-staging` through a peer-reviewed
+Pull Request. After every Issue for the lab is complete and integration checks
+pass, open one release Pull Request from `labX-staging` to `main`.
 
 For feature work, preserve branch scope.
 
@@ -1005,10 +1047,10 @@ The assignment requires:
 
 - Git
 - GitHub Projects
-- four Issues
+- the lab's approved Issues
 - `main`
-- `dev`
-- feature branches
+- `labX-staging`
+- `feature/*` branches
 - Pull Requests
 - peer review
 
@@ -1111,6 +1153,7 @@ Never push unless explicitly requested.
    PostgreSQL + Prisma
    REST-style APIs
    Vitest + Supertest
+   Playwright for assignment-required E2E/responsive/visual tests
    ```
 
 2. **Do not implement later-lab functionality during Lab XX.**
@@ -1118,7 +1161,6 @@ Never push unless explicitly requested.
    Unless explicitly required, do not add:
 
    ```text
-   Playwright
    authentication
    ticket creation
    image upload
@@ -1193,12 +1235,14 @@ Never push unless explicitly requested.
 
 12. **Do not introduce later-lab architecture proactively.**
 
-    Avoid designing authentication abstractions, upload infrastructure, or
-    Playwright suites before they are required.
+    Avoid designing authentication abstractions or upload infrastructure before
+    they are required. Playwright is approved for assignment-required E2E,
+    responsive, and visual tests.
 
 13. **Run relevant Lab XX tests before completion.**
 
-    Use Vitest and Supertest according to repository scripts.
+    Use Vitest, Supertest, and approved Playwright suites according to repository
+    scripts.
 
 14. **Do not upgrade packages, change build tools, or change deployment settings
     unless required.**

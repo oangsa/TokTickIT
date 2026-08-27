@@ -3,8 +3,8 @@
 // read by prisma.config.ts; Prisma 7 no longer takes `url` in this file.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
   // The generated files land under src/ and are compiled by tsc, so their
   // internal imports need the .js extensions Node's ESM loader expects.
   importFileExtension = "js"
@@ -14,11 +14,146 @@ datasource db {
   provider = "postgresql"
 }
 
-// ---------------------------------------------------------------------------
-// Issue 3 — IT request categories
-// ---------------------------------------------------------------------------
+enum RequestedPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TicketStatus {
+  NEW
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+}
+
+model DevelopmentRequester {
+  id        Int      @id @default(autoincrement()) @map("id")
+  name      String   @map("name") @db.VarChar(100)
+  email     String   @unique(map: "development_requester_email_key") @map("email") @db.VarChar(254)
+  isActive  Boolean  @default(true) @map("is_active")
+  deleted   Boolean  @default(false) @map("deleted")
+  createdBy String   @map("created_by") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy String   @map("updated_by") @db.VarChar(255)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tickets            Ticket[]            @relation("RequesterTickets")
+  attachments        Attachment[]        @relation("AttachmentUploader")
+  idempotencyRecords IdempotencyRecord[] @relation("RequesterIdempotencyRecords")
+
+  @@map("development_requester")
+}
+
 model Category {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id        Int      @id @default(autoincrement()) @map("id")
+  name      String   @unique(map: "category_name_key") @map("name") @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  deleted   Boolean  @default(false) @map("deleted")
+  createdBy String   @map("created_by") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy String   @map("updated_by") @db.VarChar(255)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tickets Ticket[] @relation("CategoryTickets")
+
+  @@map("category")
+}
+
+model RelatedSystem {
+  id        Int      @id @default(autoincrement()) @map("id")
+  name      String   @unique(map: "related_system_name_key") @map("name") @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  deleted   Boolean  @default(false) @map("deleted")
+  createdBy String   @map("created_by") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy String   @map("updated_by") @db.VarChar(255)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tickets Ticket[] @relation("RelatedSystemTickets")
+
+  @@map("related_system")
+}
+
+model Ticket {
+  id                Int               @id @default(autoincrement()) @map("id")
+  publicId          String            @unique(map: "ticket_public_id_key") @map("public_id") @db.Uuid
+  ticketNumber      String            @unique(map: "ticket_ticket_number_key") @map("ticket_number") @db.VarChar(25)
+  requesterId       Int               @map("requester_id")
+  categoryId        Int               @map("category_id")
+  relatedSystemId   Int               @map("related_system_id")
+  summary           String            @map("summary") @db.VarChar(150)
+  requestedPriority RequestedPriority @map("requested_priority")
+  description       String            @map("description") @db.VarChar(2000)
+  currentStatus     TicketStatus      @default(NEW) @map("current_status")
+  deleted           Boolean           @default(false) @map("deleted")
+  createdBy         String            @map("created_by") @db.VarChar(255)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy         String            @map("updated_by") @db.VarChar(255)
+  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  requester          DevelopmentRequester @relation("RequesterTickets", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category           Category             @relation("CategoryTickets", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  relatedSystem      RelatedSystem        @relation("RelatedSystemTickets", fields: [relatedSystemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  attachments        Attachment[]         @relation("TicketAttachments")
+  idempotencyRecords IdempotencyRecord[]  @relation("TicketIdempotencyRecords")
+
+  @@index([categoryId], map: "ticket_category_id_idx")
+  @@index([relatedSystemId], map: "ticket_related_system_id_idx")
+  @@index([requestedPriority], map: "ticket_requested_priority_idx")
+  @@index([currentStatus], map: "ticket_current_status_idx")
+  @@index([ticketNumber(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_ticket_number_trgm_idx")
+  @@index([summary(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_summary_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_description_trgm_idx")
+  @@map("ticket")
+}
+
+model Attachment {
+  id                    Int      @id @default(autoincrement()) @map("id")
+  storageKey            String   @unique(map: "attachment_storage_key_key") @map("storage_key") @db.Uuid
+  ticketId              Int?     @map("ticket_id")
+  uploadedByRequesterId Int      @map("uploaded_by_requester_id")
+  originalName          String   @map("original_name") @db.VarChar(255)
+  extension             String   @map("extension") @db.VarChar(10)
+  mimeType              String   @map("mime_type") @db.VarChar(50)
+  sizeBytes             Int      @map("size_bytes")
+  data                  Bytes    @map("data")
+  removalReason         String?  @map("removal_reason") @db.VarChar(200)
+  deleted               Boolean  @default(false) @map("deleted")
+  createdBy             String   @map("created_by") @db.VarChar(255)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy             String   @map("updated_by") @db.VarChar(255)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  ticket              Ticket?              @relation("TicketAttachments", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedByRequester DevelopmentRequester @relation("AttachmentUploader", fields: [uploadedByRequesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([ticketId], map: "attachment_ticket_id_idx")
+  @@index([uploadedByRequesterId, ticketId], map: "attachment_uploader_ticket_idx")
+  @@map("attachment")
+}
+
+model IdempotencyRecord {
+  id                  Int               @id @default(autoincrement()) @map("id")
+  requesterId         Int               @map("requester_id")
+  key                 String            @map("key") @db.Uuid
+  requestHash         String            @map("request_hash") @db.VarChar(128)
+  status              IdempotencyStatus @map("status")
+  processingStartedAt DateTime          @map("processing_started_at") @db.Timestamptz(3)
+  ticketId            Int?              @map("ticket_id")
+  completedAt         DateTime?         @map("completed_at") @db.Timestamptz(3)
+  expiresAt           DateTime?         @map("expires_at") @db.Timestamptz(3)
+  createdBy           String            @map("created_by") @db.VarChar(255)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy           String            @map("updated_by") @db.VarChar(255)
+  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  requester DevelopmentRequester @relation("RequesterIdempotencyRecords", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  ticket    Ticket?              @relation("TicketIdempotencyRecords", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([requesterId, key], map: "idempotency_record_requester_key_key")
+  @@index([expiresAt, id], map: "idempotency_record_expires_at_id_idx")
+  @@map("idempotency_record")
 }

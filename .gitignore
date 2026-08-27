@@ -8,14 +8,16 @@ node_modules/
 # build output
 dist/
 build/
+# generated test evidence
+artifacts/
+# local handout; not submission evidence
+ignore/Lab_02_labsheet.pdf
 # prisma
 server/prisma/*.db
 server/src/generated/
 # logs & OS
 *.log
 .DS_Store
-
-server/src/generated/
-
-
-ignore
+# agent tooling
+.claude/
+.codex/

@@ -1,58 +1,64 @@
-import { useState } from "react";
-import { checkSystem, Category } from "./api.js";
+import { useEffect, useRef } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-// UI states you must handle for Issue 4: idle, loading, success, error.
-type UiState = "idle" | "loading" | "success" | "error";
+import { AppShell } from "./components/AppShell.js";
+import CreateTicket from "./pages/CreateTicket.js";
+import ErrorPage from "./pages/ErrorPage.js";
+import MyTickets from "./pages/MyTickets.js";
+import RequesterSelection from "./pages/RequesterSelection.js";
+import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
+import { RequesterGuard } from "./requester/RequesterGuard.js";
+import { RequesterProvider, useRequester } from "./requester/RequesterProvider.js";
+
+/* `/` resolves against the stored Requester context (ui-spec Section 5.4). */
+function RootRedirect() {
+  const { requester } = useRequester();
+
+  return <Navigate to={requester === null ? "/requesters" : "/tickets"} replace />;
+}
+
+function RouteFocusManager() {
+  const { key } = useLocation();
+  const previousLocationKey = useRef(key);
+
+  useEffect(() => {
+    if (previousLocationKey.current === key) {
+      return;
+    }
+
+    previousLocationKey.current = key;
+    /* AppShell owns focus when its drawer closes; standalone pages need this boundary. */
+    document.querySelector<HTMLElement>('main:not(#tt-main)[tabindex="-1"]')?.focus();
+  }, [key]);
+
+  return null;
+}
 
 export default function App() {
-  const [state, setState] = useState<UiState>("idle");
-  const [categories, setCategories] = useState<Category[]>([]);
-
-  async function handleCheck() {
-    setState("loading");
-    try {
-      const status = await checkSystem();
-      setCategories(status.categories);
-      setState("success");
-    } catch {
-      setState("error");
-    }
-  }
-
   return (
-    <div className="container py-5" style={{ maxWidth: 640 }}>
-      <h1 className="h3 mb-4">
-        TokTickIT <span className="text-success">IT Service Desk</span>
-      </h1>
+    <RequesterProvider>
+      <RouteFocusManager />
+      <Routes>
+        <Route path="/" element={<RootRedirect />} />
 
-      <button className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
-        {state === "loading" ? "Loading…" : "Check System"}
-      </button>
+        {/* Bootstrap and global error routes render without the requester shell. */}
+        <Route path="/requesters" element={<RequesterSelection />} />
+        <Route path="/error" element={<ErrorPage />} />
 
-      {state === "success" && (
-        <>
-          <p className="alert alert-success mt-3 mb-0">
-            Backend status: <strong>Online</strong>
-          </p>
-          <h2 className="h5 mt-4">Categories</h2>
-          <ul className="list-group">
-            {categories.length === 0 && (
-              <li className="list-group-item text-muted">No categories yet.</li>
-            )}
-            {categories.map((category) => (
-              <li key={category.id} className="list-group-item">
-                {category.name}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+        {/*
+          The guard sits outside the shell: the shell displays the selected
+          Requester, so it must not render at all without a context.
+        */}
+        <Route element={<RequesterGuard />}>
+          <Route element={<AppShell />}>
+            <Route path="/tickets" element={<MyTickets />} />
+            <Route path="/tickets/new" element={<CreateTicket />} />
+            <Route path="/tickets/:publicId" element={<RequesterTicketDetail />} />
+          </Route>
+        </Route>
 
-      {state === "error" && (
-        <p className="alert alert-danger mt-3 mb-0">
-          Backend status: <strong>Offline</strong>
-        </p>
-      )}
-    </div>
+        <Route path="*" element={<Navigate to="/error" replace state={{ status: 404 }} />} />
+      </Routes>
+    </RequesterProvider>
   );
 }
