@@ -359,9 +359,16 @@ export class TicketService {
       throw new ApiError("CONFLICT");
     }
 
+    /*
+     * Only the four columns the bindability check reads. Without an explicit
+     * projection Prisma selects every scalar, `data` included, so binding five
+     * Attachments would pull 25 MB of BYTEA into memory inside the create
+     * transaction and discard all of it.
+     */
     const owned = await tx.attachment.findMany({
       where: { storageKey: { in: storageKeys }, uploadedByRequesterId: input.requesterId },
       orderBy: { id: "asc" },
+      select: { id: true, ticketId: true, deleted: true, createdAt: true },
     });
 
     if (owned.length !== storageKeys.length) {

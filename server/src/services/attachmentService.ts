@@ -47,6 +47,20 @@ const STORAGE_KEY_PATTERN =
 const MIN_REMOVAL_REASON = 3;
 const MAX_REMOVAL_REASON = 200;
 
+/*
+ * A full 100-item batch is one read plus up to 100 guarded single-row
+ * statements, each a round trip. Prisma's default interactive-transaction
+ * budget is 5,000 ms, which a maximum batch can exhaust on any link slower than
+ * a loopback -- and the failure is a `P2028` the error handler can only publish
+ * as a 500.
+ *
+ * The statements stay one per row rather than being collapsed into two bulk
+ * ones: the sorted single-row order below is what gives concurrent batches a
+ * consistent lock order (Section 13.7), and a bulk `IN` would hand that order
+ * back to the query planner. Buying headroom is the cheaper half of the trade.
+ */
+const COLLECTION_TRANSACTION_TIMEOUT_MS = 20_000;
+
 export interface UploadedFileInput {
   filename: string;
   data: Buffer;
@@ -327,87 +341,91 @@ export class AttachmentService {
     const storageKeys = input.items.map((item) => item.attachmentId);
     const reasons = new Map(input.items.map((item) => [item.attachmentId, item.reason]));
 
-    await this.prisma.$transaction(async (tx) => {
-      const rows = await tx.attachment.findMany({
-        where: {
-          storageKey: { in: storageKeys },
-          OR: ownershipBranches(input.requesterId),
-        },
-        select: { id: true, storageKey: true, ticketId: true, deleted: true },
-      });
+    await this.prisma.$transaction(
+      async (tx) => {
+        const rows = await tx.attachment.findMany({
+          where: {
+            storageKey: { in: storageKeys },
+            OR: ownershipBranches(input.requesterId),
+          },
+          select: { id: true, storageKey: true, ticketId: true, deleted: true },
+        });
 
-      const found = new Map(rows.map((row) => [row.storageKey, row]));
-      const details: ErrorDetail[] = [];
+        const found = new Map(rows.map((row) => [row.storageKey, row]));
+        const details: ErrorDetail[] = [];
 
-      for (const [index, item] of input.items.entries()) {
-        const row = found.get(item.attachmentId);
+        for (const [index, item] of input.items.entries()) {
+          const row = found.get(item.attachmentId);
+
+          /*
+           * Unavailable, outside this Requester's scope, and already Removed are
+           * the same centralized 404, and any one of them leaves the whole batch
+           * unchanged (Sections 13.4 and 13.6).
+           */
+          if (row === undefined || row.deleted) {
+            throw new ApiError("NOT_FOUND");
+          }
+
+          if (row.ticketId === null) {
+            /* Pending: the reason is ignored and may be empty. */
+            continue;
+          }
+
+          const reason = item.reason.trim();
+
+          if (reason.length < MIN_REMOVAL_REASON || reason.length > MAX_REMOVAL_REASON) {
+            details.push({
+              field: `items[${index}].reason`,
+              message: `reason must contain ${MIN_REMOVAL_REASON}-${MAX_REMOVAL_REASON} characters.`,
+            });
+          }
+        }
+
+        if (details.length > 0) {
+          throw new ApiError("VALIDATION_ERROR", details);
+        }
 
         /*
-         * Unavailable, outside this Requester's scope, and already Removed are
-         * the same centralized 404, and any one of them leaves the whole batch
-         * unchanged (Sections 13.4 and 13.6).
+         * Sorted by the public identifier so concurrent batches sharing rows take
+         * their locks in the same order. It reduces inconsistent lock ordering
+         * rather than claiming to prevent every deadlock (Section 13.7).
          */
-        if (row === undefined || row.deleted) {
-          throw new ApiError("NOT_FOUND");
-        }
+        const ordered = [...found.values()].sort((left, right) =>
+          left.storageKey.localeCompare(right.storageKey),
+        );
+        const now = new Date();
 
-        if (row.ticketId === null) {
-          /* Pending: the reason is ignored and may be empty. */
-          continue;
-        }
+        for (const row of ordered) {
+          if (row.ticketId === null) {
+            const { count } = await tx.attachment.deleteMany({
+              where: { id: row.id, ticketId: null, deleted: false },
+            });
 
-        const reason = item.reason.trim();
+            if (count !== 1) {
+              throw new ApiError("CONFLICT");
+            }
 
-        if (reason.length < MIN_REMOVAL_REASON || reason.length > MAX_REMOVAL_REASON) {
-          details.push({
-            field: `items[${index}].reason`,
-            message: `reason must contain ${MIN_REMOVAL_REASON}-${MAX_REMOVAL_REASON} characters.`,
-          });
-        }
-      }
+            continue;
+          }
 
-      if (details.length > 0) {
-        throw new ApiError("VALIDATION_ERROR", details);
-      }
-
-      /*
-       * Sorted by the public identifier so concurrent batches sharing rows take
-       * their locks in the same order. It reduces inconsistent lock ordering
-       * rather than claiming to prevent every deadlock (Section 13.7).
-       */
-      const ordered = [...found.values()].sort((left, right) =>
-        left.storageKey.localeCompare(right.storageKey),
-      );
-      const now = new Date();
-
-      for (const row of ordered) {
-        if (row.ticketId === null) {
-          const { count } = await tx.attachment.deleteMany({
-            where: { id: row.id, ticketId: null, deleted: false },
+          const { count } = await tx.attachment.updateMany({
+            where: { id: row.id, deleted: false },
+            data: {
+              deleted: true,
+              removalReason: (reasons.get(row.storageKey) ?? "").trim(),
+              updatedBy: input.actor,
+              updatedAt: now,
+            },
           });
 
           if (count !== 1) {
             throw new ApiError("CONFLICT");
           }
-
-          continue;
         }
-
-        const { count } = await tx.attachment.updateMany({
-          where: { id: row.id, deleted: false },
-          data: {
-            deleted: true,
-            removalReason: (reasons.get(row.storageKey) ?? "").trim(),
-            updatedBy: input.actor,
-            updatedAt: now,
-          },
-        });
-
-        if (count !== 1) {
-          throw new ApiError("CONFLICT");
-        }
-      }
-    });
+      },
+      /* Headroom for a maximum batch's round trips; see the constant above. */
+      { timeout: COLLECTION_TRANSACTION_TIMEOUT_MS },
+    );
   }
 }
 
