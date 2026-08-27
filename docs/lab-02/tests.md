@@ -2006,6 +2006,31 @@ Pending at five. Counting Pending there is the only reading under which the cap
 is visible before a Ticket exists; the header means "slots used of five" on both
 screens.
 
+### 4.5.39 Issue #24 scrutiny fixes
+
+The fix pass removed an undocumented per-Requester Pending quota. BR-79 defers
+quota and rate-limiting policy, so Pending creation now performs only the
+specified validation and insert instead of issuing an extra count query and
+inventing a `409` response. Unit and API regressions assert that the count query
+is not made.
+
+Ticket Detail direct uploads now use the same per-file lifecycle rows as Create
+Ticket. Each selected file appears immediately as Uploading or Invalid, a
+failed request stays visible with Retry and Remove controls, and a successful
+request becomes Active while the authoritative collection refreshes. Detail
+selection and `x/5` counting remain Active-only.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #24 focused server gate | `npm test -- tests/lab-02/AttachmentService.test.ts tests/lab-02/MaintenanceService.test.ts tests/lab-02/attachments.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 4 files, 164 tests. |
+| Issue #24 focused client gate | `npm test -- tests/lab-02/AttachmentSection.test.tsx` | `client/` | Passed — 1 file, 43 tests. Existing unrelated React `act(...)` warnings remain in the IconButton coverage. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Client build | `npm run build` | `client/` | Passed — TypeScript and Vite production build completed. |
+
+The PostgreSQL suites were not rerun in this pass because
+`TEST_DATABASE_URL` was unset. This fix changes no Prisma schema, migration,
+raw SQL, transaction, or persistence query shape.
+
 
 ## 5. Reusable QueryBuilder Test Principle
 

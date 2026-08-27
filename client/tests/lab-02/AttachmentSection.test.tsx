@@ -24,6 +24,7 @@ import {
 const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
 const PUBLIC_ID = "0f0e8a9f-6d9e-4a1a-9f0e-1b2c3d4e5f60";
 const PENDING_ID = "eb87467e-b209-4a18-bbc6-c8c5a4dccf95";
+const DIRECT_ID = "33333333-3333-4333-8333-333333333333";
 
 function attachment(overrides: Record<string, unknown> = {}) {
   return {
@@ -116,6 +117,7 @@ const MASTER_DATA = [{ id: 1, name: "Network", isActive: true, deleted: false }]
 function stubApi(options: StubOptions = {}) {
   const calls: StubbedCall[] = [];
   const blobReads: string[] = [];
+  const directAttachments: unknown[] = [];
   let uploadCount = 0;
 
   const fetchMock = vi.fn(
@@ -189,19 +191,26 @@ function stubApi(options: StubOptions = {}) {
 
         uploadCount += 1;
 
-        return ok(
+        const responseAttachment =
           result.body ??
-            attachment({
+          attachment({
               attachmentId:
-                uploadCount === 1
+                url.includes("/api/tickets/")
+                  ? DIRECT_ID
+                  : uploadCount === 1
                   ? PENDING_ID
                   : `0000000${uploadCount}-0000-4000-8000-00000000000${uploadCount}`,
+              ticketPublicId: url.includes("/api/tickets/") ? PUBLIC_ID : null,
               originalName,
               sizeBytes,
               extension: originalName.split(".").pop() ?? "png",
-            }),
-          201,
-        );
+            });
+
+        if (url.includes("/api/tickets/")) {
+          directAttachments.push(responseAttachment);
+        }
+
+        return ok(responseAttachment, 201);
       }
 
       if (method === "POST" && url.includes("/api/tickets")) {
@@ -210,7 +219,7 @@ function stubApi(options: StubOptions = {}) {
           : failure(options.createStatus, "INTERNAL_SERVER_ERROR");
       }
 
-      return ok(ticket(options.detailAttachments ?? [ACTIVE, REMOVED]));
+      return ok(ticket([...(options.detailAttachments ?? [ACTIVE, REMOVED]), ...directAttachments]));
     },
   );
 
@@ -585,6 +594,63 @@ describe("UI-26 the x/5 count and the Add control", () => {
       );
       expect(detailReads.length).toBeGreaterThanOrEqual(2);
     });
+  });
+
+  it("shows a direct upload as a per-file Uploading row", async () => {
+    let releaseUpload: (() => void) | undefined;
+    const uploadGate = new Promise<void>((resolve) => {
+      releaseUpload = resolve;
+    });
+
+    stubApi({ uploadGate });
+    renderAt(`/tickets/${PUBLIC_ID}`);
+
+    await screen.findByRole("heading", { name: "Attachments 1/5" });
+    await userEvent.upload(screen.getByLabelText("Add Attachment"), pngFile("added.png"));
+
+    expect(within(rowFor("added.png")).getByText("Uploading")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Attachments 1/5" })).toBeInTheDocument();
+
+    releaseUpload?.();
+    await waitFor(() => expect(within(rowFor("added.png")).getByText("Active")).toBeInTheDocument());
+  });
+
+  it("keeps a failed direct upload as a retryable per-file row", async () => {
+    let attempt = 0;
+    stubApi({
+      upload: () => {
+        attempt += 1;
+        return attempt === 1 ? { ok: false, status: 500 } : {};
+      },
+    });
+    renderAt(`/tickets/${PUBLIC_ID}`);
+
+    await screen.findByRole("heading", { name: "Attachments 1/5" });
+    await userEvent.upload(screen.getByLabelText("Add Attachment"), pngFile("added.png"));
+
+    const failedRow = rowFor("added.png");
+    await waitFor(() => expect(within(failedRow).getByText("Failed")).toBeInTheDocument());
+
+    await userEvent.click(within(failedRow).getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(within(rowFor("added.png")).getByText("Active")).toBeInTheDocument());
+  });
+
+  it("keeps an invalid direct selection as a removable per-file row", async () => {
+    stubApi();
+    renderAt(`/tickets/${PUBLIC_ID}`);
+
+    await screen.findByRole("heading", { name: "Attachments 1/5" });
+    await userEvent.upload(screen.getByLabelText("Add Attachment"), pngFile("malware.exe"), {
+      applyAccept: false,
+    });
+
+    const invalidRow = rowFor("malware.exe");
+    expect(within(invalidRow).getByText("Invalid")).toBeInTheDocument();
+    await userEvent.click(
+      within(invalidRow).getByRole("button", { name: "Remove malware.exe" }),
+    );
+    expect(screen.queryByText("malware.exe")).not.toBeInTheDocument();
   });
 });
 
@@ -995,18 +1061,6 @@ describe("a 409 upload refusal names the limit it actually hit", () => {
     expect(await screen.findByText(/at most 5 active attachments/i)).toBeInTheDocument();
   });
 
-  it("blames the prepared-file ceiling on Create Ticket", async () => {
-    stubApi({ upload: () => ({ ok: false, status: 409 }) });
-    renderAt("/tickets/new");
-
-    const input = await screen.findByLabelText("Add Attachment");
-    await userEvent.upload(input, pngFile());
-
-    const row = rowFor("vpn-error.png");
-    await waitFor(() => expect(within(row).getByText("Failed")).toBeInTheDocument());
-    expect(within(row).getByText(/too many prepared files/i)).toBeInTheDocument();
-    expect(within(row).queryByText(/active attachments/i)).not.toBeInTheDocument();
-  });
 });
 
 describe("Attachment requests carry their own deadline", () => {

@@ -47,7 +47,7 @@ interface AttachmentRowView {
 interface UploadEntry {
   key: string;
   file: File;
-  state: "Uploading" | "Failed" | "Invalid" | "Pending";
+  state: "Uploading" | "Failed" | "Invalid" | "Pending" | "Active";
   message: string | null;
   attachment: Attachment | null;
 }
@@ -155,13 +155,21 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   const [failure, setFailure] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
-  const rows = useMemo(
-    () =>
-      props.mode === "create"
-        ? entries.map(toRowView)
-        : props.attachments.map(attachmentToRowView),
-    [props, entries],
-  );
+  const rows = useMemo(() => {
+    if (props.mode === "create") {
+      return entries.map(toRowView);
+    }
+
+    const persistedIds = new Set(props.attachments.map((attachment) => attachment.attachmentId));
+    const transientRows = entries
+      .filter(
+        (entry) =>
+          entry.attachment === null || !persistedIds.has(entry.attachment.attachmentId),
+      )
+      .map(toRowView);
+
+    return [...props.attachments.map(attachmentToRowView), ...transientRows];
+  }, [props, entries]);
 
   /*
    * Removed rows never count (BR-47). On Create Ticket the same counter bounds
@@ -173,8 +181,10 @@ export function AttachmentSection(props: AttachmentSectionProps) {
    * flight compute its room from a stale zero, prepare more than five, and turn
    * Submit into a 400 the Requester has to unpick by hand.
    */
-  const countedRows = rows.filter(
-    (row) => row.state === "Active" || row.state === "Pending" || row.state === "Uploading",
+  const countedRows = rows.filter((row) =>
+    props.mode === "create"
+      ? row.state === "Pending" || row.state === "Uploading"
+      : row.state === "Active",
   );
   const atLimit = countedRows.length >= MAX_ACTIVE_ATTACHMENTS;
 
@@ -227,7 +237,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     }
   }
 
-  async function uploadToTicket(file: File, ticketPublicId: string): Promise<void> {
+  async function uploadToTicket(key: string, file: File, ticketPublicId: string): Promise<void> {
     const body = new FormData();
     body.append("file", file, file.name);
 
@@ -235,16 +245,21 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     setFailure(null);
 
     try {
-      await callApi<Attachment>(
+      const attachment = await callApi<Attachment>(
         `/api/tickets/${encodeURIComponent(ticketPublicId)}/attachments`,
         { method: "POST", body, timeoutMs: ATTACHMENT_TIMEOUT_MS },
       );
+      updateEntry(key, { state: "Active", attachment, message: null });
 
       if (props.mode === "detail") {
         props.onChanged();
       }
     } catch (error) {
-      setFailure(uploadFailureMessage(error, "detail"));
+      updateEntry(key, {
+        state: "Failed",
+        attachment: null,
+        message: uploadFailureMessage(error, "detail"),
+      });
     } finally {
       setUploading(false);
     }
@@ -261,14 +276,22 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     }
 
     if (props.mode === "detail") {
-      const invalid = validateSelectedFile(files[0]);
+      const file = files[0];
+      const invalid = validateSelectedFile(file);
+      const entry: UploadEntry = {
+        key: localKey(),
+        file,
+        state: invalid === null ? "Uploading" : "Invalid",
+        message: invalid,
+        attachment: null,
+      };
 
-      if (invalid !== null) {
-        setFailure(invalid);
-        return;
+      setFailure(null);
+      setEntries((current) => [...current, entry]);
+
+      if (invalid === null) {
+        void uploadToTicket(entry.key, file, props.ticketPublicId);
       }
-
-      void uploadToTicket(files[0], props.ticketPublicId);
       return;
     }
 
@@ -321,7 +344,12 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     }
 
     updateEntry(key, { state: "Uploading", message: null });
-    void preUpload(key, entry.file);
+
+    if (props.mode === "detail") {
+      void uploadToTicket(key, entry.file, props.ticketPublicId);
+    } else {
+      void preUpload(key, entry.file);
+    }
   }
 
   /*
@@ -768,7 +796,8 @@ function AttachmentTableRow({
             </Button>
           ) : null}
 
-          {mode === "create" && row.state !== "Uploading" ? (
+          {(mode === "create" && row.state !== "Uploading") ||
+          row.state === "Failed" || row.state === "Invalid" ? (
             <IconButton label={`Remove ${row.name}`} onClick={() => onRemoveLocal(row.key)}>
               <span aria-hidden="true">✕</span>
             </IconButton>
@@ -798,17 +827,8 @@ function uploadFailureMessage(error: unknown, mode: "create" | "detail"): string
       return "Unsupported file type. Use JPG, JPEG, PNG, WEBP, or PDF.";
     }
 
-    /*
-     * The two endpoints spell 409 differently, and the mode is what tells them
-     * apart. A direct upload conflicts with the five-Active limit on the Ticket;
-     * a pre-upload conflicts with the ceiling on prepared files this Requester
-     * is holding across every draft -- including ones abandoned by a closed tab,
-     * which is why the remedy is not "this screen has too many".
-     */
-    if (error.status === 409) {
-      return mode === "detail"
-        ? `A Ticket can hold at most ${MAX_ACTIVE_ATTACHMENTS} active attachments.`
-        : "Too many prepared files are still waiting. Remove some, or try again later.";
+    if (error.status === 409 && mode === "detail") {
+      return `A Ticket can hold at most ${MAX_ACTIVE_ATTACHMENTS} active attachments.`;
     }
   }
 

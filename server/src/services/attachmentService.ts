@@ -4,7 +4,6 @@ import { ApiError, ErrorDetail } from "../http/errors.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import {
   MAX_ATTACHMENT_BYTES,
-  MAX_PENDING_ATTACHMENTS_PER_REQUESTER,
   payloadTooLargeError,
   removalReasonError,
   resolveUploadName,
@@ -216,29 +215,6 @@ export class AttachmentService {
    */
   async createPending(input: CreatePendingInput): Promise<AttachmentDTO> {
     const file = validateFile(input.file);
-
-    /*
-     * The one unbounded write in the feature, bounded. Counted after the file is
-     * validated, so a rejected upload costs no query.
-     *
-     * `attachment_uploader_ticket_idx` is `(uploaded_by_requester_id,
-     * ticket_id)`, which is exactly this predicate, so the count is an index
-     * probe rather than a scan.
-     *
-     * ponytail: counted outside a transaction, so concurrent uploads can
-     * overshoot by however many are in flight. That is acceptable for a growth
-     * backstop -- unlike the five-Active rule, no contract reads this number, and
-     * paying `Serializable` contention on every pre-upload to make a quota exact
-     * would cost the common path more than the overshoot costs anyone. Fold it
-     * into a transaction if it ever has to be exact.
-     */
-    const unbound = await this.prisma.attachment.count({
-      where: { uploadedByRequesterId: input.requesterId, ticketId: null, deleted: false },
-    });
-
-    if (unbound >= MAX_PENDING_ATTACHMENTS_PER_REQUESTER) {
-      throw new ApiError("CONFLICT");
-    }
 
     const row = await this.prisma.attachment.create({
       data: {

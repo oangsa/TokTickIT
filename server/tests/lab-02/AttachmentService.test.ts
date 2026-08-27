@@ -2,10 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../../src/http/errors.js";
 import type { PrismaClient } from "../../src/generated/prisma/client.js";
-import {
-  MAX_ATTACHMENT_BYTES,
-  MAX_PENDING_ATTACHMENTS_PER_REQUESTER,
-} from "../../src/services/attachmentRules.js";
+import { MAX_ATTACHMENT_BYTES } from "../../src/services/attachmentRules.js";
 import { AttachmentService } from "../../src/services/attachmentService.js";
 
 /*
@@ -605,36 +602,14 @@ describe("UNIT-13 metadata, preview, and download access", () => {
     expect(await service().findBinary(REQUESTER_ID, ACTIVE_KEY)).toBeNull();
   });
 
-  /*
-   * The unbound-Pending ceiling. Not an api-spec rule -- it is the growth
-   * backstop on the one write a Requester can repeat without limit -- so what is
-   * pinned is the boundary and the fact that it never touches a bound or an
-   * already Removed row.
-   */
-  it.each([
-    ["accepts", MAX_PENDING_ATTACHMENTS_PER_REQUESTER - 1, true],
-    ["refuses", MAX_PENDING_ATTACHMENTS_PER_REQUESTER, false],
-  ])("%s a pre-upload at %d unbound Pending rows", async (_label, held, accepted) => {
-    prisma.attachment.count.mockResolvedValue(held);
-
-    const create = service().createPending({
+  it("does not invent a per-Requester Pending quota", async () => {
+    await expect(service().createPending({
       requesterId: REQUESTER_ID,
       actor: ACTOR,
       file: upload("vpn-error.png"),
-    });
+    })).resolves.toMatchObject({ ticketPublicId: null });
 
-    if (accepted) {
-      await expect(create).resolves.toMatchObject({ ticketPublicId: null });
-    } else {
-      const error = await rejectionOf(create);
-      expect(error.statusCode).toBe(409);
-      expect(prisma.attachment.create).not.toHaveBeenCalled();
-    }
-
-    /* Only this Requester's own unbound, un-removed rows are counted. */
-    expect(prisma.attachment.count).toHaveBeenCalledWith({
-      where: { uploadedByRequesterId: REQUESTER_ID, ticketId: null, deleted: false },
-    });
+    expect(prisma.attachment.count).not.toHaveBeenCalled();
   });
 });
 
