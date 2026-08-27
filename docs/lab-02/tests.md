@@ -2027,9 +2027,40 @@ selection and `x/5` counting remain Active-only.
 | Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
 | Client build | `npm run build` | `client/` | Passed — TypeScript and Vite production build completed. |
 
-The PostgreSQL suites were not rerun in this pass because
-`TEST_DATABASE_URL` was unset. This fix changes no Prisma schema, migration,
-raw SQL, transaction, or persistence query shape.
+The earlier scrutiny pass did not rerun PostgreSQL because
+`TEST_DATABASE_URL` was unavailable at that time. Subsequent final verification
+reran the required PostgreSQL close gates against the final executable tree
+because the AttachmentService persistence/query paths had changed since the
+previous PostgreSQL execution.
+
+### 4.5.40 PR #44 final review blocker closure
+
+The Create Ticket discard race was reproduced with a held `POST /api/tickets`.
+Before this fix, confirming Discard navigated to `/tickets`, then the old `201`
+completion navigated to Ticket Detail. Create Ticket now tracks a submission
+generation independent from Requester generation. Confirmed discard increments
+that generation before clearing recovery/draft state and navigating; success,
+failure, compensation-result, and `finally` side effects require both the
+Requester token and submission generation to remain current. Regression tests
+cover stale success navigation and stale failure recovery after discard.
+
+The following checks were run against the final executable working tree rooted
+at `git rev-parse HEAD = 05a3172623c76a3d506b3216a947763c0042143b`; the
+submission-generation fix and its regression tests were uncommitted working-tree
+changes at execution time.
+
+| Check | Command | Environment / target | Result |
+| --- | --- | --- | --- |
+| Issue #24 focused server gate | `npm test -- tests/lab-02/AttachmentService.test.ts tests/lab-02/MaintenanceService.test.ts tests/lab-02/attachments.api.test.ts tests/lab-02/transport-hardening.api.test.ts` | `server/`; mocked Prisma | Passed — 4 files, 164 tests. |
+| Required PostgreSQL close gate | `NODE_ENV=test TEST_DATABASE_URL=<guarded_lab2_test_url> npm test -- tests/lab-02/postgres` | `server/`; disposable `postgres:16-alpine` in `toktickit-lab2-test-postgres` on `localhost:55432` | Passed — 8 files, 74 tests. Required `attachment-concurrency`, `maintenance`, and `transactions` suites included. |
+| Create Ticket + Attachment client gate | `npm test -- tests/lab-02/CreateTicket.test.tsx tests/lab-02/AttachmentSection.test.tsx` | `client/` | Passed — 2 files, 83 tests. Existing unrelated React `act(...)` warnings remain in Attachment icon coverage. |
+| Full client suite | `npm test -- --silent --reporter=dot` | `client/` | Passed — 10 files, 257 tests. |
+| Full server suite | `NODE_ENV=test TEST_DATABASE_URL=<guarded_lab2_test_url> npm test` | `server/`; same guarded disposable PostgreSQL target | Passed — 31 files, 670 tests. |
+| Server build | `npm run build` | `server/` | Passed — TypeScript build completed. |
+| Client build | `npm run build` | `client/` | Passed — TypeScript and Vite build completed. |
+
+No REST route, API payload, Prisma schema, migration, or database contract
+changed in this blocker pass.
 
 
 ## 5. Reusable QueryBuilder Test Principle

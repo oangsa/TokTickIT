@@ -157,6 +157,9 @@ export default function CreateTicket() {
   const keyRef = useRef<string | null>(null);
   const keyCreatedAtRef = useRef(0);
   const signatureRef = useRef<string | null>(null);
+  /* Independent from Requester generation: confirmed discard invalidates the
+   * Create Ticket attempt even when the Requester remains unchanged. */
+  const submissionGenerationRef = useRef(0);
 
   useEffect(() => {
     let ignore = false;
@@ -232,6 +235,14 @@ export default function CreateTicket() {
     return keyRef.current;
   }
 
+  function isSubmissionCurrent(generation: number): boolean {
+    return submissionGenerationRef.current === generation;
+  }
+
+  function invalidateSubmission(): void {
+    submissionGenerationRef.current += 1;
+  }
+
   /*
    * A submission belongs to the Requester context that started it. The request
    * can outlive that context -- the user may change Requester while it is still
@@ -244,6 +255,7 @@ export default function CreateTicket() {
    */
   async function submit(payload: CreateTicketPayload, key: string): Promise<void> {
     const token = captureRequesterContext();
+    const generation = ++submissionGenerationRef.current;
 
     setSubmitting(true);
 
@@ -254,7 +266,7 @@ export default function CreateTicket() {
         body: JSON.stringify(payload),
       });
 
-      if (!isRequesterContextCurrent(token)) {
+      if (!isRequesterContextCurrent(token) || !isSubmissionCurrent(generation)) {
         return;
       }
 
@@ -271,7 +283,7 @@ export default function CreateTicket() {
        * transport failure -- which is also how the requester-change abort
        * surfaces -- must not write the previous Requester's record over it.
        */
-      if (!isRequesterContextCurrent(token)) {
+      if (!isRequesterContextCurrent(token) || !isSubmissionCurrent(generation)) {
         return;
       }
 
@@ -337,7 +349,11 @@ export default function CreateTicket() {
        */
       const released = (await attachmentsRef.current?.releasePending()) ?? false;
 
-      if (released && isRequesterContextCurrent(token)) {
+      if (
+        released &&
+        isRequesterContextCurrent(token) &&
+        isSubmissionCurrent(generation)
+      ) {
         clearRecovery();
         setRecovery(null);
         setErrors({
@@ -345,7 +361,7 @@ export default function CreateTicket() {
         });
       }
     } finally {
-      if (isRequesterContextCurrent(token)) {
+      if (isRequesterContextCurrent(token) && isSubmissionCurrent(generation)) {
         setSubmitting(false);
       }
     }
@@ -417,6 +433,7 @@ export default function CreateTicket() {
   function handleConfirmDiscard(): void {
     const preparedIds = draft.attachmentIds;
 
+    invalidateSubmission();
     setConfirmDiscard(false);
     clearRecovery();
     setRecovery(null);
