@@ -1047,3 +1047,26 @@ Lab 2 is product-complete only when all of the following are true:
 27. **External maintenance scheduling:** Lab 2 supplies a safe idempotent cleanup command, not an application timer or deployment scheduler.
 28. **Generic QueryBuilder retained:** The broader generic operator vocabulary remains intentional reference infrastructure for future labs/projects, while resource validators enforce concrete field/operator/type/cardinality limits.
 29. **Pinned repository-wide E2E tooling:** A minimal private root package is approved solely for pinned Playwright orchestration across client/server/database; it does not create a workspace or relocate application dependencies.
+
+## 12. Final Implementation and Delivery Evidence
+
+This contract is implemented by the following final paths. Focused feature
+close gates are reported independently from the Issue #25 regression in
+`docs/lab-02/tests.md` Section 15.3; the full `AC-01` through `AC-66`
+traceability remains in that document's Section 13.
+
+| Issue | Final implementation paths | Final evidence |
+| --- | --- | --- |
+| #18 | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts`, `server/tests/lab-02/postgres/` | 5 files, 44 focused tests passed; migration, seed, preservation, constraints, and Lab 1 regression evidence passed. |
+| #19 | `client/src/components/`, `client/src/styles/`, `client/src/App.tsx`, `client/src/pages/` | `ApplicationShell.test.tsx`: 1 file, 45 focused tests passed. |
+| #20 | `server/src/middleware/`, `server/src/routes/referenceData.ts`, `server/src/services/developmentRequesterService.ts`, `client/src/requester/`, `client/src/pages/RequesterSelection.tsx` | Server 6 files/64 tests and client 2 files/56 tests passed. |
+| #21 | `server/src/routes/tickets.ts`, `server/src/services/createTicketFlow.ts`, `server/src/services/idempotencyService.ts`, `client/src/pages/CreateTicket.tsx`, `client/src/tickets/` | Server 8 files/187 tests and client 1 file/40 tests passed. |
+| #22 | `server/src/services/ticketListService.ts`, `server/src/services/ticketQueryValidator.ts`, `server/src/services/queryBuilder.ts`, `client/src/pages/MyTickets.tsx` | Server 4 files/221 tests and client 1 file/45 tests passed. |
+| #23 | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/pages/RequesterTicketDetail.tsx`, `client/src/pages/ErrorPage.tsx` | Server 2 files/29 tests and client 2 files/33 tests passed. |
+| #24 | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/attachments/AttachmentSection.tsx` | Server 7 files/195 tests and client 1 file/43 tests passed. |
+| #25 | `package.json`, `package-lock.json`, `playwright.config.ts`, `playwright.global-setup.ts`, `e2e/lab-02/`, `docs/lab-02/evidence/screenshots/` | Pinned local runner, 12/12 E2E/responsive/visual tests passed; final regression and delivery evidence recorded in `tests.md`. |
+
+The Requester identities used for evidence are synthetic development fixtures
+only. Lab 2 is unauthenticated and restricted to development/test networks;
+`X-Requester-Id` and CORS are not security or privacy boundaries. No Lab 3
+authentication or staff workflow is part of this specification's submission.
