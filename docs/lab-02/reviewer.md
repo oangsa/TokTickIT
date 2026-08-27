@@ -22,7 +22,7 @@ unmerged duplicate for Issue #18 and is not an integration PR.
 
 Reviewer comments I received (@kittipichcha):
 
-- **#27 — Approved review, 2026-08-21:** “Everything can work correctly and pass
+- **#27 — Approved review, 2026-08-21** ([formal review](https://github.com/oangsa/TokTickIT/pull/27#pullrequestreview-4994870570)): “Everything can work correctly and pass
   the criteria but there is a few note and ambiguity.” The review identified the
   following ten points:
 
@@ -62,33 +62,34 @@ Reviewer comments I received (@kittipichcha):
       discovery/documentation guidance for the `server/` and `client/` commands
       and their execution evidence.
 
-- **#31 — Approved review, 2026-08-22:** @kittipichcha wrote, “All requirement,
+- **#31 — Approved review, 2026-08-22** ([formal review](https://github.com/oangsa/TokTickIT/pull/31#pullrequestreview-5000426874)): @kittipichcha wrote, “All requirement,
   criteria. issue align with the actual system in the app.” No change request,
-  inline comment, or unresolved thread was recorded. The PR was merged into
-  `lab2-staging` at `0c6e0d4`.
+  inline comment, or unresolved thread was recorded. The author's only response
+  was “Alright, krub” ([comment](https://github.com/oangsa/TokTickIT/pull/31#issuecomment-5381071124)).
+  The PR was merged into `lab2-staging` at `0c6e0d4`.
 
-- **#32 — Comment, 2026-08-24:** “Approve no need to change.”
+- **#32 — Comment, 2026-08-24** ([comment](https://github.com/oangsa/TokTickIT/pull/32#issuecomment-5398051068)): “Approve no need to change.”
 
   This was left as a plain pull request comment rather than a GitHub review, so
   PR #32 carries no formal review record; the comment is reproduced verbatim
   above and is the whole of the reviewer's feedback on that pull request.
 
-- **#33 — Approved review, 2026-08-24:** @kittipichcha submitted an approval
+- **#33 — Approved review, 2026-08-24** ([formal review](https://github.com/oangsa/TokTickIT/pull/33#pullrequestreview-5010470833)): @kittipichcha submitted an approval
   with an empty body. No change request, inline comment, or additional
   conversation comment was recorded. The PR was merged into `lab2-staging`.
 
-- **#34 — Approved review, 2026-08-25:** “Everything can work correctly and
+- **#34 — Approved review, 2026-08-25** ([formal review](https://github.com/oangsa/TokTickIT/pull/34#pullrequestreview-5019998502)): “Everything can work correctly and
   all test are passed as expected, no collision as I saw.”
 
   The reviewer raised no change requests. The review carried no inline
   file/line comments and PR #34 received no additional pull request comments,
   so this approval is the whole of the reviewer's feedback on that pull request.
 
-- **#42 — Approved review, 2026-08-26:** “This pr can be approved, no conflict
+- **#42 — Approved review, 2026-08-26** ([formal review](https://github.com/oangsa/TokTickIT/pull/42#pullrequestreview-5030561424)): “This pr can be approved, no conflict
   as I found and everything is aligned”. No change request or inline comment was
   recorded. The PR was merged into `lab2-staging`.
 
-- **#43 — Approved review, 2026-08-26:** “Approve”
+- **#43 — Approved review, 2026-08-26** ([formal review](https://github.com/oangsa/TokTickIT/pull/43#pullrequestreview-5032385454)): “Approve”
 
   The review body is that single word and is reproduced verbatim above. The
   review carried no inline file/line comments, PR #43 received no additional
@@ -258,9 +259,11 @@ How I responded:
   mechanism was synchronized. GitHub recorded no separate author reply; the
   final peer approval preceded the merge.
 
-Author's PR reply:
+Author's PR replies:
 
-> “Alright krub. I will change and merge directly since you already approved.”
+- **#27:** “Alright krub. I will change and merge directly since you already
+  approved.” ([comment](https://github.com/oangsa/TokTickIT/pull/27#issuecomment-5372380201))
+- **#31:** “Alright, krub” ([comment](https://github.com/oangsa/TokTickIT/pull/31#issuecomment-5381071124)).
 
 ## Pull Requests I reviewed for my partner
 
