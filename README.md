@@ -1,31 +1,29 @@
 # TokTickIT
 
-CPE334 Software Engineering — Lab 2 final delivery record.
+CPE334 Software Engineering — Lab 1.
 
 | Area | Stack |
 |---|---|
 | Frontend | React + TypeScript + Vite + Bootstrap (`client/`) |
 | Backend | Node.js + Express + TypeScript (`server/`) |
 | Database | PostgreSQL + Prisma (`server/prisma/`) |
-| Testing | Vitest + Supertest; pinned Playwright for approved E2E |
+| Testing | Vitest + Supertest |
 
 ## Prerequisites
 
 - Node.js 20+ and npm
 - A running PostgreSQL instance
-- Docker, for the disposable PostgreSQL integration/E2E target
 
 ## Backend (`server/`)
 
 ```bash
 cd server
-npm ci
+npm install
 cp .env.example .env        # then edit DATABASE_URL and DIRECT_URL
 npm run prisma:migrate      # prisma migrate dev
 npm run prisma:seed         # tsx prisma/seed.ts
 npm run dev                 # http://localhost:3000
 npm test                    # vitest run
-npm run build               # TypeScript build
 ```
 
 The backend also reads two Lab 2 variables from `.env`:
@@ -42,7 +40,7 @@ an empty allowlist.
 
 ```bash
 cd client
-npm ci
+npm install
 cp .env.example .env        # VITE_API_URL, defaults to http://localhost:3000
 npm run dev                 # http://localhost:5173
 npm test                    # vitest run
@@ -50,7 +48,7 @@ npm test                    # vitest run
 
 ### Lab 2 client
 
-Run `npm ci` in `client/` after pulling: Lab 2 adds `react-router-dom`
+Run `npm install` in `client/` after pulling: Lab 2 adds `react-router-dom`
 for routing and `@fontsource/inter` for the required typeface. Bootstrap
 remains the only UI library.
 
@@ -58,8 +56,8 @@ remains the only UI library.
 |---|---|
 | `/` | Redirects to `/requesters` or `/tickets` depending on the stored Requester |
 | `/requesters` | Development Requester Selection — loads active Requesters from `GET /api/requesters`, stores the choice in `sessionStorage`, and navigates to `/tickets` |
-| `/tickets` | My Tickets — requester-owned search, filters, sorting, and pagination |
-| `/tickets/new` | Create Ticket — generated fields, Pending Attachments, idempotent submission |
+| `/tickets` | My Tickets (placeholder until Issue 22) |
+| `/tickets/new` | Create Ticket (placeholder until Issue 21) |
 | `/tickets/:publicId` | Requester Ticket Detail — read-only, requester-scoped, backed by `GET /api/tickets/:publicId` |
 | `/error` | Standalone global error page |
 
@@ -70,12 +68,7 @@ mechanism; it is not authentication. The Requester Selection screen at
 `/tickets`, so the requester routes are now reachable through the UI. The
 application is drivable end to end from Requester selection through Ticket
 creation, My Tickets, and Ticket Detail. Attachment upload, preview, download,
-and removal are included in the Issue #24 implementation.
-
-The Requester selector is a development/test fixture mechanism, not
-authentication. Seeded identities are synthetic `@example.com` values; the
-application is restricted to development/test networks. CORS origin restriction
-is browser hardening, not authentication, authorization, or a privacy boundary.
+and removal remain owned by Issue #24.
 
 ## Lab 2 status
 
@@ -84,16 +77,6 @@ is browser hardening, not authentication, authorization, or a privacy boundary.
 | 18 — Data model + forward migration + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
 | 19 — Zen Green shell + UI foundation | Done | `client/src/`, `client/src/components/`, `client/src/requester/` |
 | 20 — Requester context + selector | Done | `server/src/middleware/`, `server/src/routes/referenceData.ts`, `client/src/pages/RequesterSelection.tsx`, `client/src/requester/useRequesterApi.ts` |
-| 21 — Ticket creation + idempotency | Done | `server/src/routes/tickets.ts`, `server/src/services/createTicketFlow.ts`, `client/src/pages/CreateTicket.tsx` |
-| 22 — My Tickets | Done | `server/src/services/ticketListService.ts`, `server/src/services/ticketQueryValidator.ts`, `client/src/pages/MyTickets.tsx` |
-| 23 — Ticket Detail | Done | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/pages/RequesterTicketDetail.tsx`, `client/src/pages/ErrorPage.tsx` |
-| 24 — Attachment lifecycle | Done | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/attachments/AttachmentSection.tsx` |
-| 25 — final integration/tooling | Done | `package.json`, `playwright.config.ts`, `playwright.global-setup.ts`, `e2e/lab-02/`, tracked screenshot evidence |
-| 26 — release evidence | PR [#46](https://github.com/oangsa/TokTickIT/pull/46) changes requested; post-merge staging validation pending | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md`, `docs/lab-02/tests.md`; `feature/26-lab2-release-evidence` |
-
-Each implementation Issue has its own `feature/<issue>-<short-name>` branch and
-peer-reviewed PR into `lab2-staging`. Focused results are recorded separately
-from Issue #25's final regression in `docs/lab-02/tests.md` Section 15.3.
 
 ### Issue 20 — Requester context + selector
 
@@ -205,25 +188,17 @@ requires `NODE_ENV=test`, a PostgreSQL `TEST_DATABASE_URL`, and an explicit
 test marker in the target database name.
 
 From `server/`, start the disposable target with a local-only synthetic password
-without committing it to an environment file. These commands assume a fresh
-container and keep the Lab 1 regression database separate from the Lab 2
-PostgreSQL target:
+without committing it to an environment file:
 
 ```bash
 export LAB2_TEST_DB_PASSWORD='<PASSWORD>'
 docker compose -f tests/lab-02/postgres/docker-compose.test.yml up -d --wait
 export NODE_ENV=test
 export TEST_DATABASE_URL="postgresql://lab2_test:${LAB2_TEST_DB_PASSWORD}@localhost:55432/toktickit_lab2_test"
-export LAB1_DATABASE_URL="postgresql://lab2_test:${LAB2_TEST_DB_PASSWORD}@localhost:55432/toktickit_lab1_dev"
-docker exec toktickit-lab2-test-postgres createdb -U lab2_test --maintenance-db=toktickit_lab2_test toktickit_lab1_dev
-DATABASE_URL="$LAB1_DATABASE_URL" DIRECT_URL="$LAB1_DATABASE_URL" npx --no-install prisma migrate deploy
-DATABASE_URL="$LAB1_DATABASE_URL" DIRECT_URL="$LAB1_DATABASE_URL" npm run prisma:seed
-DATABASE_URL="$TEST_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" npx --no-install prisma migrate deploy
+DATABASE_URL="$TEST_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
 DATABASE_URL="$TEST_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" npm run prisma:seed
-DATABASE_URL="$LAB1_DATABASE_URL" DIRECT_URL="$LAB1_DATABASE_URL" TEST_DATABASE_URL="$TEST_DATABASE_URL" npm test -- tests/lab-01/categories.test.ts tests/lab-01/health.test.ts
-DATABASE_URL="$LAB1_DATABASE_URL" DIRECT_URL="$LAB1_DATABASE_URL" TEST_DATABASE_URL="$TEST_DATABASE_URL" npm test -- tests/lab-02/postgres
-DATABASE_URL="$LAB1_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" TEST_DATABASE_URL="$TEST_DATABASE_URL" npx --no-install prisma migrate status
-DATABASE_URL="$LAB1_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" TEST_DATABASE_URL="$TEST_DATABASE_URL" npx --no-install prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+DATABASE_URL="$TEST_DATABASE_URL" DIRECT_URL="$TEST_DATABASE_URL" npm test -- tests/lab-01/categories.test.ts tests/lab-01/health.test.ts
+npm test -- tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-02/postgres/transactions.postgres.test.ts tests/lab-02/postgres/idempotency.postgres.test.ts
 docker compose -f tests/lab-02/postgres/docker-compose.test.yml down -v
 ```
 
@@ -237,8 +212,8 @@ untouched.
 ### Lab 2 browser verification
 
 The repository root contains a private, non-workspace package for the pinned
-Playwright runner. From the repository root, install it with `npm ci` and run
-the browser suite only with `NODE_ENV=test` and the dedicated disposable
+Playwright runner. From the repository root, install it with `npm install` and
+run the browser suite only with `NODE_ENV=test` and the dedicated disposable
 `TEST_DATABASE_URL`; use the sanitized command in `docs/lab-02/tests.md` and do
 not use a production database. The runner starts the client and server, applies
 the guarded test migrations/seed, and writes the required responsive/visual
@@ -247,7 +222,7 @@ The HTML report, traces, and failure-only captures remain under ignored
 `artifacts/lab-02/`:
 
 ```bash
-npm ci
+npm install
 npx --no-install playwright install chromium
 NODE_ENV=test TEST_DATABASE_URL='<LAB2_TEST_DATABASE_URL>' DATABASE_URL='<LAB1_DATABASE_URL>' DIRECT_URL='<LAB1_DATABASE_URL>' npm run test:e2e
 ```
@@ -293,14 +268,8 @@ toktickit/
 │   ├── prisma.config.ts  # Prisma 7 config: schema path, seed, migrate URL
 │   ├── prisma/        # schema + migrations + seed
 │   ├── src/           # Express application
-│   ├── tests/lab-01/
-│   └── tests/lab-02/  # unit, API, and guarded PostgreSQL tests
+│   └── tests/lab-01/
 ├── docs/lab-01/       # ai_use.md, reviewer.md, tests.md
-├── docs/lab-02/       # four contracts, tests, review, AI-use, evidence
-├── e2e/lab-02/        # pinned Playwright E2E/responsive/visual suites
-├── package.json       # private root Playwright tooling; no workspaces
-├── playwright.config.ts
-├── playwright.global-setup.ts
 ├── .gitignore
 └── README.md
 ```
@@ -310,17 +279,4 @@ toktickit/
 Each Issue uses its own `feature/*` branch and enters `labX-staging` through a
 peer-reviewed Pull Request. After all lab Issues and integration checks are
 complete, open one release Pull Request from `labX-staging` to `main`.
-
-Lab 2's merged feature sequence is: #17 → [PR #27](https://github.com/oangsa/TokTickIT/pull/27),
-#18 → [PR #31](https://github.com/oangsa/TokTickIT/pull/31), #19 → [PR #32](https://github.com/oangsa/TokTickIT/pull/32),
-#20 → [PR #33](https://github.com/oangsa/TokTickIT/pull/33), #21 → [PR #34](https://github.com/oangsa/TokTickIT/pull/34),
-#22 → [PR #42](https://github.com/oangsa/TokTickIT/pull/42), #23 → [PR #43](https://github.com/oangsa/TokTickIT/pull/43),
-#24 → [PR #44](https://github.com/oangsa/TokTickIT/pull/44), and #25 → [PR #45](https://github.com/oangsa/TokTickIT/pull/45).
-PR #30 was a closed, unmerged duplicate for Issue #18 and is not part of the
-integration sequence. Issue #26 uses `feature/26-lab2-release-evidence`, then
-targets `lab2-staging`; only after its peer review and staging checks should
-the single release PR target `main`. The planned release PR URL is
-[#47](https://github.com/oangsa/TokTickIT/pull/47); it must be opened only after
-Issue #26 merges and staging checks pass.
-
 See `AGENTS.md` for the full project constraints.
