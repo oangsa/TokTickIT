@@ -53,7 +53,7 @@ jobs:
         run: npm ci
 
       - name: Create disposable Lab 1 database
-        run: createdb -h 127.0.0.1 -U lab2_test -d toktickit_lab2_test toktickit_lab1_dev
+        run: createdb -h 127.0.0.1 -U lab2_test --maintenance-db=toktickit_lab2_test toktickit_lab1_dev
 
       - name: Apply migrations to disposable Lab 1 database
         env:

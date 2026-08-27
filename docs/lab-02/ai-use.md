@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-63 representative prompts in 61 table entries from the Lab 2 history available
+64 representative prompts in 62 table entries from the Lab 2 history available
 in the repository and current session.
 
-## Selected key prompts (63; 61 entries)
+## Selected key prompts (64; 62 entries)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -72,11 +72,12 @@ in the repository and current session.
 | 76 (current) | Fix PR #44's two final review blockers: prevent confirmed Create Ticket discard from being overwritten by an older in-flight submission, rerun final-tree PostgreSQL close gates, update evidence, and update PR Validation. | Added independent Create Ticket submission-generation invalidation on confirmed discard, with stale-success and stale-failure regressions; preserved Requester-generation protection. Reran the Issue #24 focused server gate (4 files/164 tests), required guarded PostgreSQL directory (8 files/74 tests), Create Ticket + Attachment client gate (2 files/83 tests), full client suite (10 files/257 tests), full server suite (31 files/670 tests), and both builds. Updated `tests.md` with `git rev-parse HEAD` SHA `05a3172623c76a3d506b3216a947763c0042143b`; PR Validation updated. Fix/test/doc changes remain uncommitted and unpushed. |
 | 77 (current) | Clarify PR #44 final verification provenance after the verified working tree was committed. | Updated `tests.md` and PR Validation to distinguish verification at `05a3172623c76a3d506b3216a947763c0042143b` from the unchanged final commit `5c4d0260dbb43a632f8ed7dd0973ba1591d0fc11`; preserved historical results and made no executable changes. Verified documentation-only diff hygiene, committed the cleanup, and pushed it to `feature/24-attachments`. |
 | 78 (current) | Address the PR #44 review blocker by re-establishing the Attachment focused, PostgreSQL, full-suite, and build evidence on the current worktree. | Re-ran the required gates against disposable PostgreSQL targets and found that Vitest's nested `fileParallelism` setting was ignored, allowing shared-schema resets to race. Moved `--no-file-parallelism` into the server test script, added a minimal ephemeral-PostgreSQL GitHub verification workflow, reran the exact PostgreSQL command and full server suite, and confirmed the client gates/builds; updated `tests.md` with the current SHA and the uncommitted-fix limitation. Commit/push was deferred until explicitly requested. |
+| 79 (current) | Fix the GitHub Actions disposable Lab 1 database creation failure shown in the workflow. | Replaced invalid `createdb -d` usage with `--maintenance-db=toktickit_lab2_test` while keeping `toktickit_lab1_dev` as the created database. Verified the focused workflow diff and preserved application, REST, Prisma, database, dependency, and generated-file scope. CI was not rerun locally because PostgreSQL client tools were unavailable and Docker socket access was denied. |
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
-the handout-facing deliverable intentionally selects sixty-three representative
-prompts in sixty-one table entries rather than reproducing every wording
+the handout-facing deliverable intentionally selects sixty-four representative
+prompts in sixty-two table entries rather than reproducing every wording
 correction. The selection
 covers specification and API contracts, UI behavior, schema and migration
 decisions, Attachment lifecycle, idempotency/concurrency, test traceability,
