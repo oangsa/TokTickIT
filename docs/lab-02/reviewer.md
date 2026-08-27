@@ -6,15 +6,23 @@
 ## Pull Requests I authored (reviewed by my partner)
 | PR | Branch | Reviewer verdict |
 |----|--------|------------------|
-| [#27](https://github.com/oangsa/TokTickIT/pull/27) | feature/17-lab2-engineering-contract | Approved; PR remains open |
+| [#27](https://github.com/oangsa/TokTickIT/pull/27) | feature/17-lab2-engineering-contract | Approved; merged into `lab2-staging` |
+| [#31](https://github.com/oangsa/TokTickIT/pull/31) | feature/18-lab2-data-model | Approved; merged into `lab2-staging` |
 | [#32](https://github.com/oangsa/TokTickIT/pull/32) | feature/19-zen-green-ui-foundation | Approved; merged into `lab2-staging` |
+| [#33](https://github.com/oangsa/TokTickIT/pull/33) | feature/20-requester-context | Approved; merged into `lab2-staging` |
 | [#34](https://github.com/oangsa/TokTickIT/pull/34) | feature/21-create-ticket | Approved; merged into `lab2-staging` |
+| [#42](https://github.com/oangsa/TokTickIT/pull/42) | feature/22-my-tickets | Approved; merged into `lab2-staging` |
 | [#43](https://github.com/oangsa/TokTickIT/pull/43) | feature/23-ticket-detail | Approved; merged into `lab2-staging` |
 | [#44](https://github.com/oangsa/TokTickIT/pull/44) | feature/24-attachments | Changes requested; subsequently approved and merged into `lab2-staging` |
+| [#45](https://github.com/oangsa/TokTickIT/pull/45) | feature/25-lab2-verification | Approved; merged into `lab2-staging` |
+| [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested; manual Kanban verification passed; post-merge staging validation pending |
+
+PR [#30](https://github.com/oangsa/TokTickIT/pull/30) was a closed,
+unmerged duplicate for Issue #18 and is not an integration PR.
 
 Reviewer comments I received (@kittipichcha):
 
-- **#27 — Approved review, 2026-08-21:** “Everything can work correctly and pass
+- **#27 — Approved review, 2026-08-21** ([formal review](https://github.com/oangsa/TokTickIT/pull/27#pullrequestreview-4994870570)): “Everything can work correctly and pass
   the criteria but there is a few note and ambiguity.” The review identified the
   following ten points:
 
@@ -54,20 +62,34 @@ Reviewer comments I received (@kittipichcha):
       discovery/documentation guidance for the `server/` and `client/` commands
       and their execution evidence.
 
-- **#32 — Comment, 2026-08-24:** “Approve no need to change.”
+- **#31 — Approved review, 2026-08-22** ([formal review](https://github.com/oangsa/TokTickIT/pull/31#pullrequestreview-5000426874)): @kittipichcha wrote, “All requirement,
+  criteria. issue align with the actual system in the app.” No change request,
+  inline comment, or unresolved thread was recorded. The author's only response
+  was “Alright, krub” ([comment](https://github.com/oangsa/TokTickIT/pull/31#issuecomment-5381071124)).
+  The PR was merged into `lab2-staging` at `0c6e0d4`.
+
+- **#32 — Comment, 2026-08-24** ([comment](https://github.com/oangsa/TokTickIT/pull/32#issuecomment-5398051068)): “Approve no need to change.”
 
   This was left as a plain pull request comment rather than a GitHub review, so
   PR #32 carries no formal review record; the comment is reproduced verbatim
   above and is the whole of the reviewer's feedback on that pull request.
 
-- **#34 — Approved review, 2026-08-25:** “Everything can work correctly and
+- **#33 — Approved review, 2026-08-24** ([formal review](https://github.com/oangsa/TokTickIT/pull/33#pullrequestreview-5010470833)): @kittipichcha submitted an approval
+  with an empty body. No change request, inline comment, or additional
+  conversation comment was recorded. The PR was merged into `lab2-staging`.
+
+- **#34 — Approved review, 2026-08-25** ([formal review](https://github.com/oangsa/TokTickIT/pull/34#pullrequestreview-5019998502)): “Everything can work correctly and
   all test are passed as expected, no collision as I saw.”
 
   The reviewer raised no change requests. The review carried no inline
   file/line comments and PR #34 received no additional pull request comments,
   so this approval is the whole of the reviewer's feedback on that pull request.
 
-- **#43 — Approved review, 2026-08-26:** “Approve”
+- **#42 — Approved review, 2026-08-26** ([formal review](https://github.com/oangsa/TokTickIT/pull/42#pullrequestreview-5030561424)): “This pr can be approved, no conflict
+  as I found and everything is aligned”. No change request or inline comment was
+  recorded. The PR was merged into `lab2-staging`.
+
+- **#43 — Approved review, 2026-08-26** ([formal review](https://github.com/oangsa/TokTickIT/pull/43#pullrequestreview-5032385454)): “Approve”
 
   The review body is that single word and is reproduced verbatim above. The
   review carried no inline file/line comments, PR #43 received no additional
@@ -145,6 +167,32 @@ Reviewer comments I received (@kittipichcha):
   - Review body: empty; GitHub records the approval but no written message or
     additional requested changes.
 
+- **#45 — Review sequence, 2026-08-27:** @kittipichcha first approved the PR,
+  then requested changes with three concrete points: deliver independently
+  accessible working-app screenshots at `1440x900`, `820x1180`, and `390x844`;
+  make the `tests.md` evidence mechanism accurate; and consider adding
+  Playwright CI (non-blocking). The branch added the tracked screenshot links
+  and synchronized evidence. The final approval said, “Previously there's a
+  conflict between requirement and the issue however I see you have fixed it.”
+  PR #45 merged into `lab2-staging` at `6ef7ed4`.
+
+PR #45 conversation audit: the reviewer left one top-level comment asking for
+working-app screenshots to be stored in the codebase
+([comment](https://github.com/oangsa/TokTickIT/pull/45#issuecomment-5438340928));
+the changes-requested and final approval records are linked from the same
+conversation ([changes requested](https://github.com/oangsa/TokTickIT/pull/45#pullrequestreview-5040244818),
+[approval](https://github.com/oangsa/TokTickIT/pull/45#pullrequestreview-5040465249)).
+No inline review comments were recorded.
+
+PR #46 review audit: the reviewer submitted **Changes Requested** on the
+documentation/release-evidence PR ([formal review](https://github.com/oangsa/TokTickIT/pull/46#pullrequestreview-5041721622)).
+The review confirmed the feature gates, recorded regression evidence, GitHub
+CI, builds, documentation, scope, dependencies, and manual Project/Kanban
+state as passing; it identified only one blocking item: validate the resulting
+`lab2-staging` after PR #46 is merged. The review also marked AC-10 partial and
+listed two non-blocking suggestions. My acknowledgement is recorded in the
+[PR comment](https://github.com/oangsa/TokTickIT/pull/46#issuecomment-5440368528).
+
 PR #44 conversation audit: the GitHub API returned **0 general pull-request
 comments** and **0 inline review comments** (including no inline reply
 threads). Therefore, the two formal reviews above are the complete review and
@@ -201,18 +249,34 @@ How I responded:
 - **#27, command documentation** — `tests.md` identifies the required working
   directory for each command and the evidence that implementation must record.
   No separate application dependency or architecture change was introduced.
+- **#31** — no change request was made; the approved data-model PR merged into
+  `lab2-staging` after the focused migration/seed/constraint gate.
 - **#34** — no response required. The approval requested no changes, so the
   branch was merged into `lab2-staging` as approved with no follow-up edits.
+- **#33** — no response required. The empty-body approval requested no changes;
+  the requester-context branch was merged as reviewed.
+- **#42** — no response required. The reviewer approved the aligned My Tickets
+  implementation; its focused validator/query/UI gate was recorded separately.
 - **#43** — no response required. The approval requested no changes, so the
   branch was merged into `lab2-staging` as approved with no follow-up edits
   (merge commit `fc92d82`, 2026-08-26).
 - **#44** — the changes-requested review's verification blocker was followed by
   a body-less approval on the final PR head. No separate author reply or inline
   discussion was recorded by GitHub; PR #44 was merged after the approval.
+- **#45** — the response was the documentation/evidence update on the branch:
+  tracked screenshots were made independently accessible and the test-result
+  mechanism was synchronized. GitHub recorded no separate author reply; the
+  final peer approval preceded the merge.
+- **#46** — acknowledged the review, recorded the manually verified
+  Project/Kanban state, and confirmed that post-merge `lab2-staging`
+  validation is the only remaining release gate. The release PR will not be
+  opened before that validation passes.
 
-Author's PR reply:
+Author's PR replies:
 
-> “Alright krub. I will change and merge directly since you already approved.”
+- **#27:** “Alright krub. I will change and merge directly since you already
+  approved.” ([comment](https://github.com/oangsa/TokTickIT/pull/27#issuecomment-5372380201))
+- **#31:** “Alright, krub” ([comment](https://github.com/oangsa/TokTickIT/pull/31#issuecomment-5381071124)).
 
 ## Pull Requests I reviewed for my partner
 
@@ -222,3 +286,89 @@ No review comment recorded yet.
 
 Partner's response:
 No response recorded yet.
+
+## Integration, Project/Kanban, and release record
+
+Feature integration sequence verified from GitHub:
+
+| Issue | Feature branch | PR | Integration result |
+|---|---|---|---|
+| #17 | `feature/17-lab2-engineering-contract` | [#27](https://github.com/oangsa/TokTickIT/pull/27) | Peer approved; merged to `lab2-staging` as `e0cb215`. |
+| #18 | `feature/18-lab2-data-model` | [#31](https://github.com/oangsa/TokTickIT/pull/31) | Peer approved; merged to `lab2-staging` as `0c6e0d4`. [#30](https://github.com/oangsa/TokTickIT/pull/30) was closed unmerged. |
+| #19 | `feature/19-zen-green-ui-foundation` | [#32](https://github.com/oangsa/TokTickIT/pull/32) | Peer comment/approval; merged to `lab2-staging` as `c5847d6`. |
+| #20 | `feature/20-requester-context` | [#33](https://github.com/oangsa/TokTickIT/pull/33) | Peer approved; merged to `lab2-staging` as `900964d`. |
+| #21 | `feature/21-create-ticket` | [#34](https://github.com/oangsa/TokTickIT/pull/34) | Peer approved; merged to `lab2-staging` as `0360627`. |
+| #22 | `feature/22-my-tickets` | [#42](https://github.com/oangsa/TokTickIT/pull/42) | Peer approved; merged to `lab2-staging` as `d417755`. |
+| #23 | `feature/23-ticket-detail` | [#43](https://github.com/oangsa/TokTickIT/pull/43) | Peer approved; merged to `lab2-staging` as `fc92d82`. |
+| #24 | `feature/24-attachments` | [#44](https://github.com/oangsa/TokTickIT/pull/44) | Changes requested, evidence added, then peer approved; merged to `lab2-staging` as `dbbb2a5`. |
+| #25 | `feature/25-lab2-verification` | [#45](https://github.com/oangsa/TokTickIT/pull/45) | Peer review sequence completed; merged to `lab2-staging` as `6ef7ed4`; GitHub server/client verification passed. |
+| #26 | `feature/26-lab2-release-evidence` | [#46](https://github.com/oangsa/TokTickIT/pull/46) | Changes requested; manual Kanban check passed; post-merge `lab2-staging` validation and merge remain required. |
+
+The current remote `lab2-staging` baseline is `6ef7ed4`, and local focused,
+full, Prisma, build, and E2E results are recorded in `tests.md` Section 15.3.
+The Project Automation workflow succeeded for the final #25 PR runs
+([run 120](https://github.com/oangsa/TokTickIT/actions/runs/33068961506),
+[run 122](https://github.com/oangsa/TokTickIT/actions/runs/33069786475)); it
+closed the completed Issues. The connected GitHub API available for this record
+does not expose the ProjectV2 Status field, but the reviewer manually verified
+the final issue/card states as correct in the #46 review. Thus the record claims
+that manual verification, not an API-read status: #17–#25 are
+GitHub-closed/completed, #26 remains open until its reviewed PR is merged, and
+the planned single release PR is
+[#47](https://github.com/oangsa/TokTickIT/pull/47), to be opened from
+`lab2-staging` to `main` only after #46 merges and staging checks pass; until
+then that URL is a planned location, not an existing PR.
+
+## Final evidence PDF plan (not generated)
+
+The final PDF will contain exactly these nine ordered headings. This plan is
+the deliverable for planning; no PDF or binary output is generated in this
+task.
+
+### Answer Part 1
+
+Lab 2 scope, AC-01–AC-66 authority, included/excluded features, and links to
+`specification.md`, `api-spec.md`, and `ui-spec.md`.
+
+### Answer Part 2
+
+Issue list, Project/Kanban state, branch naming, and the `main` →
+`lab2-staging` → `feature/*` workflow evidence.
+
+### Answer Part 3
+
+Feature PR links #27, #31, #32, #33, #34, #42, #43, #44, #45, and #46; reviewer,
+comments, responses, approvals, changes requested, and merge outcomes.
+
+### Answer Part 4
+
+Prisma schema, forward migrations, PostgreSQL indexes/checks, synthetic seed,
+idempotency, guarded disposable target, and migration/status/drift commands.
+
+### Answer Part 5
+
+REST endpoints, DTO/error contracts, Requester ownership isolation, CORS and
+transport hardening, and the development/test-network-only boundary.
+
+### Answer Part 6
+
+Requester Selection, Create Ticket, My Tickets, Ticket Detail, Attachment
+lifecycle, and global error screenshots with short captions and working links.
+
+### Answer Part 7
+
+Separate focused results for Issues #18–#24, then Issue #25's final full
+regression result; include exact commands, counts, builds, and no-deferred-gate
+statement.
+
+### Answer Part 8
+
+Pinned Playwright/MSW structure, the three exact E2E files, 12/12 result, and
+readable `1440x900`, `820x1180`, and `390x844` screenshot evidence.
+
+### Answer Part 9
+
+Known warnings/audit findings, visual-check limitation, no-auth/no-public-
+deployment limitation, final staging integration result, the planned release PR
+[#47](https://github.com/oangsa/TokTickIT/pull/47) once opened, and
+completed/untested/blocked/future work summary.
