@@ -69,6 +69,18 @@ describe("Lab 2 PostgreSQL test-database guard", () => {
     );
   });
 
+  it("rejects a test-marked database that is not identified as the Lab 2 target", () => {
+    process.env.NODE_ENV = "test";
+    process.env.TEST_DATABASE_URL =
+      "postgresql://lab2_test@127.0.0.1:55432/toktickit_other_test";
+    delete process.env.DATABASE_URL;
+    delete process.env.DIRECT_URL;
+
+    expect(() => assertLab2TestDatabase()).toThrow(
+      "TEST_DATABASE_URL database name must identify the dedicated Lab 2 test database",
+    );
+  });
+
   it("rejects the direct migration database even when DATABASE_URL differs", () => {
     process.env.NODE_ENV = "test";
     process.env.TEST_DATABASE_URL =

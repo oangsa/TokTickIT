@@ -1,4 +1,25 @@
 import "@testing-library/jest-dom";
+import { setupServer } from "msw/node";
+
+/*
+ * Keep the browser-facing test boundary available for the Lab 2 UI suites.
+ * Existing focused tests still use their local fetch doubles; unhandled MSW
+ * requests bypass those doubles so this shared server can be introduced
+ * without changing their contracts one file at a time.
+ */
+export const mswServer = setupServer();
+
+beforeAll(() => {
+  mswServer.listen({ onUnhandledRequest: "bypass" });
+});
+
+afterEach(() => {
+  mswServer.resetHandlers();
+});
+
+afterAll(() => {
+  mswServer.close();
+});
 
 /*
  * jsdom ships no `window.matchMedia`. The application shell reads

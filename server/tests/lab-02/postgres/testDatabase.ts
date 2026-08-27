@@ -77,6 +77,11 @@ export function assertLab2TestDatabase(): TestDatabaseTarget {
   if (!/(^|[_-])test([_-]|$)/i.test(databaseName)) {
     throw new Error("TEST_DATABASE_URL database name must contain an explicit test marker");
   }
+  if (!/(^|[_-])lab2([_-]|$)/i.test(databaseName)) {
+    throw new Error(
+      "TEST_DATABASE_URL database name must identify the dedicated Lab 2 test database",
+    );
+  }
 
   const developmentUrls = [
     ["DATABASE_URL", process.env.DATABASE_URL],
