@@ -2571,11 +2571,12 @@ queried.
 | --- | --- | --- |
 | Lab 1 server tests | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- tests/lab-01` | Passed — 2 files, 2 tests. |
 | Lab 1 client tests | `cd client && npm test -- tests/lab-01` | Passed — 2 files, 6 tests. |
-| Full server regression | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test` | Passed — 31 files, 671 tests; no skipped tests. Includes all Lab 1, Unit/API, and guarded PostgreSQL files. |
+| Full server regression | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- --silent` | Passed — 31 files, 674 tests; no skipped tests. Includes all Lab 1, Unit/API, and guarded PostgreSQL files. |
 | Full client regression | `cd client && npm test` | Passed — 10 files, 258 tests; no skipped tests. |
-| Server build/typecheck | `cd server && npm run build` | Passed. |
+| Server build/typecheck | `cd server && npm run build` | Passed — TypeScript build. |
 | Client build/typecheck | `cd client && npm run build` | Passed — TypeScript and Vite production build. |
-| Guarded PostgreSQL suite | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- --silent tests/lab-02/postgres` | Passed — 8 files, 75 tests; real migrations, connections, transactions, constraints, and concurrency. The guard requires `NODE_ENV=test`, PostgreSQL, explicit `test` and `lab2` database markers, and a target distinct from `DATABASE_URL`/`DIRECT_URL`. |
+| PostgreSQL guard test | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- tests/lab-02/postgres/testDatabase.test.ts` | Passed — 1 file, 8 tests; no skipped tests. |
+| Guarded PostgreSQL suite | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- tests/lab-02/postgres` | Passed — 8 files, 78 tests; no skipped tests; real migrations, connections, transactions, constraints, and concurrency. |
 | Prisma validation | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npx --no-install prisma validate` | Passed — schema valid. |
 | Prisma migration status | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npx --no-install prisma migrate status` | Passed — explicitly reported `toktickit_lab2_test` at `127.0.0.1:55432`; schema up to date; 3 migrations found. |
 | Prisma drift | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npx --no-install prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` | Passed — empty migration. |
@@ -2584,6 +2585,13 @@ queried.
 | Maintenance smoke | `cd server && NODE_ENV=test DATABASE_URL=<lab2_url> DIRECT_URL=<lab2_url> TEST_DATABASE_URL=<lab2_url> npm run maintenance:cleanup` | Passed — disposable-target result `pendingAttachments: 0`, `idempotencyRecords: 0`; no HTTP cleanup route exists. |
 | Pinned E2E test listing | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> npm run test:e2e -- --list` | Passed — exact 12 planned tests listed from the local pinned runner; no implicit Playwright download. |
 | Pinned E2E/responsive/visual | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> npm run test:e2e` | Passed — 12 tests, 12 passed, 19.4s; 3 E2E tests plus 9 exact viewport tests. |
+
+The final executable guard coverage rejects `NODE_ENV != test`, missing
+`TEST_DATABASE_URL` without falling back to `DATABASE_URL`, a non-PostgreSQL
+`TEST_DATABASE_URL`, the same database as `DATABASE_URL`, the same database as
+`DIRECT_URL`, a missing explicit test marker, a database not identifiable as
+the dedicated Lab 2 target, and a reset target that differs from the guarded
+`TEST_DATABASE_URL`.
 
 #### #18–#24 focused close-gate evidence
 
