@@ -272,7 +272,17 @@ describe("TicketService.create", () => {
     expect(tx.attachment.findMany).toHaveBeenCalledWith({
       where: { storageKey: { in: [ATTACHMENT_A] }, uploadedByRequesterId: 3 },
       orderBy: { id: "asc" },
+      /*
+       * The projection is part of the contract, not an implementation detail:
+       * without it Prisma selects every scalar, and binding five Attachments
+       * would drag 25 MB of `data` through the create transaction to read four
+       * columns. `data` must never appear here.
+       */
+      select: { id: true, ticketId: true, deleted: true, createdAt: true },
     });
+
+    const [args] = tx.attachment.findMany.mock.calls[0] as [{ select: Record<string, unknown> }];
+    expect(args.select).not.toHaveProperty("data");
   });
 
   it.each([

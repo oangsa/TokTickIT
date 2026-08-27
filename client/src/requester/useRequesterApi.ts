@@ -4,6 +4,7 @@ import {
   InvalidRequesterContextError,
   ApiRequestInit,
   apiFetch,
+  apiFetchBlob,
   mergeSignals,
 } from "../api.js";
 import { useRequester } from "./RequesterProvider.js";
@@ -33,22 +34,21 @@ import { useRequester } from "./RequesterProvider.js";
  * A caller whose own completion has side effects still checks its own captured
  * token with `isRequesterContextCurrent` before applying them.
  */
-export function useRequesterApi() {
+function useGuardedRequest() {
   const { requester, clearRequester, captureRequesterContext, isRequesterContextCurrent } =
     useRequester();
 
   return useCallback(
-    async <T,>(path: string, init?: ApiRequestInit): Promise<T> => {
+    async <T,>(
+      send: (requesterId: number | undefined, signal: AbortSignal) => Promise<T>,
+      callerSignal?: AbortSignal | null,
+    ): Promise<T> => {
       const token = captureRequesterContext();
 
       try {
-        return await apiFetch<T>(
-          path,
-          {
-            ...init,
-            signal: init?.signal ? mergeSignals(token.signal, init.signal) : token.signal,
-          },
+        return await send(
           requester?.id,
+          callerSignal ? mergeSignals(token.signal, callerSignal) : token.signal,
         );
       } catch (error) {
         if (error instanceof InvalidRequesterContextError && isRequesterContextCurrent(token)) {
@@ -59,5 +59,38 @@ export function useRequesterApi() {
       }
     },
     [requester, clearRequester, captureRequesterContext, isRequesterContextCurrent],
+  );
+}
+
+export function useRequesterApi() {
+  const guarded = useGuardedRequest();
+
+  return useCallback(
+    <T,>(path: string, init?: ApiRequestInit): Promise<T> =>
+      guarded<T>(
+        (requesterId, signal) => apiFetch<T>(path, { ...init, signal }, requesterId),
+        init?.signal,
+      ),
+    [guarded],
+  );
+}
+
+/*
+ * The Attachment binary sibling (ui-spec Section 24). Preview and Download must
+ * never navigate straight to the requester-scoped URL, because an `<img>`, an
+ * `<iframe>`, or a plain link cannot attach `X-Requester-Id`. They come through
+ * here instead, and inherit the same cancellation and context-invalidation rules
+ * as every JSON request.
+ */
+export function useRequesterBlob() {
+  const guarded = useGuardedRequest();
+
+  return useCallback(
+    (path: string, init?: ApiRequestInit): Promise<Blob> =>
+      guarded<Blob>(
+        (requesterId, signal) => apiFetchBlob(path, { ...init, signal }, requesterId),
+        init?.signal,
+      ),
+    [guarded],
   );
 }

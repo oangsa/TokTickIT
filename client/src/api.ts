@@ -88,6 +88,15 @@ export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
    * and the fetch doubles in the tests -- never need a `headers` object at all.
    */
   onResponse?: (response: Response) => void;
+  /*
+   * Overrides `TIMEOUT_MS` for the one class of request the default cannot fit:
+   * an Attachment binary. The deadline covers the whole exchange, request body
+   * included, so a 5,000,000-byte upload (BR-46) needs more than 5 Mbit/s of
+   * sustained upstream to survive the default 8 seconds -- and an abort there
+   * reads as "the upload did not complete" even though the server usually
+   * committed the row. See `ATTACHMENT_TIMEOUT_MS`.
+   */
+  timeoutMs?: number;
 }
 
 export interface ApiErrorDetail {
@@ -146,19 +155,30 @@ export function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSign
   return controller.signal;
 }
 
-export async function apiFetch<T>(
+/*
+ * Everything up to a verified successful `Response`: headers, the requester
+ * context header, the merged deadline, and the error classification that decides
+ * between `InvalidRequesterContextError` and `ApiResponseError`.
+ *
+ * It is separate from `apiFetch` only so the binary path can share it. An
+ * Attachment preview is fetched rather than linked precisely because it needs
+ * the requester header (api-spec Section 12.3), and it has to fail exactly the
+ * way every other request fails -- a blob path with its own error handling would
+ * be the one place a `REQUESTER_CONTEXT_INVALID` stopped clearing the session.
+ */
+async function requestApi(
   path: string,
   init?: ApiRequestInit,
   requesterId?: number,
-): Promise<T> {
-  const { onResponse, ...requestInit } = init ?? {};
+): Promise<Response> {
+  const { onResponse, timeoutMs, ...requestInit } = init ?? {};
   const headers: Record<string, string> = { ...init?.headers };
 
   if (requesterId !== undefined) {
     headers["X-Requester-Id"] = String(requesterId);
   }
 
-  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(timeoutMs ?? TIMEOUT_MS);
 
   const response = await fetch(`${API_URL}${path}`, {
     ...requestInit,
@@ -185,6 +205,16 @@ export async function apiFetch<T>(
 
   onResponse?.(response);
 
+  return response;
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init?: ApiRequestInit,
+  requesterId?: number,
+): Promise<T> {
+  const response = await requestApi(path, init, requesterId);
+
   if (response.status === 204) {
     return undefined as T;
   }
@@ -192,6 +222,23 @@ export async function apiFetch<T>(
   return (await response.json().catch(() => {
     throw new Error("Could not read the API response.");
   })) as T;
+}
+
+/*
+ * The Attachment binary path (ui-spec Section 24). The response is checked
+ * before the body is read -- `requestApi` throws on a non-OK answer, so an error
+ * envelope is never handed to the caller as if it were file content.
+ */
+export async function apiFetchBlob(
+  path: string,
+  init?: ApiRequestInit,
+  requesterId?: number,
+): Promise<Blob> {
+  const response = await requestApi(path, init, requesterId);
+
+  return await response.blob().catch(() => {
+    throw new Error("Could not read the API response.");
+  });
 }
 
 /* The one Lab 2 endpoint that must not send X-Requester-Id (api-spec Section 3.1). */

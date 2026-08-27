@@ -13,8 +13,14 @@ import { vi } from "vitest";
 export const tx = {
   category: { findFirst: vi.fn() },
   relatedSystem: { findFirst: vi.fn() },
-  attachment: { findMany: vi.fn(), updateMany: vi.fn() },
-  ticket: { create: vi.fn() },
+  attachment: {
+    findMany: vi.fn(),
+    updateMany: vi.fn(),
+    count: vi.fn(),
+    create: vi.fn(),
+    deleteMany: vi.fn(),
+  },
+  ticket: { create: vi.fn(), findFirst: vi.fn() },
   idempotencyRecord: { update: vi.fn() },
   $queryRaw: vi.fn(),
   $executeRawUnsafe: vi.fn(),
@@ -25,7 +31,14 @@ export const prismaMock = {
   category: { findMany: vi.fn() },
   relatedSystem: { findMany: vi.fn() },
   ticket: { findUnique: vi.fn(), findFirst: vi.fn() },
-  attachment: { findMany: vi.fn() },
+  attachment: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    count: vi.fn(),
+    deleteMany: vi.fn(),
+    updateMany: vi.fn(),
+  },
   idempotencyRecord: {
     findUnique: vi.fn(),
     create: vi.fn(),

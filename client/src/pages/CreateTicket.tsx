@@ -8,6 +8,11 @@ import {
   Ticket,
 } from "../api.js";
 import { Button } from "../components/Button.js";
+import {
+  AttachmentSection,
+  AttachmentSectionHandle,
+} from "../attachments/AttachmentSection.js";
+import { releasePendingAttachments } from "../attachments/pendingCleanup.js";
 import { Card } from "../components/Card.js";
 import { ErrorState } from "../components/ErrorState.js";
 import { Form } from "../components/Form.js";
@@ -133,6 +138,16 @@ export default function CreateTicket() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null);
+  /*
+   * AC-16: an intended file that is still Uploading, or that Failed or was
+   * Invalid, blocks Submit until it is retried successfully or explicitly
+   * removed. Submitting anyway would create the Ticket as though the file had
+   * uploaded, which is the one outcome the contract rules out.
+   */
+  const [unresolvedFiles, setUnresolvedFiles] = useState(false);
+  /* BR-23 compensation is driven from here but performed by the Attachment card,
+   * which is where the prepared rows and their upload state live. */
+  const attachmentsRef = useRef<AttachmentSectionHandle | null>(null);
 
   /*
    * BR-24. The key belongs to one logical payload: an unchanged retry reuses it
@@ -142,6 +157,9 @@ export default function CreateTicket() {
   const keyRef = useRef<string | null>(null);
   const keyCreatedAtRef = useRef(0);
   const signatureRef = useRef<string | null>(null);
+  /* Independent from Requester generation: confirmed discard invalidates the
+   * Create Ticket attempt even when the Requester remains unchanged. */
+  const submissionGenerationRef = useRef(0);
 
   useEffect(() => {
     let ignore = false;
@@ -217,6 +235,14 @@ export default function CreateTicket() {
     return keyRef.current;
   }
 
+  function isSubmissionCurrent(generation: number): boolean {
+    return submissionGenerationRef.current === generation;
+  }
+
+  function invalidateSubmission(): void {
+    submissionGenerationRef.current += 1;
+  }
+
   /*
    * A submission belongs to the Requester context that started it. The request
    * can outlive that context -- the user may change Requester while it is still
@@ -229,6 +255,7 @@ export default function CreateTicket() {
    */
   async function submit(payload: CreateTicketPayload, key: string): Promise<void> {
     const token = captureRequesterContext();
+    const generation = ++submissionGenerationRef.current;
 
     setSubmitting(true);
 
@@ -239,7 +266,7 @@ export default function CreateTicket() {
         body: JSON.stringify(payload),
       });
 
-      if (!isRequesterContextCurrent(token)) {
+      if (!isRequesterContextCurrent(token) || !isSubmissionCurrent(generation)) {
         return;
       }
 
@@ -256,7 +283,7 @@ export default function CreateTicket() {
        * transport failure -- which is also how the requester-change abort
        * surfaces -- must not write the previous Requester's record over it.
        */
-      if (!isRequesterContextCurrent(token)) {
+      if (!isRequesterContextCurrent(token) || !isSubmissionCurrent(generation)) {
         return;
       }
 
@@ -305,8 +332,36 @@ export default function CreateTicket() {
       setErrors({
         form: "The Ticket submission did not complete. Use Resume Submission Recovery to retry it.",
       });
+
+      /*
+       * BR-23 compensation. The release carries an empty reason per item, so a
+       * row a committed create already bound cannot be removed by it -- the
+       * batch is refused and, being all-or-nothing, nothing changes. That makes
+       * the answer informative rather than merely safe:
+       *
+       * - refused: the rows may be Active on a Ticket that did commit, so the
+       *   recovery record stands and Resume replays the same key.
+       * - confirmed: every row was still Pending, so the create never bound
+       *   them; and a create that commits after this finds them gone, fails its
+       *   guarded binding, and rolls back. Nothing is left to resume, so the
+       *   recovery record is dropped rather than left to answer 404 forever, and
+       *   the rows become re-uploadable through Retry Upload.
+       */
+      const released = (await attachmentsRef.current?.releasePending()) ?? false;
+
+      if (
+        released &&
+        isRequesterContextCurrent(token) &&
+        isSubmissionCurrent(generation)
+      ) {
+        clearRecovery();
+        setRecovery(null);
+        setErrors({
+          form: "The Ticket was not created. Retry the uploads shown below, then submit again.",
+        });
+      }
     } finally {
-      if (isRequesterContextCurrent(token)) {
+      if (isRequesterContextCurrent(token) && isSubmissionCurrent(generation)) {
         setSubmitting(false);
       }
     }
@@ -343,9 +398,15 @@ export default function CreateTicket() {
     void submit(recovery.payload, recovery.idempotencyKey);
   }
 
-  /* BR-25: an untouched empty draft leaves directly; anything else confirms. */
+  /*
+   * BR-25: an untouched empty draft leaves directly; anything else confirms.
+   *
+   * `unresolvedFiles` is part of "anything else". A file still Uploading is in
+   * neither `isDirty` nor `attachmentIds` yet, but the Requester did choose it,
+   * and leaving silently would drop a row the server is about to create.
+   */
   function handleCancel(): void {
-    if (isDirty(draft) || draft.attachmentIds.length > 0) {
+    if (isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles) {
       setConfirmDiscard(true);
       return;
     }
@@ -353,13 +414,35 @@ export default function CreateTicket() {
     navigate("/tickets");
   }
 
+  /*
+   * BR-25 and ui-spec Section 12.4. Discarding the draft also releases the
+   * Pending rows it prepared, through the unified collection endpoint with an
+   * empty reason for each -- Pending rows ignore the reason, and inventing an
+   * Active-removal reason here would be the client asserting something about a
+   * lifecycle state it does not know the row is in.
+   *
+   * Best effort on purpose: the request is not awaited and its failure is
+   * swallowed, because the user asked to leave and a forgotten Pending row is
+   * already covered by the 24-hour orphan sweep. It is only safe at all because
+   * the endpoint hard-deletes a row solely while it is still unbound: a row that
+   * a create already bound is not silently soft-removed by this call.
+   *
+   * Only reached from a confirmed discard, which is the one moment the draft is
+   * known not to have been submitted.
+   */
   function handleConfirmDiscard(): void {
+    const preparedIds = draft.attachmentIds;
+
+    invalidateSubmission();
     setConfirmDiscard(false);
     clearRecovery();
     setRecovery(null);
     setDraft(EMPTY_DRAFT);
     keyRef.current = null;
     signatureRef.current = null;
+
+    void releasePendingAttachments(callApi, preparedIds);
+
     navigate("/tickets");
   }
 
@@ -492,14 +575,23 @@ export default function CreateTicket() {
           </Card>
 
           {/*
-           * Attachments are the Issue #24 seam. The draft already carries the
-           * final prepared Pending `attachmentIds`, which is what the submission
-           * sends; the upload cards, their states, and Retry belong to that Issue.
-           */}
-          <Card>
-            <h2 className="h6 fw-semibold">Attachments</h2>
-            <p className="text-secondary mb-0">Attachment upload is added in Issue 24.</p>
-          </Card>
+            Each valid selection is pre-uploaded on its own and becomes a Pending
+            row; the prepared IDs are what the submission sends. They are written
+            into the draft rather than held here, because they are part of the
+            payload the idempotency key is derived from.
+          */}
+          <AttachmentSection
+            mode="create"
+            handleRef={attachmentsRef}
+            onPendingIdsChange={(attachmentIds) =>
+              setDraft((current) =>
+                current.attachmentIds.join(",") === attachmentIds.join(",")
+                  ? current
+                  : { ...current, attachmentIds },
+              )
+            }
+            onUnresolvedChange={setUnresolvedFiles}
+          />
 
           {recovery !== null ? (
             <Card>
@@ -523,7 +615,12 @@ export default function CreateTicket() {
             <Button variant="secondary" type="button" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" busy={submitting} disabled={submitting}>
+            <Button
+              variant="primary"
+              type="submit"
+              busy={submitting}
+              disabled={submitting || unresolvedFiles}
+            >
               Submit Ticket
             </Button>
           </div>

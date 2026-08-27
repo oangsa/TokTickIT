@@ -73,8 +73,14 @@ export interface TicketDTO {
   deleted: boolean;
 }
 
-/* The public Attachment identifier is the opaque storageKey, never the row id. */
-function toAttachmentDTO(row: AttachmentRow, ticketPublicId: string | null): AttachmentDTO {
+/*
+ * The public Attachment identifier is the opaque storageKey, never the row id.
+ *
+ * Exported for `attachmentService.ts`, which answers the same DTO from the
+ * standalone Attachment endpoints. One mapper, so a field can never be spelled
+ * one way inside a Ticket and another way beside it.
+ */
+export function toAttachmentDTO(row: AttachmentRow, ticketPublicId: string | null): AttachmentDTO {
   return {
     attachmentId: row.storageKey,
     ticketPublicId: row.ticketId === null ? null : ticketPublicId,
@@ -353,9 +359,16 @@ export class TicketService {
       throw new ApiError("CONFLICT");
     }
 
+    /*
+     * Only the four columns the bindability check reads. Without an explicit
+     * projection Prisma selects every scalar, `data` included, so binding five
+     * Attachments would pull 25 MB of BYTEA into memory inside the create
+     * transaction and discard all of it.
+     */
     const owned = await tx.attachment.findMany({
       where: { storageKey: { in: storageKeys }, uploadedByRequesterId: input.requesterId },
       orderBy: { id: "asc" },
+      select: { id: true, ticketId: true, deleted: true, createdAt: true },
     });
 
     if (owned.length !== storageKeys.length) {

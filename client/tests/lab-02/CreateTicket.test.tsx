@@ -774,6 +774,59 @@ describe("Cancel and discard", () => {
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
     await waitFor(() => expect(screen.queryByLabelText(/^Category/)).toBeNull());
   });
+
+  it("ignores a successful Ticket response after confirmed discard", async () => {
+    const user = userEvent.setup();
+    let settle!: (result: StubbedResult) => void;
+    const pending = new Promise<StubbedResult>((resolve) => {
+      settle = resolve;
+    });
+    const { calls } = stubApi(() => pending);
+
+    renderCreateTicket();
+    await fillValidForm(user);
+    await user.click(submitButton());
+    await waitFor(() => expect(createCalls(calls)).toHaveLength(1));
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await screen.findByRole("heading", { level: 1, name: "My Tickets" });
+
+    await act(async () => {
+      settle({ ok: true, status: 201, body: TICKET });
+    });
+
+    expect(screen.getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: TICKET.ticketNumber })).not.toBeInTheDocument();
+    expect(screen.queryByText(`Ticket ${TICKET.ticketNumber} was created.`)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
+  });
+
+  it("does not recreate recovery after a failed Ticket response following discard", async () => {
+    const user = userEvent.setup();
+    let fail!: (error: Error) => void;
+    const pending = new Promise<StubbedResult>((_, reject) => {
+      fail = reject;
+    });
+    const { calls } = stubApi(() => pending);
+
+    renderCreateTicket();
+    await fillValidForm(user);
+    await user.click(submitButton());
+    await waitFor(() => expect(createCalls(calls)).toHaveLength(1));
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await screen.findByRole("heading", { level: 1, name: "My Tickets" });
+
+    await act(async () => {
+      fail(new Error("Network request failed"));
+    });
+
+    expect(screen.getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).not.toBeInTheDocument();
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
+  });
 });
 
 

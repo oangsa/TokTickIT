@@ -89,14 +89,23 @@ const ERROR_DEFINITIONS: Record<ErrorCode, ErrorDefinition> = {
   },
 };
 
+/*
+ * `message` overrides the table copy for the two codes api-spec Section 4.3
+ * spells twice. A 413 says the request body was too large for an oversized JSON
+ * body but that the uploaded file was too large for an oversized Attachment, and
+ * a 415 names the media type generally but the attachment file type on an
+ * upload. The default remains the fixed table copy, so a handler still cannot
+ * invent public error text -- it can only choose between the spellings the
+ * contract already defines.
+ */
 export class ApiError extends Error {
   readonly statusCode: number;
   readonly code: ErrorCode;
   readonly details?: ErrorDetail[];
 
-  constructor(code: ErrorCode, details?: ErrorDetail[]) {
+  constructor(code: ErrorCode, details?: ErrorDetail[], message?: string) {
     const definition = ERROR_DEFINITIONS[code];
-    super(definition.message);
+    super(message ?? definition.message);
     this.name = "ApiError";
     this.code = code;
     this.statusCode = definition.statusCode;
@@ -104,15 +113,15 @@ export class ApiError extends Error {
   }
 }
 
-function buildEnvelope(code: ErrorCode, details?: ErrorDetail[]): ErrorEnvelope {
-  const definition = ERROR_DEFINITIONS[code];
+function buildEnvelope(error: ApiError): ErrorEnvelope {
+  const definition = ERROR_DEFINITIONS[error.code];
 
   return {
     statusCode: definition.statusCode,
-    code,
-    message: definition.message,
+    code: error.code,
+    message: error.message,
     error: definition.error,
-    ...(details ? { details } : {}),
+    ...(error.details ? { details: error.details } : {}),
   };
 }
 
@@ -175,5 +184,5 @@ export function errorHandler(
     );
   }
 
-  res.status(apiError.statusCode).json(buildEnvelope(apiError.code, apiError.details));
+  res.status(apiError.statusCode).json(buildEnvelope(apiError));
 }
