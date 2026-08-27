@@ -10,6 +10,12 @@ This document defines the planned verification contract for TokTickIT Lab 2. It 
 
 Every Acceptance Criterion `AC-01` through `AC-66` is mapped to at least one planned test or explicit migration/delivery evidence in the traceability matrix at the end of this document.
 
+Historical planning and fix-pass entries in Section 4 are retained for
+traceability. The authoritative release snapshot is Section 15.3: every
+implementation Issue has its own passing focused close gate, and Issue #25's
+final regression is reported separately rather than used to defer a feature
+gate.
+
 The test plan intentionally separates:
 
 - Unit tests for service/class/utility behavior;
@@ -42,6 +48,13 @@ Initial `Final` value:
 ```text
 Not Run
 ```
+
+`Not Run` in an older chronological entry means that the evidence had not yet
+been recorded at that point in the history. The historical executable snapshot
+uses `Passed` as the prose form of `Pass`; it did not defer any feature close
+gate. Current release-integration status is tracked separately in Section
+15.3, where post-merge staging validation remains pending until the corrected
+evidence PR is merged.
 
 After execution, only these final values are used:
 
@@ -2669,6 +2682,113 @@ Known limitations recorded honestly: client tests still emit pre-existing React
 six npm audit findings and no unrelated upgrade/audit fix was applied; and
 visual verification is checklist-based rather than pixel-baseline comparison,
 as permitted by the handout.
+
+### 15.3 Issue #26 Release-Evidence Revalidation — 2026-08-27
+
+This correction pass is based on the current `lab2-staging` merge from approved
+PR #48 at `b476a2754fb0510f77512a1a87711daa554255dc`. Its tree matches the
+pre-#46 application baseline at `6ef7ed4` (PR #45); branch
+`feature/26-lab2-release-evidence-correction` re-applies release records only.
+All PostgreSQL work
+used the disposable `postgres:16-alpine` container
+`toktickit-lab2-test-postgres` at `127.0.0.1:55432`. The redacted targets were
+`toktickit_lab1_dev` for Lab 1/application tests and `toktickit_lab2_test` for
+guarded Lab 2 PostgreSQL tests and E2E. No Supabase, production database, real
+credentials, PII, or binary Attachment data was used.
+
+The first Issue #26 documentation PR was [#46](https://github.com/oangsa/TokTickIT/pull/46),
+which merged and was later reverted by approved [#48](https://github.com/oangsa/TokTickIT/pull/48).
+PR [#47](https://github.com/oangsa/TokTickIT/pull/47) was closed without merge.
+Issue #26 is reopened; corrected evidence must enter `lab2-staging` through a
+new peer-reviewed [PR #49](https://github.com/oangsa/TokTickIT/pull/49) before a new release PR targets `main`. The executable
+results below are preserved from the unchanged application tree; this
+documentation-only correction has not rerun application tests.
+
+#### Independent feature close gates
+
+These results are separate. Each gate passed before its Issue was marked Done;
+Issue #25 is not being used to defer any of them.
+
+| Issue | Focused command/result | Final status |
+| --- | --- | --- |
+| #18 — Data model and seed | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- tests/lab-02/CategoryService.test.ts tests/lab-02/RelatedSystemService.test.ts tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-02/postgres/transactions.postgres.test.ts tests/lab-02/postgres/idempotency.postgres.test.ts` — 5 files, 44 tests | Passed |
+| #19 — UI foundation | `cd client && npm test -- tests/lab-02/ApplicationShell.test.tsx` — 1 file, 45 tests | Passed |
+| #20 — Requester context | Server six-file gate from Section 14 — 6 files, 64 tests; client `cd client && npm test -- tests/lab-02/RequesterSelection.test.tsx tests/lab-02/ApplicationShell.test.tsx` — 2 files, 56 tests | Passed |
+| #21 — Ticket creation | Server eight-file gate from Section 14 — 8 files, 187 tests; client `cd client && npm test -- tests/lab-02/CreateTicket.test.tsx` — 1 file, 40 tests | Passed |
+| #22 — My Tickets | Server four-file gate from Section 14 — 4 files, 221 tests; client `cd client && npm test -- tests/lab-02/MyTickets.test.tsx` — 1 file, 45 tests | Passed |
+| #23 — Ticket Detail | Server `ticket-detail.api.test.ts` + `transport-hardening.api.test.ts` — 2 files, 29 tests; client `RequesterTicketDetail.test.tsx` + `ErrorPage.test.tsx` — 2 files, 33 tests | Passed |
+| #24 — Attachment lifecycle | Server seven-file gate from Section 14 — 7 files, 195 tests; client `cd client && npm test -- tests/lab-02/AttachmentSection.test.tsx` — 1 file, 43 tests | Passed |
+
+The full command paths for the summarized gates are the authoritative paths in
+Section 14 and include the exact handout-required filenames plus the approved
+modular tests. No focused gate was skipped or marked Done with deferred feature
+tests.
+
+#### Issue #25 final regression result
+
+| Check | Result |
+| --- | --- |
+| Full server regression | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test -- --silent` — 31 files, 674 tests, 0 skipped; includes Lab 1, Unit/API, and all guarded PostgreSQL suites |
+| Full client regression | `cd client && npm test -- --silent` — 10 files, 258 tests, 0 skipped |
+| Lab 1 regression | Included in the full suites; dedicated prior gate remains 2 server tests and 6 client tests |
+| PostgreSQL guard | Included in full server run; `testDatabase.test.ts` is 1 file, 8 tests |
+| Server build | `cd server && npm run build` — passed |
+| Client build | `cd client && npm run build` — passed |
+| Prisma validation/status/drift | `prisma validate` passed; status explicitly named `toktickit_lab2_test` at `127.0.0.1:55432` and reported up to date; diff reported an empty migration |
+| Seed/maintenance | Seed rerun passed; maintenance returned `pendingAttachments: 0`, `idempotencyRecords: 0` |
+| Pinned E2E/responsive/visual | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> npm run test:e2e` — 12 tests, 12 passed in 18.8s: three E2E flows plus nine exact viewport cases |
+
+PR #45's GitHub **Lab 2 Verification** run independently passed for its final
+head: [workflow run 16](https://github.com/oangsa/TokTickIT/actions/runs/33068961531)
+on [PR #45](https://github.com/oangsa/TokTickIT/pull/45) passed the server and
+client jobs. That workflow does not run Playwright; the 12/12 browser result
+above is the local pinned-runner evidence. The tracked screenshot set remains
+under `docs/lab-02/evidence/screenshots/`, with exact `1440x900`, `820x1180`,
+and `390x844` dimensions checked by `file`; generated reports/traces remain
+under ignored `artifacts/lab-02/`.
+
+#### Release limitations and boundaries
+
+- GitHub CI proves server/client gates for PR #45; local disposable-target
+  execution proves E2E and screenshot capture. No CI E2E job is claimed.
+- Client tests retain pre-existing React `act`/list-key warnings while passing.
+- The dependency install reported six audit findings; no unrelated dependency
+  upgrade was added.
+- Visual review is checklist-based, not pixel-baseline comparison.
+- Lab 2 remains unauthenticated and development/test-network-only. The five
+  seeded Requesters are synthetic `@example.com` fixtures; the selector and
+  `X-Requester-Id` are not authentication or a privacy boundary.
+- Lab 3 authentication, staff workflow, and other later-lab features are not
+  included.
+
+#### Reversion baseline validation — 2026-08-27
+
+Approved PR #48 merged into `lab2-staging` at
+`b476a2754fb0510f77512a1a87711daa554255dc`. The resulting staging tree was
+verified identical to pre-#46 application baseline `6ef7ed4`; the revert changed
+release documentation/evidence only. The previously recorded executable gate
+therefore remains applicable to the application tree, but no new application
+test run is claimed for this correction branch.
+
+The previously recorded executable gate produced the following results on this
+unchanged application tree:
+
+| Check | Result |
+| --- | --- |
+| Server regression | 31 files, 674 tests passed; includes Lab 1 and guarded PostgreSQL suites |
+| Client regression | 10 files, 258 tests passed |
+| Server/client builds | Passed |
+| Prisma validation/status/drift | Valid schema; Lab 2 database up to date; empty migration drift |
+| Seed/maintenance | Idempotent seed passed; cleanup returned zero pending Attachments and idempotency records |
+| Playwright | 12/12 passed in 19.0s at `1440x900`, `820x1180`, and `390x844` |
+| Project/Kanban | Reviewer manual verification: correct |
+
+The original PR #46 Changes Requested review and its post-merge validation
+remain preserved as historical evidence; PR #46 merged before peer approval.
+PR #48's approval and merge restored
+the pre-#46 baseline; Issue #26 remains open for corrected evidence. A new
+post-correction staging validation is required after [PR #49](https://github.com/oangsa/TokTickIT/pull/49) merges,
+before opening the replacement release PR.
 
 ## 16. Completion Rule
 

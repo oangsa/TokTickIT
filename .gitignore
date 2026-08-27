@@ -10,6 +10,8 @@ dist/
 build/
 # generated test evidence
 artifacts/
+# local handout; not submission evidence
+ignore/Lab_02_labsheet.pdf
 # prisma
 server/prisma/*.db
 server/src/generated/
@@ -19,5 +21,3 @@ server/src/generated/
 # agent tooling
 .claude/
 .codex/
-
-ignore/
