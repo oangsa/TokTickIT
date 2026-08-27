@@ -89,7 +89,7 @@ is browser hardening, not authentication, authorization, or a privacy boundary.
 | 23 — Ticket Detail | Done | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/pages/RequesterTicketDetail.tsx`, `client/src/pages/ErrorPage.tsx` |
 | 24 — Attachment lifecycle | Done | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/attachments/AttachmentSection.tsx` |
 | 25 — final integration/tooling | Done | `package.json`, `playwright.config.ts`, `playwright.global-setup.ts`, `e2e/lab-02/`, tracked screenshot evidence |
-| 26 — release evidence | Closed by approved/merged [PR #49](https://github.com/oangsa/TokTickIT/pull/49); post-merge staging gate passed on `df8da1e`; prior release PR [#47](https://github.com/oangsa/TokTickIT/pull/47) remains closed; one replacement release PR to `main` remains | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md`, `docs/lab-02/tests.md`; `feature/26-lab2-postmerge-validation` |
+| 26 — release evidence | Closed by approved/merged [PR #49](https://github.com/oangsa/TokTickIT/pull/49); post-merge staging gate passed on `df8da1e`; docs follow-up [PR #50](https://github.com/oangsa/TokTickIT/pull/50) is open for peer review; prior release PR [#47](https://github.com/oangsa/TokTickIT/pull/47) remains closed; one replacement release PR to `main` remains | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md`, `docs/lab-02/tests.md`; `feature/26-lab2-postmerge-validation` |
 
 Each implementation Issue has its own `feature/<issue>-<short-name>` branch and
 peer-reviewed PR into `lab2-staging`. Focused results are recorded separately
@@ -323,7 +323,9 @@ to restore the pre-evidence staging baseline. Corrected evidence then entered
 `lab2-staging` through peer-reviewed [PR #49](https://github.com/oangsa/TokTickIT/pull/49),
 which merged as `df8da1e`; the post-#49 staging checks passed. Previous release
 PR [#47](https://github.com/oangsa/TokTickIT/pull/47) is closed and not merged.
-Open exactly one replacement release PR from `lab2-staging` to `main` for the
-promotion step; do not treat #46 or #47 as the final release PR.
+The docs-only post-merge record is proposed in peer-review [PR #50](https://github.com/oangsa/TokTickIT/pull/50)
+into `lab2-staging`; do not treat #46 or #47 as the final release PR. After
+that record is integrated, open exactly one replacement release PR from
+`lab2-staging` to `main` for the promotion step.
 
 See `AGENTS.md` for the full project constraints.

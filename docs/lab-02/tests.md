@@ -2691,8 +2691,9 @@ tree was verified equal to PR #49's head
 `dff9f4d9304cef8c3de6b2073d8c818b9c0d1b94`; the application, Prisma schema,
 migrations, dependencies, and test sources remain unchanged. The fresh
 post-merge checks below ran against that exact staging tree. This follow-up
-record is prepared on `feature/26-lab2-postmerge-validation`, so no direct
-change is made to `lab2-staging`.
+record is prepared on `feature/26-lab2-postmerge-validation` through open
+[PR #50](https://github.com/oangsa/TokTickIT/pull/50), so no direct change is
+made to `lab2-staging`.
 
 The corrected evidence sequence is [#46](https://github.com/oangsa/TokTickIT/pull/46)
 (historical merge before approval), approved revert [#48](https://github.com/oangsa/TokTickIT/pull/48),

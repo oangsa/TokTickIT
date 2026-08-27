@@ -18,6 +18,7 @@
 | [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested; merged before approval; post-merge validation recorded; later reverted by #48 |
 | [#48](https://github.com/oangsa/TokTickIT/pull/48) | feature/46-revert-lab2-release-evidence | Approved; reverted PR #46 into `lab2-staging` |
 | [#49](https://github.com/oangsa/TokTickIT/pull/49) | feature/26-lab2-release-evidence-correction | Peer approved; merged into `lab2-staging` as `df8da1e`; post-merge staging validation passed |
+| [#50](https://github.com/oangsa/TokTickIT/pull/50) | feature/26-lab2-postmerge-validation | Documentation-only post-#49 validation record; peer review requested; not merged |
 
 PR [#30](https://github.com/oangsa/TokTickIT/pull/30) was a closed,
 unmerged duplicate for Issue #18 and is not an integration PR.
@@ -349,9 +350,11 @@ The remote `lab2-staging` baseline used for the fresh gate is
 #49 head and the pre-#46 application baseline plus corrected release evidence.
 Local focused, full, Prisma, build, and E2E results are recorded in `tests.md`
 Section 15.3; the follow-up branch
-`feature/26-lab2-postmerge-validation` changes documentation only. PR #47 is
-closed without merge, PR #49 is approved and merged, and no replacement release
-PR is currently open. GitHub records Issue #26 as closed with reason
+`feature/26-lab2-postmerge-validation` changes documentation only through open
+[PR #50](https://github.com/oangsa/TokTickIT/pull/50), with @kittipichcha
+requested as peer reviewer; it is not merged. PR #47 is closed without merge,
+PR #49 is approved and merged, and no replacement release PR is currently open.
+GitHub records Issue #26 as closed with reason
 `completed`; its closure boundary separates the completed evidence correction
 from the pending `lab2-staging` → `main` promotion.
 The Project Automation workflow succeeded for the final #25 PR runs
@@ -384,8 +387,9 @@ Issue list, Project/Kanban state, branch naming, and the `main` →
 ### Answer Part 3
 
 Feature PR links #27, #31, #32, #33, #34, #42, #43, #44, #45, and #46, plus
-revert PR #48 and corrected Issue #26 PR #49; reviewer, comments, responses,
-approvals, changes requested, and merge outcomes.
+revert PR #48, corrected Issue #26 PR #49, and post-merge evidence PR #50;
+reviewer, comments, responses, approvals, changes requested, and merge
+outcomes.
 
 ### Answer Part 4
 
@@ -417,6 +421,7 @@ readable `1440x900`, `820x1180`, and `390x844` screenshot evidence.
 
 Known warnings/audit findings, visual-check limitation, no-auth/no-public-
 deployment limitation, the #46 revert and corrected staging integration result,
-correction PR [#49](https://github.com/oangsa/TokTickIT/pull/49), the closed
+correction PR [#49](https://github.com/oangsa/TokTickIT/pull/49), post-merge
+evidence PR [#50](https://github.com/oangsa/TokTickIT/pull/50), the closed
 release PR [#47](https://github.com/oangsa/TokTickIT/pull/47), and
 completed/untested/blocked/future work summary.
