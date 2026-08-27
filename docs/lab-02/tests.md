@@ -2044,10 +2044,17 @@ failure, compensation-result, and `finally` side effects require both the
 Requester token and submission generation to remain current. Regression tests
 cover stale success navigation and stale failure recovery after discard.
 
-The following checks were run against the final executable working tree rooted
-at `git rev-parse HEAD = 05a3172623c76a3d506b3216a947763c0042143b`; the
-submission-generation fix and its regression tests were uncommitted working-tree
-changes at execution time.
+The following checks were run against the final executable working tree while
+`git rev-parse HEAD` still reported
+`05a3172623c76a3d506b3216a947763c0042143b`.
+
+At verification time, the submission-generation fix and its regression tests
+were present as uncommitted working-tree changes. Those verified changes were
+subsequently committed unchanged as
+`5c4d0260dbb43a632f8ed7dd0973ba1591d0fc11`.
+
+No application or test code changed between that verification run and creation
+of the final commit.
 
 | Check | Command | Environment / target | Result |
 | --- | --- | --- | --- |

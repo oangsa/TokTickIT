@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-42 representative prompts in 40 table entries from the Lab 2 history available
+62 representative prompts in 60 table entries from the Lab 2 history available
 in the repository and current session.
 
-## Selected key prompts (42; 40 entries)
+## Selected key prompts (62; 60 entries)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -70,11 +70,12 @@ in the repository and current session.
 | 74 (current) | Scrutinize the Issue #24 changes against the supplied scope and acceptance criteria, then fix and ship the findings; keep nits as passes. | Reproduced and fixed the two material findings from the end-to-end review. Removed the invented per-Requester Pending quota, its extra count query, and its undocumented `409`, because BR-79 defers quotas and rate limiting. Reused the Attachment row state model on Ticket Detail so direct uploads now render per-file Uploading, Invalid, and Failed states with Retry/Remove recovery before becoming Active; the detail header and selection continue to count only Active rows. Added backend regressions proving Pending creation performs no quota count and UI regressions for direct-upload Uploading, Failed/Retry, and Invalid/Remove. Verified the focused server gate (4 files/164 tests), focused client gate (1 file/43 tests), and both production builds. PostgreSQL suites were not rerun because `TEST_DATABASE_URL` was unset in this shell; no schema, migration, SQL, or transaction code changed. No commit was created. |
 | 75 (current) | Commit the current changes using terse communication. | Audited the branch, working tree, complete diff, whitespace, test scripts, and changed-file scope. Re-ran the Issue #24 focused server gate (4 files/164 tests), focused client gate (1 file/43 tests), and both production builds; all passed. The first server attempt was blocked by sandbox `listen EPERM`, then passed unchanged with permission to open Supertest's local ephemeral listener. Updated this AI-use record, staged only the eight in-scope files, reviewed the staged diff, and created the requested local commit without pushing. |
 | 76 (current) | Fix PR #44's two final review blockers: prevent confirmed Create Ticket discard from being overwritten by an older in-flight submission, rerun final-tree PostgreSQL close gates, update evidence, and update PR Validation. | Added independent Create Ticket submission-generation invalidation on confirmed discard, with stale-success and stale-failure regressions; preserved Requester-generation protection. Reran the Issue #24 focused server gate (4 files/164 tests), required guarded PostgreSQL directory (8 files/74 tests), Create Ticket + Attachment client gate (2 files/83 tests), full client suite (10 files/257 tests), full server suite (31 files/670 tests), and both builds. Updated `tests.md` with `git rev-parse HEAD` SHA `05a3172623c76a3d506b3216a947763c0042143b`; PR Validation updated. Fix/test/doc changes remain uncommitted and unpushed. |
+| 77 (current) | Clarify PR #44 final verification provenance after the verified working tree was committed. | Updated `tests.md` and PR Validation to distinguish verification at `05a3172623c76a3d506b3216a947763c0042143b` from the unchanged final commit `5c4d0260dbb43a632f8ed7dd0973ba1591d0fc11`; preserved historical results and made no executable changes. Verified documentation-only diff hygiene, committed the cleanup, and pushed it to `feature/24-attachments`. |
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
-the handout-facing deliverable intentionally selects forty-two representative
-prompts in forty table entries rather than reproducing every wording
+the handout-facing deliverable intentionally selects sixty-two representative
+prompts in sixty table entries rather than reproducing every wording
 correction. The selection
 covers specification and API contracts, UI behavior, schema and migration
 decisions, Attachment lifecycle, idempotency/concurrency, test traceability,
