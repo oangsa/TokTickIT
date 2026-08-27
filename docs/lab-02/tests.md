@@ -2692,6 +2692,11 @@ used the disposable `postgres:16-alpine` container
 guarded Lab 2 PostgreSQL tests and E2E. No Supabase, production database, real
 credentials, PII, or binary Attachment data was used.
 
+The Issue #26 documentation PR is [#46](https://github.com/oangsa/TokTickIT/pull/46)
+and targets `lab2-staging`. The single release PR is planned at
+[#47](https://github.com/oangsa/TokTickIT/pull/47), but must not be opened until
+#46 is peer-approved, merged, and the resulting staging ref is revalidated.
+
 #### Independent feature close gates
 
 These results are separate. Each gate passed before its Issue was marked Done;

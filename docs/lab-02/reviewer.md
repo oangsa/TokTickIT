@@ -15,7 +15,7 @@
 | [#43](https://github.com/oangsa/TokTickIT/pull/43) | feature/23-ticket-detail | Approved; merged into `lab2-staging` |
 | [#44](https://github.com/oangsa/TokTickIT/pull/44) | feature/24-attachments | Changes requested; subsequently approved and merged into `lab2-staging` |
 | [#45](https://github.com/oangsa/TokTickIT/pull/45) | feature/25-lab2-verification | Approved; merged into `lab2-staging` |
-| #46 (to be opened) | feature/26-lab2-release-evidence | Peer review pending; targets `lab2-staging` |
+| [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Peer review requested; pending; targets `lab2-staging` |
 
 PR [#30](https://github.com/oangsa/TokTickIT/pull/30) was a closed,
 unmerged duplicate for Issue #18 and is not an integration PR.
@@ -286,7 +286,7 @@ Feature integration sequence verified from GitHub:
 | #23 | `feature/23-ticket-detail` | [#43](https://github.com/oangsa/TokTickIT/pull/43) | Peer approved; merged to `lab2-staging` as `fc92d82`. |
 | #24 | `feature/24-attachments` | [#44](https://github.com/oangsa/TokTickIT/pull/44) | Changes requested, evidence added, then peer approved; merged to `lab2-staging` as `dbbb2a5`. |
 | #25 | `feature/25-lab2-verification` | [#45](https://github.com/oangsa/TokTickIT/pull/45) | Peer review sequence completed; merged to `lab2-staging` as `6ef7ed4`; GitHub server/client verification passed. |
-| #26 | `feature/26-lab2-release-evidence` | To be opened | This documentation/release-evidence branch is prepared from the `lab2-staging` baseline; peer review and merge are still required. |
+| #26 | `feature/26-lab2-release-evidence` | [#46](https://github.com/oangsa/TokTickIT/pull/46) | Peer review requested; merge to `lab2-staging` still required. |
 
 The current remote `lab2-staging` baseline is `6ef7ed4`, and local focused,
 full, Prisma, build, and E2E results are recorded in `tests.md` Section 15.3.
@@ -297,7 +297,10 @@ closed the completed Issues. The connected GitHub API available for this record
 does not expose the ProjectV2 Status field, so no unverified Kanban status is
 claimed here: #17–#25 are GitHub-closed/completed, #26 remains open until its
 reviewed PR is merged, and the Project UI must be checked against those states
-before final release approval.
+before final release approval. The planned single release PR is
+[#47](https://github.com/oangsa/TokTickIT/pull/47), to be opened from
+`lab2-staging` to `main` only after #46 merges and staging checks pass; until
+then that URL is a planned location, not an existing PR.
 
 ## Final evidence PDF plan (not generated)
 
@@ -317,7 +320,7 @@ Issue list, Project/Kanban state, branch naming, and the `main` →
 
 ### Answer Part 3
 
-Feature PR links #27, #31, #32, #33, #34, #42, #43, #44, and #45; reviewer,
+Feature PR links #27, #31, #32, #33, #34, #42, #43, #44, #45, and #46; reviewer,
 comments, responses, approvals, changes requested, and merge outcomes.
 
 ### Answer Part 4
@@ -349,5 +352,6 @@ readable `1440x900`, `820x1180`, and `390x844` screenshot evidence.
 ### Answer Part 9
 
 Known warnings/audit findings, visual-check limitation, no-auth/no-public-
-deployment limitation, final staging integration result, release PR link, and
+deployment limitation, final staging integration result, the planned release PR
+[#47](https://github.com/oangsa/TokTickIT/pull/47) once opened, and
 completed/untested/blocked/future work summary.
