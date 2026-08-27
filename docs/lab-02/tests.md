@@ -2690,10 +2690,12 @@ into `lab2-staging` as `df8da1e16e8cc31591c14a17c873e6f1195cffbb`. Its merge
 tree was verified equal to PR #49's head
 `dff9f4d9304cef8c3de6b2073d8c818b9c0d1b94`; the application, Prisma schema,
 migrations, dependencies, and test sources remain unchanged. The fresh
-post-merge checks below ran against that exact staging tree. This follow-up
-record is prepared on `feature/26-lab2-postmerge-validation` through open
-[PR #50](https://github.com/oangsa/TokTickIT/pull/50), so no direct change is
-made to `lab2-staging`.
+post-merge checks below ran against that exact staging tree. The follow-up
+record entered `lab2-staging` through merged [PR #50](https://github.com/oangsa/TokTickIT/pull/50)
+as `314e9c3bcac73f072e3d77276c7f1381574c5ba8`; its docs-only merge did not
+alter application behavior. The final staging baseline is now promoted by open
+release [PR #51](https://github.com/oangsa/TokTickIT/pull/51), which is not
+merged.
 
 The corrected evidence sequence is [#46](https://github.com/oangsa/TokTickIT/pull/46)
 (historical merge before approval), approved revert [#48](https://github.com/oangsa/TokTickIT/pull/48),
@@ -2772,7 +2774,10 @@ merge event ([run 144](https://github.com/oangsa/TokTickIT/actions/runs/33091755
 and successfully processed the merged PR's linked Issue #26 closure. The
 connected API does not expose the ProjectV2 Status field, so the exact card
 field remains a manual-only limitation; GitHub records Issue #26 as closed with
-reason `completed`.
+reason `completed`. After docs PR #50 merged, the final staging branch also
+passed GitHub's Lab 2 Verification workflow
+([run](https://github.com/oangsa/TokTickIT/actions/runs/33094908664)); its server
+and client jobs passed before release PR #51 was opened.
 
 PR #45's GitHub **Lab 2 Verification** run independently passed for its final
 head: [workflow run 16](https://github.com/oangsa/TokTickIT/actions/runs/33068961531)
@@ -2823,9 +2828,11 @@ The original PR #46 Changes Requested review and its post-merge validation
 remain preserved as historical evidence; PR #46 merged before peer approval.
 PR #48's approval and merge restored the pre-#46 baseline. PR #49 then
 reapplied the corrected evidence, was peer-approved, and merged into staging;
-the fresh post-#49 validation is recorded above. Issue #26 is closed by its
-documented closure boundary, while the replacement `lab2-staging` → `main`
-release PR remains a separate promotion step.
+the fresh post-#49 validation is recorded above. Docs PR #50 then merged the
+validation record into staging. Issue #26 is closed by its documented closure
+boundary, and replacement release PR [#51](https://github.com/oangsa/TokTickIT/pull/51)
+is the single separate `lab2-staging` → `main` promotion step; it remains open
+and unmerged pending peer approval.
 
 ## 16. Completion Rule
 
