@@ -2697,7 +2697,7 @@ The first Issue #26 documentation PR was [#46](https://github.com/oangsa/TokTick
 which merged and was later reverted by approved [#48](https://github.com/oangsa/TokTickIT/pull/48).
 PR [#47](https://github.com/oangsa/TokTickIT/pull/47) was closed without merge.
 Issue #26 is reopened; corrected evidence must enter `lab2-staging` through a
-new peer-reviewed PR before a new release PR targets `main`. The executable
+new peer-reviewed [PR #49](https://github.com/oangsa/TokTickIT/pull/49) before a new release PR targets `main`. The executable
 results below are preserved from the unchanged application tree; this
 documentation-only correction has not rerun application tests.
 
@@ -2783,7 +2783,7 @@ unchanged application tree:
 The original PR #46 Changes Requested review and its post-merge validation
 remain preserved as historical evidence. PR #48's approval and merge restored
 the pre-#46 baseline; Issue #26 remains open for corrected evidence. A new
-post-correction staging validation is required after the correction PR merges,
+post-correction staging validation is required after [PR #49](https://github.com/oangsa/TokTickIT/pull/49) merges,
 before opening the replacement release PR.
 
 ## 16. Completion Rule

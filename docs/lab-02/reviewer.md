@@ -17,6 +17,7 @@
 | [#45](https://github.com/oangsa/TokTickIT/pull/45) | feature/25-lab2-verification | Approved; merged into `lab2-staging` |
 | [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested, then merged; manual Kanban and post-merge staging validation passed |
 | [#48](https://github.com/oangsa/TokTickIT/pull/48) | feature/46-revert-lab2-release-evidence | Approved; reverted PR #46 into `lab2-staging` |
+| [#49](https://github.com/oangsa/TokTickIT/pull/49) | feature/26-lab2-release-evidence-correction | Pending peer review; corrected evidence reapplication |
 
 PR [#30](https://github.com/oangsa/TokTickIT/pull/30) was a closed,
 unmerged duplicate for Issue #18 and is not an integration PR.
@@ -209,6 +210,8 @@ The revert changed only PR #46's release documentation, README, `.gitignore`,
 and tracked screenshot evidence; no application or Prisma source changed. PR
 [#47](https://github.com/oangsa/TokTickIT/pull/47) was closed without merging,
 and Issue #26 was reopened for corrected evidence.
+Corrected evidence is now proposed in [PR #49](https://github.com/oangsa/TokTickIT/pull/49),
+which is awaiting peer review before staging integration.
 
 PR #44 conversation audit: the GitHub API returned **0 general pull-request
 comments** and **0 inline review comments** (including no inline reply
@@ -291,6 +294,8 @@ How I responded:
 - **#48** — used a dedicated `feature/46-revert-lab2-release-evidence` branch
   and a peer-reviewed revert commit to restore the pre-#46 staging tree without
   changing application implementation.
+- **#49** — reapplied the release records from a dedicated Issue #26 correction
+  branch and requested peer review; no approval or merge is claimed yet.
 
 Author's PR replies:
 
@@ -322,13 +327,14 @@ Feature integration sequence verified from GitHub:
 | #23 | `feature/23-ticket-detail` | [#43](https://github.com/oangsa/TokTickIT/pull/43) | Peer approved; merged to `lab2-staging` as `fc92d82`. |
 | #24 | `feature/24-attachments` | [#44](https://github.com/oangsa/TokTickIT/pull/44) | Changes requested, evidence added, then peer approved; merged to `lab2-staging` as `dbbb2a5`. |
 | #25 | `feature/25-lab2-verification` | [#45](https://github.com/oangsa/TokTickIT/pull/45) | Peer review sequence completed; merged to `lab2-staging` as `6ef7ed4`; GitHub server/client verification passed. |
-| #26 | `feature/26-lab2-release-evidence-correction` | [#46](https://github.com/oangsa/TokTickIT/pull/46), [#48](https://github.com/oangsa/TokTickIT/pull/48) | Original evidence PR #46 merged as `ed1f107` and was reverted by approved #48, merged as `b476a27`; Issue #26 is reopened for corrected evidence. |
+| #26 | `feature/26-lab2-release-evidence-correction` | [#46](https://github.com/oangsa/TokTickIT/pull/46), [#48](https://github.com/oangsa/TokTickIT/pull/48), [#49](https://github.com/oangsa/TokTickIT/pull/49) | Original evidence PR #46 merged as `ed1f107` and was reverted by approved #48, merged as `b476a27`; correction PR #49 is pending review and Issue #26 is reopened. |
 
 The current remote `lab2-staging` baseline is `b476a27`, whose tree matches the
 pre-#46 application baseline `6ef7ed4`. Local focused, full, Prisma, build, and
 E2E results remain recorded in `tests.md` Section 15.3; this correction branch
-reapplies release evidence only. PR #47 is closed without merge, and no release
-PR is currently open. Issue #26 is open; its current Project/Kanban card state
+reapplies release evidence only. PR #47 is closed without merge, correction PR
+[#49](https://github.com/oangsa/TokTickIT/pull/49) is open, and no release PR is
+currently open. Issue #26 is open; its current Project/Kanban card state
 after reopening has not been rechecked through the connected API, while the
 prior manual verification remains historical evidence.
 The Project Automation workflow succeeded for the final #25 PR runs
@@ -360,7 +366,7 @@ Issue list, Project/Kanban state, branch naming, and the `main` →
 ### Answer Part 3
 
 Feature PR links #27, #31, #32, #33, #34, #42, #43, #44, #45, and #46, plus
-revert PR #48 and the corrected Issue #26 PR; reviewer, comments, responses,
+revert PR #48 and corrected Issue #26 PR #49; reviewer, comments, responses,
 approvals, changes requested, and merge outcomes.
 
 ### Answer Part 4
@@ -393,5 +399,6 @@ readable `1440x900`, `820x1180`, and `390x844` screenshot evidence.
 
 Known warnings/audit findings, visual-check limitation, no-auth/no-public-
 deployment limitation, the #46 revert and corrected staging integration result,
-the closed release PR [#47](https://github.com/oangsa/TokTickIT/pull/47), and
+correction PR [#49](https://github.com/oangsa/TokTickIT/pull/49), the closed
+release PR [#47](https://github.com/oangsa/TokTickIT/pull/47), and
 completed/untested/blocked/future work summary.
