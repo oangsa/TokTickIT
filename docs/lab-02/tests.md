@@ -2386,6 +2386,18 @@ These additional screenshots are supporting evidence unless the implementation t
 | E2E-02 | E2E | AC-01, AC-04, AC-21–23, AC-39, AC-46 | Cross-requester ownership path. | Requester A creates Ticket; switch to B; direct-open A publicId → backend 404 → safe standalone 404 → Back `/tickets`; no owner identity or A Ticket data appears under B. | e2e/lab-02/requester-ticket-flow.spec.ts | Passed — 1 browser test proves Alice's Ticket is a safe standalone 404 after switching to Bob, with no Alice/marker/sidebar/navigation leakage and deterministic Back to `/tickets`. |
 | E2E-03 | E2E | AC-06, AC-11, AC-42–44, AC-53 | Handout Create Ticket recovery evidence across reload. | Pre-upload Pending → create commits but response is ambiguous → reload offers explicit recovery without auto-submit → unchanged same-key retry returns current 200 DTO for the same Ticket → no duplicate, forced re-upload, or Pending revalidation. | e2e/lab-02/create-ticket.spec.ts | Passed — 1 browser test forces an observed 500 after real commit, verifies persisted explicit recovery across reload, one upload, one logical Ticket, and same-key 200 replay to the same active Attachment state. |
 
+The Playwright HTML report and PNG captures under `artifacts/lab-02/` are
+generated local evidence and are intentionally ignored by Git. From the
+repository root, after installing the pinned runner and Chromium, recreate them
+with the disposable targets documented above:
+
+```bash
+NODE_ENV=test TEST_DATABASE_URL=<lab2_url> DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> npm run test:e2e
+```
+
+Keep the generated files local or attach them separately when a course
+submission requires binary screenshot evidence; do not commit them.
+
 ## 12. Visual Inspection Checklist
 
 For each required screen and viewport verify:
