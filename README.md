@@ -89,7 +89,7 @@ is browser hardening, not authentication, authorization, or a privacy boundary.
 | 23 — Ticket Detail | Done | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/pages/RequesterTicketDetail.tsx`, `client/src/pages/ErrorPage.tsx` |
 | 24 — Attachment lifecycle | Done | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/attachments/AttachmentSection.tsx` |
 | 25 — final integration/tooling | Done | `package.json`, `playwright.config.ts`, `playwright.global-setup.ts`, `e2e/lab-02/`, tracked screenshot evidence |
-| 26 — release evidence | In progress | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md`, `docs/lab-02/tests.md`; `feature/26-lab2-release-evidence` |
+| 26 — release evidence | PR [#46](https://github.com/oangsa/TokTickIT/pull/46) open; peer review pending | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md`, `docs/lab-02/tests.md`; `feature/26-lab2-release-evidence` |
 
 Each implementation Issue has its own `feature/<issue>-<short-name>` branch and
 peer-reviewed PR into `lab2-staging`. Focused results are recorded separately
@@ -319,6 +319,8 @@ Lab 2's merged feature sequence is: #17 → [PR #27](https://github.com/oangsa/T
 PR #30 was a closed, unmerged duplicate for Issue #18 and is not part of the
 integration sequence. Issue #26 uses `feature/26-lab2-release-evidence`, then
 targets `lab2-staging`; only after its peer review and staging checks should
-the single release PR target `main`.
+the single release PR target `main`. The planned release PR URL is
+[#47](https://github.com/oangsa/TokTickIT/pull/47); it must be opened only after
+Issue #26 merges and staging checks pass.
 
 See `AGENTS.md` for the full project constraints.
