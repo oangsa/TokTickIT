@@ -10,6 +10,7 @@
 | [#32](https://github.com/oangsa/TokTickIT/pull/32) | feature/19-zen-green-ui-foundation | Approved; merged into `lab2-staging` |
 | [#34](https://github.com/oangsa/TokTickIT/pull/34) | feature/21-create-ticket | Approved; merged into `lab2-staging` |
 | [#43](https://github.com/oangsa/TokTickIT/pull/43) | feature/23-ticket-detail | Approved; merged into `lab2-staging` |
+| [#44](https://github.com/oangsa/TokTickIT/pull/44) | feature/24-attachments | Changes requested; subsequently approved and merged into `lab2-staging` |
 
 Reviewer comments I received (@kittipichcha):
 
@@ -73,6 +74,89 @@ Reviewer comments I received (@kittipichcha):
   pull request comments, and no changes were requested, so this approval is the
   whole of the reviewer's feedback on that pull request.
 
+- **#44 — Changes-requested review, 2026-08-27 06:48:20 UTC** ([formal
+  review](https://github.com/oangsa/TokTickIT/pull/44#pullrequestreview-5037983203))
+  by @kittipichcha for `feat: add attachment lifecycle`:
+
+  - Verdict: **Changes Requested**.
+  - Overall assessment: the implementation appeared aligned with all 15 Issue
+    #24 acceptance criteria; all 8 required focused test files were present;
+    scope, dependencies, documentation, and the required technology stack were
+    considered in scope/aligned.
+  - Acceptance-criteria results (all marked pass, with the UI criterion also
+    carrying the verification caveat below):
+
+    1. Pending pre-upload and direct Active upload, with exactly one `file`.
+    2. Multipart bounds and missing, duplicate, unexpected, and empty-file
+       handling.
+    3. Filename basename extraction, control-character checks, UTF-8 byte
+       limit, and extension handling.
+    4. MIME derivation and the exact 5,000,000-byte size limit.
+    5. Five-Active limit, Serializable transaction, and bounded retry.
+    6. Atomic Pending Attachment binding during Ticket creation.
+    7. Pending/Active/Removed metadata and binary lifecycle behavior.
+    8. Cross-requester and malformed-ID-safe 404 behavior.
+    9. Binary response headers.
+    10. Client preview/download requests, requester header, and Blob cleanup.
+    11. Collection deletion of 1–100 items, whole-batch validation, and reason
+        rules.
+    12. Pending-only, best-effort Create Ticket discard cleanup.
+    13. Pending hard-delete, Active soft-remove, and Removed 404 behavior.
+    14. Maintenance CLI, bounded batches, `SKIP LOCKED`, and no HTTP cleanup
+        route.
+    15. UI lifecycle, accessibility, and responsive behavior, subject to final
+        runtime verification.
+
+  - **Blocking issue — independently verifiable final verification evidence was
+    missing.** The review noted that the PR description reported successful
+    local checks, but the current head
+    `bb348b570c9129cc914ca9204298a7baa370a616` had no application test/build
+    status checks on GitHub. The only associated successful workflow was
+    **Project Automation**, which did not establish that the application test
+    and build suites passed. The reviewer required the focused server gate,
+    guarded PostgreSQL suite, focused client gate, full server/client suites,
+    and both builds to be rerun against the current PR head and recorded with
+    exact commands, date, sanitized environment/database target, counts, and
+    result; CI checks were recommended so the evidence would be independently
+    visible.
+
+  - The review recorded the following as self-reported, not independently
+    GitHub-verified: Issue #24 focused server gate — 4 files/164 tests;
+    guarded PostgreSQL gate — 8 files/74 tests; Create Ticket + Attachment
+    client gate — 2 files/83 tests; full client suite — 10 files/257 tests;
+    full server suite — 31 files/670 tests; server build — passed; client build
+    — passed.
+
+  - **Non-blocking suggestions:** split the approximately 836-line
+    `AttachmentSection.tsx` into smaller components/hooks; add direct tests for
+    `AttachmentPreviewModal` and download behavior; and add automated CI for the
+    Issue #24 close gate.
+
+  - Final recommendation: request changes for the verification blocker. The
+    reviewer stated that the implementation itself looked ready for approval
+    once current-head verification evidence was established.
+
+- **#44 — Approved review, 2026-08-27 07:42:38 UTC** ([formal
+  review](https://github.com/oangsa/TokTickIT/pull/44#pullrequestreview-5038379320))
+  by @kittipichcha on commit
+  `1c46337741f8a6c2de8d65d07e21757d31d7b111`:
+
+  - Verdict: **Approved**.
+  - Review body: empty; GitHub records the approval but no written message or
+    additional requested changes.
+
+PR #44 conversation audit: the GitHub API returned **0 general pull-request
+comments** and **0 inline review comments** (including no inline reply
+threads). Therefore, the two formal reviews above are the complete review and
+comment record. PR #44 was merged into `lab2-staging` at 2026-08-27 07:43:39
+UTC; its final head was `1c46337741f8a6c2de8d65d07e21757d31d7b111` and its merge
+commit was `dbbb2a5f49c98c39520fee6f93f0015e5da562d1`.
+
+Sources checked: [PR #44](https://github.com/oangsa/TokTickIT/pull/44), [formal
+reviews API](https://api.github.com/repos/oangsa/TokTickIT/pulls/44/reviews),
+[conversation comments API](https://api.github.com/repos/oangsa/TokTickIT/issues/44/comments),
+and [inline review comments API](https://api.github.com/repos/oangsa/TokTickIT/pulls/44/comments).
+
 How I responded:
 
 - **#27, test status** — `tests.md` now states that the rows are approved planned
@@ -122,6 +206,9 @@ How I responded:
 - **#43** — no response required. The approval requested no changes, so the
   branch was merged into `lab2-staging` as approved with no follow-up edits
   (merge commit `fc92d82`, 2026-08-26).
+- **#44** — the changes-requested review's verification blocker was followed by
+  a body-less approval on the final PR head. No separate author reply or inline
+  discussion was recorded by GitHub; PR #44 was merged after the approval.
 
 Author's PR reply:
 

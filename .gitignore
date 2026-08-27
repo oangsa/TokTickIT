@@ -8,6 +8,8 @@ node_modules/
 # build output
 dist/
 build/
+# generated test evidence
+artifacts/
 # prisma
 server/prisma/*.db
 server/src/generated/

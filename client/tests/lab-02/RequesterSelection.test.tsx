@@ -2,10 +2,12 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { http, HttpResponse } from "msw";
 
 import App from "../../src/App.js";
 import { ApiRequestInit } from "../../src/api.js";
 import { REQUESTER_STORAGE_KEY } from "../../src/requester/requesterStorage.js";
+import { mswServer } from "../setup.js";
 
 const REQUESTERS = [
   {
@@ -55,6 +57,18 @@ afterEach(() => {
 });
 
 describe("UI-01 Development Requester Selection", () => {
+  it("loads the bootstrap response through the pinned MSW HTTP boundary", async () => {
+    /* jsdom's AbortSignal belongs to a different realm than Node fetch. */
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(undefined as unknown as AbortSignal);
+    mswServer.use(
+      http.get(/\/api\/requesters$/, () => HttpResponse.json(REQUESTERS)),
+    );
+
+    renderSelection();
+
+    expect(await screen.findByRole("option", { name: "Alice Johnson" })).toBeInTheDocument();
+  });
+
   it("announces loading and disables Continue before the requesters arrive", () => {
     vi.stubGlobal("fetch", () => new Promise(() => {}));
     renderSelection();

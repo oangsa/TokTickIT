@@ -1011,7 +1011,8 @@ Lab 2 is product-complete only when all of the following are true:
 - Integration testing is completed on `lab2-staging`.
 - One release Pull Request merges `lab2-staging` into `main`.
 - Development is not performed directly on `main` or `lab2-staging`.
-- Required Lab 2 repository documents and screenshot artifacts are committed.
+- Required Lab 2 repository documents and screenshot artifacts under
+  `docs/lab-02/evidence/screenshots/` are committed.
 - The final `main` branch is the source of truth for grading evidence.
 
 ## 11. Assumptions and Decisions

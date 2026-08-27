@@ -209,6 +209,28 @@ PostgreSQL suites reset the disposable target. Teardown is last so every command
 uses the same guarded database while the normal development database remains
 untouched.
 
+### Lab 2 browser verification
+
+The repository root contains a private, non-workspace package for the pinned
+Playwright runner. From the repository root, install it with `npm install` and
+run the browser suite only with `NODE_ENV=test` and the dedicated disposable
+`TEST_DATABASE_URL`; use the sanitized command in `docs/lab-02/tests.md` and do
+not use a production database. The runner starts the client and server, applies
+the guarded test migrations/seed, and writes the required responsive/visual
+screenshots under the tracked `docs/lab-02/evidence/screenshots/` directories.
+The HTML report, traces, and failure-only captures remain under ignored
+`artifacts/lab-02/`:
+
+```bash
+npm install
+npx --no-install playwright install chromium
+NODE_ENV=test TEST_DATABASE_URL='<LAB2_TEST_DATABASE_URL>' DATABASE_URL='<LAB1_DATABASE_URL>' DIRECT_URL='<LAB1_DATABASE_URL>' npm run test:e2e
+```
+
+`@playwright/test` is pinned in the root manifest and lockfile; the command uses
+the local package and does not implicitly download a runner. The browser binary
+install is a separate explicit setup step.
+
 ### Issue 4 — Category list + UI states
 
 ```text

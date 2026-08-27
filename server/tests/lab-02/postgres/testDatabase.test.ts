@@ -29,6 +29,42 @@ describe("Lab 2 PostgreSQL test-database guard", () => {
     restoreEnvironmentVariable("DIRECT_URL");
   });
 
+  it("rejects when NODE_ENV is not test", () => {
+    process.env.NODE_ENV = "development";
+    process.env.TEST_DATABASE_URL =
+      "postgresql://lab2_test@127.0.0.1:55432/toktickit_lab2_test";
+    delete process.env.DATABASE_URL;
+    delete process.env.DIRECT_URL;
+
+    expect(() => assertLab2TestDatabase()).toThrow(
+      "Lab 2 PostgreSQL tests require NODE_ENV=test",
+    );
+  });
+
+  it("rejects when TEST_DATABASE_URL is missing instead of falling back", () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.TEST_DATABASE_URL;
+    process.env.DATABASE_URL =
+      "postgresql://development@127.0.0.1:5432/toktickit_dev";
+    delete process.env.DIRECT_URL;
+
+    expect(() => assertLab2TestDatabase()).toThrow(
+      "Lab 2 PostgreSQL tests require TEST_DATABASE_URL",
+    );
+  });
+
+  it("rejects a non-PostgreSQL TEST_DATABASE_URL", () => {
+    process.env.NODE_ENV = "test";
+    process.env.TEST_DATABASE_URL =
+      "mysql://lab2_test@127.0.0.1/toktickit_lab2_test";
+    delete process.env.DATABASE_URL;
+    delete process.env.DIRECT_URL;
+
+    expect(() => assertLab2TestDatabase()).toThrow(
+      "TEST_DATABASE_URL must use the PostgreSQL protocol",
+    );
+  });
+
   it("rejects the development database through a different hostname alias", () => {
     process.env.NODE_ENV = "test";
     process.env.TEST_DATABASE_URL =
@@ -66,6 +102,18 @@ describe("Lab 2 PostgreSQL test-database guard", () => {
 
     await expect(resetTestSchema(unrelatedTarget)).rejects.toThrow(
       "Test database target must match the guarded TEST_DATABASE_URL",
+    );
+  });
+
+  it("rejects a test-marked database that is not identified as the Lab 2 target", () => {
+    process.env.NODE_ENV = "test";
+    process.env.TEST_DATABASE_URL =
+      "postgresql://lab2_test@127.0.0.1:55432/toktickit_other_test";
+    delete process.env.DATABASE_URL;
+    delete process.env.DIRECT_URL;
+
+    expect(() => assertLab2TestDatabase()).toThrow(
+      "TEST_DATABASE_URL database name must identify the dedicated Lab 2 test database",
     );
   });
 
