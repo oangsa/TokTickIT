@@ -211,7 +211,7 @@ Mobile    390 x 844
 
 Responsive tests use behavioral/layout assertions.
 
-Visual tests capture screenshot evidence but do not require pixel-perfect screenshot-diff baselines. The Lab Sheet/sample screens are visual-direction references, not pixel-identical implementation templates.
+Visual tests capture screenshot evidence but do not require pixel-perfect screenshot-diff baselines. The Lab Sheet/sample screens are visual-direction references, not pixel-identical implementation templates. Required screen captures are committed under `docs/lab-02/evidence/screenshots/` so reviewers can inspect the working app without rerunning the browser suite.
 
 ### 4.5 Command Matrix
 
@@ -237,7 +237,7 @@ the planned Lab 2 tests already exist or pass.
 | Frontend full test suite | `client/` | `npm test` | Record the complete Vitest/React Testing Library result. |
 | Frontend typecheck/build | `client/` | `npm run build` | Record the TypeScript and Vite build result. |
 | Install pinned repository E2E tooling | repository root after #25 adds the minimal private package | `npm install` | Uses the committed root lockfile and pinned local `@playwright/test`; does not create npm/pnpm workspaces or move application dependencies. |
-| Lab 2 E2E/responsive/visual suite | repository root after #25 adds Playwright config | `npm run test:e2e -- e2e/lab-02` | Resolves the locally installed pinned Playwright package and coordinates `client/`, `server/`, PostgreSQL, Chromium, approved viewports, screenshots, and traces without implicit download. |
+| Lab 2 E2E/responsive/visual suite | repository root after #25 adds Playwright config | `npm run test:e2e -- e2e/lab-02` | Resolves the locally installed pinned Playwright package and coordinates `client/`, `server/`, PostgreSQL, Chromium, approved viewports, and screenshot capture without implicit download. Required PNGs are written to tracked `docs/lab-02/evidence/screenshots/`; reports, traces, and failure-only captures remain under ignored `artifacts/lab-02/`. |
 
 Do not run migration, seed, reset, or PostgreSQL integration setup against production or the normal development database. Use a disposable or explicitly designated Lab 2 database for fresh-database evidence and the separately guarded `TEST_DATABASE_URL` for PG-01–PG-14.
 
@@ -2356,17 +2356,28 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| VIS-01 | Visual | AC-35–38 | Create Ticket screenshot evidence at all required viewports. | Screenshots saved under approved Create Ticket artifact directory and pass visual checklist; no pixel-perfect baseline requirement. | e2e/lab-02/responsive-visual.spec.ts | Passed — six exact-size captures (three required screen captures plus three Attachment-support captures) exist under `artifacts/lab-02/screenshots/create-ticket/`; browser assertions cover Zen Green/read-only/editable/validation/button/badge/Attachment/icon-tooltip checklist items. |
-| VIS-02 | Visual | AC-35–38 | My Tickets screenshot evidence at all required viewports. | Screenshots saved under approved My Tickets artifact directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Passed — three exact-size captures exist under `artifacts/lab-02/screenshots/my-tickets/`; browser assertions cover the closed mobile drawer's tab exclusion, hover tooltip, desktop long-list sticky sidebar, visible Change Requester, required columns, and no overflow. |
-| VIS-03 | Visual | AC-35–38 | Ticket Detail screenshot evidence at all required viewports. | Screenshots saved under approved Ticket Detail artifact directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Passed — six exact-size captures (three required screen captures plus three Attachment-support captures) exist under `artifacts/lab-02/screenshots/ticket-detail/`; browser assertions cover Zen Green/read-only fields, responsive Attachment semantics, focus tooltip, and no overflow. |
+| VIS-01 | Visual | AC-35–38 | Create Ticket screenshot evidence at all required viewports. | Screenshots saved under tracked Create Ticket evidence directory and pass visual checklist; no pixel-perfect baseline requirement. | e2e/lab-02/responsive-visual.spec.ts | Passed — six exact-size captures (three required screen captures plus three Attachment-support captures) exist under `docs/lab-02/evidence/screenshots/create-ticket/`; browser assertions cover Zen Green/read-only/editable/validation/button/badge/Attachment/icon-tooltip checklist items. |
+| VIS-02 | Visual | AC-35–38 | My Tickets screenshot evidence at all required viewports. | Screenshots saved under tracked My Tickets evidence directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Passed — three exact-size captures exist under `docs/lab-02/evidence/screenshots/my-tickets/`; browser assertions cover the closed mobile drawer's tab exclusion, hover tooltip, desktop long-list sticky sidebar, visible Change Requester, required columns, and no overflow. |
+| VIS-03 | Visual | AC-35–38 | Ticket Detail screenshot evidence at all required viewports. | Screenshots saved under tracked Ticket Detail evidence directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Passed — six exact-size captures (three required screen captures plus three Attachment-support captures) exist under `docs/lab-02/evidence/screenshots/ticket-detail/`; browser assertions cover Zen Green/read-only fields, responsive Attachment semantics, focus tooltip, and no overflow. |
 
 Required screenshot directories:
 
 ```text
-artifacts/lab-02/screenshots/create-ticket/
-artifacts/lab-02/screenshots/my-tickets/
-artifacts/lab-02/screenshots/ticket-detail/
+docs/lab-02/evidence/screenshots/create-ticket/
+docs/lab-02/evidence/screenshots/my-tickets/
+docs/lab-02/evidence/screenshots/ticket-detail/
 ```
+
+Required working-app screenshots are independently accessible in this repository:
+
+These PNGs are mandatory delivery evidence that the application works in a
+real browser; unit/API results do not replace them.
+
+| Screen | 1440 × 900 | 820 × 1180 | 390 × 844 |
+| --- | --- | --- | --- |
+| Create Ticket | [PNG](evidence/screenshots/create-ticket/1440x900.png) | [PNG](evidence/screenshots/create-ticket/820x1180.png) | [PNG](evidence/screenshots/create-ticket/390x844.png) |
+| My Tickets | [PNG](evidence/screenshots/my-tickets/1440x900.png) | [PNG](evidence/screenshots/my-tickets/820x1180.png) | [PNG](evidence/screenshots/my-tickets/390x844.png) |
+| Ticket Detail | [PNG](evidence/screenshots/ticket-detail/1440x900.png) | [PNG](evidence/screenshots/ticket-detail/820x1180.png) | [PNG](evidence/screenshots/ticket-detail/390x844.png) |
 
 Useful additional supporting screenshots may include:
 
@@ -2386,17 +2397,19 @@ These additional screenshots are supporting evidence unless the implementation t
 | E2E-02 | E2E | AC-01, AC-04, AC-21–23, AC-39, AC-46 | Cross-requester ownership path. | Requester A creates Ticket; switch to B; direct-open A publicId → backend 404 → safe standalone 404 → Back `/tickets`; no owner identity or A Ticket data appears under B. | e2e/lab-02/requester-ticket-flow.spec.ts | Passed — 1 browser test proves Alice's Ticket is a safe standalone 404 after switching to Bob, with no Alice/marker/sidebar/navigation leakage and deterministic Back to `/tickets`. |
 | E2E-03 | E2E | AC-06, AC-11, AC-42–44, AC-53 | Handout Create Ticket recovery evidence across reload. | Pre-upload Pending → create commits but response is ambiguous → reload offers explicit recovery without auto-submit → unchanged same-key retry returns current 200 DTO for the same Ticket → no duplicate, forced re-upload, or Pending revalidation. | e2e/lab-02/create-ticket.spec.ts | Passed — 1 browser test forces an observed 500 after real commit, verifies persisted explicit recovery across reload, one upload, one logical Ticket, and same-key 200 replay to the same active Attachment state. |
 
-The Playwright HTML report and PNG captures under `artifacts/lab-02/` are
-generated local evidence and are intentionally ignored by Git. From the
-repository root, after installing the pinned runner and Chromium, recreate them
-with the disposable targets documented above:
+The Playwright HTML report, traces, and failure-only captures under
+`artifacts/lab-02/` are generated local evidence and intentionally ignored by
+Git. The required screenshot PNGs are written directly to the tracked
+`docs/lab-02/evidence/screenshots/` directories above. From the repository root,
+after installing the pinned runner and Chromium, recreate the screenshots and
+local report with the disposable targets documented above:
 
 ```bash
 NODE_ENV=test TEST_DATABASE_URL=<lab2_url> DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> npm run test:e2e
 ```
 
-Keep the generated files local or attach them separately when a course
-submission requires binary screenshot evidence; do not commit them.
+Commit the required PNGs with the Lab 2 delivery. Keep only the HTML report,
+traces, and failure-only captures in ignored `artifacts/lab-02/`.
 
 ## 12. Visual Inspection Checklist
 
@@ -2616,11 +2629,12 @@ The exact planned files exist and own the following cases:
 - `e2e/lab-02/create-ticket.spec.ts`: E2E-03 ambiguous-create recovery across reload;
 - `e2e/lab-02/responsive-visual.spec.ts`: RESP-01–03 and VIS-01–03 at exactly `1440x900`, `820x1180`, and `390x844`.
 
-Required captures exist at exact viewport dimensions under:
+Required captures exist at exact viewport dimensions under the tracked evidence
+directories:
 
-- `artifacts/lab-02/screenshots/create-ticket/`: `1440x900.png`, `820x1180.png`, `390x844.png`, plus Attachment-support captures;
-- `artifacts/lab-02/screenshots/my-tickets/`: `1440x900.png`, `820x1180.png`, `390x844.png`;
-- `artifacts/lab-02/screenshots/ticket-detail/`: `1440x900.png`, `820x1180.png`, `390x844.png`, plus Attachment-support captures.
+- `docs/lab-02/evidence/screenshots/create-ticket/`: `1440x900.png`, `820x1180.png`, `390x844.png`, plus Attachment-support captures;
+- `docs/lab-02/evidence/screenshots/my-tickets/`: `1440x900.png`, `820x1180.png`, `390x844.png`;
+- `docs/lab-02/evidence/screenshots/ticket-detail/`: `1440x900.png`, `820x1180.png`, `390x844.png`, plus Attachment-support captures.
 
 `file` verified every capture is exactly its named viewport. The checklist
 passed through the browser assertions and capture review: Zen Green tokens;

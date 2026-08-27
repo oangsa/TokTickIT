@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
 const API_BASE_URL = "http://127.0.0.1:3000";
+const COMMITTED_SCREENSHOT_ROOT = resolve("docs", "lab-02", "evidence", "screenshots");
 
 const VIEWPORTS = [
   { width: 1440, height: 900 },
@@ -178,9 +179,7 @@ function screenshotPath(
   suffix = "",
 ): string {
   return resolve(
-    "artifacts",
-    "lab-02",
-    "screenshots",
+    COMMITTED_SCREENSHOT_ROOT,
     screen,
     `${viewport.width}x${viewport.height}${suffix}.png`,
   );

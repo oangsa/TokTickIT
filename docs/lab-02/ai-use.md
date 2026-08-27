@@ -5,10 +5,10 @@
 The canonical Lab 2 AI-use record is `docs/lab-02/ai-use.md`, as required by
 the Lab 2 handout. Lab 1 retains its historical `docs/lab-01/ai_use.md`
 filename; this distinction is intentional. This handout-facing record selects
-68 representative prompts in 66 table entries from the Lab 2 history available
+69 representative prompts in 67 table entries from the Lab 2 history available
 in the repository and current session.
 
-## Selected key prompts (68; 66 entries)
+## Selected key prompts (69; 67 entries)
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
 | 6 | Synchronize the frozen Lab 2 contract with the final QueryBuilder boundary and unordered `attachmentIds` idempotency clarifications. | Updated the four Lab 2 contract documents to preserve the generic QueryBuilder/resource-validator/frontend boundary, define the Ticket condition matrix, normalize and sort Attachment IDs while rejecting duplicates, and align the planned tests. Reviewed the result as documentation-only work; no application implementation was started. |
@@ -77,11 +77,12 @@ in the repository and current session.
 | 81 (current) | Extract all reviews and comments from GitHub PR #44 and record them in the Lab 2 reviewer record. | Queried the PR metadata, formal review records, general conversation comments, and inline review-comment endpoints. Added the two formal review outcomes, the verification blocker, acceptance-criteria assessment, non-blocking suggestions, final merge metadata, and the confirmed zero-comment audit to `docs/lab-02/reviewer.md`; no application code was changed. |
 | 82 (current) | Commit the pending Lab 2 verification changes and push them without bulk staging. | Reviewed the branch and complete diff, separated the Issue #25 implementation/tooling from its documentation, staged only explicit paths, created logical commits, and left generated Playwright artifacts uncommitted. |
 | 83 (current) | Decide whether Lab 2 Playwright screenshots/reports should be pushed and document safe local regeneration. | Treated the screenshots/report as generated evidence, added the root `artifacts/` ignore rule, documented the exact disposable-target regeneration command in `tests.md`, and preserved the source/config/spec commits without uploading generated files. |
+| 84 (current) | Resolve the final screenshot-evidence review blocker and add the required working-app note. | Changed Playwright visual captures to write required PNGs to tracked `docs/lab-02/evidence/screenshots/`, linked all nine required screen/viewport captures from `tests.md`, and synchronized the UI/specification/README delivery paths. Full Lab 2 Playwright run passed 12/12; all 15 generated PNGs were checked at their exact named dimensions. |
 
 ## Reflection
 The full Lab 2 history is retained in the conversation/repository context, but
-the handout-facing deliverable intentionally selects sixty-eight representative
-prompts in sixty-six table entries rather than reproducing every wording
+the handout-facing deliverable intentionally selects sixty-nine representative
+prompts in sixty-seven table entries rather than reproducing every wording
 correction. The selection
 covers specification and API contracts, UI behavior, schema and migration
 decisions, Attachment lifecycle, idempotency/concurrency, test traceability,

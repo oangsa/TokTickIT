@@ -106,9 +106,9 @@ export default async function globalSetup(): Promise<void> {
   const testUrl = requireTestDatabaseUrl();
 
   for (const directory of [
-    "artifacts/lab-02/screenshots/create-ticket",
-    "artifacts/lab-02/screenshots/my-tickets",
-    "artifacts/lab-02/screenshots/ticket-detail",
+    "docs/lab-02/evidence/screenshots/create-ticket",
+    "docs/lab-02/evidence/screenshots/my-tickets",
+    "docs/lab-02/evidence/screenshots/ticket-detail",
   ]) {
     mkdirSync(resolve(repositoryRoot, directory), { recursive: true });
   }

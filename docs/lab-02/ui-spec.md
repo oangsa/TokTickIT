@@ -1696,12 +1696,12 @@ Tablet   820 × 1180
 Mobile   390 × 844
 ```
 
-Required screenshot directories:
+Required screenshot directories are tracked delivery evidence:
 
 ```text
-artifacts/lab-02/screenshots/create-ticket/
-artifacts/lab-02/screenshots/my-tickets/
-artifacts/lab-02/screenshots/ticket-detail/
+docs/lab-02/evidence/screenshots/create-ticket/
+docs/lab-02/evidence/screenshots/my-tickets/
+docs/lab-02/evidence/screenshots/ticket-detail/
 ```
 
 Important additional states may also be captured where useful, including:

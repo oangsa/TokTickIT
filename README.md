@@ -216,8 +216,10 @@ Playwright runner. From the repository root, install it with `npm install` and
 run the browser suite only with `NODE_ENV=test` and the dedicated disposable
 `TEST_DATABASE_URL`; use the sanitized command in `docs/lab-02/tests.md` and do
 not use a production database. The runner starts the client and server, applies
-the guarded test migrations/seed, and writes responsive/visual evidence under
-`artifacts/lab-02/screenshots/`:
+the guarded test migrations/seed, and writes the required responsive/visual
+screenshots under the tracked `docs/lab-02/evidence/screenshots/` directories.
+The HTML report, traces, and failure-only captures remain under ignored
+`artifacts/lab-02/`:
 
 ```bash
 npm install
