@@ -15,7 +15,7 @@
 | [#43](https://github.com/oangsa/TokTickIT/pull/43) | feature/23-ticket-detail | Approved; merged into `lab2-staging` |
 | [#44](https://github.com/oangsa/TokTickIT/pull/44) | feature/24-attachments | Changes requested; subsequently approved and merged into `lab2-staging` |
 | [#45](https://github.com/oangsa/TokTickIT/pull/45) | feature/25-lab2-verification | Approved; merged into `lab2-staging` |
-| [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested, then merged; manual Kanban and post-merge staging validation passed |
+| [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested; merged before approval; post-merge validation recorded; later reverted by #48 |
 | [#48](https://github.com/oangsa/TokTickIT/pull/48) | feature/46-revert-lab2-release-evidence | Approved; reverted PR #46 into `lab2-staging` |
 | [#49](https://github.com/oangsa/TokTickIT/pull/49) | feature/26-lab2-release-evidence-correction | Pending peer review; corrected evidence reapplication |
 
@@ -202,6 +202,12 @@ and [Issue #26](https://github.com/oangsa/TokTickIT/issues/26). GitHub retains
 the original Changes Requested review as historical evidence; no later approval
 submission was recorded on the closed PR.
 
+PR #46 was merged before a peer approval was recorded. That merge did not
+resolve the review request; the Changes Requested review and the absence of a
+later approval remain historical evidence. The resulting release path was
+withdrawn through approved PR #48, rather than being treated as an approved
+feature merge.
+
 PR #46 was subsequently reverted through [PR #48](https://github.com/oangsa/TokTickIT/pull/48)
 after the release path was withdrawn. @kittipichcha approved the revert
 ([review](https://github.com/oangsa/TokTickIT/pull/48#pullrequestreview-5042050179));
@@ -289,8 +295,9 @@ How I responded:
   final peer approval preceded the merge.
 - **#46** — acknowledged the review, recorded the manually verified
   Project/Kanban state, completed the post-merge `lab2-staging` validation, and
-  recorded the result in the PR and Issue #26. The merged evidence PR was later
-  reverted by approved PR #48; the earlier release PR #47 was closed.
+  recorded the result in the PR and Issue #26. It was merged before peer
+  approval, then reverted by approved PR #48; the earlier release PR #47 was
+  closed.
 - **#48** — used a dedicated `feature/46-revert-lab2-release-evidence` branch
   and a peer-reviewed revert commit to restore the pre-#46 staging tree without
   changing application implementation.
@@ -327,7 +334,7 @@ Feature integration sequence verified from GitHub:
 | #23 | `feature/23-ticket-detail` | [#43](https://github.com/oangsa/TokTickIT/pull/43) | Peer approved; merged to `lab2-staging` as `fc92d82`. |
 | #24 | `feature/24-attachments` | [#44](https://github.com/oangsa/TokTickIT/pull/44) | Changes requested, evidence added, then peer approved; merged to `lab2-staging` as `dbbb2a5`. |
 | #25 | `feature/25-lab2-verification` | [#45](https://github.com/oangsa/TokTickIT/pull/45) | Peer review sequence completed; merged to `lab2-staging` as `6ef7ed4`; GitHub server/client verification passed. |
-| #26 | `feature/26-lab2-release-evidence-correction` | [#46](https://github.com/oangsa/TokTickIT/pull/46), [#48](https://github.com/oangsa/TokTickIT/pull/48), [#49](https://github.com/oangsa/TokTickIT/pull/49) | Original evidence PR #46 merged as `ed1f107` and was reverted by approved #48, merged as `b476a27`; correction PR #49 is pending review and Issue #26 is reopened. |
+| #26 | `feature/26-lab2-release-evidence-correction` | [#46](https://github.com/oangsa/TokTickIT/pull/46), [#48](https://github.com/oangsa/TokTickIT/pull/48), [#49](https://github.com/oangsa/TokTickIT/pull/49) | Original evidence PR #46 merged before approval as `ed1f107` and was reverted by approved #48, merged as `b476a27`; correction PR #49 is pending review and Issue #26 is reopened. |
 
 The current remote `lab2-staging` baseline is `b476a27`, whose tree matches the
 pre-#46 application baseline `6ef7ed4`. Local focused, full, Prisma, build, and

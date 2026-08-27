@@ -2781,7 +2781,8 @@ unchanged application tree:
 | Project/Kanban | Reviewer manual verification: correct |
 
 The original PR #46 Changes Requested review and its post-merge validation
-remain preserved as historical evidence. PR #48's approval and merge restored
+remain preserved as historical evidence; PR #46 merged before peer approval.
+PR #48's approval and merge restored
 the pre-#46 baseline; Issue #26 remains open for corrected evidence. A new
 post-correction staging validation is required after [PR #49](https://github.com/oangsa/TokTickIT/pull/49) merges,
 before opening the replacement release PR.
