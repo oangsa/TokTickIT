@@ -15,7 +15,7 @@
 | [#43](https://github.com/oangsa/TokTickIT/pull/43) | feature/23-ticket-detail | Approved; merged into `lab2-staging` |
 | [#44](https://github.com/oangsa/TokTickIT/pull/44) | feature/24-attachments | Changes requested; subsequently approved and merged into `lab2-staging` |
 | [#45](https://github.com/oangsa/TokTickIT/pull/45) | feature/25-lab2-verification | Approved; merged into `lab2-staging` |
-| [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested; manual Kanban verification passed; post-merge staging validation pending |
+| [#46](https://github.com/oangsa/TokTickIT/pull/46) | feature/26-lab2-release-evidence | Changes requested, then merged; manual Kanban and post-merge staging validation passed |
 
 PR [#30](https://github.com/oangsa/TokTickIT/pull/30) was a closed,
 unmerged duplicate for Issue #18 and is not an integration PR.
@@ -193,6 +193,13 @@ state as passing; it identified only one blocking item: validate the resulting
 listed two non-blocking suggestions. My acknowledgement is recorded in the
 [PR comment](https://github.com/oangsa/TokTickIT/pull/46#issuecomment-5440368528).
 
+The requested post-merge gate then passed on staging commit
+`ed1f107c469e5469c78575f9a0a6c7ee2115404b`; the result is recorded in the
+[follow-up PR comment](https://github.com/oangsa/TokTickIT/pull/46#issuecomment-5440572403)
+and [Issue #26](https://github.com/oangsa/TokTickIT/issues/26). GitHub retains
+the original Changes Requested review as historical evidence; no later approval
+submission was recorded on the closed PR.
+
 PR #44 conversation audit: the GitHub API returned **0 general pull-request
 comments** and **0 inline review comments** (including no inline reply
 threads). Therefore, the two formal reviews above are the complete review and
@@ -268,9 +275,9 @@ How I responded:
   mechanism was synchronized. GitHub recorded no separate author reply; the
   final peer approval preceded the merge.
 - **#46** — acknowledged the review, recorded the manually verified
-  Project/Kanban state, and confirmed that post-merge `lab2-staging`
-  validation is the only remaining release gate. The release PR will not be
-  opened before that validation passes.
+  Project/Kanban state, completed the post-merge `lab2-staging` validation, and
+  recorded the result in the PR and Issue #26. Release PR #47 was opened only
+  after that validation passed.
 
 Author's PR replies:
 
@@ -302,9 +309,9 @@ Feature integration sequence verified from GitHub:
 | #23 | `feature/23-ticket-detail` | [#43](https://github.com/oangsa/TokTickIT/pull/43) | Peer approved; merged to `lab2-staging` as `fc92d82`. |
 | #24 | `feature/24-attachments` | [#44](https://github.com/oangsa/TokTickIT/pull/44) | Changes requested, evidence added, then peer approved; merged to `lab2-staging` as `dbbb2a5`. |
 | #25 | `feature/25-lab2-verification` | [#45](https://github.com/oangsa/TokTickIT/pull/45) | Peer review sequence completed; merged to `lab2-staging` as `6ef7ed4`; GitHub server/client verification passed. |
-| #26 | `feature/26-lab2-release-evidence` | [#46](https://github.com/oangsa/TokTickIT/pull/46) | Changes requested; manual Kanban check passed; post-merge `lab2-staging` validation and merge remain required. |
+| #26 | `feature/26-lab2-release-evidence` | [#46](https://github.com/oangsa/TokTickIT/pull/46) | Changes requested, then merged as `ed1f107`; manual Kanban and post-merge `lab2-staging` validation passed. Release PR [#47](https://github.com/oangsa/TokTickIT/pull/47) is open. |
 
-The current remote `lab2-staging` baseline is `6ef7ed4`, and local focused,
+The current remote `lab2-staging` baseline is `ed1f107`, and local focused,
 full, Prisma, build, and E2E results are recorded in `tests.md` Section 15.3.
 The Project Automation workflow succeeded for the final #25 PR runs
 ([run 120](https://github.com/oangsa/TokTickIT/actions/runs/33068961506),
@@ -313,11 +320,9 @@ closed the completed Issues. The connected GitHub API available for this record
 does not expose the ProjectV2 Status field, but the reviewer manually verified
 the final issue/card states as correct in the #46 review. Thus the record claims
 that manual verification, not an API-read status: #17–#25 are
-GitHub-closed/completed, #26 remains open until its reviewed PR is merged, and
-the planned single release PR is
-[#47](https://github.com/oangsa/TokTickIT/pull/47), to be opened from
-`lab2-staging` to `main` only after #46 merges and staging checks pass; until
-then that URL is a planned location, not an existing PR.
+GitHub-closed/completed, #26 is GitHub-closed/completed, and the single release
+PR is [#47](https://github.com/oangsa/TokTickIT/pull/47), open from
+`lab2-staging` to `main` for separate peer review.
 
 ## Final evidence PDF plan (not generated)
 
@@ -369,6 +374,6 @@ readable `1440x900`, `820x1180`, and `390x844` screenshot evidence.
 ### Answer Part 9
 
 Known warnings/audit findings, visual-check limitation, no-auth/no-public-
-deployment limitation, final staging integration result, the planned release PR
-[#47](https://github.com/oangsa/TokTickIT/pull/47) once opened, and
+deployment limitation, final staging integration result, open release PR
+[#47](https://github.com/oangsa/TokTickIT/pull/47), and
 completed/untested/blocked/future work summary.
