@@ -5,7 +5,10 @@ import { MemoryRouter } from "react-router-dom";
 
 import App from "../../src/App.js";
 import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requesterStorage.js";
-import { MAX_ATTACHMENT_BYTES } from "../../src/attachments/attachmentRules.js";
+import {
+  ATTACHMENT_TIMEOUT_MS,
+  MAX_ATTACHMENT_BYTES,
+} from "../../src/attachments/attachmentRules.js";
 
 /*
  * UI-25 to UI-30, UI-34, and the Attachment halves of UI-36 and UI-37.
@@ -627,7 +630,7 @@ describe("UI-27 and UI-34 preview, download, and the Blob URL lifecycle", () => 
     expect(invoker).toHaveFocus();
   });
 
-  it("downloads under the known original name and revokes its URL immediately", async () => {
+  it("downloads under the known original name and revokes its URL once the click is handled", async () => {
     const { calls } = stubApi();
     const clicked: { download: string; href: string }[] = [];
     const realClick = HTMLAnchorElement.prototype.click;
@@ -645,7 +648,12 @@ describe("UI-27 and UI-34 preview, download, and the Blob URL lifecycle", () => 
       await waitFor(() => expect(clicked).toHaveLength(1));
       /* The filename comes from the DTO, never from Content-Disposition. */
       expect(clicked[0].download).toBe("vpn-error.png");
-      expect(revokedUrls).toContain(createdUrls[0]);
+      /*
+       * Revoked on the next task, not inside the click handler: Firefox and
+       * Safari resolve the href after the handler returns, so a synchronous
+       * revoke cancels the download there without raising anything.
+       */
+      await waitFor(() => expect(revokedUrls).toContain(createdUrls[0]));
 
       const download = calls.find((call) => call.url.includes("/download"));
       expect(download?.headers["X-Requester-Id"]).toBe(String(ALICE.id));
@@ -960,6 +968,81 @@ describe("UI-26 Retry Upload answers to the same x/5 bound", () => {
       expect(within(rowFor("f-0.png")).getByText("Pending")).toBeInTheDocument(),
     );
     expect(screen.getByRole("heading", { name: "Attachments 5/5" })).toBeInTheDocument();
+  });
+});
+
+/*
+ * The Attachment deadline, which is the one place the 5,000,000-byte limit and
+ * the API client's 8-second default meet. A `fetch` AbortSignal covers the
+ * request body too, so the default budget would cap a max-size upload at
+ * whatever fits in 8 seconds and report the abort as "The upload did not
+ * complete" -- after the server had usually already committed the row.
+ */
+/*
+ * Both upload endpoints answer 409, and they mean different things: on Ticket
+ * Detail it is the five-Active limit on that Ticket, on Create Ticket it is the
+ * ceiling on prepared files this Requester holds across every draft. One shared
+ * message would tell half the users to fix the wrong thing.
+ */
+describe("a 409 upload refusal names the limit it actually hit", () => {
+  it("blames the Ticket's five-Active limit on Ticket Detail", async () => {
+    stubApi({ upload: () => ({ ok: false, status: 409 }) });
+    renderAt(`/tickets/${PUBLIC_ID}`);
+
+    const input = await screen.findByLabelText("Add Attachment");
+    await userEvent.upload(input, pngFile("extra.png"));
+
+    expect(await screen.findByText(/at most 5 active attachments/i)).toBeInTheDocument();
+  });
+
+  it("blames the prepared-file ceiling on Create Ticket", async () => {
+    stubApi({ upload: () => ({ ok: false, status: 409 }) });
+    renderAt("/tickets/new");
+
+    const input = await screen.findByLabelText("Add Attachment");
+    await userEvent.upload(input, pngFile());
+
+    const row = rowFor("vpn-error.png");
+    await waitFor(() => expect(within(row).getByText("Failed")).toBeInTheDocument());
+    expect(within(row).getByText(/too many prepared files/i)).toBeInTheDocument();
+    expect(within(row).queryByText(/active attachments/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("Attachment requests carry their own deadline", () => {
+  it.each([
+    ["the Pending pre-upload", "/tickets/new"],
+    ["the binary paths", `/tickets/${PUBLIC_ID}`],
+  ])("uses the Attachment timeout for %s", async (_label, path) => {
+    const deadlines: number[] = [];
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds: number) => {
+      deadlines.push(milliseconds);
+      return realTimeout(milliseconds);
+    });
+
+    try {
+      stubApi();
+      renderAt(path);
+
+      if (path === "/tickets/new") {
+        const input = await screen.findByLabelText("Add Attachment");
+        deadlines.length = 0;
+        await userEvent.upload(input, pngFile());
+        await waitFor(() => expect(within(rowFor("vpn-error.png")).getByText("Pending")).toBeInTheDocument());
+      } else {
+        await screen.findByRole("heading", { name: "Attachments 1/5" });
+        deadlines.length = 0;
+        await userEvent.click(screen.getByRole("button", { name: "Preview vpn-error.png" }));
+        await waitFor(() => expect(createdUrls).toHaveLength(1));
+      }
+
+      expect(deadlines).toContain(ATTACHMENT_TIMEOUT_MS);
+      expect(deadlines).not.toContain(8000);
+    } finally {
+      vi.mocked(AbortSignal.timeout).mockRestore();
+    }
   });
 });
 

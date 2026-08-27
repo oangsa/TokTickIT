@@ -11,6 +11,7 @@ import { ticketDateTime } from "../tickets/ticketDate.js";
 import { AttachmentDownloadButton, AttachmentPreviewModal, PreviewTarget } from "./AttachmentPreviewModal.js";
 import {
   ATTACHMENT_RULES_TEXT,
+  ATTACHMENT_TIMEOUT_MS,
   MAX_ACTIVE_ATTACHMENTS,
   formatSize,
   removalReasonError,
@@ -211,12 +212,16 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     body.append("file", file, file.name);
 
     try {
-      const attachment = await callApi<Attachment>("/api/attachments", { method: "POST", body });
+      const attachment = await callApi<Attachment>("/api/attachments", {
+        method: "POST",
+        body,
+        timeoutMs: ATTACHMENT_TIMEOUT_MS,
+      });
       updateEntry(key, { state: "Pending", attachment, message: null });
     } catch (error) {
       updateEntry(key, {
         state: "Failed",
-        message: uploadFailureMessage(error),
+        message: uploadFailureMessage(error, "create"),
         attachment: null,
       });
     }
@@ -232,14 +237,14 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     try {
       await callApi<Attachment>(
         `/api/tickets/${encodeURIComponent(ticketPublicId)}/attachments`,
-        { method: "POST", body },
+        { method: "POST", body, timeoutMs: ATTACHMENT_TIMEOUT_MS },
       );
 
       if (props.mode === "detail") {
         props.onChanged();
       }
     } catch (error) {
-      setFailure(uploadFailureMessage(error));
+      setFailure(uploadFailureMessage(error, "detail"));
     } finally {
       setUploading(false);
     }
@@ -783,7 +788,7 @@ function AttachmentTableRow({
   );
 }
 
-function uploadFailureMessage(error: unknown): string {
+function uploadFailureMessage(error: unknown, mode: "create" | "detail"): string {
   if (error instanceof ApiResponseError) {
     if (error.status === 413) {
       return "The file is larger than the 5 MB limit.";
@@ -793,8 +798,17 @@ function uploadFailureMessage(error: unknown): string {
       return "Unsupported file type. Use JPG, JPEG, PNG, WEBP, or PDF.";
     }
 
+    /*
+     * The two endpoints spell 409 differently, and the mode is what tells them
+     * apart. A direct upload conflicts with the five-Active limit on the Ticket;
+     * a pre-upload conflicts with the ceiling on prepared files this Requester
+     * is holding across every draft -- including ones abandoned by a closed tab,
+     * which is why the remedy is not "this screen has too many".
+     */
     if (error.status === 409) {
-      return `A Ticket can hold at most ${MAX_ACTIVE_ATTACHMENTS} active attachments.`;
+      return mode === "detail"
+        ? `A Ticket can hold at most ${MAX_ACTIVE_ATTACHMENTS} active attachments.`
+        : "Too many prepared files are still waiting. Remove some, or try again later.";
     }
   }
 

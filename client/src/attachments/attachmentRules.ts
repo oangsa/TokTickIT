@@ -14,6 +14,22 @@ export const MAX_ATTACHMENT_BYTES = 5_000_000;
 /* BR-47. Removed Attachments do not count toward it. */
 export const MAX_ACTIVE_ATTACHMENTS = 5;
 
+/*
+ * The deadline for a request that carries Attachment bytes, in place of the
+ * 8-second default every JSON request uses (`api.ts`).
+ *
+ * A `fetch` AbortSignal covers the whole exchange, request body included, so the
+ * default budget silently caps the real upload limit at whatever fits in 8
+ * seconds -- roughly 5 Mbit/s of sustained upstream for a file at
+ * MAX_ATTACHMENT_BYTES. Below that the abort surfaces as "The upload did not
+ * complete" while the server has usually already committed the Pending row, so
+ * every Retry orphans another copy until the 24-hour sweep.
+ *
+ * 60 seconds carries 5,000,000 bytes at well under 1 Mbit/s. It is a transport
+ * deadline, not a contract value: nothing in api-spec or ui-spec fixes it.
+ */
+export const ATTACHMENT_TIMEOUT_MS = 60_000;
+
 export const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "pdf"] as const;
 
 /* The user-facing summary of the rules above (ui-spec Section 22.3). */

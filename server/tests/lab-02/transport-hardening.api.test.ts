@@ -265,13 +265,11 @@ describe("binary response hardening (API-70)", () => {
   });
 
   it("keeps the transport treatment on the 410 a Removed Attachment answers", async () => {
-    prismaMock.attachment.findFirst.mockResolvedValue({
-      data: new Uint8Array(BYTES),
-      mimeType: "application/pdf",
-      originalName: "old.pdf",
-      sizeBytes: BYTES.length,
-      deleted: true,
-    });
+    /* The readable query excludes Removed rows; the id-only probe answers 410. */
+    prismaMock.attachment.findFirst.mockImplementation(
+      async ({ where }: { where: { deleted?: boolean } }) =>
+        where.deleted === false ? null : { id: 13 },
+    );
 
     const res = await request(app)
       .get(`/api/attachments/${ATTACHMENT_KEY}/preview`)

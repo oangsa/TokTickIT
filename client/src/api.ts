@@ -88,6 +88,15 @@ export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
    * and the fetch doubles in the tests -- never need a `headers` object at all.
    */
   onResponse?: (response: Response) => void;
+  /*
+   * Overrides `TIMEOUT_MS` for the one class of request the default cannot fit:
+   * an Attachment binary. The deadline covers the whole exchange, request body
+   * included, so a 5,000,000-byte upload (BR-46) needs more than 5 Mbit/s of
+   * sustained upstream to survive the default 8 seconds -- and an abort there
+   * reads as "the upload did not complete" even though the server usually
+   * committed the row. See `ATTACHMENT_TIMEOUT_MS`.
+   */
+  timeoutMs?: number;
 }
 
 export interface ApiErrorDetail {
@@ -162,14 +171,14 @@ async function requestApi(
   init?: ApiRequestInit,
   requesterId?: number,
 ): Promise<Response> {
-  const { onResponse, ...requestInit } = init ?? {};
+  const { onResponse, timeoutMs, ...requestInit } = init ?? {};
   const headers: Record<string, string> = { ...init?.headers };
 
   if (requesterId !== undefined) {
     headers["X-Requester-Id"] = String(requesterId);
   }
 
-  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(timeoutMs ?? TIMEOUT_MS);
 
   const response = await fetch(`${API_URL}${path}`, {
     ...requestInit,

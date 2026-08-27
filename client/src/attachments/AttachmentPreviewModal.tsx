@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../components/Button.js";
 import { Modal } from "../components/Modal.js";
 import { useRequesterBlob } from "../requester/useRequesterApi.js";
+import { ATTACHMENT_TIMEOUT_MS } from "./attachmentRules.js";
 
 export interface PreviewTarget {
   attachmentId: string;
@@ -45,7 +46,9 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
 
     setFailed(false);
 
-    void fetchBlob(`/api/attachments/${encodeURIComponent(target.attachmentId)}/preview`)
+    void fetchBlob(`/api/attachments/${encodeURIComponent(target.attachmentId)}/preview`, {
+      timeoutMs: ATTACHMENT_TIMEOUT_MS,
+    })
       .then((blob) => {
         if (ignore) {
           return;
@@ -143,7 +146,9 @@ export function AttachmentDownloadButton({
     setFailed(false);
 
     try {
-      const blob = await fetchBlob(`/api/attachments/${encodeURIComponent(attachmentId)}/download`);
+      const blob = await fetchBlob(`/api/attachments/${encodeURIComponent(attachmentId)}/download`, {
+        timeoutMs: ATTACHMENT_TIMEOUT_MS,
+      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
 
@@ -152,7 +157,13 @@ export function AttachmentDownloadButton({
       document.body.append(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      /*
+       * Revoked on the next task, not on this one. Chrome takes its reference
+       * inside `click()`, but Firefox and Safari resolve the href after the
+       * handler returns, and revoking synchronously cancels the download there
+       * with no error of any kind for this component to catch.
+       */
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch {
       setFailed(true);
     } finally {

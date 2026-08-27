@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../../src/http/errors.js";
 import type { PrismaClient } from "../../src/generated/prisma/client.js";
-import { MAX_ATTACHMENT_BYTES } from "../../src/services/attachmentRules.js";
+import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_PENDING_ATTACHMENTS_PER_REQUESTER,
+} from "../../src/services/attachmentRules.js";
 import { AttachmentService } from "../../src/services/attachmentService.js";
 
 /*
@@ -34,6 +37,7 @@ const tx = {
 const prisma = {
   attachment: {
     findFirst: vi.fn(),
+    count: vi.fn(),
     create: vi.fn(),
   },
   $transaction: vi.fn(),
@@ -84,6 +88,8 @@ beforeEach(() => {
   prisma.attachment.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
     row(data),
   );
+  /* The unbound-Pending quota: well clear of it unless a test says otherwise. */
+  prisma.attachment.count.mockResolvedValue(0);
   prisma.$transaction.mockImplementation(async (work: (client: typeof tx) => unknown) => work(tx));
   tx.attachment.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
     row(data),
@@ -361,6 +367,10 @@ describe("UNIT-12 bounded Serializable retry", () => {
     return Object.assign(new Error("could not serialize access"), { code: "40001" });
   }
 
+  function deadlock() {
+    return Object.assign(new Error("deadlock detected"), { code: "40P01" });
+  }
+
   /*
    * The shape the pg driver adapter actually raises: no `code` of its own, the
    * SQLSTATE nested under `cause.originalCode`, and a message that says only
@@ -437,6 +447,49 @@ describe("UNIT-12 bounded Serializable retry", () => {
         file: upload("vpn-error.png"),
       }),
     ).rejects.toBe(thrown);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  /*
+   * The collection batch shares the retry without sharing the isolation level.
+   * It does not need `Serializable` -- every statement is guarded by the state it
+   * was validated against -- but two overlapping batches can still deadlock past
+   * the sorted lock order, and without a retry that surfaces as a 500 for work
+   * that would commit on a second run.
+   */
+  function removeOnePending() {
+    return service().deleteCollection({
+      requesterId: REQUESTER_ID,
+      actor: ACTOR,
+      items: [{ attachmentId: PENDING_KEY, reason: "" }],
+    });
+  }
+
+  it("retries a deadlocked collection deletion and commits on the second attempt", async () => {
+    tx.attachment.findMany.mockResolvedValue([
+      { id: 11, storageKey: PENDING_KEY, ticketId: null, deleted: false },
+    ]);
+    tx.attachment.deleteMany.mockResolvedValue({ count: 1 });
+    prisma.$transaction
+      .mockRejectedValueOnce(deadlock())
+      .mockImplementationOnce(async (work: (client: typeof tx) => unknown) => work(tx));
+
+    await removeOnePending();
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(tx.attachment.deleteMany).toHaveBeenCalledTimes(1);
+    /* Still the default isolation: the guards hold the batch, not Serializable. */
+    expect(prisma.$transaction.mock.calls[1][1]).not.toMatchObject({
+      isolationLevel: "Serializable",
+    });
+  });
+
+  it("never retries a collection guard that fired", async () => {
+    const thrown = new ApiError("CONFLICT");
+    prisma.$transaction.mockRejectedValue(thrown);
+
+    await expect(removeOnePending()).rejects.toBe(thrown);
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
@@ -519,25 +572,69 @@ describe("UNIT-13 metadata, preview, and download access", () => {
     });
   });
 
-  it("answers Gone for a Removed owned Attachment", async () => {
-    prisma.attachment.findFirst.mockResolvedValue({
-      data: new Uint8Array([1]),
-      mimeType: "application/pdf",
-      originalName: "old.pdf",
-      sizeBytes: 1,
-      deleted: true,
-    });
+  it("answers Gone for a Removed owned Attachment without reading its bytes", async () => {
+    /*
+     * Where-aware, because the point of the read split is the WHERE: the
+     * readable query excludes Removed rows, so only the id-only follow-up
+     * answers for one.
+     */
+    prisma.attachment.findFirst.mockImplementation(
+      async ({ where }: { where: { deleted?: boolean } }) =>
+        where.deleted === false ? null : { id: 13 },
+    );
 
     const error = await rejectionOf(service().findBinary(REQUESTER_ID, REMOVED_KEY));
 
     expect(error.statusCode).toBe(410);
     expect(error.code).toBe("GONE");
+
+    /*
+     * A Removed row at MAX_ATTACHMENT_BYTES would otherwise be read out of the
+     * database in full and thrown away to produce this 410.
+     */
+    const [readable, probe] = prisma.attachment.findFirst.mock.calls;
+    expect(readable[0].where).toMatchObject({ deleted: false });
+    expect(readable[0].select).toMatchObject({ data: true });
+    expect(probe[0].select).toEqual({ id: true });
+    expect(probe[0].select.data).toBeUndefined();
   });
 
   it("returns null rather than Gone when the binary is not in scope at all", async () => {
     prisma.attachment.findFirst.mockResolvedValue(null);
 
     expect(await service().findBinary(REQUESTER_ID, ACTIVE_KEY)).toBeNull();
+  });
+
+  /*
+   * The unbound-Pending ceiling. Not an api-spec rule -- it is the growth
+   * backstop on the one write a Requester can repeat without limit -- so what is
+   * pinned is the boundary and the fact that it never touches a bound or an
+   * already Removed row.
+   */
+  it.each([
+    ["accepts", MAX_PENDING_ATTACHMENTS_PER_REQUESTER - 1, true],
+    ["refuses", MAX_PENDING_ATTACHMENTS_PER_REQUESTER, false],
+  ])("%s a pre-upload at %d unbound Pending rows", async (_label, held, accepted) => {
+    prisma.attachment.count.mockResolvedValue(held);
+
+    const create = service().createPending({
+      requesterId: REQUESTER_ID,
+      actor: ACTOR,
+      file: upload("vpn-error.png"),
+    });
+
+    if (accepted) {
+      await expect(create).resolves.toMatchObject({ ticketPublicId: null });
+    } else {
+      const error = await rejectionOf(create);
+      expect(error.statusCode).toBe(409);
+      expect(prisma.attachment.create).not.toHaveBeenCalled();
+    }
+
+    /* Only this Requester's own unbound, un-removed rows are counted. */
+    expect(prisma.attachment.count).toHaveBeenCalledWith({
+      where: { uploadedByRequesterId: REQUESTER_ID, ticketId: null, deleted: false },
+    });
   });
 });
 

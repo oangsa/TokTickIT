@@ -10,6 +10,24 @@ import { ApiError } from "../http/errors.js";
 export const MAX_ATTACHMENT_BYTES = 5_000_000;
 
 /*
+ * A ceiling on how many unbound Pending Attachments one Requester may hold at
+ * once.
+ *
+ * Nothing in api-spec fixes this number: the contract bounds Active Attachments
+ * per Ticket (BR-47) and expires unbound ones after 24 hours (BR-54), but it
+ * bounds nothing in between, so `POST /api/attachments` is the one write in the
+ * feature a Requester can repeat without limit. At MAX_ATTACHMENT_BYTES each,
+ * a browser tab left looping fills the `data` column faster than the daily
+ * sweep empties it.
+ *
+ * 25 is five abandoned Create Ticket drafts' worth, which is well past what the
+ * screen can prepare (five per draft, released on a confirmed discard) and far
+ * short of what a loop would write. A Requester who genuinely reaches it is
+ * holding orphans the sweep will clear.
+ */
+export const MAX_PENDING_ATTACHMENTS_PER_REQUESTER = 25;
+
+/*
  * BR-44/BR-45. The filename extension is the Lab 2 type-validation authority and
  * the response MIME type is derived from it, because the multipart MIME value is
  * client-supplied and therefore not acceptance evidence. Magic-byte inspection

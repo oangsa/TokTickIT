@@ -7,7 +7,10 @@ import { ALICE, attachmentRow, prismaMock, tx } from "./support/ticketPrismaMock
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
 import { app } from "../../src/app.js";
-import { MAX_ATTACHMENT_BYTES } from "../../src/services/attachmentRules.js";
+import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_PENDING_ATTACHMENTS_PER_REQUESTER,
+} from "../../src/services/attachmentRules.js";
 
 const TICKET_PUBLIC_ID = "05a214b4-b957-4ed7-a58e-73f4392b35ec";
 const PENDING_KEY = "eb87467e-b209-4a18-bbc6-c8c5a4dccf95";
@@ -45,6 +48,8 @@ beforeEach(() => {
     attachmentRow({ ...data, id: 21 }),
   );
   tx.attachment.count.mockResolvedValue(0);
+  /* The unbound-Pending quota on `POST /api/attachments`. */
+  prismaMock.attachment.count.mockResolvedValue(0);
   tx.attachment.deleteMany.mockResolvedValue({ count: 1 });
   tx.attachment.updateMany.mockResolvedValue({ count: 1 });
   tx.ticket.findFirst.mockResolvedValue({ id: 42, publicId: TICKET_PUBLIC_ID });
@@ -352,7 +357,14 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
   });
 
   it.each(["preview", "download"])("answers 410 for a Removed Attachment on %s", async (route) => {
-    prismaMock.attachment.findFirst.mockResolvedValue(binaryRow({ deleted: true }));
+    /*
+     * Where-aware: the readable query excludes Removed rows so their bytes are
+     * never read, and the id-only follow-up is what answers 410.
+     */
+    prismaMock.attachment.findFirst.mockImplementation(
+      async ({ where }: { where: { deleted?: boolean } }) =>
+        where.deleted === false ? null : { id: 13 },
+    );
 
     const res = await get(`/api/attachments/${REMOVED_KEY}/${route}`);
 
@@ -391,7 +403,21 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
         { ticketId: null, uploadedByRequesterId: ALICE.id },
         { ticket: { requesterId: ALICE.id, deleted: false } },
       ],
+      /* Removed rows are excluded here, not filtered out of the answer. */
+      deleted: false,
     });
+  });
+
+  it("refuses a pre-upload once the Requester's unbound Pending rows reach the ceiling", async () => {
+    prismaMock.attachment.count.mockResolvedValue(MAX_PENDING_ATTACHMENTS_PER_REQUESTER);
+
+    const res = await upload("/api/attachments").attach("file", PNG, {
+      filename: "vpn-error.png",
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("CONFLICT");
+    expect(prismaMock.attachment.create).not.toHaveBeenCalled();
   });
 });
 

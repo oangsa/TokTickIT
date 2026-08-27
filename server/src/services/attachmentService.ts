@@ -4,6 +4,7 @@ import { ApiError, ErrorDetail } from "../http/errors.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import {
   MAX_ATTACHMENT_BYTES,
+  MAX_PENDING_ATTACHMENTS_PER_REQUESTER,
   payloadTooLargeError,
   removalReasonError,
   resolveUploadName,
@@ -12,7 +13,7 @@ import { MAX_ATTACHMENTS } from "./ticketCreateRequest.js";
 import { AttachmentDTO, toAttachmentDTO } from "./ticketService.js";
 
 /* BR-76: three transaction attempts in total, the first one included. */
-const SERIALIZABLE_ATTEMPTS = 3;
+const TRANSACTION_ATTEMPTS = 3;
 
 /*
  * The retry delay is deliberately small and randomized. api-spec Section 11.5
@@ -154,34 +155,54 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+interface TransactionOptions {
+  isolationLevel?: "Serializable";
+  timeout?: number;
+}
+
 /*
- * api-spec Section 11.5. Prisma's default PostgreSQL isolation is explicitly not
- * trusted for the Active-count-then-insert pair: only `Serializable` makes the
- * count a promise the commit will keep, so two concurrent uploads to a Ticket at
- * four Active Attachments cannot both read four and both insert.
+ * The bounded retry, shared by both transactional paths.
  *
- * Exhausting the attempts on contention alone falls through to the centralized
- * 500. Lab 2 defines no Service Unavailable variant for this.
+ * An `ApiError` is a business outcome the transaction reached on purpose -- a
+ * 404, a 409, a validation failure -- and running it again produces the same
+ * answer three times, so it leaves on the first attempt (api-spec Section 11.5).
+ * Only a serialization failure or a deadlock is worth a second look, and
+ * exhausting the attempts on contention alone falls through to the centralized
+ * 500: Lab 2 defines no Service Unavailable variant.
  */
-export async function runSerializable<T>(
+async function runTransactionWithRetry<T>(
   prisma: PrismaClient,
   work: (tx: Prisma.TransactionClient) => Promise<T>,
+  options: TransactionOptions,
 ): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await prisma.$transaction(work, { isolationLevel: "Serializable" });
+      return await prisma.$transaction(work, options);
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
       }
 
-      if (attempt >= SERIALIZABLE_ATTEMPTS || !isTransientConflict(error)) {
+      if (attempt >= TRANSACTION_ATTEMPTS || !isTransientConflict(error)) {
         throw error;
       }
 
       await delay(Math.random() * RETRY_DELAY_MS);
     }
   }
+}
+
+/*
+ * api-spec Section 11.5. Prisma's default PostgreSQL isolation is explicitly not
+ * trusted for the Active-count-then-insert pair: only `Serializable` makes the
+ * count a promise the commit will keep, so two concurrent uploads to a Ticket at
+ * four Active Attachments cannot both read four and both insert.
+ */
+export async function runSerializable<T>(
+  prisma: PrismaClient,
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return runTransactionWithRetry(prisma, work, { isolationLevel: "Serializable" });
 }
 
 export class AttachmentService {
@@ -195,6 +216,29 @@ export class AttachmentService {
    */
   async createPending(input: CreatePendingInput): Promise<AttachmentDTO> {
     const file = validateFile(input.file);
+
+    /*
+     * The one unbounded write in the feature, bounded. Counted after the file is
+     * validated, so a rejected upload costs no query.
+     *
+     * `attachment_uploader_ticket_idx` is `(uploaded_by_requester_id,
+     * ticket_id)`, which is exactly this predicate, so the count is an index
+     * probe rather than a scan.
+     *
+     * ponytail: counted outside a transaction, so concurrent uploads can
+     * overshoot by however many are in flight. That is acceptable for a growth
+     * backstop -- unlike the five-Active rule, no contract reads this number, and
+     * paying `Serializable` contention on every pre-upload to make a quota exact
+     * would cost the common path more than the overshoot costs anyone. Fold it
+     * into a transaction if it ever has to be exact.
+     */
+    const unbound = await this.prisma.attachment.count({
+      where: { uploadedByRequesterId: input.requesterId, ticketId: null, deleted: false },
+    });
+
+    if (unbound >= MAX_PENDING_ATTACHMENTS_PER_REQUESTER) {
+      throw new ApiError("CONFLICT");
+    }
 
     const row = await this.prisma.attachment.create({
       data: {
@@ -298,31 +342,42 @@ export class AttachmentService {
       return null;
     }
 
+    /*
+     * `deleted` is in the WHERE rather than checked on the answer, so a Removed
+     * Attachment never has its `data` column read out of the database only to be
+     * thrown away -- which for a row at MAX_ATTACHMENT_BYTES is the whole file.
+     */
     const row = await this.prisma.attachment.findFirst({
-      where: ownedAttachmentWhere(requesterId, storageKey),
-      select: {
-        data: true,
-        mimeType: true,
-        originalName: true,
-        sizeBytes: true,
-        deleted: true,
-      },
+      where: { ...ownedAttachmentWhere(requesterId, storageKey), deleted: false },
+      select: { data: true, mimeType: true, originalName: true, sizeBytes: true },
     });
 
-    if (row === null) {
-      return null;
+    if (row !== null) {
+      return {
+        data: Buffer.from(row.data),
+        mimeType: row.mimeType,
+        originalName: row.originalName,
+        sizeBytes: row.sizeBytes,
+      };
     }
 
-    if (row.deleted) {
+    /*
+     * Nothing readable, so the second query decides between the two ways of
+     * having none: a Removed row the Requester owns is `410`, anything else is
+     * the safe `404`. It selects the id alone and is only reached on the miss
+     * path, which is the rare one -- the UI offers preview and download for
+     * Pending and Active rows only.
+     */
+    const removed = await this.prisma.attachment.findFirst({
+      where: ownedAttachmentWhere(requesterId, storageKey),
+      select: { id: true },
+    });
+
+    if (removed !== null) {
       throw new ApiError("GONE");
     }
 
-    return {
-      data: Buffer.from(row.data),
-      mimeType: row.mimeType,
-      originalName: row.originalName,
-      sizeBytes: row.sizeBytes,
-    };
+    return null;
   }
 
   /*
@@ -343,7 +398,8 @@ export class AttachmentService {
     const storageKeys = input.items.map((item) => item.attachmentId);
     const reasons = new Map(input.items.map((item) => [item.attachmentId, item.reason]));
 
-    await this.prisma.$transaction(
+    await runTransactionWithRetry(
+      this.prisma,
       async (tx) => {
         const rows = await tx.attachment.findMany({
           where: {
@@ -422,7 +478,17 @@ export class AttachmentService {
           }
         }
       },
-      /* Headroom for a maximum batch's round trips; see the constant above. */
+      /*
+       * Headroom for a maximum batch's round trips; see the constant above.
+       *
+       * No `Serializable` here: every statement below is guarded by the state it
+       * was validated against, so the default isolation already refuses to act on
+       * a row that moved. What the retry adds is the deadlock two overlapping
+       * batches can still reach -- the sorted lock order reduces those but does
+       * not rule them out (Section 13.7), and without a retry one surfaces as a
+       * 500 for a batch that would succeed on a second run. A guard that fires
+       * raises an `ApiError`, which leaves on the first attempt.
+       */
       { timeout: COLLECTION_TRANSACTION_TIMEOUT_MS },
     );
   }
