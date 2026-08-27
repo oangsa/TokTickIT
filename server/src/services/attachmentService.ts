@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import { ApiError, ErrorDetail } from "../http/errors.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
-import { MAX_ATTACHMENT_BYTES, payloadTooLargeError, resolveUploadName } from "./attachmentRules.js";
+import {
+  MAX_ATTACHMENT_BYTES,
+  payloadTooLargeError,
+  removalReasonError,
+  resolveUploadName,
+} from "./attachmentRules.js";
 import { MAX_ATTACHMENTS } from "./ticketCreateRequest.js";
 import { AttachmentDTO, toAttachmentDTO } from "./ticketService.js";
 
@@ -43,9 +48,6 @@ const TRANSIENT_CODES = new Set([
  */
 const STORAGE_KEY_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const MIN_REMOVAL_REASON = 3;
-const MAX_REMOVAL_REASON = 200;
 
 /*
  * A full 100-item batch is one read plus up to 100 guarded single-row
@@ -371,13 +373,10 @@ export class AttachmentService {
             continue;
           }
 
-          const reason = item.reason.trim();
+          const message = removalReasonError(item.reason.trim());
 
-          if (reason.length < MIN_REMOVAL_REASON || reason.length > MAX_REMOVAL_REASON) {
-            details.push({
-              field: `items[${index}].reason`,
-              message: `reason must contain ${MIN_REMOVAL_REASON}-${MAX_REMOVAL_REASON} characters.`,
-            });
+          if (message !== null) {
+            details.push({ field: `items[${index}].reason`, message });
           }
         }
 

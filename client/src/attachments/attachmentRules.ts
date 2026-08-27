@@ -78,3 +78,29 @@ export function validateSelectedFile(file: File): string | null {
 
   return null;
 }
+
+export const MIN_REMOVAL_REASON = 3;
+export const MAX_REMOVAL_REASON = 200;
+
+/*
+ * The client mirror of the server's removal-reason rule (api-spec Section 13.4).
+ *
+ * Counted in code points, like the backend and like the `char_length` CHECK
+ * behind it, and not in UTF-16 code units: two emoji are 4 code units but 2
+ * characters, so a `.length` here would let the form submit a reason the backend
+ * then rejects, and would refuse a 200-character reason of emoji the column
+ * holds. Control characters go with them -- PostgreSQL `text` cannot store NUL.
+ */
+export function removalReasonError(reason: string): string | null {
+  if (CONTROL_CHARACTERS.test(reason)) {
+    return "The reason contains characters that are not allowed.";
+  }
+
+  const length = [...reason].length;
+
+  if (length < MIN_REMOVAL_REASON || length > MAX_REMOVAL_REASON) {
+    return `Reason must contain ${MIN_REMOVAL_REASON}-${MAX_REMOVAL_REASON} characters.`;
+  }
+
+  return null;
+}

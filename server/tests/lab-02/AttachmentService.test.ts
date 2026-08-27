@@ -632,6 +632,15 @@ describe("UNIT-14 unified collection deletion", () => {
     ["a reason of two characters", "no"],
     ["a whitespace-only reason", "     "],
     ["a reason of 201 characters", "a".repeat(201)],
+    /*
+     * 4 UTF-16 code units but 2 characters. A `.length` check would accept it
+     * and PostgreSQL's `char_length` CHECK would then reject the UPDATE -- a 500
+     * where the contract requires this 400.
+     */
+    ["a reason of two astral characters", "\u{1F600}\u{1F600}"],
+    ["a reason of 201 astral characters", "\u{1F600}".repeat(201)],
+    /* PostgreSQL `text` cannot hold NUL at all. */
+    ["a reason carrying a control character", "ab\u0000cd"],
   ])("rejects %s on an Active item without mutating", async (_label, reason) => {
     tx.attachment.findMany.mockResolvedValue([ACTIVE]);
 

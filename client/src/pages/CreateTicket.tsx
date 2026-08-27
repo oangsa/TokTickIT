@@ -382,9 +382,15 @@ export default function CreateTicket() {
     void submit(recovery.payload, recovery.idempotencyKey);
   }
 
-  /* BR-25: an untouched empty draft leaves directly; anything else confirms. */
+  /*
+   * BR-25: an untouched empty draft leaves directly; anything else confirms.
+   *
+   * `unresolvedFiles` is part of "anything else". A file still Uploading is in
+   * neither `isDirty` nor `attachmentIds` yet, but the Requester did choose it,
+   * and leaving silently would drop a row the server is about to create.
+   */
   function handleCancel(): void {
-    if (isDirty(draft) || draft.attachmentIds.length > 0) {
+    if (isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles) {
       setConfirmDiscard(true);
       return;
     }

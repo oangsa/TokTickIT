@@ -115,3 +115,38 @@ export function payloadTooLargeError(): ApiError {
     `The uploaded file exceeds the maximum allowed size of ${MAX_ATTACHMENT_BYTES.toLocaleString("en-US")} bytes.`,
   );
 }
+
+export const MIN_REMOVAL_REASON = 3;
+export const MAX_REMOVAL_REASON = 200;
+
+/*
+ * api-spec Section 13.4 / `attachment_lifecycle_check`. The removal reason a
+ * soft-removal writes.
+ *
+ * Counted in code points, not UTF-16 code units, because the CHECK is
+ * `char_length(...)` and `VARCHAR(200)` is also counted in characters. A
+ * `.length` here disagrees with both on any astral character: two emoji are 4
+ * code units but 2 characters, so the app would accept a reason the CHECK then
+ * rejects -- an update-time 500 where the contract requires a safe 400 -- and a
+ * 200-character reason of emoji would be refused even though the column holds
+ * it. Same rule, same unit, as Summary and Description in `ticketCreateRequest`.
+ *
+ * Control characters are refused for a second database reason: PostgreSQL `text`
+ * cannot hold NUL at all, so a reason carrying one is a 500 rather than a value.
+ * They are rejected as a class, exactly as a file name's are.
+ *
+ * Returns the message for an unusable reason, or `null` when it can be stored.
+ */
+export function removalReasonError(reason: string): string | null {
+  if (CONTROL_CHARACTERS.test(reason)) {
+    return "reason must not contain control characters.";
+  }
+
+  const length = [...reason].length;
+
+  if (length < MIN_REMOVAL_REASON || length > MAX_REMOVAL_REASON) {
+    return `reason must contain ${MIN_REMOVAL_REASON}-${MAX_REMOVAL_REASON} characters.`;
+  }
+
+  return null;
+}

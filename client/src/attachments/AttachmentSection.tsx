@@ -13,6 +13,7 @@ import {
   ATTACHMENT_RULES_TEXT,
   MAX_ACTIVE_ATTACHMENTS,
   formatSize,
+  removalReasonError,
   validateSelectedFile,
 } from "./attachmentRules.js";
 import { releasePendingAttachments } from "./pendingCleanup.js";
@@ -22,9 +23,6 @@ import { releasePendingAttachments } from "./pendingCleanup.js";
  * status, selection, and actions stay at every width (ui-spec Section 21.3).
  */
 const SECONDARY_COLUMN = "d-none d-md-table-cell";
-
-const MIN_REMOVAL_REASON = 3;
-const MAX_REMOVAL_REASON = 200;
 
 /*
  * A row in the table, whichever screen it came from. Create Ticket rows are
@@ -432,11 +430,10 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     const errors: Record<string, string> = {};
 
     for (const attachmentId of removalTargets) {
-      const reason = (reasons[attachmentId] ?? "").trim();
+      const message = removalReasonError((reasons[attachmentId] ?? "").trim());
 
-      if (reason.length < MIN_REMOVAL_REASON || reason.length > MAX_REMOVAL_REASON) {
-        errors[attachmentId] =
-          `Reason must contain ${MIN_REMOVAL_REASON}-${MAX_REMOVAL_REASON} characters.`;
+      if (message !== null) {
+        errors[attachmentId] = message;
       }
     }
 
