@@ -825,6 +825,17 @@ a {
   display: flex;
   align-items: center;
   gap: 0.125rem;
+  /*
+   * The icons themselves never need this -- they are one size and they fit.
+   * `AttachmentDownloadButton` also renders its own failure alert as a sibling
+   * of the button, and a full sentence must drop below the group rather than
+   * squeeze in beside it.
+   */
+  flex-wrap: wrap;
+}
+
+.tt-row-actions .tt-invalid-text {
+  flex-basis: 100%;
 }
 
 /*

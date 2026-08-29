@@ -190,12 +190,25 @@ export function AttachmentDownloadButton({
   return (
     <>
       {variant === "icon" ? (
+        /*
+         * The busy state has to survive the icon presentation. `Button` renders
+         * a spinner and sets `aria-busy` from its own `busy` prop; an
+         * `IconButton` has neither, so a download of up to
+         * `ATTACHMENT_TIMEOUT_MS` would show a Requester nothing but a greyed
+         * glyph. The spinner replaces the glyph rather than sitting beside it,
+         * because the control is one row high.
+         */
         <IconButton
           label={`Download ${originalName}`}
           disabled={busy}
+          aria-busy={busy || undefined}
           onClick={() => void download()}
         >
-          <span aria-hidden="true">⤓</span>
+          {busy ? (
+            <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+          ) : (
+            <span aria-hidden="true">⤓</span>
+          )}
         </IconButton>
       ) : (
         <Button variant={variant} busy={busy} onClick={() => void download()}>
