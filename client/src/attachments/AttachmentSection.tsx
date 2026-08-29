@@ -577,7 +577,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
         {rows.length === 0 ? (
           <p className="text-secondary mb-0">No attachments.</p>
         ) : (
-          <table className="table tt-table align-middle mb-0">
+          <table className="table tt-table tt-table--attachments align-middle mb-0">
             <thead>
               <tr>
                 {props.mode === "detail" ? <th scope="col">Select</th> : null}
@@ -585,7 +585,9 @@ export function AttachmentSection(props: AttachmentSectionProps) {
                 <th scope="col" className={SECONDARY_COLUMN}>
                   Type
                 </th>
-                <th scope="col">Size</th>
+                <th scope="col" className={SECONDARY_COLUMN}>
+                  Size
+                </th>
                 <th scope="col" className={SECONDARY_COLUMN}>
                   Uploaded At
                 </th>
@@ -751,7 +753,7 @@ function AttachmentTableRow({
         )}
       </td>
       <td className={SECONDARY_COLUMN}>{(row.extension ?? "").toUpperCase()}</td>
-      <td>{formatSize(row.sizeBytes)}</td>
+      <td className={SECONDARY_COLUMN}>{formatSize(row.sizeBytes)}</td>
       <td className={SECONDARY_COLUMN}>
         {row.uploadedAt === null ? "—" : ticketDateTime(row.uploadedAt)}
       </td>

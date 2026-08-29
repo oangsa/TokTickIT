@@ -457,3 +457,177 @@
   flex: none;
   color: var(--tt-green-primary);
 }
+
+/*
+ * ── Ticket table columns (Sections 16.1, 16.3) ─────────────────────────────
+ *
+ * `.tt-table` is `table-layout: fixed`, which without explicit widths splits
+ * the row evenly: Summary — the only free-text column and the one a Requester
+ * actually reads — came out the same width as Status, while a Ticket Number and
+ * a Priority pill overflowed into the cells beside them.
+ *
+ * The widths are set per breakpoint because the three layouts hold different
+ * columns in very different space: seven columns in about 1100px, the same
+ * seven in about 740px, and four in about 326px. One set of percentages cannot
+ * serve all three, and a percentage that is a few pixels short does not clip —
+ * it pushes a pill into the next column.
+ *
+ * Set on `th`, not through `<colgroup>`: the low-priority columns are hidden
+ * with `d-none d-md-table-cell` at small sizes, and a `<col>` for a column with
+ * no rendered cells still claims its share of the table.
+ */
+.tt-table--tickets th:nth-child(1) {
+  width: 19%;
+}
+
+.tt-table--tickets th:nth-child(2) {
+  width: 27%;
+}
+
+.tt-table--tickets th:nth-child(3) {
+  width: 12%;
+}
+
+.tt-table--tickets th:nth-child(4) {
+  width: 13%;
+}
+
+.tt-table--tickets th:nth-child(5) {
+  width: 10%;
+}
+
+.tt-table--tickets th:nth-child(6) {
+  width: 8%;
+}
+
+.tt-table--tickets th:nth-child(7) {
+  width: 11%;
+}
+
+/* Tablet still shows all seven columns, in two thirds of the width. */
+@media (max-width: 991.98px) {
+  .tt-table {
+    font-size: 0.875rem;
+  }
+
+  .tt-badge {
+    font-size: 0.625rem;
+  }
+
+  /* Full-width column labels do not fit the narrower columns at body size. */
+  .tt-table thead th {
+    font-size: 0.6875rem;
+  }
+
+  .tt-table--tickets th:nth-child(2) {
+    width: 24%;
+  }
+
+  .tt-table--tickets th:nth-child(3),
+  .tt-table--tickets th:nth-child(4) {
+    width: 11%;
+  }
+
+  .tt-table--tickets th:nth-child(5) {
+    width: 13%;
+  }
+
+  .tt-table--tickets th:nth-child(6) {
+    width: 9%;
+  }
+
+  .tt-table--tickets th:nth-child(7) {
+    width: 13%;
+  }
+}
+
+/*
+ * Below `md` only Ticket Number, Summary, Priority, and Status remain
+ * (Section 16.3), in roughly 326px on the narrowest supported screen. The cell
+ * padding is cut here as well: four columns of default padding spend a tenth of
+ * that width on gutters, which is width the filename and the Summary need more.
+ */
+@media (max-width: 767.98px) {
+  .tt-table {
+    font-size: 0.8125rem;
+  }
+
+  .tt-table th,
+  .tt-table td {
+    padding-inline: 0.25rem;
+  }
+
+  /* PRIORITY and STATUS have to sit whole above columns this narrow. */
+  .tt-table thead th {
+    font-size: 0.625rem;
+    letter-spacing: 0.05em;
+  }
+
+  .tt-badge {
+    padding: 0.25rem 0.4rem;
+  }
+
+  /*
+   * A Ticket Number is read a segment at a time, not as prose, so it takes the
+   * one step down that keeps its 12-character suffix on a single line in a
+   * column this narrow.
+   */
+  .tt-table .tt-ticket-no {
+    font-size: 0.6875rem;
+  }
+
+  /*
+   * The meter is the first thing to go where space is scarcest: it restates a
+   * level the badge's colour and text already carry, and keeping it here would
+   * cost the Priority column the width its label needs.
+   */
+  .tt-table .tt-level {
+    display: none;
+  }
+
+  .tt-table--tickets th:nth-child(1) {
+    width: 32%;
+  }
+
+  .tt-table--tickets th:nth-child(2) {
+    width: 31%;
+  }
+
+  .tt-table--tickets th:nth-child(5) {
+    width: 20%;
+  }
+
+  .tt-table--tickets th:nth-child(6) {
+    width: 17%;
+  }
+}
+
+/*
+ * ── Attachment table columns (Sections 21.2, 21.3) ─────────────────────────
+ *
+ * The same even split hurt this table more: a checkbox column and a filename
+ * column were given identical width, and at `sm` the fixed layout left the
+ * filename — the value Section 34 requires to stay readable — a few characters
+ * wide while a checkbox held 60px it could not use.
+ *
+ * Automatic layout instead of the shared fixed one. Every cell here is either
+ * one control or one short metadata value, so the browser sizing columns to
+ * their contents is what this table wants, and it is what keeps the filename
+ * taking the slack at every width. `overflow-wrap: anywhere` on the free-text
+ * cells keeps each column's minimum small, so automatic layout cannot widen the
+ * table past its container and reintroduce the page scroll Section 4 forbids.
+ */
+.tt-table--attachments {
+  table-layout: auto;
+}
+
+/*
+ * Column labels break between words, never inside one: `.tt-table` sets
+ * `overflow-wrap: anywhere` for free-text cells, which turned PRIORITY into
+ * "PRIOR / ITY". `break-word` keeps the fallback for a label that genuinely
+ * cannot fit.
+ */
+.tt-table thead th {
+  padding-block: 0.625rem;
+  overflow-wrap: break-word;
+}

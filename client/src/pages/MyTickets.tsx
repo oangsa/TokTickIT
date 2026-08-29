@@ -499,7 +499,7 @@ export default function MyTickets() {
         ) : (
           <>
             <div>
-              <table className="table tt-table align-middle mb-0">
+              <table className="table tt-table tt-table--tickets align-middle mb-0">
                 <thead>
                   <tr>
                     {columns.map((column) => (
