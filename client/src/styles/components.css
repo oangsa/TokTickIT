@@ -748,6 +748,33 @@
   gap: 0.125rem;
 }
 
+/*
+ * Filter dropdowns (Section 14.2). The menu matches the toggle's width and
+ * scrolls past four or five options rather than growing the dialog.
+ */
+.tt-multiselect__toggle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-multiselect__menu {
+  max-block-size: 14rem;
+  overflow-y: auto;
+  border-color: var(--tt-border);
+}
+
+/* Bootstrap's dropdown item is a 32px row; these are touch targets. */
+.tt-multiselect__menu .dropdown-item {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+
+.tt-multiselect__menu .dropdown-item:active {
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+}
+
 /* The toolbar's controls take the full row once they wrap below the search. */
 @media (max-width: 575.98px) {
   .tt-toolbar__controls {

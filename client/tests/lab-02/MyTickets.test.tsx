@@ -514,7 +514,19 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     return screen.getByRole("dialog", { name: "Filters" });
   }
 
-  it("offers all four multi-select filters", async () => {
+  /* Each filter is a dropdown of checkboxes: open it, then tick a value. */
+  async function chooseFilter(dialog: HTMLElement, field: string, option: string) {
+    const toggle = within(dialog).getByRole("button", { name: new RegExp(`^${field}`) });
+    await userEvent.click(toggle);
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: option }));
+    await userEvent.click(toggle);
+  }
+
+  function filterToggle(dialog: HTMLElement, field: string): HTMLElement {
+    return within(dialog).getByRole("button", { name: new RegExp(`^${field}`) });
+  }
+
+  it("offers all four filters as multi-select dropdowns", async () => {
     stubApi();
     renderMyTickets();
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
@@ -522,7 +534,12 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     const dialog = await openFilters();
 
     for (const label of ["Category", "Related System", "Requested Priority", "Status"]) {
-      expect(within(dialog).getByLabelText(label)).toHaveAttribute("multiple");
+      const toggle = filterToggle(dialog, label);
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+      await userEvent.click(toggle);
+      expect(within(dialog).getAllByRole("checkbox").length).toBeGreaterThan(0);
+      await userEvent.click(toggle);
     }
   });
 
@@ -532,7 +549,7 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
     const dialog = await openFilters();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Category"), ["1"]);
+    await chooseFilter(dialog, "Category", "Network");
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     expect(listCalls(calls)).toHaveLength(1);
@@ -540,8 +557,7 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
 
     /* Reopening shows the committed selection, not the discarded draft. */
     const reopened = await openFilters();
-    expect(within(reopened).getByRole("option", { name: "Network" })).not.toBeDisabled();
-    expect((within(reopened).getByLabelText("Category") as HTMLSelectElement).selectedOptions).toHaveLength(0);
+    expect(filterToggle(reopened, "Category")).toHaveTextContent("Any Category");
   });
 
   it("clears the draft on Reset without fetching", async () => {
@@ -550,10 +566,10 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
     const dialog = await openFilters();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Category"), ["1"]);
+    await chooseFilter(dialog, "Category", "Network");
     await userEvent.click(within(dialog).getByRole("button", { name: "Reset" }));
 
-    expect((within(dialog).getByLabelText("Category") as HTMLSelectElement).selectedOptions).toHaveLength(0);
+    expect(filterToggle(dialog, "Category")).toHaveTextContent("Any Category");
     expect(listCalls(calls)).toHaveLength(1);
   });
 
@@ -566,8 +582,8 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
     const dialog = await openFilters();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Category"), ["1"]);
-    await userEvent.selectOptions(within(dialog).getByLabelText("Requested Priority"), ["HIGH"]);
+    await chooseFilter(dialog, "Category", "Network");
+    await chooseFilter(dialog, "Requested Priority", "HIGH");
     await userEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
 
     await waitFor(() => expect(listCalls(calls)).toHaveLength(2));

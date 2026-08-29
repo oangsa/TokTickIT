@@ -16,6 +16,7 @@ import { EmptyState } from "../components/EmptyState.js";
 import { ErrorState } from "../components/ErrorState.js";
 import { FilterChip } from "../components/FilterChip.js";
 import { Modal } from "../components/Modal.js";
+import { MultiSelect } from "../components/MultiSelect.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { Pagination } from "../components/Pagination.js";
 import { Select } from "../components/Select.js";
@@ -87,10 +88,6 @@ const SKELETON_ROWS = 5;
  * shell uses elsewhere.
  */
 const SECONDARY_COLUMN = "d-none d-md-table-cell";
-
-function readSelection(select: HTMLSelectElement): string[] {
-  return Array.from(select.selectedOptions, (option) => option.value);
-}
 
 export default function MyTickets() {
   const navigate = useNavigate();
@@ -699,77 +696,51 @@ export default function MyTickets() {
           </div>
         }
       >
-        <Select
+        <MultiSelect
           label="Category"
-          multiple
-          size={4}
-          value={filterDraft?.categoryId ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, categoryId: readSelection(event.target) },
-            )
+          placeholder="Any Category"
+          options={categories.map((category) => ({
+            value: String(category.id),
+            label: category.name,
+          }))}
+          selected={filterDraft?.categoryId ?? []}
+          onChange={(categoryId) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, categoryId }))
           }
-        >
-          {categories.map((category) => (
-            <option key={category.id} value={String(category.id)}>
-              {category.name}
-            </option>
-          ))}
-        </Select>
+        />
 
-        <Select
+        <MultiSelect
           label="Related System"
-          multiple
-          size={4}
-          value={filterDraft?.relatedSystemId ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, relatedSystemId: readSelection(event.target) },
-            )
+          placeholder="Any Related System"
+          options={relatedSystems.map((system) => ({
+            value: String(system.id),
+            label: system.name,
+          }))}
+          selected={filterDraft?.relatedSystemId ?? []}
+          onChange={(relatedSystemId) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, relatedSystemId }))
           }
-        >
-          {relatedSystems.map((system) => (
-            <option key={system.id} value={String(system.id)}>
-              {system.name}
-            </option>
-          ))}
-        </Select>
+        />
 
-        <Select
+        <MultiSelect
           label="Requested Priority"
-          multiple
-          size={3}
-          value={filterDraft?.requestedPriority ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, requestedPriority: readSelection(event.target) },
-            )
+          placeholder="Any Requested Priority"
+          options={PRIORITY_OPTIONS.map((priority) => ({ value: priority, label: priority }))}
+          selected={filterDraft?.requestedPriority ?? []}
+          onChange={(requestedPriority) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, requestedPriority }))
           }
-        >
-          {PRIORITY_OPTIONS.map((priority) => (
-            <option key={priority} value={priority}>
-              {priority}
-            </option>
-          ))}
-        </Select>
+        />
 
-        <Select
+        <MultiSelect
           label="Status"
-          multiple
-          size={2}
-          value={filterDraft?.currentStatus ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, currentStatus: readSelection(event.target) },
-            )
+          placeholder="Any Status"
+          options={STATUS_OPTIONS.map((status) => ({ value: status, label: status }))}
+          selected={filterDraft?.currentStatus ?? []}
+          onChange={(currentStatus) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, currentStatus }))
           }
-        >
-          {STATUS_OPTIONS.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </Select>
+        />
       </Modal>
     </>
   );

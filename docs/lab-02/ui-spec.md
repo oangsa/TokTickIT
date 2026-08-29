@@ -754,22 +754,34 @@ Use a single-column modal:
 │ Filters                          ×   │
 ├──────────────────────────────────────┤
 │ Category                             │
-│ [ multi-select                    ]  │
+│ [ Any Category                  ▼ ]  │
 │                                      │
 │ Related System                       │
-│ [ multi-select                    ]  │
+│ [ Any Related System            ▼ ]  │
 │                                      │
 │ Requested Priority                   │
-│ [ multi-select                    ]  │
+│ [ LOW, HIGH                     ▼ ]  │
 │                                      │
 │ Status                               │
-│ [ multi-select                    ]  │
+│ [ Any Status                    ▼ ]  │
 ├──────────────────────────────────────┤
 │ Reset                  Cancel Apply  │
 └──────────────────────────────────────┘
 ```
 
 All four filters support multiple selections.
+
+Each filter is a dropdown of checkboxes, not a `<select multiple>` list box:
+
+- the closed control keeps the height and chevron of an editable select;
+- it reads `Any <Field>` when nothing is selected, and the selected labels
+  otherwise;
+- opening it reveals one checkbox per value, scrolling past roughly five;
+- values are added and removed independently, with no modifier key.
+
+A list box was rejected: it holds four permanently open, internally scrolling
+panes in one modal, and its selection model — a modifier-click to add, a plain
+click to replace every selection — is neither discoverable nor usable on touch.
 
 ## 14.3. Draft State
 
@@ -1780,7 +1792,7 @@ The following decisions are part of the Lab 2 UI contract:
 - Small-screen Ticket table keeps Ticket Number, Summary, Priority, Status.
 - Search debounce is `400ms`.
 - Filters use an Apply modal with draft state.
-- Category, Related System, Priority, and Status are multi-select filters.
+- Category, Related System, Priority, and Status are multi-select filters, each presented as a dropdown of checkboxes rather than a list box.
 - Applied filters use count + removable chips.
 - Clear Filters remains available when a search/filter is active whether results exist or not.
 - Priority badges stay within the Zen Green visual language.
