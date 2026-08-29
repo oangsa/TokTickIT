@@ -631,3 +631,32 @@
   padding-block: 0.625rem;
   overflow-wrap: break-word;
 }
+
+/*
+ * ── Priority meter (Section 17.1) ──────────────────────────────────────────
+ *
+ * Priority is the one ordinal value on a Ticket, and three flat badge colours
+ * make it read as three unrelated categories. Three segments, filled to the
+ * level, put the ordering into the badge's shape: the scale survives greyscale,
+ * a colour-vision difference, and the small-screen table where the badges sit
+ * closest together. The text label still carries the meaning on its own
+ * (Section 29.9); the meter is aria-hidden so it is never announced twice.
+ */
+.tt-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+  margin-inline-end: 0.375rem;
+}
+
+.tt-level span {
+  inline-size: 3px;
+  block-size: 0.5rem;
+  border-radius: 1px;
+  background-color: currentcolor;
+  opacity: 0.3;
+}
+
+.tt-level span.tt-level__on {
+  opacity: 1;
+}

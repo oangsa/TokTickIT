@@ -72,6 +72,13 @@ const PRIORITY_VARIANT = {
   HIGH: "strong",
 } as const;
 
+/* Filled segments in the badge meter; the text label carries the meaning. */
+const PRIORITY_LEVEL = {
+  LOW: 1,
+  MEDIUM: 2,
+  HIGH: 3,
+} as const;
+
 const SKELETON_ROWS = 5;
 
 /*
@@ -570,7 +577,10 @@ export default function MyTickets() {
                           <td className={SECONDARY_COLUMN}>{item.relatedSystemName}</td>
                           <td>
                             {/* Never colour alone: the level is always spelled out. */}
-                            <Badge variant={PRIORITY_VARIANT[item.requestedPriority]}>
+                            <Badge
+                              variant={PRIORITY_VARIANT[item.requestedPriority]}
+                              level={PRIORITY_LEVEL[item.requestedPriority]}
+                            >
                               {item.requestedPriority}
                             </Badge>
                           </td>
