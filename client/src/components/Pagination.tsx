@@ -27,8 +27,9 @@ const WINDOW = 5;
 /*
  * Grouped counts: a Requester with four thousand Tickets reads "4,000", not
  * "4000". The locale is pinned the way `ticketDate` pins its own, so the range
- * renders identically on every machine and in CI. The page numbers themselves
- * stay ungrouped -- they are labels on 2rem buttons, not quantities.
+ * renders identically on every machine and in CI. The numbered buttons stay
+ * ungrouped -- they are labels on 2rem controls, not quantities -- but the
+ * summary lines are prose, so they group like the counts beside them.
  */
 const COUNT = new Intl.NumberFormat("en-CA");
 

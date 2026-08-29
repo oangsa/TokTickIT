@@ -166,7 +166,7 @@ export default function CreateTicket() {
    * Uploading is in neither `isDirty` nor `attachmentIds` yet, but the Requester
    * did choose it, and leaving silently would drop a row the server is about to
    * create. The Cancel confirmation and the unload warning both read this, so
-   * the two can never disagree about what counts as work worth keeping.
+   * those two can never disagree about what counts as work worth keeping.
    */
   const dirty = isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles;
 
@@ -175,6 +175,12 @@ export default function CreateTicket() {
    * Back out of the application never reaches it. The browser's own prompt is
    * the only guard on those, and it is worth having: the draft lives in
    * component state, so nothing survives the navigation.
+   *
+   * It does NOT cover an in-application route change -- the sidebar links leave
+   * this screen without an unload, and the draft is dropped silently. Closing
+   * that needs `useBlocker`, which requires a data router; the application is
+   * mounted under `BrowserRouter` and every test under `MemoryRouter`, so the
+   * guard stops at the two paths that do unload.
    */
   useEffect(() => {
     if (!dirty) {
