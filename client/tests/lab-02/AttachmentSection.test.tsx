@@ -825,6 +825,15 @@ describe("UI-29 a required reason per selected Attachment", () => {
     ).toBe(false);
   });
 
+  it("focuses the first invalid reason on submit", async () => {
+    const dialog = await openRemoval(["vpn-error.png", "router-log.pdf"]);
+
+    await userEvent.type(within(dialog).getByLabelText(/vpn-error\.png/), "Wrong screenshot.");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    expect(within(dialog).getByLabelText(/router-log\.pdf/)).toHaveFocus();
+  });
+
   it("sends a trimmed reason for each selected file", async () => {
     const dialog = await openRemoval(["vpn-error.png"]);
 

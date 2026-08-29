@@ -719,6 +719,24 @@ describe("Cancel and discard", () => {
     await waitFor(() => expect(screen.queryByLabelText(/^Category/)).toBeNull());
   });
 
+  /*
+   * Cancel is confirmed by the dialog; a reload or a tab close never reaches
+   * it, so the unload warning is the only thing standing between a typed draft
+   * and an empty form. A cancelled `beforeunload` is what shows the prompt.
+   */
+  it("warns before an unload that would drop a dirty draft", async () => {
+    const user = userEvent.setup();
+    stubApi();
+    renderCreateTicket();
+    await screen.findByLabelText(/^Category/);
+
+    expect(window.dispatchEvent(new Event("beforeunload", { cancelable: true }))).toBe(true);
+
+    await fillValidForm(user);
+
+    expect(window.dispatchEvent(new Event("beforeunload", { cancelable: true }))).toBe(false);
+  });
+
   it("confirms before discarding a dirty draft", async () => {
     const user = userEvent.setup();
     stubApi();

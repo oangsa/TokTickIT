@@ -709,7 +709,7 @@ describe("UI-22 My Tickets pagination and list projection", () => {
     const nav = screen.getByRole("navigation", { name: "Ticket pagination" });
     const pageNumbers = () =>
       within(nav)
-        .getAllByRole("button", { name: /^\d+$/ })
+        .getAllByRole("button", { name: /^Page \d+$/ })
         .map((button) => button.textContent);
 
     expect(pageNumbers()).toEqual(["1", "2", "3", "4", "5"]);

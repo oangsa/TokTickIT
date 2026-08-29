@@ -161,6 +161,37 @@ export default function CreateTicket() {
    * Create Ticket attempt even when the Requester remains unchanged. */
   const submissionGenerationRef = useRef(0);
 
+  /*
+   * BR-25's "anything else". `unresolvedFiles` is part of it: a file still
+   * Uploading is in neither `isDirty` nor `attachmentIds` yet, but the Requester
+   * did choose it, and leaving silently would drop a row the server is about to
+   * create. The Cancel confirmation and the unload warning both read this, so
+   * the two can never disagree about what counts as work worth keeping.
+   */
+  const dirty = isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles;
+
+  /*
+   * Cancel confirms through the discard dialog, but a reload, a tab close, or a
+   * Back out of the application never reaches it. The browser's own prompt is
+   * the only guard on those, and it is worth having: the draft lives in
+   * component state, so nothing survives the navigation.
+   */
+  useEffect(() => {
+    if (!dirty) {
+      return;
+    }
+
+    function warn(event: BeforeUnloadEvent): void {
+      event.preventDefault();
+      /* Safari still reads the legacy field rather than the cancellation. */
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warn);
+
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   useEffect(() => {
     let ignore = false;
 
@@ -398,15 +429,9 @@ export default function CreateTicket() {
     void submit(recovery.payload, recovery.idempotencyKey);
   }
 
-  /*
-   * BR-25: an untouched empty draft leaves directly; anything else confirms.
-   *
-   * `unresolvedFiles` is part of "anything else". A file still Uploading is in
-   * neither `isDirty` nor `attachmentIds` yet, but the Requester did choose it,
-   * and leaving silently would drop a row the server is about to create.
-   */
+  /* BR-25: an untouched empty draft leaves directly; anything else confirms. */
   function handleCancel(): void {
-    if (isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles) {
+    if (dirty) {
       setConfirmDiscard(true);
       return;
     }
@@ -497,6 +522,7 @@ export default function CreateTicket() {
               <div className="col-12 col-md-6">
                 <Select
                   id={FIELD_IDS.categoryId}
+                  name="category"
                   label="Category"
                   required
                   value={draft.categoryId}
@@ -514,6 +540,7 @@ export default function CreateTicket() {
               <div className="col-12 col-md-6">
                 <Select
                   id={FIELD_IDS.relatedSystemId}
+                  name="relatedSystem"
                   label="Related System"
                   required
                   value={draft.relatedSystemId}
@@ -532,6 +559,7 @@ export default function CreateTicket() {
 
             <Select
               id={FIELD_IDS.requestedPriority}
+              name="requestedPriority"
               label="Requested Priority"
               required
               value={draft.requestedPriority}
@@ -553,6 +581,9 @@ export default function CreateTicket() {
              */}
             <TextInput
               id={FIELD_IDS.summary}
+              name="summary"
+              /* Single-line free text: the one field a password manager offers to fill. */
+              autoComplete="off"
               label="Summary"
               required
               value={draft.summary}
@@ -563,6 +594,7 @@ export default function CreateTicket() {
 
             <Textarea
               id={FIELD_IDS.description}
+              name="description"
               label="Description"
               required
               value={draft.description}

@@ -15,6 +15,14 @@
  */
 
 :root {
+  /*
+   * The palette is light only -- Zen Green fixes every surface (Section 3.1) --
+   * so this is a statement of fact, not a preference. It is what keeps a
+   * dark-mode browser from rendering native scrollbars, `<select>` popups, and
+   * form controls in its own dark chrome against these light surfaces.
+   */
+  color-scheme: light;
+
   /* Colors (Section 3.1) */
   --tt-green-primary: #006b3c;
   --tt-green-secondary: #0b7a46;
@@ -268,10 +276,18 @@ body {
  * The dialog container is focused on open so Escape and the Tab trap have a
  * host (see `Modal`), but it is not a control: Chrome still matches
  * `:focus-visible` there and drew a green rectangle around the whole dialog.
- * Every control inside keeps its own indicator.
+ *
+ * The hard outline goes, but not the indicator -- focus genuinely rests here on
+ * open and again after any click on non-focusable dialog content, and a keyboard
+ * reader with nothing showing cannot tell a focused dialog from a lost one. The
+ * soft ring on the card carries it instead. Every control inside keeps its own.
  */
 .modal-dialog:focus-visible {
   outline: none;
+}
+
+.modal-dialog:focus-visible .modal-content {
+  box-shadow: var(--tt-focus-ring);
 }
 
 /*
@@ -316,6 +332,16 @@ body {
  */
 h1 {
   letter-spacing: -0.02em;
+}
+
+/*
+ * Headings are short enough that an even break reads better than a full first
+ * line and a one-word second one. Unsupported browsers ignore the property and
+ * wrap as they did before.
+ */
+h1,
+h2 {
+  text-wrap: balance;
 }
 
 /* Pill badges (Section 17). Small, wide-tracked, and never taller than a row. */

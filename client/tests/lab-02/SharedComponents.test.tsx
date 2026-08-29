@@ -150,8 +150,8 @@ describe("UI-32 pagination (ui-spec 18)", () => {
 
     const numbered = screen.getAllByRole("button").filter((b) => /^\d+$/.test(b.textContent ?? ""));
     expect(numbered.length).toBeLessThanOrEqual(7);
-    expect(screen.getByRole("button", { name: "1" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("button", { name: "400" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Page 1" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Page 400" })).toBeInTheDocument();
   });
 
   it("keeps every page listed when the set is small enough", () => {
@@ -167,7 +167,7 @@ describe("UI-32 pagination (ui-spec 18)", () => {
 
     expect(screen.getByText("Showing 11–20 of 47")).toBeInTheDocument();
     for (const page of ["1", "2", "3", "4", "5"]) {
-      expect(screen.getByRole("button", { name: page })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: `Page ${page}` })).toBeInTheDocument();
     }
   });
 
@@ -184,7 +184,7 @@ describe("UI-32 pagination (ui-spec 18)", () => {
     );
 
     expect(screen.getByText("Showing 21\u201325 of 25")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "3" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Page 3" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
 
     // Previous steps back from the clamped page, not from the stale 40.

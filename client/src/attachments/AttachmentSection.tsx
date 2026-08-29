@@ -13,6 +13,7 @@ import {
   ATTACHMENT_RULES_TEXT,
   ATTACHMENT_TIMEOUT_MS,
   MAX_ACTIVE_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
   formatSize,
   removalReasonError,
   validateSelectedFile,
@@ -473,6 +474,18 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     setReasonErrors(errors);
 
     if (Object.keys(errors).length > 0) {
+      /*
+       * The first invalid reason takes focus, the way the Create Ticket form
+       * focuses its first invalid field (ui-spec Section 8.2). Without it a
+       * multi-row removal leaves the keyboard on Remove with the message it
+       * has to act on somewhere above, off screen on a long dialog.
+       */
+      const first = removalTargets.find((attachmentId) => errors[attachmentId] !== undefined);
+
+      if (first !== undefined) {
+        document.getElementById(removalReasonFieldId(first))?.focus();
+      }
+
       return;
     }
 
@@ -651,6 +664,11 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   );
 }
 
+/* Shared with the first-invalid focus in `submitRemoval`. */
+function removalReasonFieldId(attachmentId: string): string {
+  return `removal-reason-${attachmentId}`;
+}
+
 function RemovalReasonField({
   name,
   attachmentId,
@@ -664,7 +682,7 @@ function RemovalReasonField({
   error?: string;
   onChange: (value: string) => void;
 }) {
-  const fieldId = `removal-reason-${attachmentId}`;
+  const fieldId = removalReasonFieldId(attachmentId);
   const errorId = `${fieldId}-error`;
 
   return (
@@ -674,7 +692,9 @@ function RemovalReasonField({
       </label>
       <input
         id={fieldId}
+        name={fieldId}
         type="text"
+        autoComplete="off"
         className={`form-control${error === undefined ? "" : " is-invalid"}`}
         value={value}
         required
@@ -833,7 +853,7 @@ function AttachmentTableRow({
 function uploadFailureMessage(error: unknown, mode: "create" | "detail"): string {
   if (error instanceof ApiResponseError) {
     if (error.status === 413) {
-      return "The file is larger than the 5 MB limit.";
+      return `The file is larger than the ${formatSize(MAX_ATTACHMENT_BYTES)} limit.`;
     }
 
     if (error.status === 415) {

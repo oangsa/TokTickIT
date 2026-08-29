@@ -144,6 +144,7 @@ export default function RequesterSelection() {
             <>
               <Select
                 label="Development Requester"
+                name="requesterId"
                 required
                 value={selectedId}
                 onChange={(event) => setSelectedId(event.target.value)}

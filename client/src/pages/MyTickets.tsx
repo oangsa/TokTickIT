@@ -439,9 +439,13 @@ export default function MyTickets() {
               labelHidden
               className="tt-search-input"
               type="search"
+              name="search"
+              /* A ticket number is not prose, and no password manager belongs here. */
+              autoComplete="off"
+              spellCheck={false}
               value={searchInput}
               maxLength={200}
-              placeholder="Search by ticket number, summary, or description..."
+              placeholder="Search by ticket number, summary, or description…"
               onChange={(event) => setSearchInput(event.target.value)}
             />
           </div>

@@ -82,28 +82,37 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
 
   return (
     <Modal open title={target.originalName} onClose={onClose} size="lg">
-      {failed ? (
-        <p role="alert" className="tt-invalid-text mb-0">
-          This attachment could not be opened.
-        </p>
-      ) : objectUrl === null ? (
-        <p role="status" className="text-secondary mb-0">
-          Loading preview…
-        </p>
-      ) : isPdf ? (
-        <iframe
-          src={objectUrl}
-          title={`Preview of ${target.originalName}`}
-          className="tt-attachment-preview"
-        />
-      ) : (
-        /* Fits the modal and keeps its aspect ratio (ui-spec Section 24). */
-        <img
-          src={objectUrl}
-          alt={`Preview of ${target.originalName}`}
-          className="img-fluid d-block mx-auto"
-        />
-      )}
+      {/*
+        The frame is reserved before the bytes arrive. An image has no known
+        dimensions until it decodes -- there is nothing honest to put in
+        `width`/`height` on a blob -- so the box holds the height instead, and
+        the dialog does not jump from a one-line "Loading preview…" to a
+        full-size picture under the reader's pointer.
+      */}
+      <div className="tt-attachment-preview">
+        {failed ? (
+          <p role="alert" className="tt-invalid-text mb-0">
+            This attachment could not be opened.
+          </p>
+        ) : objectUrl === null ? (
+          <p role="status" className="text-secondary mb-0">
+            Loading preview…
+          </p>
+        ) : isPdf ? (
+          <iframe
+            src={objectUrl}
+            title={`Preview of ${target.originalName}`}
+            className="tt-attachment-preview__frame"
+          />
+        ) : (
+          /* Fits the modal and keeps its aspect ratio (ui-spec Section 24). */
+          <img
+            src={objectUrl}
+            alt={`Preview of ${target.originalName}`}
+            className="img-fluid d-block mx-auto"
+          />
+        )}
+      </div>
 
       <div className="d-flex justify-content-end mt-3">
         <AttachmentDownloadButton

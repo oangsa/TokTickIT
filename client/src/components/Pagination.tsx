@@ -25,6 +25,14 @@ const DEFAULT_PAGE_SIZES = [10, 20, 30, 50, 100];
 const WINDOW = 5;
 
 /*
+ * Grouped counts: a Requester with four thousand Tickets reads "4,000", not
+ * "4000". The locale is pinned the way `ticketDate` pins its own, so the range
+ * renders identically on every machine and in CI. The page numbers themselves
+ * stay ungrouped -- they are labels on 2rem buttons, not quantities.
+ */
+const COUNT = new Intl.NumberFormat("en-CA");
+
+/*
  * Page numbers around the current page, always including the first and last.
  * `null` marks an elided run. Rendering every page instead would put 400 buttons
  * on screen for 4000 tickets and force the page-level horizontal scroll that
@@ -136,10 +144,11 @@ export function Pagination({
         ) : (
           <>
             <span className="d-none d-lg-inline">
-              Showing {firstItem}–{lastItem} of {totalItems}
+              Showing {COUNT.format(firstItem)}–{COUNT.format(lastItem)} of{" "}
+              {COUNT.format(totalItems)}
             </span>
             <span className="d-lg-none">
-              Page {page} of {pageCount}
+              Page {COUNT.format(page)} of {COUNT.format(pageCount)}
             </span>
           </>
         )}
@@ -180,6 +189,8 @@ export function Pagination({
                 <button
                   type="button"
                   className="page-link"
+                  /* The digit alone is not a name a screen reader can place. */
+                  aria-label={`Page ${entry}`}
                   aria-current={entry === page ? "page" : undefined}
                   onClick={() => onPageChange(entry)}
                 >
