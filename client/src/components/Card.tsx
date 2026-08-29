@@ -15,7 +15,7 @@ export function Card({ title, actions, className, children }: CardProps) {
     <>
       {title ? (
         <div className="card-header bg-transparent d-flex justify-content-between align-items-center gap-3">
-          <h2 id={titleId} className="h6 mb-0">
+          <h2 id={titleId} className="tt-section-title mb-0">
             {title}
           </h2>
           {actions}

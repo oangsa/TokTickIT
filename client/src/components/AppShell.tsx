@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
+import { BrandMark } from "./BrandMark.js";
 import { IconButton } from "./IconButton.js";
 import { SidebarNav } from "./SidebarNav.js";
 
@@ -97,7 +98,10 @@ export function AppShell() {
         >
           <span aria-hidden="true">☰</span>
         </IconButton>
-        <span className="tt-brand">TokTickIT</span>
+        <span className="tt-brand">
+          <BrandMark />
+          TokTickIT
+        </span>
       </header>
 
       {open ? <div className="tt-backdrop d-lg-none" onClick={close} /> : null}

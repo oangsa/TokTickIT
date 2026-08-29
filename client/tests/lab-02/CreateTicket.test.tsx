@@ -719,6 +719,24 @@ describe("Cancel and discard", () => {
     await waitFor(() => expect(screen.queryByLabelText(/^Category/)).toBeNull());
   });
 
+  /*
+   * Cancel is confirmed by the dialog; a reload or a tab close never reaches
+   * it, so the unload warning is the only thing standing between a typed draft
+   * and an empty form. A cancelled `beforeunload` is what shows the prompt.
+   */
+  it("warns before an unload that would drop a dirty draft", async () => {
+    const user = userEvent.setup();
+    stubApi();
+    renderCreateTicket();
+    await screen.findByLabelText(/^Category/);
+
+    expect(window.dispatchEvent(new Event("beforeunload", { cancelable: true }))).toBe(true);
+
+    await fillValidForm(user);
+
+    expect(window.dispatchEvent(new Event("beforeunload", { cancelable: true }))).toBe(false);
+  });
+
   it("confirms before discarding a dirty draft", async () => {
     const user = userEvent.setup();
     stubApi();
@@ -979,5 +997,43 @@ describe("Stale Requester submission completion", () => {
     expect(
       screen.getByRole("button", { name: "Resume Submission Recovery" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("UI-09 the Ticket Information card (ui-spec 11.3, 20.1)", () => {
+  /*
+   * The section title moves onto the card header, which is what makes the card a
+   * named region -- the same treatment Ticket Detail already had.
+   */
+  it("labels the form's card region by its section heading", async () => {
+    stubApi();
+    renderCreateTicket();
+    await screen.findByLabelText(/^Category/);
+
+    const heading = screen.getByRole("heading", { name: "Ticket Information" });
+
+    expect(screen.getByRole("region", { name: "Ticket Information" })).toContainElement(heading);
+  });
+
+  /*
+   * Every control carries a `name`, so autofill and password managers can tell
+   * the fields apart. Summary is the one single-line free-text field they would
+   * offer to fill, and a Ticket summary is not a value they hold, so it opts out.
+   */
+  it("names every control and keeps autofill off the free-text line", async () => {
+    stubApi();
+    renderCreateTicket();
+
+    expect(await screen.findByLabelText(/^Category/)).toHaveAttribute("name", "category");
+    expect(screen.getByLabelText(/^Related System/)).toHaveAttribute("name", "relatedSystem");
+    expect(screen.getByLabelText(/^Requested Priority/)).toHaveAttribute(
+      "name",
+      "requestedPriority",
+    );
+    expect(screen.getByLabelText(/^Description/)).toHaveAttribute("name", "description");
+
+    const summary = screen.getByLabelText(/^Summary/);
+    expect(summary).toHaveAttribute("name", "summary");
+    expect(summary).toHaveAttribute("autocomplete", "off");
   });
 });

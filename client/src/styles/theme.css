@@ -15,6 +15,14 @@
  */
 
 :root {
+  /*
+   * The palette is light only -- Zen Green fixes every surface (Section 3.1) --
+   * so this is a statement of fact, not a preference. It is what keeps a
+   * dark-mode browser from rendering native scrollbars, `<select>` popups, and
+   * form controls in its own dark chrome against these light surfaces.
+   */
+  color-scheme: light;
+
   /* Colors (Section 3.1) */
   --tt-green-primary: #006b3c;
   --tt-green-secondary: #0b7a46;
@@ -45,6 +53,15 @@
   /* Radius (Section 3.3) */
   --tt-radius-control: 0.5rem;
   --tt-radius-surface: 0.75rem;
+
+  /*
+   * One micro-label treatment carries every structural label in the app: card
+   * section titles, table column headers, and the sidebar's Requester caption.
+   * They all answer the same question -- "what is this block of record data" --
+   * so they read as one voice and never compete with the values underneath.
+   */
+  --tt-label-size: 0.75rem;
+  --tt-label-tracking: 0.07em;
 
   /* Focus uses Secondary Green (Section 7.4) */
   --tt-focus-ring: 0 0 0 0.1875rem rgba(11, 122, 70, 0.35);
@@ -181,8 +198,10 @@ body {
   --bs-card-border-color: var(--tt-border);
   --bs-card-spacer-y: var(--tt-card-pad);
   --bs-card-spacer-x: var(--tt-card-pad);
-  --bs-card-cap-padding-y: var(--tt-card-pad);
+  /* The section title is a label, not a heading block: it needs less room. */
+  --bs-card-cap-padding-y: 0.875rem;
   --bs-card-cap-padding-x: var(--tt-card-pad);
+  --bs-card-cap-bg: transparent;
 }
 
 .pagination {
@@ -254,6 +273,24 @@ body {
 }
 
 /*
+ * The dialog container is focused on open so Escape and the Tab trap have a
+ * host (see `Modal`), but it is not a control: Chrome still matches
+ * `:focus-visible` there and drew a green rectangle around the whole dialog.
+ *
+ * The hard outline goes, but not the indicator -- focus genuinely rests here on
+ * open and again after any click on non-focusable dialog content, and a keyboard
+ * reader with nothing showing cannot tell a focused dialog from a lost one. The
+ * soft ring on the card carries it instead. Every control inside keeps its own.
+ */
+.modal-dialog:focus-visible {
+  outline: none;
+}
+
+.modal-dialog:focus-visible .modal-content {
+  box-shadow: var(--tt-focus-ring);
+}
+
+/*
  * Bootstrap zeroes the outline on `.btn:focus-visible`, `.nav-link:focus-visible`
  * and `.page-link:focus` and replaces it with a translucent box-shadow. Two
  * problems follow (Section 29.6, Section 34):
@@ -286,4 +323,31 @@ body {
   --bs-btn-hover-bg: var(--tt-green-pale);
   --bs-btn-hover-color: var(--tt-green-primary);
   --bs-btn-focus-shadow-rgb: 11, 122, 70;
+}
+
+/*
+ * Type scale (Section 3.2). Inter's default tracking is set for text sizes, so
+ * the page title is tightened and the micro-labels are opened up; both are
+ * corrections to the face rather than decoration.
+ */
+h1 {
+  letter-spacing: -0.02em;
+}
+
+/*
+ * Headings are short enough that an even break reads better than a full first
+ * line and a one-word second one. Unsupported browsers ignore the property and
+ * wrap as they did before.
+ */
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+/* Pill badges (Section 17). Small, wide-tracked, and never taller than a row. */
+.tt-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.6rem;
 }

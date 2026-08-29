@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "../components/Button.js";
+import { IconButton } from "../components/IconButton.js";
 import { Modal } from "../components/Modal.js";
 import { useRequesterBlob } from "../requester/useRequesterApi.js";
 import { ATTACHMENT_TIMEOUT_MS } from "./attachmentRules.js";
@@ -81,28 +82,37 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
 
   return (
     <Modal open title={target.originalName} onClose={onClose} size="lg">
-      {failed ? (
-        <p role="alert" className="tt-invalid-text mb-0">
-          This attachment could not be opened.
-        </p>
-      ) : objectUrl === null ? (
-        <p role="status" className="text-secondary mb-0">
-          Loading preview…
-        </p>
-      ) : isPdf ? (
-        <iframe
-          src={objectUrl}
-          title={`Preview of ${target.originalName}`}
-          className="tt-attachment-preview"
-        />
-      ) : (
-        /* Fits the modal and keeps its aspect ratio (ui-spec Section 24). */
-        <img
-          src={objectUrl}
-          alt={`Preview of ${target.originalName}`}
-          className="img-fluid d-block mx-auto"
-        />
-      )}
+      {/*
+        The frame is reserved before the bytes arrive. An image has no known
+        dimensions until it decodes -- there is nothing honest to put in
+        `width`/`height` on a blob -- so the box holds the height instead, and
+        the dialog does not jump from a one-line "Loading preview…" to a
+        full-size picture under the reader's pointer.
+      */}
+      <div className="tt-attachment-preview">
+        {failed ? (
+          <p role="alert" className="tt-invalid-text mb-0">
+            This attachment could not be opened.
+          </p>
+        ) : objectUrl === null ? (
+          <p role="status" className="text-secondary mb-0">
+            Loading preview…
+          </p>
+        ) : isPdf ? (
+          <iframe
+            src={objectUrl}
+            title={`Preview of ${target.originalName}`}
+            className="tt-attachment-preview__frame"
+          />
+        ) : (
+          /* Fits the modal and keeps its aspect ratio (ui-spec Section 24). */
+          <img
+            src={objectUrl}
+            alt={`Preview of ${target.originalName}`}
+            className="img-fluid d-block mx-auto"
+          />
+        )}
+      </div>
 
       <div className="d-flex justify-content-end mt-3">
         <AttachmentDownloadButton
@@ -128,7 +138,13 @@ export function AttachmentDownloadButton({
 }: {
   attachmentId: string;
   originalName: string;
-  variant?: "secondary" | "tertiary";
+  /*
+   * `icon` is the table-row presentation: the same action as a control sized to
+   * a row, naming the file it downloads. ui-spec Section 29.8 allows an
+   * icon-only Attachment download provided it carries both an accessible name
+   * and a hover/focus label, which `IconButton` supplies.
+   */
+  variant?: "secondary" | "tertiary" | "icon";
 }) {
   const fetchBlob = useRequesterBlob();
   const [busy, setBusy] = useState(false);
@@ -173,9 +189,32 @@ export function AttachmentDownloadButton({
 
   return (
     <>
-      <Button variant={variant} busy={busy} onClick={() => void download()}>
-        Download
-      </Button>
+      {variant === "icon" ? (
+        /*
+         * The busy state has to survive the icon presentation. `Button` renders
+         * a spinner and sets `aria-busy` from its own `busy` prop; an
+         * `IconButton` has neither, so a download of up to
+         * `ATTACHMENT_TIMEOUT_MS` would show a Requester nothing but a greyed
+         * glyph. The spinner replaces the glyph rather than sitting beside it,
+         * because the control is one row high.
+         */
+        <IconButton
+          label={`Download ${originalName}`}
+          disabled={busy}
+          aria-busy={busy || undefined}
+          onClick={() => void download()}
+        >
+          {busy ? (
+            <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+          ) : (
+            <span aria-hidden="true">⤓</span>
+          )}
+        </IconButton>
+      ) : (
+        <Button variant={variant} busy={busy} onClick={() => void download()}>
+          Download
+        </Button>
+      )}
       {failed ? (
         <p role="alert" className="tt-invalid-text mb-0">
           {originalName} could not be downloaded.

@@ -16,6 +16,7 @@ import { EmptyState } from "../components/EmptyState.js";
 import { ErrorState } from "../components/ErrorState.js";
 import { FilterChip } from "../components/FilterChip.js";
 import { Modal } from "../components/Modal.js";
+import { MultiSelect } from "../components/MultiSelect.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { Pagination } from "../components/Pagination.js";
 import { Select } from "../components/Select.js";
@@ -72,6 +73,13 @@ const PRIORITY_VARIANT = {
   HIGH: "strong",
 } as const;
 
+/* Filled segments in the badge meter; the text label carries the meaning. */
+const PRIORITY_LEVEL = {
+  LOW: 1,
+  MEDIUM: 2,
+  HIGH: 3,
+} as const;
+
 const SKELETON_ROWS = 5;
 
 /*
@@ -80,10 +88,6 @@ const SKELETON_ROWS = 5;
  * shell uses elsewhere.
  */
 const SECONDARY_COLUMN = "d-none d-md-table-cell";
-
-function readSelection(select: HTMLSelectElement): string[] {
-  return Array.from(select.selectedOptions, (option) => option.value);
-}
 
 export default function MyTickets() {
   const navigate = useNavigate();
@@ -423,20 +427,31 @@ export default function MyTickets() {
       />
 
       <Card>
-        <div className="d-flex flex-wrap align-items-end gap-3">
-          <div className="flex-grow-1" style={{ minWidth: "16rem" }}>
+        <div className="tt-toolbar">
+          <div className="tt-toolbar__search">
+            {/*
+              * The label is hidden, not dropped: the magnifier and the
+              * placeholder name the field in place, and the label still names
+              * it programmatically (ui-spec Sections 13.2, 29.2).
+              */}
             <TextInput
               label="Search"
+              labelHidden
+              className="tt-search-input"
               type="search"
+              name="search"
+              /* A ticket number is not prose, and no password manager belongs here. */
+              autoComplete="off"
+              spellCheck={false}
               value={searchInput}
               maxLength={200}
-              placeholder="Search by ticket number, summary, or description..."
-              helpText="Search ticket number, summary, or description"
+              placeholder="Search by ticket number, summary, or description…"
               onChange={(event) => setSearchInput(event.target.value)}
             />
           </div>
 
-          <div className="mb-3">
+          <div className="tt-toolbar__controls">
+            <div className="mb-3">
             {/*
               * Not disabled during a fetch. Disabling a focused control moves
               * focus to `<body>`, and this screen fetches on every search
@@ -445,23 +460,36 @@ export default function MyTickets() {
               * only writes the URL, and the list effect discards the superseded
               * response through its `ignore` flag.
               */}
-            <Button variant="secondary" onClick={() => setFilterDraft(selectedFilters(query))}>
-              Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
-            </Button>
-          </div>
+              {/*
+                * Applied filters change the button's surface, not only its
+                * count: the count alone reads as part of the label, and a
+                * Requester scanning an unexpected result set needs the toolbar
+                * to say at a glance that a filter is narrowing it (Section 14.1).
+                */}
+              <Button
+                variant="secondary"
+                className={appliedCount > 0 ? "tt-filters--applied" : undefined}
+                onClick={() => setFilterDraft(selectedFilters(query))}
+              >
+                Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
+              </Button>
+            </div>
 
-          <div style={{ minWidth: "14rem" }}>
-            <Select
-              label="Sort by"
-              value={query.sort}
-              onChange={(event) => commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })}
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <div className="tt-toolbar__sort">
+              <Select
+                label="Sort by"
+                value={query.sort}
+                onChange={(event) =>
+                  commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })
+                }
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -499,7 +527,7 @@ export default function MyTickets() {
         ) : (
           <>
             <div>
-              <table className="table tt-table align-middle mb-0">
+              <table className="table tt-table tt-table--tickets align-middle mb-0">
                 <thead>
                   <tr>
                     {columns.map((column) => (
@@ -558,7 +586,7 @@ export default function MyTickets() {
                               * for anyone speaking what they can see.
                               */}
                             <Link
-                              className="tt-row-link"
+                              className="tt-row-link tt-ticket-no"
                               to={`/tickets/${item.publicId}`}
                               aria-label={`Open ticket ${item.ticketNumber}`}
                             >
@@ -570,7 +598,10 @@ export default function MyTickets() {
                           <td className={SECONDARY_COLUMN}>{item.relatedSystemName}</td>
                           <td>
                             {/* Never colour alone: the level is always spelled out. */}
-                            <Badge variant={PRIORITY_VARIANT[item.requestedPriority]}>
+                            <Badge
+                              variant={PRIORITY_VARIANT[item.requestedPriority]}
+                              level={PRIORITY_LEVEL[item.requestedPriority]}
+                            >
                               {item.requestedPriority}
                             </Badge>
                           </td>
@@ -679,77 +710,51 @@ export default function MyTickets() {
           </div>
         }
       >
-        <Select
+        <MultiSelect
           label="Category"
-          multiple
-          size={4}
-          value={filterDraft?.categoryId ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, categoryId: readSelection(event.target) },
-            )
+          placeholder="Any Category"
+          options={categories.map((category) => ({
+            value: String(category.id),
+            label: category.name,
+          }))}
+          selected={filterDraft?.categoryId ?? []}
+          onChange={(categoryId) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, categoryId }))
           }
-        >
-          {categories.map((category) => (
-            <option key={category.id} value={String(category.id)}>
-              {category.name}
-            </option>
-          ))}
-        </Select>
+        />
 
-        <Select
+        <MultiSelect
           label="Related System"
-          multiple
-          size={4}
-          value={filterDraft?.relatedSystemId ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, relatedSystemId: readSelection(event.target) },
-            )
+          placeholder="Any Related System"
+          options={relatedSystems.map((system) => ({
+            value: String(system.id),
+            label: system.name,
+          }))}
+          selected={filterDraft?.relatedSystemId ?? []}
+          onChange={(relatedSystemId) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, relatedSystemId }))
           }
-        >
-          {relatedSystems.map((system) => (
-            <option key={system.id} value={String(system.id)}>
-              {system.name}
-            </option>
-          ))}
-        </Select>
+        />
 
-        <Select
+        <MultiSelect
           label="Requested Priority"
-          multiple
-          size={3}
-          value={filterDraft?.requestedPriority ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, requestedPriority: readSelection(event.target) },
-            )
+          placeholder="Any Requested Priority"
+          options={PRIORITY_OPTIONS.map((priority) => ({ value: priority, label: priority }))}
+          selected={filterDraft?.requestedPriority ?? []}
+          onChange={(requestedPriority) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, requestedPriority }))
           }
-        >
-          {PRIORITY_OPTIONS.map((priority) => (
-            <option key={priority} value={priority}>
-              {priority}
-            </option>
-          ))}
-        </Select>
+        />
 
-        <Select
+        <MultiSelect
           label="Status"
-          multiple
-          size={2}
-          value={filterDraft?.currentStatus ?? []}
-          onChange={(event) =>
-            setFilterDraft((draft) =>
-              draft === null ? draft : { ...draft, currentStatus: readSelection(event.target) },
-            )
+          placeholder="Any Status"
+          options={STATUS_OPTIONS.map((status) => ({ value: status, label: status }))}
+          selected={filterDraft?.currentStatus ?? []}
+          onChange={(currentStatus) =>
+            setFilterDraft((draft) => (draft === null ? draft : { ...draft, currentStatus }))
           }
-        >
-          {STATUS_OPTIONS.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </Select>
+        />
       </Modal>
     </>
   );

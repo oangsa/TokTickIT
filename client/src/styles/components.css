@@ -3,6 +3,25 @@
  * express (ui-spec Sections 5, 7.3, 28, 29.8). Imported after theme.css.
  */
 
+/*
+ * ── Touch behaviour ────────────────────────────────────────────────────────
+ *
+ * `manipulation` drops the 300ms wait for a second tap that would have been a
+ * double-tap zoom. Pinch zoom on the page is untouched -- only the delay goes.
+ * The tap highlight is stated rather than left to the platform's default blue,
+ * which is the one colour in the interface that is not ours; the controls all
+ * carry their own hover, active, and focus treatments.
+ */
+.btn,
+.nav-link,
+.page-link,
+.dropdown-item,
+.form-check-input,
+a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(11, 122, 70, 0.15);
+}
+
 /* Skip link (Section 29.5). */
 .tt-skip-link {
   position: absolute;
@@ -38,6 +57,10 @@
   max-width: var(--tt-content-max);
   margin-inline: auto;
   padding: var(--tt-page-pad);
+  /* Landscape on a notched phone puts the cut inside the content column. */
+  padding-inline-start: max(var(--tt-page-pad), env(safe-area-inset-left));
+  padding-inline-end: max(var(--tt-page-pad), env(safe-area-inset-right));
+  padding-block-end: max(var(--tt-page-pad), env(safe-area-inset-bottom));
 }
 
 .tt-brand {
@@ -63,7 +86,11 @@
   align-items: center;
   gap: 0.75rem;
   min-height: var(--tt-topbar-height);
-  padding: 0.75rem var(--tt-page-pad);
+  /* The bar runs edge to edge, so a notch or a rounded corner eats into it. */
+  padding-block-start: max(0.75rem, env(safe-area-inset-top));
+  padding-block-end: 0.75rem;
+  padding-inline-start: max(var(--tt-page-pad), env(safe-area-inset-left));
+  padding-inline-end: max(var(--tt-page-pad), env(safe-area-inset-right));
   background-color: var(--tt-surface);
   border-bottom: 1px solid var(--tt-border);
 }
@@ -76,6 +103,18 @@
   padding: var(--tt-page-pad) 1rem;
   background-color: var(--tt-surface);
   border-right: 1px solid var(--tt-border);
+}
+
+/*
+ * Create Ticket on the Create Ticket route. It keeps the outline button's shape
+ * but takes the Pale Green surface the active navigation row uses, so "current"
+ * reads the same whichever shell item you are on (ui-spec Section 5.1).
+ */
+.tt-nav-action--current {
+  --bs-btn-color: var(--tt-green-primary);
+  --bs-btn-bg: var(--tt-green-pale);
+  --bs-btn-border-color: var(--tt-green-secondary);
+  font-weight: 600;
 }
 
 .tt-sidebar__footer {
@@ -122,6 +161,9 @@
     z-index: 1045;
     /* Start the drawer content below the topbar it now passes under. */
     padding-block-start: calc(var(--tt-topbar-height) + var(--tt-page-pad));
+    /* The drawer is pinned to the edge the notch and the home bar occupy. */
+    padding-inline-start: max(1rem, env(safe-area-inset-left));
+    padding-block-end: max(var(--tt-page-pad), env(safe-area-inset-bottom));
     transform: translateX(-100%);
     visibility: hidden;
     transition:
@@ -133,6 +175,19 @@
     transform: none;
     visibility: visible;
     transition: transform 0.2s ease;
+  }
+}
+
+/*
+ * The drawer slide is the only animation in the interface, so honouring the
+ * preference is one rule. The open and closed states themselves are unchanged:
+ * the drawer still arrives and still leaves the tab order, it just does not
+ * travel to get there.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .tt-sidebar,
+  .tt-sidebar--open {
+    transition: none;
   }
 }
 
@@ -169,6 +224,18 @@
   background-color: rgba(22, 36, 29, 0.4);
 }
 
+/*
+ * Scrolling inside an overlay stays inside it. Without this, flicking past the
+ * end of the drawer, the filter menu, or a tall dialog hands the gesture to the
+ * page behind it -- which then scrolls under a backdrop the reader cannot see
+ * past, and on iOS drags the whole document instead.
+ */
+.tt-sidebar,
+.tt-multiselect__menu,
+.modal {
+  overscroll-behavior: contain;
+}
+
 /* Icon-only controls: tooltip plus accessible name (Section 29.8). */
 .tt-tip-host {
   display: inline-flex;
@@ -197,6 +264,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Glyph controls sit at body size by default, which reads as a smaller
+     control than the SVG ones beside them. */
+  font-size: 1rem;
+  line-height: 1;
   min-width: 2.25rem;
   min-height: 2.25rem;
   border-radius: var(--tt-radius-control);
@@ -411,9 +482,459 @@
  * Attachment preview (ui-spec Section 24). A PDF gets a tall frame so the
  * browser's own inline viewer has room; an image is sized by `img-fluid` and
  * keeps its aspect ratio without help.
+ *
+ * The wrapper holds that height for every state. A blob has no dimensions until
+ * it decodes, so the loading line, the failure message, and the picture itself
+ * all sit in one reserved box rather than resizing the open dialog as the bytes
+ * land under the reader's pointer.
  */
 .tt-attachment-preview {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-block-size: 70vh;
+}
+
+.tt-attachment-preview__frame {
   width: 100%;
   height: 70vh;
   border: 1px solid var(--tt-border);
+}
+
+/*
+ * ── Structural micro-labels ────────────────────────────────────────────────
+ *
+ * Card section titles, table column headers, and the sidebar Requester caption
+ * share one treatment. They all name a block of record data rather than
+ * introducing prose, so they are set as labels: small, wide-tracked, uppercase,
+ * and quieter than the values they head. Uppercasing is presentational only —
+ * the accessible name keeps its original casing.
+ */
+.tt-section-title,
+.tt-table thead th,
+.tt-caption {
+  font-size: var(--tt-label-size);
+  font-weight: 600;
+  letter-spacing: var(--tt-label-tracking);
+  text-transform: uppercase;
+  color: var(--tt-text-muted);
+}
+
+/*
+ * ── Brand ──────────────────────────────────────────────────────────────────
+ *
+ * A ticket stub: the artifact the whole application is about. It is the only
+ * decorative shape in the interface, so it stays small and takes the wordmark's
+ * own colour rather than introducing another green.
+ */
+.tt-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tt-green-primary);
+}
+
+.tt-brand__mark {
+  flex: none;
+  color: var(--tt-green-primary);
+}
+
+/*
+ * ── List toolbar (Section 13.1) ────────────────────────────────────────────
+ *
+ * Search takes the row and the two query controls sit together at its end. The
+ * controls are bottom-aligned so the labelled Sort control and the unlabelled
+ * search field share one baseline instead of stepping.
+ */
+.tt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.tt-toolbar__search {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.tt-toolbar__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.tt-toolbar__sort {
+  min-width: 12rem;
+}
+
+/*
+ * The magnifier replaces the label the toolbar drops: it names the field for
+ * sighted users while the visually hidden <label> keeps naming it for everyone
+ * else. Inline SVG as a data URI, so it needs no icon dependency and no extra
+ * request.
+ */
+.tt-search-input {
+  padding-inline-start: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%235b6b63' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='M10.5 10.5 14 14'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.75rem center;
+  background-size: 1rem;
+}
+
+/*
+ * ── Ticket table columns (Sections 16.1, 16.3) ─────────────────────────────
+ *
+ * `.tt-table` is `table-layout: fixed`, which without explicit widths splits
+ * the row evenly: Summary — the only free-text column and the one a Requester
+ * actually reads — came out the same width as Status, while a Ticket Number and
+ * a Priority pill overflowed into the cells beside them.
+ *
+ * The widths are set per breakpoint because the three layouts hold different
+ * columns in very different space: seven columns in about 1100px, the same
+ * seven in about 740px, and four in about 326px. One set of percentages cannot
+ * serve all three, and a percentage that is a few pixels short does not clip —
+ * it pushes a pill into the next column.
+ *
+ * Set on `th`, not through `<colgroup>`: the low-priority columns are hidden
+ * with `d-none d-md-table-cell` at small sizes, and a `<col>` for a column with
+ * no rendered cells still claims its share of the table.
+ */
+.tt-table--tickets th:nth-child(1) {
+  width: 19%;
+}
+
+.tt-table--tickets th:nth-child(2) {
+  width: 27%;
+}
+
+.tt-table--tickets th:nth-child(3) {
+  width: 12%;
+}
+
+.tt-table--tickets th:nth-child(4) {
+  width: 13%;
+}
+
+.tt-table--tickets th:nth-child(5) {
+  width: 10%;
+}
+
+.tt-table--tickets th:nth-child(6) {
+  width: 8%;
+}
+
+.tt-table--tickets th:nth-child(7) {
+  width: 11%;
+}
+
+/* Tablet still shows all seven columns, in two thirds of the width. */
+@media (max-width: 991.98px) {
+  .tt-table {
+    font-size: 0.875rem;
+  }
+
+  .tt-badge {
+    font-size: 0.625rem;
+  }
+
+  /* Full-width column labels do not fit the narrower columns at body size. */
+  .tt-table thead th {
+    font-size: 0.6875rem;
+  }
+
+  .tt-table--tickets th:nth-child(2) {
+    width: 24%;
+  }
+
+  .tt-table--tickets th:nth-child(3),
+  .tt-table--tickets th:nth-child(4) {
+    width: 11%;
+  }
+
+  .tt-table--tickets th:nth-child(5) {
+    width: 13%;
+  }
+
+  .tt-table--tickets th:nth-child(6) {
+    width: 9%;
+  }
+
+  .tt-table--tickets th:nth-child(7) {
+    width: 13%;
+  }
+}
+
+/*
+ * Below `md` only Ticket Number, Summary, Priority, and Status remain
+ * (Section 16.3), in roughly 326px on the narrowest supported screen. The cell
+ * padding is cut here as well: four columns of default padding spend a tenth of
+ * that width on gutters, which is width the filename and the Summary need more.
+ */
+@media (max-width: 767.98px) {
+  .tt-table {
+    font-size: 0.8125rem;
+  }
+
+  .tt-table th,
+  .tt-table td {
+    padding-inline: 0.25rem;
+  }
+
+  /* PRIORITY and STATUS have to sit whole above columns this narrow. */
+  .tt-table thead th {
+    font-size: 0.625rem;
+    letter-spacing: 0.05em;
+  }
+
+  .tt-badge {
+    padding: 0.25rem 0.4rem;
+  }
+
+  /*
+   * A Ticket Number is read a segment at a time, not as prose, so it takes the
+   * one step down that keeps its 12-character suffix on a single line in a
+   * column this narrow.
+   */
+  .tt-table .tt-ticket-no {
+    font-size: 0.6875rem;
+  }
+
+  /*
+   * The meter is the first thing to go where space is scarcest: it restates a
+   * level the badge's colour and text already carry, and keeping it here would
+   * cost the Priority column the width its label needs.
+   */
+  .tt-table .tt-level {
+    display: none;
+  }
+
+  .tt-table--tickets th:nth-child(1) {
+    width: 32%;
+  }
+
+  .tt-table--tickets th:nth-child(2) {
+    width: 31%;
+  }
+
+  .tt-table--tickets th:nth-child(5) {
+    width: 20%;
+  }
+
+  .tt-table--tickets th:nth-child(6) {
+    width: 17%;
+  }
+}
+
+/*
+ * ── Attachment table columns (Sections 21.2, 21.3) ─────────────────────────
+ *
+ * The same even split hurt this table more: a checkbox column and a filename
+ * column were given identical width, and at `sm` the fixed layout left the
+ * filename — the value Section 34 requires to stay readable — a few characters
+ * wide while a checkbox held 60px it could not use.
+ *
+ * Automatic layout instead of the shared fixed one. Every cell here is either
+ * one control or one short metadata value, so the browser sizing columns to
+ * their contents is what this table wants, and it is what keeps the filename
+ * taking the slack at every width. `overflow-wrap: anywhere` on the free-text
+ * cells keeps each column's minimum small, so automatic layout cannot widen the
+ * table past its container and reintroduce the page scroll Section 4 forbids.
+ */
+.tt-table--attachments {
+  table-layout: auto;
+}
+
+/* Three icon controls plus their gaps must share one action row. */
+.tt-table--attachments th:last-child,
+.tt-table--attachments td:last-child {
+  min-width: 8rem;
+}
+
+/*
+ * The table is flush with the card's content edge. Bootstrap pads every cell,
+ * including the outer two, which inset the first column 8px from the search
+ * field, the applied-filter chips, and the pagination footer above and below it
+ * -- close enough to read as a misalignment rather than a margin.
+ */
+.tt-table > :not(caption) > * > *:first-child {
+  padding-inline-start: 0;
+}
+
+.tt-table > :not(caption) > * > *:last-child {
+  padding-inline-end: 0;
+}
+
+/*
+ * Column labels break between words, never inside one: `.tt-table` sets
+ * `overflow-wrap: anywhere` for free-text cells, which turned PRIORITY into
+ * "PRIOR / ITY". `break-word` keeps the fallback for a label that genuinely
+ * cannot fit.
+ */
+.tt-table thead th {
+  padding-block: 0.625rem;
+  overflow-wrap: break-word;
+}
+
+/*
+ * A Ticket Number is one unbroken identifier, so it must not break mid-segment
+ * the way `.tt-table td { overflow-wrap: anywhere }` breaks free text. Normal
+ * wrapping breaks it after its hyphens instead, which keeps the date and the
+ * suffix whole on their own lines. Tabular figures line the digits up down the
+ * column so two numbers can be compared by shape.
+ */
+.tt-ticket-no {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/*
+ * ── Priority meter (Section 17.1) ──────────────────────────────────────────
+ *
+ * Priority is the one ordinal value on a Ticket, and three flat badge colours
+ * make it read as three unrelated categories. Three segments, filled to the
+ * level, put the ordering into the badge's shape: the scale survives greyscale,
+ * a colour-vision difference, and the small-screen table where the badges sit
+ * closest together. The text label still carries the meaning on its own
+ * (Section 29.9); the meter is aria-hidden so it is never announced twice.
+ */
+.tt-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+  margin-inline-end: 0.375rem;
+}
+
+.tt-level span {
+  inline-size: 3px;
+  block-size: 0.5rem;
+  border-radius: 1px;
+  background-color: currentcolor;
+  opacity: 0.3;
+}
+
+.tt-level span.tt-level__on {
+  opacity: 1;
+}
+
+/*
+ * ── Row actions ────────────────────────────────────────────────────────────
+ *
+ * Attachment actions are icon controls of one size, so the group is sized and
+ * kept on one line rather than wrapping one control per line inside a narrow
+ * fixed-width cell.
+ */
+.tt-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  /*
+   * The icons themselves never need this -- they are one size and they fit.
+   * `AttachmentDownloadButton` also renders its own failure alert as a sibling
+   * of the button, and a full sentence must drop below the group rather than
+   * squeeze in beside it.
+   */
+  flex-wrap: wrap;
+}
+
+.tt-row-actions .tt-invalid-text {
+  flex-basis: 100%;
+}
+
+/*
+ * An applied filter is a state of the toolbar, not just a number in a label:
+ * the button takes the same Pale Green surface the applied chips and the active
+ * navigation use (Sections 14.1, 14.4). The count stays in the text, so the
+ * state never rests on colour alone (Section 29.9).
+ */
+.tt-filters--applied {
+  --bs-btn-color: var(--tt-green-primary);
+  --bs-btn-bg: var(--tt-green-pale);
+  --bs-btn-border-color: var(--tt-green-secondary);
+  font-weight: 600;
+}
+
+/*
+ * Filter dropdowns (Section 14.2). The menu matches the toggle's width and
+ * scrolls past four or five options rather than growing the dialog.
+ */
+.tt-multiselect__toggle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-multiselect__menu {
+  max-block-size: 14rem;
+  overflow-y: auto;
+  border-color: var(--tt-border);
+}
+
+/* Bootstrap's dropdown item is a 32px row; these are touch targets. */
+.tt-multiselect__menu .dropdown-item {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+
+.tt-multiselect__menu .dropdown-item:active {
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+}
+
+/*
+ * A page-level stack of cards, messages, and form actions (ui-spec Section 3.4:
+ * major section gap). Each block used to carry its own `mt-4`/`mb-4`, so a
+ * block added without one -- the Create Ticket form actions, the submission
+ * recovery card -- sat flush against the card above it. The gap belongs to the
+ * container, which cannot forget it.
+ */
+.tt-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* The list footer is a separate register from the rows above it. */
+.tt-pagination {
+  margin-block-start: 0;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--tt-border);
+}
+
+/*
+ * ── Requester Selection (Sections 6.2, 30.1) ───────────────────────────────
+ *
+ * The bootstrap screen has one job and no navigation, so the card sits in the
+ * middle of the viewport rather than at the top of an otherwise empty page.
+ * `min-height` rather than `height`: the failure and empty states are taller,
+ * and on a short viewport the card must be able to grow and scroll.
+ */
+.tt-bootstrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-block-size: 100vh;
+  padding: var(--tt-page-pad);
+  padding-inline-start: max(var(--tt-page-pad), env(safe-area-inset-left));
+  padding-inline-end: max(var(--tt-page-pad), env(safe-area-inset-right));
+}
+
+.tt-bootstrap__panel {
+  inline-size: min(34rem, 100%);
+}
+
+/* The toolbar's controls take the full row once they wrap below the search. */
+@media (max-width: 575.98px) {
+  .tt-toolbar__controls {
+    flex: 1 1 100%;
+  }
+
+  .tt-toolbar__sort {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }

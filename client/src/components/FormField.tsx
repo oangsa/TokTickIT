@@ -11,6 +11,12 @@ export interface FieldRenderProps {
 
 export interface SharedFieldProps {
   label: string;
+  /*
+   * Hides the label visually while keeping it as the control's accessible name.
+   * Only for a control whose purpose is already obvious in place -- the list
+   * toolbar's search field, which carries a magnifier and a placeholder.
+   */
+  labelHidden?: boolean;
   required?: boolean;
   error?: string;
   helpText?: string;
@@ -39,7 +45,16 @@ interface FormFieldProps extends SharedFieldProps {
  * counter between the two would break that adjacency on exactly the fields
  * (Summary, Description) that carry both.
  */
-export function FormField({ label, required, error, helpText, counter, id, children }: FormFieldProps) {
+export function FormField({
+  label,
+  labelHidden,
+  required,
+  error,
+  helpText,
+  counter,
+  id,
+  children,
+}: FormFieldProps) {
   const generatedId = useId();
   const fieldId = id ?? generatedId;
   const helpId = `${fieldId}-help`;
@@ -53,7 +68,10 @@ export function FormField({ label, required, error, helpText, counter, id, child
 
   return (
     <div className="mb-3">
-      <label className="form-label fw-medium" htmlFor={fieldId}>
+      <label
+        className={`form-label fw-medium${labelHidden ? " visually-hidden" : ""}`}
+        htmlFor={fieldId}
+      >
         {label}
         {required ? (
           <span className="tt-required" aria-hidden="true">

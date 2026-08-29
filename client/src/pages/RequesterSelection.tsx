@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { DevelopmentRequester, fetchRequesters } from "../api.js";
+import { BrandMark } from "../components/BrandMark.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { EmptyState } from "../components/EmptyState.js";
@@ -85,73 +86,85 @@ export default function RequesterSelection() {
   }
 
   return (
-    <main tabIndex={-1} className="tt-main__inner" style={{ maxWidth: 560 }}>
-      <p className="tt-brand h5">TokTickIT</p>
-      <PageHeader
-        title="Select a Development Requester"
-        subtitle="This is a Lab 2 testing mechanism, not authentication. Secure authentication is introduced in a later lab."
-      />
-      {/* Skeleton is decorative and aria-hidden, so the screen owns the announcement (ui-spec 29.7). */}
-      <p role="status" className="visually-hidden">
-        {announcement}
-      </p>
-      <Card>
-        {loadState === "loading" ? (
-          <>
-            <Skeleton width="12rem" height="1rem" />
-            <Skeleton height="2.5rem" />
-            <div className="d-flex justify-content-end">
-              {/* Rendered disabled so the card height does not shift when loading ends (ui-spec 6.4). */}
-              <Button variant="primary" disabled>
-                Continue
-              </Button>
-            </div>
-          </>
-        ) : null}
-
-        {loadState === "failed" ? (
-          <ErrorState
-            title="Development Requesters could not be loaded."
-            description="Check that the TokTickIT API is running, then try again."
-            onRetry={retry}
+    <main tabIndex={-1} className="tt-bootstrap">
+      <div className="tt-bootstrap__panel">
+        <p className="tt-brand h5 justify-content-center w-100 mb-4">
+          <BrandMark />
+          TokTickIT
+        </p>
+        {/* Skeleton is decorative and aria-hidden, so the screen owns the announcement (ui-spec 29.7). */}
+        <p role="status" className="visually-hidden">
+          {announcement}
+        </p>
+        {/*
+          * The heading and the Lab 2 explanation live inside the panel: this
+          * screen is one task, and ui-spec Section 6.2 puts them there with the
+          * control they explain (Section 6.1: it must be clear that this is not
+          * authentication).
+          */}
+        <Card>
+          <PageHeader
+            title="Select a Development Requester"
+            subtitle="This is a Lab 2 testing mechanism, not authentication. Secure authentication is introduced in a later lab."
           />
-        ) : null}
+          {loadState === "loading" ? (
+            <>
+              <Skeleton width="12rem" height="1rem" />
+              <Skeleton height="2.5rem" />
+              <div className="d-flex justify-content-end">
+                {/* Rendered disabled so the card height does not shift when loading ends (ui-spec 6.4). */}
+                <Button variant="primary" disabled>
+                  Continue
+                </Button>
+              </div>
+            </>
+          ) : null}
 
-        {loadState === "loaded" && requesters.length === 0 ? (
-          <EmptyState
-            title="No active Development Requesters are available."
-            action={
-              <Button variant="secondary" onClick={retry}>
-                Retry
-              </Button>
-            }
-          />
-        ) : null}
+          {loadState === "failed" ? (
+            <ErrorState
+              title="Development Requesters could not be loaded."
+              description="Check that the TokTickIT API is running, then try again."
+              onRetry={retry}
+            />
+          ) : null}
 
-        {loadState === "loaded" && requesters.length > 0 ? (
-          <>
-            <Select
-              label="Development Requester"
-              required
-              value={selectedId}
-              onChange={(event) => setSelectedId(event.target.value)}
-            >
-              <option value="">Select a Development Requester</option>
-              {requesters.map((requester) => (
-                /* BR-14: the selector displays the Requester name only. */
-                <option key={requester.id} value={requester.id}>
-                  {requester.name}
-                </option>
-              ))}
-            </Select>
-            <div className="d-flex justify-content-end">
-              <Button variant="primary" onClick={handleContinue} disabled={selectedId === ""}>
-                Continue
-              </Button>
-            </div>
-          </>
-        ) : null}
-      </Card>
+          {loadState === "loaded" && requesters.length === 0 ? (
+            <EmptyState
+              title="No active Development Requesters are available."
+              action={
+                <Button variant="secondary" onClick={retry}>
+                  Retry
+                </Button>
+              }
+            />
+          ) : null}
+
+          {loadState === "loaded" && requesters.length > 0 ? (
+            <>
+              <Select
+                label="Development Requester"
+                name="requesterId"
+                required
+                value={selectedId}
+                onChange={(event) => setSelectedId(event.target.value)}
+              >
+                <option value="">Select a Development Requester</option>
+                {requesters.map((requester) => (
+                  /* BR-14: the selector displays the Requester name only. */
+                  <option key={requester.id} value={requester.id}>
+                    {requester.name}
+                  </option>
+                ))}
+              </Select>
+              <div className="d-flex justify-content-end">
+                <Button variant="primary" onClick={handleContinue} disabled={selectedId === ""}>
+                  Continue
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </Card>
+      </div>
     </main>
   );
 }

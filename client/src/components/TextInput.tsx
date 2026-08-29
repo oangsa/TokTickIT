@@ -7,6 +7,7 @@ type TextInputProps = SharedFieldProps & InputHTMLAttributes<HTMLInputElement>;
 /* Editable text control (ui-spec Section 7.2). */
 export function TextInput({
   label,
+  labelHidden,
   required,
   error,
   helpText,
@@ -18,7 +19,7 @@ export function TextInput({
   ...rest
 }: TextInputProps) {
   return (
-    <FormField label={label} required={required} error={error} helpText={helpText} counter={counter} id={id}>
+    <FormField label={label} labelHidden={labelHidden} required={required} error={error} helpText={helpText} counter={counter} id={id}>
       {({ id: fieldId, describedBy, invalid }) => (
         <input
           id={fieldId}

@@ -13,6 +13,7 @@ import {
   ATTACHMENT_RULES_TEXT,
   ATTACHMENT_TIMEOUT_MS,
   MAX_ACTIVE_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
   formatSize,
   removalReasonError,
   validateSelectedFile,
@@ -473,6 +474,18 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     setReasonErrors(errors);
 
     if (Object.keys(errors).length > 0) {
+      /*
+       * The first invalid reason takes focus, the way the Create Ticket form
+       * focuses its first invalid field (ui-spec Section 8.2). Without it a
+       * multi-row removal leaves the keyboard on Remove with the message it
+       * has to act on somewhere above, off screen on a long dialog.
+       */
+      const first = removalTargets.find((attachmentId) => errors[attachmentId] !== undefined);
+
+      if (first !== undefined) {
+        document.getElementById(removalReasonFieldId(first))?.focus();
+      }
+
       return;
     }
 
@@ -519,10 +532,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
 
   return (
     <>
-      <Card
-        className="mt-4"
-        title={`Attachments ${countedRows.length}/${MAX_ACTIVE_ATTACHMENTS}`}
-      >
+      <Card title={`Attachments ${countedRows.length}/${MAX_ACTIVE_ATTACHMENTS}`}>
         {/*
           A real file input, not a button that hides one. The native control is
           already "opens the file picker", it is keyboard reachable with a
@@ -577,7 +587,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
         {rows.length === 0 ? (
           <p className="text-secondary mb-0">No attachments.</p>
         ) : (
-          <table className="table tt-table align-middle mb-0">
+          <table className="table tt-table tt-table--attachments align-middle mb-0">
             <thead>
               <tr>
                 {props.mode === "detail" ? <th scope="col">Select</th> : null}
@@ -585,7 +595,9 @@ export function AttachmentSection(props: AttachmentSectionProps) {
                 <th scope="col" className={SECONDARY_COLUMN}>
                   Type
                 </th>
-                <th scope="col">Size</th>
+                <th scope="col" className={SECONDARY_COLUMN}>
+                  Size
+                </th>
                 <th scope="col" className={SECONDARY_COLUMN}>
                   Uploaded At
                 </th>
@@ -652,6 +664,11 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   );
 }
 
+/* Shared with the first-invalid focus in `submitRemoval`. */
+function removalReasonFieldId(attachmentId: string): string {
+  return `removal-reason-${attachmentId}`;
+}
+
 function RemovalReasonField({
   name,
   attachmentId,
@@ -665,7 +682,7 @@ function RemovalReasonField({
   error?: string;
   onChange: (value: string) => void;
 }) {
-  const fieldId = `removal-reason-${attachmentId}`;
+  const fieldId = removalReasonFieldId(attachmentId);
   const errorId = `${fieldId}-error`;
 
   return (
@@ -675,7 +692,9 @@ function RemovalReasonField({
       </label>
       <input
         id={fieldId}
+        name={fieldId}
         type="text"
+        autoComplete="off"
         className={`form-control${error === undefined ? "" : " is-invalid"}`}
         value={value}
         required
@@ -751,7 +770,7 @@ function AttachmentTableRow({
         )}
       </td>
       <td className={SECONDARY_COLUMN}>{(row.extension ?? "").toUpperCase()}</td>
-      <td>{formatSize(row.sizeBytes)}</td>
+      <td className={SECONDARY_COLUMN}>{formatSize(row.sizeBytes)}</td>
       <td className={SECONDARY_COLUMN}>
         {row.uploadedAt === null ? "—" : ticketDateTime(row.uploadedAt)}
       </td>
@@ -761,12 +780,13 @@ function AttachmentTableRow({
       </td>
       <td>
         {/*
-          Wrapping, not scrolling: `.tt-table` is `table-layout: fixed`, so on a
-          narrow viewport this cell is narrow too, and three controls in a
-          non-wrapping row would spill out of it rather than stack (ui-spec
-          Sections 21.3 and 30.5).
+          Every action in this cell is an icon control of one size, so the group
+          fits the width the column reserves for it and stays on a single line
+          at every viewport (ui-spec Sections 21.3 and 30.5). Retry is the one
+          text control, and it appears only on a Failed row, where the preview
+          and download actions are absent.
         */}
-        <div className="d-flex flex-wrap gap-1">
+        <div className="tt-row-actions">
           {hasBinary ? (
             <IconButton
               label={`Preview ${row.name}`}
@@ -778,7 +798,20 @@ function AttachmentTableRow({
                 })
               }
             >
-              <span aria-hidden="true">👁</span>
+              {/*
+                An SVG rather than 👁: the emoji renders in colour presentation
+                on most platforms, which put a brown pictogram in a row of
+                monochrome controls, and its shape depends on the platform's
+                emoji font.
+              */}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4Z"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+                <circle cx="8" cy="8" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
             </IconButton>
           ) : null}
 
@@ -786,7 +819,7 @@ function AttachmentTableRow({
             <AttachmentDownloadButton
               attachmentId={row.attachmentId ?? ""}
               originalName={row.name}
-              variant="tertiary"
+              variant="icon"
             />
           ) : null}
 
@@ -820,7 +853,7 @@ function AttachmentTableRow({
 function uploadFailureMessage(error: unknown, mode: "create" | "detail"): string {
   if (error instanceof ApiResponseError) {
     if (error.status === 413) {
-      return "The file is larger than the 5 MB limit.";
+      return `The file is larger than the ${formatSize(MAX_ATTACHMENT_BYTES)} limit.`;
     }
 
     if (error.status === 415) {
