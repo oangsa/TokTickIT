@@ -456,7 +456,17 @@ export default function MyTickets() {
               * only writes the URL, and the list effect discards the superseded
               * response through its `ignore` flag.
               */}
-              <Button variant="secondary" onClick={() => setFilterDraft(selectedFilters(query))}>
+              {/*
+                * Applied filters change the button's surface, not only its
+                * count: the count alone reads as part of the label, and a
+                * Requester scanning an unexpected result set needs the toolbar
+                * to say at a glance that a filter is narrowing it (Section 14.1).
+                */}
+              <Button
+                variant="secondary"
+                className={appliedCount > 0 ? "tt-filters--applied" : undefined}
+                onClick={() => setFilterDraft(selectedFilters(query))}
+              >
                 Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
               </Button>
             </div>

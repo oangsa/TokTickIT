@@ -749,6 +749,19 @@
 }
 
 /*
+ * An applied filter is a state of the toolbar, not just a number in a label:
+ * the button takes the same Pale Green surface the applied chips and the active
+ * navigation use (Sections 14.1, 14.4). The count stays in the text, so the
+ * state never rests on colour alone (Section 29.9).
+ */
+.tt-filters--applied {
+  --bs-btn-color: var(--tt-green-primary);
+  --bs-btn-bg: var(--tt-green-pale);
+  --bs-btn-border-color: var(--tt-green-secondary);
+  font-weight: 600;
+}
+
+/*
  * Filter dropdowns (Section 14.2). The menu matches the toggle's width and
  * scrolls past four or five options rather than growing the dialog.
  */
