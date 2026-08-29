@@ -807,6 +807,27 @@
   border-block-start: 1px solid var(--tt-border);
 }
 
+/*
+ * ── Requester Selection (Sections 6.2, 30.1) ───────────────────────────────
+ *
+ * The bootstrap screen has one job and no navigation, so the card sits in the
+ * middle of the viewport rather than at the top of an otherwise empty page.
+ * `min-height` rather than `height`: the failure and empty states are taller,
+ * and on a short viewport the card must be able to grow and scroll.
+ */
+.tt-bootstrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-block-size: 100vh;
+  padding: var(--tt-page-pad);
+}
+
+.tt-bootstrap__panel {
+  inline-size: min(34rem, 100%);
+}
+
 /* The toolbar's controls take the full row once they wrap below the search. */
 @media (max-width: 575.98px) {
   .tt-toolbar__controls {
