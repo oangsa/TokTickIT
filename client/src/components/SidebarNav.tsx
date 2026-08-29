@@ -64,7 +64,9 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
         aria-current={createTicketActive ? "page" : undefined}
         onClick={onNavigate}
       >
-        + Create Ticket
+        {/* Decoration: the accessible name is "Create Ticket", the destination. */}
+        <span aria-hidden="true">+ </span>
+        Create Ticket
       </Link>
 
       <ul className="nav flex-column gap-1">

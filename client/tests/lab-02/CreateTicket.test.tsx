@@ -971,7 +971,7 @@ describe("Stale Requester submission completion", () => {
     const bobRecord = seedBobRecovery();
 
     /* Bob opens Create Ticket, so a stale field error would be visible here. */
-    await user.click(screen.getByRole("link", { name: "+ Create Ticket" }));
+    await user.click(screen.getByRole("link", { name: "Create Ticket" }));
     await screen.findByLabelText(/^Category/);
     const categorySelect = screen.getByLabelText(/^Category/);
 

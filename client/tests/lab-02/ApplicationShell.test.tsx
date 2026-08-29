@@ -88,8 +88,8 @@ describe("UI-03 application shell and navigation", () => {
 
     expect(screen.getAllByText(/TokTickIT/).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "My Tickets" })).toBeInTheDocument();
-    /* Create Ticket is shell navigation, styled as the primary action. */
-    expect(screen.getByRole("link", { name: "+ Create Ticket" })).toBeInTheDocument();
+    /* Create Ticket is shell navigation, styled as the primary action; the "+" is decorative. */
+    expect(screen.getByRole("link", { name: "Create Ticket" })).toBeInTheDocument();
     expect(screen.getByText(ALICE.name)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Change Requester" })).toBeInTheDocument();
   });
@@ -98,7 +98,7 @@ describe("UI-03 application shell and navigation", () => {
     renderAt("/tickets", ALICE);
 
     expect(screen.getByRole("link", { name: "My Tickets" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "+ Create Ticket" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Create Ticket" })).not.toHaveAttribute("aria-current");
   });
 
   /*
@@ -108,14 +108,14 @@ describe("UI-03 application shell and navigation", () => {
   it("marks Create Ticket as the current page on /tickets/new", () => {
     renderAt("/tickets/new", ALICE);
 
-    expect(screen.getByRole("link", { name: "+ Create Ticket" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Create Ticket" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "My Tickets" })).not.toHaveAttribute("aria-current");
   });
 
   it("keeps Create Ticket current when the route has a trailing slash", () => {
     renderAt("/tickets/new/", ALICE);
 
-    expect(screen.getByRole("link", { name: "+ Create Ticket" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Create Ticket" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "My Tickets" })).not.toHaveAttribute("aria-current");
   });
 
@@ -331,7 +331,7 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
     renderAt("/tickets", ALICE);
 
     await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
-    await userEvent.click(screen.getByRole("link", { name: "+ Create Ticket" }));
+    await userEvent.click(screen.getByRole("link", { name: "Create Ticket" }));
 
     expect(screen.getByRole("button", { name: "Open navigation menu" })).toHaveAttribute(
       "aria-expanded",
