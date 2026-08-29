@@ -111,7 +111,7 @@ export function Pagination({
     : [...pageSizeOptions, pageSize].sort((left, right) => left - right);
 
   return (
-    <nav aria-label="Ticket pagination" className="d-flex flex-wrap align-items-center gap-3 mt-3">
+    <nav aria-label="Ticket pagination" className="tt-pagination d-flex flex-wrap align-items-center gap-3">
       {/*
         * Not a live region. The page that renders this control owns one
         * always-mounted `role="status"` announcement (ui-spec 29.7); a second

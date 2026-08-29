@@ -775,6 +775,13 @@
   color: var(--tt-green-primary);
 }
 
+/* The list footer is a separate register from the rows above it. */
+.tt-pagination {
+  margin-block-start: 0;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--tt-border);
+}
+
 /* The toolbar's controls take the full row once they wrap below the search. */
 @media (max-width: 575.98px) {
   .tt-toolbar__controls {
