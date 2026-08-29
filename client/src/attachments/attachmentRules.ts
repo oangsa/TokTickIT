@@ -58,8 +58,20 @@ export function formatSize(bytes: number): string {
   const kilobytes = bytes / 1000;
 
   return kilobytes < 1000
-    ? `${kilobytes.toFixed(1)}\u00a0KB`
-    : `${(kilobytes / 1000).toFixed(1)}\u00a0MB`;
+    ? `${oneDecimal(kilobytes)}\u00a0KB`
+    : `${oneDecimal(kilobytes / 1000)}\u00a0MB`;
+}
+
+/*
+ * One decimal place, but not a bare `.0`. The limit messages read the same
+ * formatter as the size column, and `MAX_ATTACHMENT_BYTES` is exactly 5 MB: the
+ * rules line offering "Up to 5 MB" and the rejection saying "larger than the
+ * 5.0 MB limit" are the same number written two ways.
+ */
+function oneDecimal(value: number): string {
+  const fixed = value.toFixed(1);
+
+  return fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed;
 }
 
 export function fileExtension(name: string): string | null {
