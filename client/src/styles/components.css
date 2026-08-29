@@ -680,6 +680,19 @@
 }
 
 /*
+ * A Ticket Number is one unbroken identifier, so it must not break mid-segment
+ * the way `.tt-table td { overflow-wrap: anywhere }` breaks free text. Normal
+ * wrapping breaks it after its hyphens instead, which keeps the date and the
+ * suffix whole on their own lines. Tabular figures line the digits up down the
+ * column so two numbers can be compared by shape.
+ */
+.tt-ticket-no {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/*
  * ── Priority meter (Section 17.1) ──────────────────────────────────────────
  *
  * Priority is the one ordinal value on a Ticket, and three flat badge colours

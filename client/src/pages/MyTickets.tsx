@@ -575,7 +575,7 @@ export default function MyTickets() {
                               * for anyone speaking what they can see.
                               */}
                             <Link
-                              className="tt-row-link"
+                              className="tt-row-link tt-ticket-no"
                               to={`/tickets/${item.publicId}`}
                               aria-label={`Open ticket ${item.ticketNumber}`}
                             >

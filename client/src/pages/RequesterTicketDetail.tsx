@@ -118,7 +118,8 @@ export default function RequesterTicketDetail() {
     <>
       <PageHeader
         title={heading ?? "Ticket Detail"}
-        subtitle={heading === null ? undefined : "Ticket Detail"}
+        titleClassName="tt-ticket-no"
+        {...(heading === null ? {} : { eyebrow: "Ticket Detail" })}
         actions={
           <Link className="btn btn-outline-secondary" to="/tickets">
             Back to My Tickets
