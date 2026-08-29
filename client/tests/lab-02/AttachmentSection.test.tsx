@@ -709,7 +709,7 @@ describe("UI-27 and UI-34 preview, download, and the Blob URL lifecycle", () => 
       renderAt(`/tickets/${PUBLIC_ID}`);
       await screen.findByRole("heading", { name: "Attachments 1/5" });
 
-      await userEvent.click(within(rowFor("vpn-error.png")).getByRole("button", { name: "Download" }));
+      await userEvent.click(within(rowFor("vpn-error.png")).getByRole("button", { name: "Download vpn-error.png" }));
 
       await waitFor(() => expect(clicked).toHaveLength(1));
       /* The filename comes from the DTO, never from Content-Disposition. */
@@ -1106,7 +1106,7 @@ describe("UI-27 a failed download is reported", () => {
     renderAt(`/tickets/${PUBLIC_ID}`);
 
     await screen.findByRole("heading", { name: "Attachments 1/5" });
-    await userEvent.click(within(rowFor("vpn-error.png")).getByRole("button", { name: "Download" }));
+    await userEvent.click(within(rowFor("vpn-error.png")).getByRole("button", { name: "Download vpn-error.png" }));
 
     expect(
       await within(rowFor("vpn-error.png")).findByRole("alert"),

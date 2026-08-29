@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "../components/Button.js";
+import { IconButton } from "../components/IconButton.js";
 import { Modal } from "../components/Modal.js";
 import { useRequesterBlob } from "../requester/useRequesterApi.js";
 import { ATTACHMENT_TIMEOUT_MS } from "./attachmentRules.js";
@@ -128,7 +129,13 @@ export function AttachmentDownloadButton({
 }: {
   attachmentId: string;
   originalName: string;
-  variant?: "secondary" | "tertiary";
+  /*
+   * `icon` is the table-row presentation: the same action as a control sized to
+   * a row, naming the file it downloads. ui-spec Section 29.8 allows an
+   * icon-only Attachment download provided it carries both an accessible name
+   * and a hover/focus label, which `IconButton` supplies.
+   */
+  variant?: "secondary" | "tertiary" | "icon";
 }) {
   const fetchBlob = useRequesterBlob();
   const [busy, setBusy] = useState(false);
@@ -173,9 +180,19 @@ export function AttachmentDownloadButton({
 
   return (
     <>
-      <Button variant={variant} busy={busy} onClick={() => void download()}>
-        Download
-      </Button>
+      {variant === "icon" ? (
+        <IconButton
+          label={`Download ${originalName}`}
+          disabled={busy}
+          onClick={() => void download()}
+        >
+          <span aria-hidden="true">⤓</span>
+        </IconButton>
+      ) : (
+        <Button variant={variant} busy={busy} onClick={() => void download()}>
+          Download
+        </Button>
+      )}
       {failed ? (
         <p role="alert" className="tt-invalid-text mb-0">
           {originalName} could not be downloaded.

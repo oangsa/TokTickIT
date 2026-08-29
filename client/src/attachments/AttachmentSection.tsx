@@ -763,12 +763,13 @@ function AttachmentTableRow({
       </td>
       <td>
         {/*
-          Wrapping, not scrolling: `.tt-table` is `table-layout: fixed`, so on a
-          narrow viewport this cell is narrow too, and three controls in a
-          non-wrapping row would spill out of it rather than stack (ui-spec
-          Sections 21.3 and 30.5).
+          Every action in this cell is an icon control of one size, so the group
+          fits the width the column reserves for it and stays on a single line
+          at every viewport (ui-spec Sections 21.3 and 30.5). Retry is the one
+          text control, and it appears only on a Failed row, where the preview
+          and download actions are absent.
         */}
-        <div className="d-flex flex-wrap gap-1">
+        <div className="tt-row-actions">
           {hasBinary ? (
             <IconButton
               label={`Preview ${row.name}`}
@@ -780,7 +781,20 @@ function AttachmentTableRow({
                 })
               }
             >
-              <span aria-hidden="true">👁</span>
+              {/*
+                An SVG rather than 👁: the emoji renders in colour presentation
+                on most platforms, which put a brown pictogram in a row of
+                monochrome controls, and its shape depends on the platform's
+                emoji font.
+              */}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4Z"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+                <circle cx="8" cy="8" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
             </IconButton>
           ) : null}
 
@@ -788,7 +802,7 @@ function AttachmentTableRow({
             <AttachmentDownloadButton
               attachmentId={row.attachmentId ?? ""}
               originalName={row.name}
-              variant="tertiary"
+              variant="icon"
             />
           ) : null}
 

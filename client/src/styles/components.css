@@ -197,6 +197,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Glyph controls sit at body size by default, which reads as a smaller
+     control than the SVG ones beside them. */
+  font-size: 1rem;
+  line-height: 1;
   min-width: 2.25rem;
   min-height: 2.25rem;
   border-radius: var(--tt-radius-control);
@@ -702,6 +706,19 @@
 
 .tt-level span.tt-level__on {
   opacity: 1;
+}
+
+/*
+ * ── Row actions ────────────────────────────────────────────────────────────
+ *
+ * Attachment actions are icon controls of one size, so the group is sized and
+ * kept on one line rather than wrapping one control per line inside a narrow
+ * fixed-width cell.
+ */
+.tt-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
 }
 
 /* The toolbar's controls take the full row once they wrap below the search. */

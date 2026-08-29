@@ -332,7 +332,7 @@ describe("UI-36 Attachment metadata on Ticket Detail", () => {
 
     const active = screen.getByText("vpn-error.png").closest("tr") as HTMLElement;
     expect(within(active).getByRole("button", { name: "Preview vpn-error.png" })).toBeInTheDocument();
-    expect(within(active).getByRole("button", { name: "Download" })).toBeInTheDocument();
+    expect(within(active).getByRole("button", { name: "Download vpn-error.png" })).toBeInTheDocument();
     expect(within(active).getByRole("checkbox", { name: "Select vpn-error.png" })).toBeInTheDocument();
 
     /* Still read-only in every other respect (FR-22). */
