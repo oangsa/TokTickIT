@@ -265,6 +265,16 @@ body {
 }
 
 /*
+ * The dialog container is focused on open so Escape and the Tab trap have a
+ * host (see `Modal`), but it is not a control: Chrome still matches
+ * `:focus-visible` there and drew a green rectangle around the whole dialog.
+ * Every control inside keeps its own indicator.
+ */
+.modal-dialog:focus-visible {
+  outline: none;
+}
+
+/*
  * Bootstrap zeroes the outline on `.btn:focus-visible`, `.nav-link:focus-visible`
  * and `.page-link:focus` and replaces it with a translucent box-shadow. Two
  * problems follow (Section 29.6, Section 34):
