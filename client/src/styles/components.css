@@ -78,6 +78,18 @@
   border-right: 1px solid var(--tt-border);
 }
 
+/*
+ * Create Ticket on the Create Ticket route. It keeps the outline button's shape
+ * but takes the Pale Green surface the active navigation row uses, so "current"
+ * reads the same whichever shell item you are on (ui-spec Section 5.1).
+ */
+.tt-nav-action--current {
+  --bs-btn-color: var(--tt-green-primary);
+  --bs-btn-bg: var(--tt-green-pale);
+  --bs-btn-border-color: var(--tt-green-secondary);
+  font-weight: 600;
+}
+
 .tt-sidebar__footer {
   margin-top: auto;
   padding-top: 1rem;

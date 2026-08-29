@@ -18,6 +18,13 @@ interface SidebarNavProps {
  * Active state is computed here rather than delegated to NavLink because a
  * Ticket Detail route must keep My Tickets active while Create Ticket must not,
  * and `aria-current` carries that state programmatically (Section 29.9).
+ *
+ * Create Ticket is shell navigation the Lab Sheet requires (Section 8), but it
+ * is the application's primary action rather than a second list destination, so
+ * it is a button above the navigation instead of a row inside it. The
+ * `/tickets/new` match does double duty: it carries that item's own active
+ * state, and it keeps My Tickets dark, since `/tickets/new` also matches the
+ * Ticket Detail pattern.
  */
 export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
   const { requester, clearRequester } = useRequester();
@@ -45,6 +52,21 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
         TokTickIT
       </span>
 
+      {/*
+        A solid primary control, not a nav row: on the Create Ticket route it
+        becomes an outlined "you are here" state instead, so the required active
+        indication is visible without a filled button claiming to be an action
+        the Requester has already taken (ui-spec Sections 5.1, 10.1).
+      */}
+      <Link
+        to="/tickets/new"
+        className={`btn w-100 ${createTicketActive ? "btn-outline-secondary tt-nav-action--current" : "btn-primary"}`}
+        aria-current={createTicketActive ? "page" : undefined}
+        onClick={onNavigate}
+      >
+        + Create Ticket
+      </Link>
+
       <ul className="nav flex-column gap-1">
         <li className="nav-item">
           <Link
@@ -56,21 +78,11 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
             My Tickets
           </Link>
         </li>
-        <li className="nav-item">
-          <Link
-            to="/tickets/new"
-            className={linkClass(createTicketActive)}
-            aria-current={createTicketActive ? "page" : undefined}
-            onClick={onNavigate}
-          >
-            Create Ticket
-          </Link>
-        </li>
       </ul>
 
       <div className="tt-sidebar__footer">
         <p className="mb-2">
-          <span className="d-block small text-secondary">Requester</span>
+          <span className="tt-caption d-block">Requester</span>
           <span className="fw-semibold">{requester?.name}</span>
         </p>
         <Button variant="tertiary" className="px-0" onClick={handleChangeRequester}>
