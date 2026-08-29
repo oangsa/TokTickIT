@@ -7,6 +7,7 @@ type SelectProps = SharedFieldProps & SelectHTMLAttributes<HTMLSelectElement>;
 /* Editable select control (ui-spec Section 7.2). */
 export function Select({
   label,
+  labelHidden,
   required,
   error,
   helpText,
@@ -19,7 +20,7 @@ export function Select({
   ...rest
 }: SelectProps) {
   return (
-    <FormField label={label} required={required} error={error} helpText={helpText} counter={counter} id={id}>
+    <FormField label={label} labelHidden={labelHidden} required={required} error={error} helpText={helpText} counter={counter} id={id}>
       {({ id: fieldId, describedBy, invalid }) => (
         <select
           id={fieldId}

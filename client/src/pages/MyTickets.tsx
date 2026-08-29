@@ -430,20 +430,27 @@ export default function MyTickets() {
       />
 
       <Card>
-        <div className="d-flex flex-wrap align-items-end gap-3">
-          <div className="flex-grow-1" style={{ minWidth: "16rem" }}>
+        <div className="tt-toolbar">
+          <div className="tt-toolbar__search">
+            {/*
+              * The label is hidden, not dropped: the magnifier and the
+              * placeholder name the field in place, and the label still names
+              * it programmatically (ui-spec Sections 13.2, 29.2).
+              */}
             <TextInput
               label="Search"
+              labelHidden
+              className="tt-search-input"
               type="search"
               value={searchInput}
               maxLength={200}
               placeholder="Search by ticket number, summary, or description..."
-              helpText="Search ticket number, summary, or description"
               onChange={(event) => setSearchInput(event.target.value)}
             />
           </div>
 
-          <div className="mb-3">
+          <div className="tt-toolbar__controls">
+            <div className="mb-3">
             {/*
               * Not disabled during a fetch. Disabling a focused control moves
               * focus to `<body>`, and this screen fetches on every search
@@ -452,23 +459,26 @@ export default function MyTickets() {
               * only writes the URL, and the list effect discards the superseded
               * response through its `ignore` flag.
               */}
-            <Button variant="secondary" onClick={() => setFilterDraft(selectedFilters(query))}>
-              Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
-            </Button>
-          </div>
+              <Button variant="secondary" onClick={() => setFilterDraft(selectedFilters(query))}>
+                Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
+              </Button>
+            </div>
 
-          <div style={{ minWidth: "14rem" }}>
-            <Select
-              label="Sort by"
-              value={query.sort}
-              onChange={(event) => commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })}
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <div className="tt-toolbar__sort">
+              <Select
+                label="Sort by"
+                value={query.sort}
+                onChange={(event) =>
+                  commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })
+                }
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
         </div>
 

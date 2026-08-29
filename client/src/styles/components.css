@@ -459,6 +459,49 @@
 }
 
 /*
+ * ── List toolbar (Section 13.1) ────────────────────────────────────────────
+ *
+ * Search takes the row and the two query controls sit together at its end. The
+ * controls are bottom-aligned so the labelled Sort control and the unlabelled
+ * search field share one baseline instead of stepping.
+ */
+.tt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.tt-toolbar__search {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.tt-toolbar__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.tt-toolbar__sort {
+  min-width: 12rem;
+}
+
+/*
+ * The magnifier replaces the label the toolbar drops: it names the field for
+ * sighted users while the visually hidden <label> keeps naming it for everyone
+ * else. Inline SVG as a data URI, so it needs no icon dependency and no extra
+ * request.
+ */
+.tt-search-input {
+  padding-inline-start: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%235b6b63' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='M10.5 10.5 14 14'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.75rem center;
+  background-size: 1rem;
+}
+
+/*
  * ── Ticket table columns (Sections 16.1, 16.3) ─────────────────────────────
  *
  * `.tt-table` is `table-layout: fixed`, which without explicit widths splits
@@ -659,4 +702,16 @@
 
 .tt-level span.tt-level__on {
   opacity: 1;
+}
+
+/* The toolbar's controls take the full row once they wrap below the search. */
+@media (max-width: 575.98px) {
+  .tt-toolbar__controls {
+    flex: 1 1 100%;
+  }
+
+  .tt-toolbar__sort {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }
