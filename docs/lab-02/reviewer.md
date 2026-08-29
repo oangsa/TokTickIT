@@ -19,7 +19,7 @@
 | [#48](https://github.com/oangsa/TokTickIT/pull/48) | feature/46-revert-lab2-release-evidence | Approved; reverted PR #46 into `lab2-staging` |
 | [#49](https://github.com/oangsa/TokTickIT/pull/49) | feature/26-lab2-release-evidence-correction | Peer approved; merged into `lab2-staging` as `df8da1e`; post-merge staging validation passed |
 | [#50](https://github.com/oangsa/TokTickIT/pull/50) | feature/26-lab2-postmerge-validation | Documentation-only post-#49 validation record; merged into `lab2-staging` as `314e9c3` |
-| [#51](https://github.com/oangsa/TokTickIT/pull/51) | lab2-staging → main | Replacement Lab 2 release PR; peer review requested; not merged |
+| [#51](https://github.com/oangsa/TokTickIT/pull/51) | lab2-staging → main | Peer approved; merged into `main` as `5867b7a` |
 
 PR [#30](https://github.com/oangsa/TokTickIT/pull/30) was a closed,
 unmerged duplicate for Issue #18 and is not an integration PR.
@@ -317,8 +317,10 @@ How I responded:
   branch; @kittipichcha was requested as reviewer, but GitHub exposes no formal
   review submission for this docs-only PR. It merged into `lab2-staging` as
   `314e9c3`.
-- **#51** — opened the single replacement `lab2-staging` → `main` release PR
-  after the final staging CI pass; peer review is pending and it is not merged.
+- **#51** — @kittipichcha approved the single replacement `lab2-staging` →
+  `main` release PR on 2026-08-27. The approval had an empty review body and
+  no recorded inline or conversation comments. It merged into `main` as
+  `5867b7a82dc210234925d7108cd99334a72788cd`.
 
 Author's PR replies:
 
@@ -350,7 +352,7 @@ Feature integration sequence verified from GitHub:
 | #23 | `feature/23-ticket-detail` | [#43](https://github.com/oangsa/TokTickIT/pull/43) | Peer approved; merged to `lab2-staging` as `fc92d82`. |
 | #24 | `feature/24-attachments` | [#44](https://github.com/oangsa/TokTickIT/pull/44) | Changes requested, evidence added, then peer approved; merged to `lab2-staging` as `dbbb2a5`. |
 | #25 | `feature/25-lab2-verification` | [#45](https://github.com/oangsa/TokTickIT/pull/45) | Peer review sequence completed; merged to `lab2-staging` as `6ef7ed4`; GitHub server/client verification passed. |
-| #26 | `feature/26-lab2-release-evidence-correction` | [#46](https://github.com/oangsa/TokTickIT/pull/46), [#48](https://github.com/oangsa/TokTickIT/pull/48), [#49](https://github.com/oangsa/TokTickIT/pull/49), [#50](https://github.com/oangsa/TokTickIT/pull/50), [#51](https://github.com/oangsa/TokTickIT/pull/51) | Original evidence PR #46 merged before approval as `ed1f107` and was reverted by approved #48 as `b476a27`; approved correction PR #49 merged as `df8da1e`, docs follow-up #50 merged as `314e9c3`, and the post-merge staging validation passed. Issue #26 is closed/completed; replacement release PR #51 is open and not merged. |
+| #26 | `feature/26-lab2-release-evidence-correction` | [#46](https://github.com/oangsa/TokTickIT/pull/46), [#48](https://github.com/oangsa/TokTickIT/pull/48), [#49](https://github.com/oangsa/TokTickIT/pull/49), [#50](https://github.com/oangsa/TokTickIT/pull/50), [#51](https://github.com/oangsa/TokTickIT/pull/51) | Original evidence PR #46 merged before approval as `ed1f107` and was reverted by approved #48 as `b476a27`; approved correction PR #49 merged as `df8da1e`, docs follow-up #50 merged as `314e9c3`, and the post-merge staging validation passed. Issue #26 is closed/completed; replacement release PR #51 was approved and merged into `main` as `5867b7a`. |
 
 The remote `lab2-staging` baseline used for the fresh gate is
 `df8da1e16e8cc31591c14a17c873e6f1195cffbb`, whose tree matches the merged PR
@@ -360,10 +362,10 @@ Section 15.3; the follow-up branch
 `feature/26-lab2-postmerge-validation` changes documentation only through
 merged [PR #50](https://github.com/oangsa/TokTickIT/pull/50); PR #47 is closed
 without merge, PR #49 is approved and merged, and replacement release
-[PR #51](https://github.com/oangsa/TokTickIT/pull/51) is open for peer review
-and not merged. GitHub records Issue #26 as closed with reason
-`completed`; its closure boundary separates the completed evidence correction
-from the pending promotion merge.
+[PR #51](https://github.com/oangsa/TokTickIT/pull/51) was approved and merged
+into `main` as `5867b7a82dc210234925d7108cd99334a72788cd`. GitHub records
+Issue #26 as closed with reason `completed`; its closure boundary separates
+the completed evidence correction from the subsequent promotion merge.
 The Project Automation workflow succeeded for the final #25 PR runs
 ([run 120](https://github.com/oangsa/TokTickIT/actions/runs/33068961506),
 [run 122](https://github.com/oangsa/TokTickIT/actions/runs/33069786475)); it
