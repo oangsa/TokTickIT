@@ -519,10 +519,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
 
   return (
     <>
-      <Card
-        className="mt-4"
-        title={`Attachments ${countedRows.length}/${MAX_ACTIVE_ATTACHMENTS}`}
-      >
+      <Card title={`Attachments ${countedRows.length}/${MAX_ACTIVE_ATTACHMENTS}`}>
         {/*
           A real file input, not a button that hides one. The native control is
           already "opens the file picker", it is keyboard reachable with a

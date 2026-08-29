@@ -800,6 +800,19 @@
   color: var(--tt-green-primary);
 }
 
+/*
+ * A page-level stack of cards, messages, and form actions (ui-spec Section 3.4:
+ * major section gap). Each block used to carry its own `mt-4`/`mb-4`, so a
+ * block added without one -- the Create Ticket form actions, the submission
+ * recovery card -- sat flush against the card above it. The gap belongs to the
+ * container, which cannot forget it.
+ */
+.tt-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 /* The list footer is a separate register from the rows above it. */
 .tt-pagination {
   margin-block-start: 0;

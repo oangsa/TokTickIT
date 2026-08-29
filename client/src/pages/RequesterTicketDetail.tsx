@@ -138,9 +138,9 @@ export default function RequesterTicketDetail() {
           <Skeleton height="8rem" />
         </Card>
       ) : (
-        <>
+        <div className="tt-stack">
           {createdTicketNumber !== ticket.ticketNumber ? null : (
-            <SuccessMessage className="mb-4">
+            <SuccessMessage>
               Ticket {ticket.ticketNumber} was created.
             </SuccessMessage>
           )}
@@ -201,7 +201,7 @@ export default function RequesterTicketDetail() {
             attachments={ticket.attachments}
             onChanged={() => setReloadCount((count) => count + 1)}
           />
-        </>
+        </div>
       )}
     </>
   );

@@ -604,7 +604,7 @@ export default function CreateTicket() {
           ) : null}
 
           {errors.form !== undefined ? (
-            <p role="alert" className="tt-invalid-text">
+            <p role="alert" className="tt-invalid-text mb-0">
               {errors.form}
             </p>
           ) : null}
