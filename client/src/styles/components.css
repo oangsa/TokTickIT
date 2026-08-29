@@ -669,6 +669,20 @@
 }
 
 /*
+ * The table is flush with the card's content edge. Bootstrap pads every cell,
+ * including the outer two, which inset the first column 8px from the search
+ * field, the applied-filter chips, and the pagination footer above and below it
+ * -- close enough to read as a misalignment rather than a margin.
+ */
+.tt-table > :not(caption) > * > *:first-child {
+  padding-inline-start: 0;
+}
+
+.tt-table > :not(caption) > * > *:last-child {
+  padding-inline-end: 0;
+}
+
+/*
  * Column labels break between words, never inside one: `.tt-table` sets
  * `overflow-wrap: anywhere` for free-text cells, which turned PRIORITY into
  * "PRIOR / ITY". `break-word` keeps the fallback for a label that genuinely
