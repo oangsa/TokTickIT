@@ -417,3 +417,43 @@
   height: 70vh;
   border: 1px solid var(--tt-border);
 }
+
+/*
+ * ── Structural micro-labels ────────────────────────────────────────────────
+ *
+ * Card section titles, table column headers, and the sidebar Requester caption
+ * share one treatment. They all name a block of record data rather than
+ * introducing prose, so they are set as labels: small, wide-tracked, uppercase,
+ * and quieter than the values they head. Uppercasing is presentational only —
+ * the accessible name keeps its original casing.
+ */
+.tt-section-title,
+.tt-table thead th,
+.tt-caption {
+  font-size: var(--tt-label-size);
+  font-weight: 600;
+  letter-spacing: var(--tt-label-tracking);
+  text-transform: uppercase;
+  color: var(--tt-text-muted);
+}
+
+/*
+ * ── Brand ──────────────────────────────────────────────────────────────────
+ *
+ * A ticket stub: the artifact the whole application is about. It is the only
+ * decorative shape in the interface, so it stays small and takes the wordmark's
+ * own colour rather than introducing another green.
+ */
+.tt-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tt-green-primary);
+}
+
+.tt-brand__mark {
+  flex: none;
+  color: var(--tt-green-primary);
+}

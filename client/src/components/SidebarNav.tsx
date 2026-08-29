@@ -1,6 +1,7 @@
 import { Link, useMatch, useNavigate } from "react-router-dom";
 
 import { useRequester } from "../requester/RequesterProvider.js";
+import { BrandMark } from "./BrandMark.js";
 import { Button } from "./Button.js";
 
 interface SidebarNavProps {
@@ -39,7 +40,10 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
 
   return (
     <nav id={id} aria-label="Main" className={`tt-sidebar${open ? " tt-sidebar--open" : ""}`}>
-      <span className="tt-brand h5 mb-0">TokTickIT</span>
+      <span className="tt-brand h5 mb-0">
+        <BrandMark />
+        TokTickIT
+      </span>
 
       <ul className="nav flex-column gap-1">
         <li className="nav-item">

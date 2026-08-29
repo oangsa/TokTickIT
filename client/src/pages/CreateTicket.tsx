@@ -472,9 +472,7 @@ export default function CreateTicket() {
 
       {loadState === "loaded" ? (
         <Form onSubmit={handleSubmit} aria-label="Create Ticket">
-          <Card>
-            <h2 className="h6 fw-semibold">Ticket Information</h2>
-
+          <Card title="Ticket Information">
             {/*
              * ui-spec Section 11.3. The generated values are shown as read-only
              * controls that state they are assigned on submission. They are
