@@ -543,6 +543,48 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     }
   });
 
+  /*
+   * The filter menu and the dialog around it both handle Escape. The menu has to
+   * win while it is open, or one key press throws away the whole draft.
+   */
+  it("closes only the open filter menu on Escape, and the dialog on the next one", async () => {
+    stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const dialog = await openFilters();
+    await userEvent.click(filterToggle(dialog, "Category"));
+    expect(within(dialog).getAllByRole("checkbox").length).toBeGreaterThan(0);
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(within(dialog).queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
+    expect(filterToggle(dialog, "Category")).toHaveFocus();
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+  });
+
+  /* Chips and the URL render the array as it arrives, so the order is contract. */
+  it("reports a selection in option order however it was ticked", async () => {
+    const { calls } = stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const dialog = await openFilters();
+    await chooseFilter(dialog, "Requested Priority", "HIGH");
+    await chooseFilter(dialog, "Requested Priority", "LOW");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(listCalls(calls)).toHaveLength(2));
+
+    expect(JSON.parse(lastListQuery(calls).get("filters") ?? "[]")).toEqual([
+      { field: "requestedPriority", condition: "IN", value: ["LOW", "HIGH"] },
+    ]);
+  });
+
   it("discards draft changes on Cancel and fetches nothing", async () => {
     const { calls } = stubApi();
     renderMyTickets();

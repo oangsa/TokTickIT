@@ -55,10 +55,19 @@ export function MultiSelect({ label, placeholder, options, selected, onChange }:
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open]);
 
+  /*
+   * Option order, not click order. A `<select multiple>` reported its selection
+   * in DOM order, and the applied-filter chips and the URL query both render the
+   * array as it arrives: appending here would make the same set of filters
+   * produce a different chip order and a different URL depending on the sequence
+   * the boxes happened to be ticked in.
+   */
   function toggleValue(value: string): void {
-    onChange(
-      selected.includes(value) ? selected.filter((current) => current !== value) : [...selected, value],
-    );
+    const next = selected.includes(value)
+      ? selected.filter((current) => current !== value)
+      : [...selected, value];
+
+    onChange(options.filter((option) => next.includes(option.value)).map((option) => option.value));
   }
 
   /*
