@@ -6,8 +6,10 @@ import { MemoryRouter } from "react-router-dom";
 import App from "../../src/App.js";
 import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requesterStorage.js";
 import {
+  ATTACHMENT_RULES_TEXT,
   ATTACHMENT_TIMEOUT_MS,
   MAX_ATTACHMENT_BYTES,
+  formatSize,
 } from "../../src/attachments/attachmentRules.js";
 
 /*
@@ -105,6 +107,8 @@ interface StubOptions {
   binaryOk?: boolean;
   /* Held pre-uploads: every POST /api/attachments waits on this before it answers. */
   uploadGate?: Promise<void>;
+  /* Held binaries: every preview and download waits on this before it answers. */
+  binaryGate?: Promise<void>;
 }
 
 const MASTER_DATA = [{ id: 1, name: "Network", isActive: true, deleted: false }];
@@ -166,6 +170,10 @@ function stubApi(options: StubOptions = {}) {
       }
 
       if (url.includes("/preview") || url.includes("/download")) {
+        if (options.binaryGate !== undefined) {
+          await options.binaryGate;
+        }
+
         return options.binaryOk === false ? failure(410, "GONE") : ok({});
       }
 
@@ -1120,5 +1128,77 @@ describe("UI-27 a failed download is reported", () => {
     expect(
       await within(rowFor("vpn-error.png")).findByRole("alert"),
     ).toHaveTextContent("vpn-error.png could not be downloaded.");
+  });
+});
+
+describe("UI-27 and UI-37 the row Download control reports its own progress", () => {
+  /*
+   * The row control is an `IconButton`, which has neither `Button`'s spinner nor
+   * its `aria-busy`. A download may run for as long as `ATTACHMENT_TIMEOUT_MS`,
+   * so the busy state has to survive the icon presentation.
+   */
+  it("stays busy from the click until the bytes arrive", async () => {
+    let release: (() => void) | undefined;
+    const binaryGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function noopClick() {};
+
+    try {
+      stubApi({ binaryGate });
+      renderAt(`/tickets/${PUBLIC_ID}`);
+      await screen.findByRole("heading", { name: "Attachments 1/5" });
+
+      const download = within(rowFor("vpn-error.png")).getByRole("button", {
+        name: "Download vpn-error.png",
+      });
+      expect(download).not.toHaveAttribute("aria-busy");
+
+      await userEvent.click(download);
+
+      expect(download).toHaveAttribute("aria-busy", "true");
+      expect(download).toBeDisabled();
+      /* Still named by the file it downloads, spinner or glyph. */
+      expect(download).toHaveAccessibleName("Download vpn-error.png");
+
+      release?.();
+
+      await waitFor(() => expect(download).toBeEnabled());
+      expect(download).not.toHaveAttribute("aria-busy");
+    } finally {
+      HTMLAnchorElement.prototype.click = realClick;
+    }
+  });
+});
+
+describe("UI-26 Attachment sizes read the same everywhere (ui-spec 22.3)", () => {
+  it("writes a size with a non-breaking space between the number and the unit", () => {
+    expect(formatSize(512)).toBe("512\u00a0B");
+    expect(formatSize(4096)).toBe("4.1\u00a0KB");
+    expect(formatSize(281304)).toBe("281.3\u00a0KB");
+  });
+
+  /*
+   * `MAX_ATTACHMENT_BYTES` is exactly 5 MB: a bare `.0` would have the rules
+   * line offer "Up to 5 MB" while the rejection blamed a "5.0 MB" limit.
+   */
+  it("drops a trailing .0 from a round size", () => {
+    expect(formatSize(1000)).toBe("1\u00a0KB");
+    expect(formatSize(2_000_000)).toBe("2\u00a0MB");
+    expect(formatSize(MAX_ATTACHMENT_BYTES)).toBe("5\u00a0MB");
+    expect(ATTACHMENT_RULES_TEXT).toContain(formatSize(MAX_ATTACHMENT_BYTES));
+  });
+
+  /* The 413 message is built from the same formatter as the size column. */
+  it("states the limit the rules line states when the server rejects a file as too large", async () => {
+    stubApi({ upload: () => ({ ok: false, status: 413 }) });
+    renderAt("/tickets/new");
+
+    const input = await screen.findByLabelText("Add Attachment");
+    await userEvent.upload(input, pngFile());
+
+    const row = await waitFor(() => rowFor("vpn-error.png"));
+    expect(await within(row).findByText(/larger than the 5 MB limit/)).toBeInTheDocument();
   });
 });

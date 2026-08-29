@@ -193,3 +193,32 @@ describe("UI-01 Development Requester Selection", () => {
     expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
   });
 });
+
+describe("UI-01 the Requester Selection panel (ui-spec 6.1, 6.2)", () => {
+  /*
+   * One screen, one task: the heading and the "not authentication" explanation
+   * sit inside the panel with the control they explain, not above it.
+   */
+  it("keeps the heading and its explanation inside the panel with the control", async () => {
+    stubJson(REQUESTERS);
+    renderSelection();
+
+    const select = await screen.findByRole("combobox");
+    const panel = select.closest(".card") as HTMLElement;
+
+    expect(panel).toContainElement(
+      screen.getByRole("heading", { name: /Select a Development Requester/ }),
+    );
+    expect(panel).toContainElement(screen.getByText(/not authentication/));
+    expect(select).toHaveAttribute("name", "requesterId");
+  });
+
+  it("marks the brand mark decorative", async () => {
+    stubJson(REQUESTERS);
+    const { container } = renderSelection();
+
+    await screen.findByRole("combobox");
+
+    expect(container.querySelector(".tt-brand__mark")).toHaveAttribute("aria-hidden", "true");
+  });
+});

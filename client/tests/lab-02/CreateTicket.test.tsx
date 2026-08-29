@@ -999,3 +999,41 @@ describe("Stale Requester submission completion", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("UI-09 the Ticket Information card (ui-spec 11.3, 20.1)", () => {
+  /*
+   * The section title moves onto the card header, which is what makes the card a
+   * named region -- the same treatment Ticket Detail already had.
+   */
+  it("labels the form's card region by its section heading", async () => {
+    stubApi();
+    renderCreateTicket();
+    await screen.findByLabelText(/^Category/);
+
+    const heading = screen.getByRole("heading", { name: "Ticket Information" });
+
+    expect(screen.getByRole("region", { name: "Ticket Information" })).toContainElement(heading);
+  });
+
+  /*
+   * Every control carries a `name`, so autofill and password managers can tell
+   * the fields apart. Summary is the one single-line free-text field they would
+   * offer to fill, and a Ticket summary is not a value they hold, so it opts out.
+   */
+  it("names every control and keeps autofill off the free-text line", async () => {
+    stubApi();
+    renderCreateTicket();
+
+    expect(await screen.findByLabelText(/^Category/)).toHaveAttribute("name", "category");
+    expect(screen.getByLabelText(/^Related System/)).toHaveAttribute("name", "relatedSystem");
+    expect(screen.getByLabelText(/^Requested Priority/)).toHaveAttribute(
+      "name",
+      "requestedPriority",
+    );
+    expect(screen.getByLabelText(/^Description/)).toHaveAttribute("name", "description");
+
+    const summary = screen.getByLabelText(/^Summary/);
+    expect(summary).toHaveAttribute("name", "summary");
+    expect(summary).toHaveAttribute("autocomplete", "off");
+  });
+});

@@ -4,10 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { AttachmentState, AttachmentStateName } from "../../src/components/AttachmentState.js";
+import { Badge } from "../../src/components/Badge.js";
 import { Button } from "../../src/components/Button.js";
 import { FilterChip } from "../../src/components/FilterChip.js";
 import { Form } from "../../src/components/Form.js";
 import { Modal } from "../../src/components/Modal.js";
+import { MultiSelect } from "../../src/components/MultiSelect.js";
 import { Pagination } from "../../src/components/Pagination.js";
 import { ReadOnlyField } from "../../src/components/ReadOnlyField.js";
 import { Select } from "../../src/components/Select.js";
@@ -152,6 +154,26 @@ describe("UI-32 pagination (ui-spec 18)", () => {
     expect(numbered.length).toBeLessThanOrEqual(7);
     expect(screen.getByRole("button", { name: "Page 1" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "Page 400" })).toBeInTheDocument();
+  });
+
+  /*
+   * Four thousand Tickets read "4,000" in the summary lines, which are prose.
+   * The numbered buttons stay ungrouped: they are labels on 2rem controls.
+   */
+  it("groups the counts in the summary lines but not on the page buttons", () => {
+    render(
+      <Pagination
+        pageNumber={400}
+        pageSize={10}
+        totalItems={4000}
+        onPageChange={vi.fn()}
+        onPageSizeChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Showing 3,991\u20134,000 of 4,000")).toBeInTheDocument();
+    expect(screen.getByText("Page 400 of 400")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Page 400" })).toHaveTextContent("400");
   });
 
   it("keeps every page listed when the set is small enough", () => {
@@ -522,5 +544,146 @@ describe("UI-37 icon-only controls and non-colour state (ui-spec 23, 29.8, 29.9)
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Ticket TKT-20260820-A81F3C9D7B21 created.");
     expect(status).toHaveClass("tt-success");
+  });
+});
+
+function MultiSelectHarness({ initial = [] }: { initial?: string[] }) {
+  const [selected, setSelected] = useState<string[]>(initial);
+
+  return (
+    <>
+      <button>Outside</button>
+      <MultiSelect
+        label="Category"
+        placeholder="Any Category"
+        options={[
+          { value: "1", label: "Network" },
+          { value: "2", label: "Hardware" },
+        ]}
+        selected={selected}
+        onChange={setSelected}
+      />
+    </>
+  );
+}
+
+describe("UI-32 the multi-select filter control (ui-spec 14.2, 14.3)", () => {
+  /*
+   * The toggle names its field through `aria-labelledby` and states the current
+   * selection on its face, the way a `<select>` does.
+   */
+  it("labels the toggle and shows the placeholder until something is ticked", async () => {
+    render(<MultiSelectHarness />);
+
+    const toggle = screen.getByRole("button", { name: "Category" });
+    expect(toggle).toHaveTextContent("Any Category");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(screen.getByRole("checkbox", { name: "Hardware" }));
+
+    expect(toggle).toHaveTextContent("Hardware");
+  });
+
+  /* The list box could drop a selection on a stray plain click; a checkbox cannot. */
+  it("unticks a value back out of the selection", async () => {
+    render(<MultiSelectHarness initial={["1"]} />);
+
+    const toggle = screen.getByRole("button", { name: "Category" });
+    expect(toggle).toHaveTextContent("Network");
+
+    await userEvent.click(toggle);
+    const network = screen.getByRole("checkbox", { name: "Network" });
+    expect(network).toBeChecked();
+
+    await userEvent.click(network);
+
+    expect(screen.getByRole("checkbox", { name: "Network" })).not.toBeChecked();
+    expect(toggle).toHaveTextContent("Any Category");
+  });
+
+  /* Chips and the URL render the array as it arrives, so click order must not leak. */
+  it("summarises the selection in option order, not in click order", async () => {
+    render(<MultiSelectHarness />);
+
+    const toggle = screen.getByRole("button", { name: "Category" });
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("checkbox", { name: "Hardware" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Network" }));
+
+    expect(toggle).toHaveTextContent("Network, Hardware");
+  });
+
+  /*
+   * Dismissal is on `mousedown`: inside a dialog, a click on the dimmed area
+   * closes the dialog first, so a click listener here would never run.
+   */
+  it("closes on a pointer press outside the control", async () => {
+    render(<MultiSelectHarness />);
+
+    const toggle = screen.getByRole("button", { name: "Category" });
+    await userEvent.click(toggle);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("UI-37 the ordinal badge meter (ui-spec 15.4, 29.9)", () => {
+  it("fills one segment per level and leaves the label to carry the meaning", () => {
+    const { container } = render(
+      <Badge variant="strong" level={3}>
+        HIGH
+      </Badge>,
+    );
+
+    const badge = container.firstElementChild as HTMLElement;
+    const meter = badge.querySelector(".tt-level") as HTMLElement;
+
+    expect(badge).toHaveTextContent("HIGH");
+    expect(meter.children).toHaveLength(3);
+    expect(meter.querySelectorAll(".tt-level__on")).toHaveLength(3);
+  });
+
+  it("fills fewer segments for a lower level", () => {
+    const { container } = render(<Badge level={1}>LOW</Badge>);
+
+    expect(container.querySelectorAll(".tt-level__on")).toHaveLength(1);
+    expect((container.querySelector(".tt-level") as HTMLElement).children).toHaveLength(3);
+  });
+
+  /* The meter restates the level the text already carries. */
+  it("hides the meter from the accessible name", () => {
+    const { container } = render(<Badge level={2}>MEDIUM</Badge>);
+
+    expect(container.querySelector(".tt-level")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("MEDIUM")).toHaveTextContent(/^MEDIUM$/);
+  });
+
+  /* Status is categorical: three flat segments would invent an order it has not got. */
+  it("renders no meter for a badge without a level", () => {
+    const { container } = render(<Badge variant="pale">NEW</Badge>);
+
+    expect(container.querySelector(".tt-level")).toBeNull();
+  });
+});
+
+describe("UI-32 a visually hidden field label (ui-spec 13.2, 29.2)", () => {
+  it("keeps a hidden label as the control's accessible name", () => {
+    render(<TextInput label="Search" labelHidden type="search" value="" onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText("Search")).toBeInTheDocument();
+    expect(screen.getByText("Search")).toHaveClass("visually-hidden");
+  });
+
+  it("leaves an ordinary label visible", () => {
+    render(<TextInput label="Summary" value="" onChange={vi.fn()} />);
+
+    expect(screen.getByText("Summary")).not.toHaveClass("visually-hidden");
   });
 });

@@ -2834,6 +2834,106 @@ boundary, and replacement release PR [#51](https://github.com/oangsa/TokTickIT/p
 is the single separate `lab2-staging` → `main` promotion step; it remains open
 and unmerged pending peer approval.
 
+### 15.4 PR #53 UI-polish verification and evidence regeneration — 2026-08-29
+
+PR [#53](https://github.com/oangsa/TokTickIT/pull/53) (`refactor/ui-polish` into
+`lab2-staging`) is a visual-polish pass over the Lab 2 Requester UI. It changes
+no server source, Prisma schema, migration, or seed, and no API contract. Its
+original submission left two items open: the committed screenshots still showed
+the previous design, and the E2E filter step had been rewritten for the new
+checkbox dropdown without being executed. Both are closed by this run.
+
+All PostgreSQL work used the disposable `postgres:16-alpine` container
+`toktickit-lab2-test-postgres` at `127.0.0.1:55432`, started from
+`server/tests/lab-02/postgres/docker-compose.test.yml` with tmpfs storage and a
+local-only synthetic password. The redacted targets were `toktickit_lab1_dev`
+for Lab 1/application tests and `toktickit_lab2_test` for the guarded Lab 2
+PostgreSQL suites and E2E. No Supabase, production database, real credentials,
+PII, or binary Attachment data was used.
+
+#### Executable gate
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Server regression | `cd server && NODE_ENV=test DATABASE_URL=<lab1_url> DIRECT_URL=<lab1_url> TEST_DATABASE_URL=<lab2_url> npm test` | **Pass** — 31 files, 674 tests, 0 skipped |
+| Client regression | `cd client && npm test` | **Pass** — 10 files, 289 tests, 0 skipped |
+| Client type check | `cd client && npx tsc --noEmit` | **Pass** — no diagnostics |
+| Server build | `cd server && npm run build` | **Pass** |
+| Client build | `cd client && npm run build` | **Pass** |
+| Migrations and seed | `prisma migrate deploy` and `npm run prisma:seed` against both disposable databases | **Pass** — all migrations applied; seed reported 4 Categories, 7 Related Systems, 5 Development Requesters on each target |
+| Pinned E2E/responsive/visual | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> npm run test:e2e` (Playwright 1.60.0) | **Pass** — 12 tests, 12 passed in 16.4 s: three E2E flows plus nine exact viewport cases |
+
+The E2E run includes `E2E-01`, whose Category filter step now opens the checkbox
+dropdown, ticks `Network`, and closes it before applying. That step was the
+unverified item in the PR description; it passes against the real API and
+database.
+
+#### Client coverage added for the PR's UI changes
+
+The branch's client suite grew from 258 cases on `lab2-staging` to 289: four
+came with the PR's own commits, and the twenty-seven below were added in this
+pass so every behaviour-bearing UI change carries a test.
+
+| Area | Cases | Test file |
+| --- | --- | --- |
+| `MultiSelect` toggle labelling, tick/untick, option-order summary, outside-pointer dismissal | 4 | `tests/lab-02/SharedComponents.test.tsx` |
+| Ordinal Badge meter: segments filled to level, `aria-hidden`, no meter without a level | 4 | `tests/lab-02/SharedComponents.test.tsx` |
+| Visually hidden field label keeps the accessible name | 2 | `tests/lab-02/SharedComponents.test.tsx` |
+| Pagination groups the summary counts but not the page buttons | 1 | `tests/lab-02/SharedComponents.test.tsx` |
+| Filters control surface state, hidden search label and its input attributes, row Priority meter | 4 | `tests/lab-02/MyTickets.test.tsx` |
+| Row Download busy state, `formatSize` units and trailing `.0`, the 413 limit message | 4 | `tests/lab-02/AttachmentSection.test.tsx` |
+| Sidebar primary action placement and active swap, decorative brand mark | 3 | `tests/lab-02/ApplicationShell.test.tsx` |
+| Ticket Information card region, control names and autofill opt-out | 2 | `tests/lab-02/CreateTicket.test.tsx` |
+| Ticket Detail eyebrow above the ticket-number heading | 1 | `tests/lab-02/RequesterTicketDetail.test.tsx` |
+| Requester Selection panel contents, decorative brand mark | 2 | `tests/lab-02/RequesterSelection.test.tsx` |
+
+The new cases were checked against deliberate regressions rather than accepted
+on a green run: eight source mutations (outside-click listener removed, meter
+suppressed, `aria-busy` dropped, trailing `.0` restored, count grouping removed,
+`visually-hidden` removed, applied-filter class removed) produced twelve
+failures in exactly the intended cases, and the mutations were reverted before
+the recorded run.
+
+Purely presentational changes with no jsdom surface are not unit-tested and rest
+on the browser assertions and the captures below: table column widths and
+`table-layout`, outer-cell padding, toolbar layout, meter colours, the modal
+container's focus outline, the list footer rule, page-stack spacing, the
+`theme-color` meta tag, and responsive column hiding.
+
+#### Regenerated visual evidence
+
+All fifteen committed PNGs under `docs/lab-02/evidence/screenshots/` were
+rebuilt by the same passing Playwright run and now show the current design:
+
+| Screen | Captures |
+| --- | --- |
+| Create Ticket | `1440x900`, `820x1180`, `390x844`, each with an `-attachments` companion |
+| My Tickets | `1440x900`, `820x1180`, `390x844` |
+| Ticket Detail | `1440x900`, `820x1180`, `390x844`, each with an `-attachments` companion |
+
+The captures carry the polish pass: the ticket-stub brand mark, the sidebar
+`+ Create Ticket` primary action above the navigation list, uppercase
+micro-labels on card titles, column headers and the Requester caption, the
+three-segment Requested Priority meter, the hidden search label with its
+magnifier, and Filters and Sort by together at the end of the toolbar row.
+
+#### Closed observation
+
+At 390 × 844 on Ticket Detail the Attachment row actions wrapped onto two lines:
+the Select column made the Actions column narrower than on Create Ticket, and
+`.tt-row-actions` kept `flex-wrap: wrap` for the download failure alert. The
+Actions column now reserves `8rem`, enough for the three icon controls and their
+gaps, while the existing wrap remains available for a download failure message.
+
+The responsive E2E case now checks that every action button in the row has the
+same rendered top coordinate. Before the fix it failed only at 390 × 844 with
+`Expected: 1 / Received: 2`; after the fix all three Ticket Detail viewports
+passed and the regenerated 390 × 844 capture shows one line.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Ticket Detail responsive regression | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> npm run test:e2e -- e2e/lab-02/responsive-visual.spec.ts -g 'Ticket Detail and Attachments'` | **Pass** — 3 tests, 3 passed at `1440x900`, `820x1180`, and `390x844` |
+
 ## 16. Completion Rule
 
 Lab 2 testing is complete only when:

@@ -747,6 +747,12 @@ a {
   table-layout: auto;
 }
 
+/* Three icon controls plus their gaps must share one action row. */
+.tt-table--attachments th:last-child,
+.tt-table--attachments td:last-child {
+  min-width: 8rem;
+}
+
 /*
  * The table is flush with the card's content edge. Bootstrap pads every cell,
  * including the outer two, which inset the first column 8px from the search

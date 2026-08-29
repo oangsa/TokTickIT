@@ -1062,3 +1062,76 @@ describe("UI-32 and UI-37 My Tickets accessibility", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Remove filter Network");
   });
 });
+
+describe("UI-19 and UI-20 the toolbar states its applied filters", () => {
+  /*
+   * The count alone reads as part of the label. A Requester looking at an
+   * unexpectedly short list needs the control itself to say a filter is
+   * narrowing it (ui-spec Section 14.1).
+   */
+  it("changes the Filters control's surface once a filter is applied", async () => {
+    stubApi();
+    renderMyTickets(ALICE, "/tickets?categoryId=1");
+
+    expect(await screen.findByRole("button", { name: "Filters (1)" })).toHaveClass(
+      "tt-filters--applied",
+    );
+  });
+
+  it("leaves the control unmarked when nothing is applied", async () => {
+    stubApi();
+    renderMyTickets();
+
+    expect(await screen.findByRole("button", { name: "Filters" })).not.toHaveClass(
+      "tt-filters--applied",
+    );
+  });
+
+  /*
+   * The label is hidden, not dropped: the magnifier and the placeholder name the
+   * field in place, and the helper text that repeated the placeholder word for
+   * word is gone (ui-spec Sections 13.2, 29.2).
+   */
+  it("names the search field without a visible label or a repeated hint", async () => {
+    stubApi();
+    renderMyTickets();
+
+    const search = (await screen.findByLabelText("Search")) as HTMLInputElement;
+
+    expect(search.labels?.[0]).toHaveClass("visually-hidden");
+    expect(search).toHaveAttribute("placeholder");
+    expect(screen.queryByText(/^Search ticket number/)).toBeNull();
+    /* A ticket number is not prose, and no password manager belongs here. */
+    expect(search).toHaveAttribute("autocomplete", "off");
+    expect(search).toHaveAttribute("spellcheck", "false");
+  });
+});
+
+describe("UI-16 Requested Priority is metered as well as named", () => {
+  /*
+   * Priority is the only ordinal value on a Ticket. Status is categorical, so a
+   * meter beside it would invent an order it has not got.
+   */
+  it("fills a segment per level and leaves Status unmetered", async () => {
+    stubApi(() => ({
+      body: [
+        ticket(),
+        ticket({
+          publicId: "1f1e8a9f-6d9e-4a1a-9f0e-1b2c3d4e5f61",
+          ticketNumber: "TKT-20260820-B81F3C9D7B22",
+          requestedPriority: "LOW",
+        }),
+      ],
+      pagination: meta({ totalItems: 2 }),
+    }));
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const high = screen.getByText("HIGH");
+    expect(high.querySelectorAll(".tt-level__on")).toHaveLength(3);
+    expect((high.querySelector(".tt-level") as HTMLElement).children).toHaveLength(3);
+
+    expect(screen.getByText("LOW").querySelectorAll(".tt-level__on")).toHaveLength(1);
+    expect(screen.getAllByText("NEW")[0].querySelector(".tt-level")).toBeNull();
+  });
+});
