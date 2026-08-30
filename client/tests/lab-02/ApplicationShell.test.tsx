@@ -88,6 +88,7 @@ describe("UI-03 application shell and navigation", () => {
 
     expect(screen.getAllByText(/TokTickIT/).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "My Tickets" })).toBeInTheDocument();
+    /* Create Ticket is shell navigation, styled as the primary action; the "+" is decorative. */
     expect(screen.getByRole("link", { name: "Create Ticket" })).toBeInTheDocument();
     expect(screen.getByText(ALICE.name)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Change Requester" })).toBeInTheDocument();
@@ -100,6 +101,10 @@ describe("UI-03 application shell and navigation", () => {
     expect(screen.getByRole("link", { name: "Create Ticket" })).not.toHaveAttribute("aria-current");
   });
 
+  /*
+   * `/tickets/new` also matches the Ticket Detail pattern, so the Create Ticket
+   * route has to be excluded explicitly or My Tickets lights up on it too.
+   */
   it("marks Create Ticket as the current page on /tickets/new", () => {
     renderAt("/tickets/new", ALICE);
 
@@ -732,5 +737,48 @@ describe("UI-04 obsolete requester-scoped requests", () => {
     act(() => caller.abort());
 
     expect(observed?.aborted).toBe(true);
+  });
+});
+
+describe("UI-03 the sidebar's primary action and brand mark (ui-spec 5.1, 5.2, 10.1)", () => {
+  /*
+   * Create Ticket is shell navigation the Lab Sheet requires, but it is the
+   * application's primary action rather than a second list destination, so it
+   * sits above the navigation list as a button rather than inside it as a row.
+   */
+  it("renders Create Ticket as the primary control above the navigation list", () => {
+    renderAt("/tickets", ALICE);
+
+    const create = screen.getByRole("link", { name: "Create Ticket" });
+
+    expect(create).toHaveClass("btn", "btn-primary");
+    expect(create.closest("ul")).toBeNull();
+    /* The "+" is decoration: visible on the control, absent from its name. */
+    expect(create).toHaveTextContent("+ Create Ticket");
+    expect(create).toHaveAccessibleName("Create Ticket");
+  });
+
+  /*
+   * A filled button on the Create Ticket route would claim to be an action the
+   * Requester has already taken, so the active state is an outline instead.
+   */
+  it("swaps the fill for a you-are-here outline on /tickets/new", () => {
+    renderAt("/tickets/new", ALICE);
+
+    const create = screen.getByRole("link", { name: "Create Ticket" });
+
+    expect(create).toHaveClass("btn-outline-secondary", "tt-nav-action--current");
+    expect(create).not.toHaveClass("btn-primary");
+    expect(create).toHaveAttribute("aria-current", "page");
+  });
+
+  /* The mark restates the wordmark beside it, so it is decorative. */
+  it("marks the brand mark decorative in the sidebar and the mobile topbar", () => {
+    const { container } = renderAt("/tickets", ALICE);
+
+    const marks = container.querySelectorAll(".tt-brand__mark");
+
+    expect(marks).toHaveLength(2);
+    marks.forEach((mark) => expect(mark).toHaveAttribute("aria-hidden", "true"));
   });
 });

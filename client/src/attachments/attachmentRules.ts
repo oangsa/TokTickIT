@@ -32,9 +32,14 @@ export const ATTACHMENT_TIMEOUT_MS = 60_000;
 
 export const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "pdf"] as const;
 
-/* The user-facing summary of the rules above (ui-spec Section 22.3). */
+/*
+ * The user-facing summary of the rules above (ui-spec Section 22.3).
+ *
+ * `\u00a0` between each value and its unit: a rules line that wraps must not
+ * leave "5" at the end of one line and "MB" at the start of the next.
+ */
 export const ATTACHMENT_RULES_TEXT =
-  "JPG, JPEG, PNG, WEBP, or PDF. Up to 5 MB (5,000,000 bytes) per file, and up to 5 active attachments.";
+  "JPG, JPEG, PNG, WEBP, or PDF. Up to 5\u00a0MB (5,000,000\u00a0bytes) per file, and up to 5 active attachments.";
 
 const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F]/;
 
@@ -45,13 +50,28 @@ const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F]/;
  * screen promising a maximum of 5 MB.
  */
 export function formatSize(bytes: number): string {
+  /* Non-breaking, so a size never wraps between its number and its unit. */
   if (bytes < 1000) {
-    return `${bytes} B`;
+    return `${bytes}\u00a0B`;
   }
 
   const kilobytes = bytes / 1000;
 
-  return kilobytes < 1000 ? `${kilobytes.toFixed(1)} KB` : `${(kilobytes / 1000).toFixed(1)} MB`;
+  return kilobytes < 1000
+    ? `${oneDecimal(kilobytes)}\u00a0KB`
+    : `${oneDecimal(kilobytes / 1000)}\u00a0MB`;
+}
+
+/*
+ * One decimal place, but not a bare `.0`. The limit messages read the same
+ * formatter as the size column, and `MAX_ATTACHMENT_BYTES` is exactly 5 MB: the
+ * rules line offering "Up to 5 MB" and the rejection saying "larger than the
+ * 5.0 MB limit" are the same number written two ways.
+ */
+function oneDecimal(value: number): string {
+  const fixed = value.toFixed(1);
+
+  return fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed;
 }
 
 export function fileExtension(name: string): string | null {

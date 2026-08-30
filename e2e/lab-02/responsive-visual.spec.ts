@@ -348,6 +348,15 @@ for (const viewport of VIEWPORTS) {
     }
 
     const preview = page.getByRole("button", { name: `Preview ${attachmentName}`, exact: true });
+    const rowActions = page.locator("tr", { hasText: attachmentName }).locator(".tt-row-actions");
+    const actionButtons = rowActions.getByRole("button");
+
+    await expect(actionButtons).toHaveCount(3);
+    const actionTops = await actionButtons.evaluateAll((buttons) =>
+      buttons.map((button) => Math.round(button.getBoundingClientRect().top)),
+    );
+    expect(new Set(actionTops).size).toBe(1);
+
     await assertNoHorizontalOverflow(page);
     await assertZenGreenTokens(page);
     await resetViewportToTop(page);

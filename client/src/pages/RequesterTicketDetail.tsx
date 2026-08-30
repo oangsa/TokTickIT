@@ -118,7 +118,8 @@ export default function RequesterTicketDetail() {
     <>
       <PageHeader
         title={heading ?? "Ticket Detail"}
-        subtitle={heading === null ? undefined : "Ticket Detail"}
+        titleClassName="tt-ticket-no"
+        {...(heading === null ? {} : { eyebrow: "Ticket Detail" })}
         actions={
           <Link className="btn btn-outline-secondary" to="/tickets">
             Back to My Tickets
@@ -137,9 +138,9 @@ export default function RequesterTicketDetail() {
           <Skeleton height="8rem" />
         </Card>
       ) : (
-        <>
+        <div className="tt-stack">
           {createdTicketNumber !== ticket.ticketNumber ? null : (
-            <SuccessMessage className="mb-4">
+            <SuccessMessage>
               Ticket {ticket.ticketNumber} was created.
             </SuccessMessage>
           )}
@@ -200,7 +201,7 @@ export default function RequesterTicketDetail() {
             attachments={ticket.attachments}
             onChanged={() => setReloadCount((count) => count + 1)}
           />
-        </>
+        </div>
       )}
     </>
   );

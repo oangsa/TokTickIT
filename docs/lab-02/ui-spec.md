@@ -165,13 +165,14 @@ Conceptual structure:
 
 ```text
 ┌──────────────────┬───────────────────────────────────────┐
-│ TokTickIT        │ Main page content                     │
+│ ▨ TokTickIT      │ Main page content                     │
 │                  │                                       │
-│ My Tickets       │                                       │
-│ Create Ticket    │                                       │
+│ [+ Create Ticket]│                                       │
 │                  │                                       │
+│ ▓ My Tickets ▓▓▓ │                                       │
 │                  │                                       │
 │──────────────────│                                       │
+│ REQUESTER        │                                       │
 │ Requester Name   │                                       │
 │ Change Requester │                                       │
 └──────────────────┴───────────────────────────────────────┘
@@ -180,12 +181,24 @@ Conceptual structure:
 Sidebar contents after a Requester is selected:
 
 - TokTickIT identity;
-- My Tickets;
 - Create Ticket;
+- My Tickets;
 - selected Development Requester name;
 - Change Requester action.
 
+Create Ticket and My Tickets are both required shell navigation, but they are not
+peers: Create Ticket starts work and My Tickets is a destination. Create Ticket
+is therefore presented as the sidebar's primary action control above the
+navigation list, not as a second row inside it. It remains a link to
+`/tickets/new`, so it is announced as navigation and can be opened in a new tab.
+
 The selected page must have a clear active-navigation indication using the Zen Green language. Pale Green may be used as the active surface with Primary/Secondary Green text or icon treatment.
+
+On `/tickets/new` the Create Ticket control carries `aria-current="page"` and
+exchanges its solid Primary Green surface for the same Pale Green active
+treatment the navigation list uses, so "current" reads identically for both
+items and a filled button never offers an action the Requester has already
+taken.
 
 ## 5.2. Mobile Shell
 
@@ -754,22 +767,34 @@ Use a single-column modal:
 │ Filters                          ×   │
 ├──────────────────────────────────────┤
 │ Category                             │
-│ [ multi-select                    ]  │
+│ [ Any Category                  ▼ ]  │
 │                                      │
 │ Related System                       │
-│ [ multi-select                    ]  │
+│ [ Any Related System            ▼ ]  │
 │                                      │
 │ Requested Priority                   │
-│ [ multi-select                    ]  │
+│ [ LOW, HIGH                     ▼ ]  │
 │                                      │
 │ Status                               │
-│ [ multi-select                    ]  │
+│ [ Any Status                    ▼ ]  │
 ├──────────────────────────────────────┤
 │ Reset                  Cancel Apply  │
 └──────────────────────────────────────┘
 ```
 
 All four filters support multiple selections.
+
+Each filter is a dropdown of checkboxes, not a `<select multiple>` list box:
+
+- the closed control keeps the height and chevron of an editable select;
+- it reads `Any <Field>` when nothing is selected, and the selected labels
+  otherwise;
+- opening it reveals one checkbox per value, scrolling past roughly five;
+- values are added and removed independently, with no modifier key.
+
+A list box was rejected: it holds four permanently open, internally scrolling
+panes in one modal, and its selection model — a modifier-click to add, a plain
+click to replace every selection — is neither discoverable nor usable on touch.
 
 ## 14.3. Draft State
 
@@ -1765,6 +1790,7 @@ The following decisions are part of the Lab 2 UI contract:
 - `8px` controls/buttons, `12px` cards/modals, pill badges.
 - Main content approximately `1280px` max width on desktop.
 - Desktop left sidebar, approximately `240px`.
+- Sidebar Create Ticket is the primary action control above the navigation list; My Tickets is the navigation row.
 - Mobile hamburger/collapsible sidebar navigation.
 - Pale Green active navigation treatment.
 - Centered Requester Selection card.
@@ -1780,7 +1806,7 @@ The following decisions are part of the Lab 2 UI contract:
 - Small-screen Ticket table keeps Ticket Number, Summary, Priority, Status.
 - Search debounce is `400ms`.
 - Filters use an Apply modal with draft state.
-- Category, Related System, Priority, and Status are multi-select filters.
+- Category, Related System, Priority, and Status are multi-select filters, each presented as a dropdown of checkboxes rather than a list box.
 - Applied filters use count + removable chips.
 - Clear Filters remains available when a search/filter is active whether results exist or not.
 - Priority badges stay within the Zen Green visual language.

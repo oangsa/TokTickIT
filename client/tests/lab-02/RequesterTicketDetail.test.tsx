@@ -332,7 +332,7 @@ describe("UI-36 Attachment metadata on Ticket Detail", () => {
 
     const active = screen.getByText("vpn-error.png").closest("tr") as HTMLElement;
     expect(within(active).getByRole("button", { name: "Preview vpn-error.png" })).toBeInTheDocument();
-    expect(within(active).getByRole("button", { name: "Download" })).toBeInTheDocument();
+    expect(within(active).getByRole("button", { name: "Download vpn-error.png" })).toBeInTheDocument();
     expect(within(active).getByRole("checkbox", { name: "Select vpn-error.png" })).toBeInTheDocument();
 
     /* Still read-only in every other respect (FR-22). */
@@ -375,5 +375,25 @@ describe("UI-24 Ticket Detail page-level failures", () => {
 
     expect(await screen.findByText("Something went wrong.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
+  });
+});
+
+describe("UI-23 the Ticket Detail header (ui-spec 11.1, 20.1)", () => {
+  /*
+   * The Ticket Number is the heading and carries the data treatment; "Ticket
+   * Detail" moves above it as an eyebrow rather than below it as a subtitle, so
+   * the page states what it is before it states which Ticket.
+   */
+  it("puts the Ticket Detail eyebrow above the ticket-number heading", async () => {
+    renderDetail();
+
+    const heading = await screen.findByRole("heading", { name: "TKT-20260820-A81F3C9D7B21" });
+    const eyebrow = screen.getByText("Ticket Detail");
+
+    expect(heading).toHaveClass("tt-ticket-no");
+    expect(eyebrow.tagName).toBe("P");
+    expect(
+      eyebrow.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

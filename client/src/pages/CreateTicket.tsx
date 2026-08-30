@@ -161,6 +161,43 @@ export default function CreateTicket() {
    * Create Ticket attempt even when the Requester remains unchanged. */
   const submissionGenerationRef = useRef(0);
 
+  /*
+   * BR-25's "anything else". `unresolvedFiles` is part of it: a file still
+   * Uploading is in neither `isDirty` nor `attachmentIds` yet, but the Requester
+   * did choose it, and leaving silently would drop a row the server is about to
+   * create. The Cancel confirmation and the unload warning both read this, so
+   * those two can never disagree about what counts as work worth keeping.
+   */
+  const dirty = isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles;
+
+  /*
+   * Cancel confirms through the discard dialog, but a reload, a tab close, or a
+   * Back out of the application never reaches it. The browser's own prompt is
+   * the only guard on those, and it is worth having: the draft lives in
+   * component state, so nothing survives the navigation.
+   *
+   * It does NOT cover an in-application route change -- the sidebar links leave
+   * this screen without an unload, and the draft is dropped silently. Closing
+   * that needs `useBlocker`, which requires a data router; the application is
+   * mounted under `BrowserRouter` and every test under `MemoryRouter`, so the
+   * guard stops at the two paths that do unload.
+   */
+  useEffect(() => {
+    if (!dirty) {
+      return;
+    }
+
+    function warn(event: BeforeUnloadEvent): void {
+      event.preventDefault();
+      /* Safari still reads the legacy field rather than the cancellation. */
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warn);
+
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   useEffect(() => {
     let ignore = false;
 
@@ -398,15 +435,9 @@ export default function CreateTicket() {
     void submit(recovery.payload, recovery.idempotencyKey);
   }
 
-  /*
-   * BR-25: an untouched empty draft leaves directly; anything else confirms.
-   *
-   * `unresolvedFiles` is part of "anything else". A file still Uploading is in
-   * neither `isDirty` nor `attachmentIds` yet, but the Requester did choose it,
-   * and leaving silently would drop a row the server is about to create.
-   */
+  /* BR-25: an untouched empty draft leaves directly; anything else confirms. */
   function handleCancel(): void {
-    if (isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles) {
+    if (dirty) {
       setConfirmDiscard(true);
       return;
     }
@@ -472,9 +503,7 @@ export default function CreateTicket() {
 
       {loadState === "loaded" ? (
         <Form onSubmit={handleSubmit} aria-label="Create Ticket">
-          <Card>
-            <h2 className="h6 fw-semibold">Ticket Information</h2>
-
+          <Card title="Ticket Information">
             {/*
              * ui-spec Section 11.3. The generated values are shown as read-only
              * controls that state they are assigned on submission. They are
@@ -499,6 +528,7 @@ export default function CreateTicket() {
               <div className="col-12 col-md-6">
                 <Select
                   id={FIELD_IDS.categoryId}
+                  name="category"
                   label="Category"
                   required
                   value={draft.categoryId}
@@ -516,6 +546,7 @@ export default function CreateTicket() {
               <div className="col-12 col-md-6">
                 <Select
                   id={FIELD_IDS.relatedSystemId}
+                  name="relatedSystem"
                   label="Related System"
                   required
                   value={draft.relatedSystemId}
@@ -534,6 +565,7 @@ export default function CreateTicket() {
 
             <Select
               id={FIELD_IDS.requestedPriority}
+              name="requestedPriority"
               label="Requested Priority"
               required
               value={draft.requestedPriority}
@@ -555,6 +587,9 @@ export default function CreateTicket() {
              */}
             <TextInput
               id={FIELD_IDS.summary}
+              name="summary"
+              /* Single-line free text: the one field a password manager offers to fill. */
+              autoComplete="off"
               label="Summary"
               required
               value={draft.summary}
@@ -565,6 +600,7 @@ export default function CreateTicket() {
 
             <Textarea
               id={FIELD_IDS.description}
+              name="description"
               label="Description"
               required
               value={draft.description}
@@ -606,7 +642,7 @@ export default function CreateTicket() {
           ) : null}
 
           {errors.form !== undefined ? (
-            <p role="alert" className="tt-invalid-text">
+            <p role="alert" className="tt-invalid-text mb-0">
               {errors.form}
             </p>
           ) : null}

@@ -185,7 +185,11 @@ test.describe("Lab 2 Requester browser flows", () => {
 
     await page.getByRole("button", { name: "Filters", exact: true }).click();
     const filterDialog = page.getByRole("dialog", { name: "Filters" });
-    await filterDialog.getByLabel("Category").selectOption({ label: "Network" });
+    /* Category is a dropdown of checkboxes: open it, tick the value, close it. */
+    const categoryFilter = filterDialog.getByRole("button", { name: /^Category/ });
+    await categoryFilter.click();
+    await filterDialog.getByRole("checkbox", { name: "Network", exact: true }).check();
+    await categoryFilter.click();
     await filterDialog.getByRole("button", { name: "Apply", exact: true }).click();
     await expect(page.getByRole("button", { name: "Filters (1)", exact: true })).toBeVisible();
 

@@ -514,7 +514,19 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     return screen.getByRole("dialog", { name: "Filters" });
   }
 
-  it("offers all four multi-select filters", async () => {
+  /* Each filter is a dropdown of checkboxes: open it, then tick a value. */
+  async function chooseFilter(dialog: HTMLElement, field: string, option: string) {
+    const toggle = within(dialog).getByRole("button", { name: new RegExp(`^${field}`) });
+    await userEvent.click(toggle);
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: option }));
+    await userEvent.click(toggle);
+  }
+
+  function filterToggle(dialog: HTMLElement, field: string): HTMLElement {
+    return within(dialog).getByRole("button", { name: new RegExp(`^${field}`) });
+  }
+
+  it("offers all four filters as multi-select dropdowns", async () => {
     stubApi();
     renderMyTickets();
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
@@ -522,8 +534,55 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     const dialog = await openFilters();
 
     for (const label of ["Category", "Related System", "Requested Priority", "Status"]) {
-      expect(within(dialog).getByLabelText(label)).toHaveAttribute("multiple");
+      const toggle = filterToggle(dialog, label);
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+      await userEvent.click(toggle);
+      expect(within(dialog).getAllByRole("checkbox").length).toBeGreaterThan(0);
+      await userEvent.click(toggle);
     }
+  });
+
+  /*
+   * The filter menu and the dialog around it both handle Escape. The menu has to
+   * win while it is open, or one key press throws away the whole draft.
+   */
+  it("closes only the open filter menu on Escape, and the dialog on the next one", async () => {
+    stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const dialog = await openFilters();
+    await userEvent.click(filterToggle(dialog, "Category"));
+    expect(within(dialog).getAllByRole("checkbox").length).toBeGreaterThan(0);
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(within(dialog).queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
+    expect(filterToggle(dialog, "Category")).toHaveFocus();
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+  });
+
+  /* Chips and the URL render the array as it arrives, so the order is contract. */
+  it("reports a selection in option order however it was ticked", async () => {
+    const { calls } = stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const dialog = await openFilters();
+    await chooseFilter(dialog, "Requested Priority", "HIGH");
+    await chooseFilter(dialog, "Requested Priority", "LOW");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(listCalls(calls)).toHaveLength(2));
+
+    expect(JSON.parse(lastListQuery(calls).get("filters") ?? "[]")).toEqual([
+      { field: "requestedPriority", condition: "IN", value: ["LOW", "HIGH"] },
+    ]);
   });
 
   it("discards draft changes on Cancel and fetches nothing", async () => {
@@ -532,7 +591,7 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
     const dialog = await openFilters();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Category"), ["1"]);
+    await chooseFilter(dialog, "Category", "Network");
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     expect(listCalls(calls)).toHaveLength(1);
@@ -540,8 +599,7 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
 
     /* Reopening shows the committed selection, not the discarded draft. */
     const reopened = await openFilters();
-    expect(within(reopened).getByRole("option", { name: "Network" })).not.toBeDisabled();
-    expect((within(reopened).getByLabelText("Category") as HTMLSelectElement).selectedOptions).toHaveLength(0);
+    expect(filterToggle(reopened, "Category")).toHaveTextContent("Any Category");
   });
 
   it("clears the draft on Reset without fetching", async () => {
@@ -550,10 +608,10 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
     const dialog = await openFilters();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Category"), ["1"]);
+    await chooseFilter(dialog, "Category", "Network");
     await userEvent.click(within(dialog).getByRole("button", { name: "Reset" }));
 
-    expect((within(dialog).getByLabelText("Category") as HTMLSelectElement).selectedOptions).toHaveLength(0);
+    expect(filterToggle(dialog, "Category")).toHaveTextContent("Any Category");
     expect(listCalls(calls)).toHaveLength(1);
   });
 
@@ -566,8 +624,8 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
     const dialog = await openFilters();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Category"), ["1"]);
-    await userEvent.selectOptions(within(dialog).getByLabelText("Requested Priority"), ["HIGH"]);
+    await chooseFilter(dialog, "Category", "Network");
+    await chooseFilter(dialog, "Requested Priority", "HIGH");
     await userEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
 
     await waitFor(() => expect(listCalls(calls)).toHaveLength(2));
@@ -693,7 +751,7 @@ describe("UI-22 My Tickets pagination and list projection", () => {
     const nav = screen.getByRole("navigation", { name: "Ticket pagination" });
     const pageNumbers = () =>
       within(nav)
-        .getAllByRole("button", { name: /^\d+$/ })
+        .getAllByRole("button", { name: /^Page \d+$/ })
         .map((button) => button.textContent);
 
     expect(pageNumbers()).toEqual(["1", "2", "3", "4", "5"]);
@@ -1002,5 +1060,78 @@ describe("UI-32 and UI-37 My Tickets accessibility", () => {
 
     await userEvent.hover(remove);
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Remove filter Network");
+  });
+});
+
+describe("UI-19 and UI-20 the toolbar states its applied filters", () => {
+  /*
+   * The count alone reads as part of the label. A Requester looking at an
+   * unexpectedly short list needs the control itself to say a filter is
+   * narrowing it (ui-spec Section 14.1).
+   */
+  it("changes the Filters control's surface once a filter is applied", async () => {
+    stubApi();
+    renderMyTickets(ALICE, "/tickets?categoryId=1");
+
+    expect(await screen.findByRole("button", { name: "Filters (1)" })).toHaveClass(
+      "tt-filters--applied",
+    );
+  });
+
+  it("leaves the control unmarked when nothing is applied", async () => {
+    stubApi();
+    renderMyTickets();
+
+    expect(await screen.findByRole("button", { name: "Filters" })).not.toHaveClass(
+      "tt-filters--applied",
+    );
+  });
+
+  /*
+   * The label is hidden, not dropped: the magnifier and the placeholder name the
+   * field in place, and the helper text that repeated the placeholder word for
+   * word is gone (ui-spec Sections 13.2, 29.2).
+   */
+  it("names the search field without a visible label or a repeated hint", async () => {
+    stubApi();
+    renderMyTickets();
+
+    const search = (await screen.findByLabelText("Search")) as HTMLInputElement;
+
+    expect(search.labels?.[0]).toHaveClass("visually-hidden");
+    expect(search).toHaveAttribute("placeholder");
+    expect(screen.queryByText(/^Search ticket number/)).toBeNull();
+    /* A ticket number is not prose, and no password manager belongs here. */
+    expect(search).toHaveAttribute("autocomplete", "off");
+    expect(search).toHaveAttribute("spellcheck", "false");
+  });
+});
+
+describe("UI-16 Requested Priority is metered as well as named", () => {
+  /*
+   * Priority is the only ordinal value on a Ticket. Status is categorical, so a
+   * meter beside it would invent an order it has not got.
+   */
+  it("fills a segment per level and leaves Status unmetered", async () => {
+    stubApi(() => ({
+      body: [
+        ticket(),
+        ticket({
+          publicId: "1f1e8a9f-6d9e-4a1a-9f0e-1b2c3d4e5f61",
+          ticketNumber: "TKT-20260820-B81F3C9D7B22",
+          requestedPriority: "LOW",
+        }),
+      ],
+      pagination: meta({ totalItems: 2 }),
+    }));
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const high = screen.getByText("HIGH");
+    expect(high.querySelectorAll(".tt-level__on")).toHaveLength(3);
+    expect((high.querySelector(".tt-level") as HTMLElement).children).toHaveLength(3);
+
+    expect(screen.getByText("LOW").querySelectorAll(".tt-level__on")).toHaveLength(1);
+    expect(screen.getAllByText("NEW")[0].querySelector(".tt-level")).toBeNull();
   });
 });

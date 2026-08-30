@@ -25,6 +25,15 @@ const DEFAULT_PAGE_SIZES = [10, 20, 30, 50, 100];
 const WINDOW = 5;
 
 /*
+ * Grouped counts: a Requester with four thousand Tickets reads "4,000", not
+ * "4000". The locale is pinned the way `ticketDate` pins its own, so the range
+ * renders identically on every machine and in CI. The numbered buttons stay
+ * ungrouped -- they are labels on 2rem controls, not quantities -- but the
+ * summary lines are prose, so they group like the counts beside them.
+ */
+const COUNT = new Intl.NumberFormat("en-CA");
+
+/*
  * Page numbers around the current page, always including the first and last.
  * `null` marks an elided run. Rendering every page instead would put 400 buttons
  * on screen for 4000 tickets and force the page-level horizontal scroll that
@@ -111,7 +120,7 @@ export function Pagination({
     : [...pageSizeOptions, pageSize].sort((left, right) => left - right);
 
   return (
-    <nav aria-label="Ticket pagination" className="d-flex flex-wrap align-items-center gap-3 mt-3">
+    <nav aria-label="Ticket pagination" className="tt-pagination d-flex flex-wrap align-items-center gap-3">
       {/*
         * Not a live region. The page that renders this control owns one
         * always-mounted `role="status"` announcement (ui-spec 29.7); a second
@@ -136,10 +145,11 @@ export function Pagination({
         ) : (
           <>
             <span className="d-none d-lg-inline">
-              Showing {firstItem}–{lastItem} of {totalItems}
+              Showing {COUNT.format(firstItem)}–{COUNT.format(lastItem)} of{" "}
+              {COUNT.format(totalItems)}
             </span>
             <span className="d-lg-none">
-              Page {page} of {pageCount}
+              Page {COUNT.format(page)} of {COUNT.format(pageCount)}
             </span>
           </>
         )}
@@ -180,6 +190,8 @@ export function Pagination({
                 <button
                   type="button"
                   className="page-link"
+                  /* The digit alone is not a name a screen reader can place. */
+                  aria-label={`Page ${entry}`}
                   aria-current={entry === page ? "page" : undefined}
                   onClick={() => onPageChange(entry)}
                 >
