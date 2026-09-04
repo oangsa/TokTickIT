@@ -7,6 +7,9 @@ import { SidebarNav } from "./SidebarNav.js";
 
 const SIDEBAR_ID = "tt-sidebar";
 const MAIN_ID = "tt-main";
+const TOGGLE_ID = "tt-menu-toggle";
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /*
  * The requester application shell (ui-spec Section 5). The mobile drawer is
@@ -15,6 +18,7 @@ const MAIN_ID = "tt-main";
 export function AppShell() {
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
   const location = useLocation();
   const previousLocationKeyRef = useRef(location.key);
 
@@ -33,14 +37,38 @@ export function AppShell() {
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setOpen(false);
-        toggleRef.current?.focus();
+        close();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const elements = Array.from(
+        sidebarRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [],
+      );
+
+      if (elements.length === 0) {
+        return;
+      }
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
+    sidebarRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
+  }, [close, open]);
 
   /*
    * The drawer only exists below the desktop breakpoint. Above it the topbar and
@@ -91,6 +119,7 @@ export function AppShell() {
       <header className="tt-topbar d-lg-none">
         <IconButton
           ref={toggleRef}
+          id={TOGGLE_ID}
           label={toggleLabel}
           aria-expanded={open}
           aria-controls={SIDEBAR_ID}
@@ -104,10 +133,17 @@ export function AppShell() {
         </span>
       </header>
 
-      {open ? <div className="tt-backdrop d-lg-none" onClick={close} /> : null}
+      {open ? (
+        <button
+          type="button"
+          className="tt-backdrop d-lg-none"
+          aria-label="Dismiss navigation menu"
+          onClick={close}
+        />
+      ) : null}
 
       <div className="tt-shell">
-        <SidebarNav id={SIDEBAR_ID} open={open} onNavigate={close} />
+        <SidebarNav ref={sidebarRef} id={SIDEBAR_ID} open={open} onNavigate={close} />
         {/*
           The open drawer's backdrop hides the page visually but not from the
           tab order, so Tab past Change Requester lands on controls behind the

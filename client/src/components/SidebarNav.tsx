@@ -1,6 +1,8 @@
+import { forwardRef } from "react";
 import { Link, useMatch, useNavigate } from "react-router-dom";
 
 import { useRequester } from "../requester/RequesterProvider.js";
+import { useNavigationGuard } from "../navigation/NavigationGuard.js";
 import { BrandMark } from "./BrandMark.js";
 import { Button } from "./Button.js";
 
@@ -21,14 +23,18 @@ interface SidebarNavProps {
  *
  * Create Ticket is shell navigation the Lab Sheet requires (Section 8), but it
  * is the application's primary action rather than a second list destination, so
- * it is a button above the navigation instead of a row inside it. The
+ * it is a primary link above the navigation instead of a row inside it. The
  * `/tickets/new` match does double duty: it carries that item's own active
  * state, and it keeps My Tickets dark, since `/tickets/new` also matches the
  * Ticket Detail pattern.
  */
-export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
+export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function SidebarNav(
+  { id, open, onNavigate },
+  ref,
+) {
   const { requester, clearRequester } = useRequester();
   const navigate = useNavigate();
+  const { requestNavigation } = useNavigationGuard();
 
   const createTicketActive = Boolean(useMatch({ path: "/tickets/new", end: true }));
   const ticketsActive = useMatch({ path: "/tickets", end: true });
@@ -36,9 +42,31 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
   const myTicketsActive = Boolean(!createTicketActive && (ticketsActive || ticketDetailActive));
 
   function handleChangeRequester() {
-    clearRequester();
     onNavigate();
-    navigate("/requesters", { replace: true });
+    requestNavigation(() => {
+      clearRequester();
+      navigate("/requesters", { replace: true });
+    });
+  }
+
+  function handleLinkClick(
+    event: React.MouseEvent<HTMLAnchorElement>,
+    destination: string,
+  ): void {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    onNavigate();
+    requestNavigation(() => navigate(destination));
   }
 
   function linkClass(active: boolean): string {
@@ -46,7 +74,12 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
   }
 
   return (
-    <nav id={id} aria-label="Main" className={`tt-sidebar${open ? " tt-sidebar--open" : ""}`}>
+    <nav
+      ref={ref}
+      id={id}
+      aria-label="Main"
+      className={`tt-sidebar${open ? " tt-sidebar--open" : ""}`}
+    >
       <span className="tt-brand h5 mb-0">
         <BrandMark />
         TokTickIT
@@ -62,7 +95,24 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
         to="/tickets/new"
         className={`btn w-100 ${createTicketActive ? "btn-outline-secondary tt-nav-action--current" : "btn-primary"}`}
         aria-current={createTicketActive ? "page" : undefined}
-        onClick={onNavigate}
+        onClick={(event) => {
+          if (createTicketActive) {
+            if (
+              event.button === 0 &&
+              !event.metaKey &&
+              !event.altKey &&
+              !event.ctrlKey &&
+              !event.shiftKey
+            ) {
+              event.preventDefault();
+            }
+
+            onNavigate();
+            return;
+          }
+
+          handleLinkClick(event, "/tickets/new");
+        }}
       >
         {/* Decoration: the accessible name is "Create Ticket", the destination. */}
         <span aria-hidden="true">+ </span>
@@ -75,7 +125,7 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
             to="/tickets"
             className={linkClass(myTicketsActive)}
             aria-current={myTicketsActive ? "page" : undefined}
-            onClick={onNavigate}
+            onClick={(event) => handleLinkClick(event, "/tickets")}
           >
             My Tickets
           </Link>
@@ -93,4 +143,4 @@ export function SidebarNav({ id, open, onNavigate }: SidebarNavProps) {
       </div>
     </nav>
   );
-}
+});

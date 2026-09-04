@@ -625,7 +625,7 @@ Submit Ticket uses Primary style.
 Cancel is a discard action for the current unsaved Ticket draft.
 
 - An untouched empty form may cancel directly.
-- If the draft is dirty and/or has known successfully pre-uploaded Pending Attachments, Cancel opens a confirmation dialog before leaving the page.
+- If the draft is dirty, has known successfully pre-uploaded Pending Attachments, or has an ambiguous submission recovery record, Cancel opens a confirmation dialog before leaving the page.
 - If the user keeps editing, the dialog closes and the draft is unchanged.
 - If discard is confirmed, the frontend performs best-effort cleanup of the Pending Attachment IDs still known to the draft using `DELETE /api/attachments/collection`, with an empty reason for each Pending item.
 - A Pending card already removed from client state may remain for normal 24-hour orphan cleanup.
@@ -636,9 +636,9 @@ Cancel is a discard action for the current unsaved Ticket draft.
 
 While submitting:
 
-- Submit Ticket is disabled;
+- the current primary action (`Submit Ticket` or `Retry Again`) is disabled;
 - a spinner appears inside the button;
-- button text remains `Submit Ticket`;
+- button text remains the current action text;
 - repeated submission is prevented.
 
 Before submission, Submit Ticket is also unavailable while any intended selected file is `Uploading`, `Failed`, or `Invalid`. The user must successfully Retry it to `Pending` or explicitly Remove it from the final intended set. The request contains only the final prepared Pending `attachmentIds`.
@@ -674,7 +674,7 @@ Preserve non-file Ticket fields. Apply the API contract's best-effort Pending cl
 
 If completion remains ambiguous, retry the unchanged Ticket-create request with the same Idempotency Key. A completed `200` replay recovers the same Ticket and its Active Attachments without re-upload. Cleanup semantics must never invent removal reasons or soft-remove rows that may already be Active evidence.
 
-While completion is ambiguous, persist a requester-scoped recovery record in `sessionStorage` containing the original Idempotency Key/client creation time and normalized original Ticket-create payload, including original normalized `attachmentIds`. After reload, offer an explicit Resume Submission Recovery action; never submit automatically on load. Clear the record on confirmed success, confirmed non-ambiguous failure, discard, Requester change, or expiry.
+While completion is ambiguous, persist a requester-scoped recovery record in `sessionStorage` containing the original Idempotency Key/client creation time and normalized original Ticket-create payload, including original normalized `attachmentIds`. The Create Ticket primary action changes to an explicit `Retry Again` action that replays the unchanged request under the same key; after reload, restore that same primary action without submitting automatically. Do not render a separate recovery button. Clear the record on confirmed success, confirmed non-ambiguous failure, discard, Requester change, or expiry.
 
 Automatic recovery uses a conservative deadline from initial client key creation and never reuses the key at or after 24 hours. A later attempt requires explicit user submission with a new key. A successful replay resolves the original Ticket identity but renders the freshly reconstructed current `TicketDTO`, so later Attachment additions/removals may appear.
 
@@ -1023,11 +1023,9 @@ When search/filter produces zero results:
 ```text
 No tickets found.
 Try changing your search or filters.
-
-[ Clear Filters ]
 ```
 
-Clear Filters is also available when an active search/filter has results.
+The toolbar's single Clear Filters action remains available for this state and when an active search/filter has results; do not add a second empty-state Clear Filters button.
 
 ## 19.4. Failure
 
@@ -1324,7 +1322,7 @@ Only active attachments may be selected.
 
 Uploading, failed, invalid, and removed files are not selectable for active-ticket removal.
 
-When one or more active attachments are selected:
+When one or more active attachments are selected, show the selected count. A single selected attachment uses its row-level Remove action; show the batch action only when two or more are selected:
 
 ```text
 2 selected                     [ Remove Selected ]
@@ -1701,9 +1699,9 @@ Create your first support ticket.
 ```text
 No tickets found.
 Try changing your search or filters.
-
-[ Clear Filters ]
 ```
+
+The toolbar keeps the single Clear Filters action for this state.
 
 The component is shared; the meaning and actions are not.
 
@@ -1796,7 +1794,7 @@ The following decisions are part of the Lab 2 UI contract:
 - Centered Requester Selection card.
 - Requester Selection uses skeleton loading.
 - Requester-specific routes are guarded by the `sessionStorage` requester context; a `400` carrying `REQUESTER_CONTEXT_INVALID` clears the context before redirecting to `/requesters`, and no other `400` does.
-- Create Ticket may cancel an untouched empty form directly; dirty/Pending drafts require confirmation and best-effort cleanup of still-known Pending IDs.
+- Create Ticket may cancel an untouched empty form directly; dirty/Pending/recovery drafts require confirmation and best-effort cleanup of still-known Pending IDs. Sidebar My Tickets and Change Requester use the same discard confirmation.
 - Create Ticket pre-uploads valid selected files through `POST /api/attachments`, blocks submission while an intended file is unresolved, and submits the final Pending `attachmentIds` for atomic Ticket creation/binding.
 - Existing Ticket additions continue to use `POST /api/tickets/:publicId/attachments` and become Active directly.
 - Create Ticket displays non-editable Ticket Number and Ticket Date controls with explicit `Assigned on submission` text and a non-editable selected Requester control; it never invents generated values or sends these controls as client-managed fields.
@@ -1809,6 +1807,7 @@ The following decisions are part of the Lab 2 UI contract:
 - Category, Related System, Priority, and Status are multi-select filters, each presented as a dropdown of checkboxes rather than a list box.
 - Applied filters use count + removable chips.
 - Clear Filters remains available when a search/filter is active whether results exist or not.
+- No-results uses the toolbar's single Clear Filters action; the empty state does not duplicate it.
 - Priority badges stay within the Zen Green visual language.
 - Ticket Detail uses read-only form-style fields.
 - Requester Name and Requester Email are visible in Ticket Detail.
@@ -1816,13 +1815,14 @@ The following decisions are part of the Lab 2 UI contract:
 - Attachment presentation remains a responsive table.
 - Attachment preview uses an in-app image/PDF modal.
 - Batch attachment removal uses row checkboxes and one reason per selected active attachment.
+- A single selected active attachment uses its row Remove action; Remove Selected appears only for two or more selected active attachments.
 - Removed attachment metadata remains visible.
 - Attachment limit is displayed as `x/5`; no extra maximum-limit paragraph is shown.
 - Global 403/404/500 errors share one standalone `/error` experience.
 - Lab 2 requester-owned resource scope failures use the same safe 404 experience as unavailable resources; generic 403 rendering remains reusable for future/non-ownership failures.
 - The global error page does not render the sidebar.
 - Requester-workflow Back action from global errors returns to `/tickets`.
-- Busy buttons keep the original action text and add a spinner.
+- Busy buttons keep the current action text (`Submit Ticket` or `Retry Again`) and add a spinner.
 - Screenshot evidence uses `1440×900`, `820×1180`, and `390×844`.
 
 # 37. Final Implementation and Evidence

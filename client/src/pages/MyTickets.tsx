@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   ApiResponseError,
@@ -91,6 +91,7 @@ const SECONDARY_COLUMN = "d-none d-md-table-cell";
 
 export default function MyTickets() {
   const navigate = useNavigate();
+  const location = useLocation();
   const callApi = useRequesterApi();
   const [params, setParams] = useSearchParams();
 
@@ -110,6 +111,8 @@ export default function MyTickets() {
   const [filterDraft, setFilterDraft] = useState<FilterSelection | null>(null);
   const [categories, setCategories] = useState<MasterDataItem[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<MasterDataItem[]>([]);
+  const [referenceDataFailed, setReferenceDataFailed] = useState(false);
+  const [referenceDataRetryCount, setReferenceDataRetryCount] = useState(0);
 
   /*
    * The only writer of the committed query, so no caller can forget the page
@@ -131,6 +134,8 @@ export default function MyTickets() {
     let ignore = false;
 
     async function load(): Promise<void> {
+      setReferenceDataFailed(false);
+
       try {
         const [loadedCategories, loadedSystems] = await Promise.all([
           callApi<MasterDataItem[]>("/api/categories"),
@@ -150,6 +155,7 @@ export default function MyTickets() {
         if (!ignore) {
           setCategories([]);
           setRelatedSystems([]);
+          setReferenceDataFailed(true);
         }
       }
     }
@@ -159,7 +165,7 @@ export default function MyTickets() {
     return () => {
       ignore = true;
     };
-  }, [callApi]);
+  }, [callApi, referenceDataRetryCount]);
 
   /*
    * What the debounce below last sent. The committed query can also change
@@ -344,7 +350,7 @@ export default function MyTickets() {
   const announcedCount = !stale && pagination !== null ? pagination.metadata.totalItems : items.length;
   const announcement =
     loadState === "loading"
-      ? "Loading tickets"
+      ? "Loading tickets…"
       : loadState === "loaded"
         ? `${announcedCount} ticket${announcedCount === 1 ? "" : "s"}`
         : "";
@@ -404,6 +410,21 @@ export default function MyTickets() {
     setFilterDraft(null);
   }
 
+  function openTicket(publicId: string): void {
+    navigate(`/tickets/${publicId}${location.search}`);
+  }
+
+  function handleTicketRowClick(
+    event: React.MouseEvent<HTMLTableRowElement>,
+    publicId: string,
+  ): void {
+    if ((event.target as HTMLElement).closest("a, button") !== null) {
+      return;
+    }
+
+    openTicket(publicId);
+  }
+
   const columns = [
     { label: "Ticket Number", secondary: false },
     { label: "Summary", secondary: false },
@@ -420,9 +441,13 @@ export default function MyTickets() {
         title="My Tickets"
         subtitle="View and manage your support requests."
         actions={
-          <Button variant="primary" onClick={() => navigate("/tickets/new")}>
+          <Link
+            className="btn btn-primary"
+            to="/tickets/new"
+            aria-label="Create Ticket (new support ticket)"
+          >
             + Create Ticket
-          </Button>
+          </Link>
         }
       />
 
@@ -478,6 +503,8 @@ export default function MyTickets() {
             <div className="tt-toolbar__sort">
               <Select
                 label="Sort by"
+                name="sort"
+                autoComplete="off"
                 value={query.sort}
                 onChange={(event) =>
                   commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })
@@ -492,6 +519,21 @@ export default function MyTickets() {
             </div>
           </div>
         </div>
+
+        {referenceDataFailed ? (
+          <div
+            role="alert"
+            className="alert alert-warning d-flex align-items-center justify-content-between gap-3"
+          >
+            <span>Filter options could not be loaded.</span>
+            <Button
+              variant="secondary"
+              onClick={() => setReferenceDataRetryCount((count) => count + 1)}
+            >
+              Retry filters
+            </Button>
+          </div>
+        ) : null}
 
         {queryActive ? (
           <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
@@ -557,37 +599,15 @@ export default function MyTickets() {
                         </tr>
                       ))
                     : items.map((item) => (
-                        /*
-                         * The whole row opens Ticket Detail (ui-spec 16.1), but the
-                         * row is not the control. A focusable `<tr>` carrying an
-                         * `aria-label` and a hand-rolled Enter/Space handler
-                         * announced itself as a row, not as something activatable,
-                         * and a `role` that would fix that cannot go on a `<tr>`
-                         * without breaking the table's own row semantics.
-                         *
-                         * The Ticket Number cell holds a real `<Link>` instead: it
-                         * is in the tab order, carries the link role, activates on
-                         * Enter natively, and offers a URL to open in a new tab.
-                         * ui-spec 16.2 allows exactly this -- "activatable with
-                         * Enter/Space where the chosen implementation pattern
-                         * supports it". The row keeps `onClick` as a pointer
-                         * convenience, and `.tt-row:focus-within` draws the focus
-                         * ring around the row when the link inside it is focused.
-                         */
                         <tr
                           key={item.publicId}
                           className="tt-row"
-                          onClick={() => navigate(`/tickets/${item.publicId}`)}
+                          onClick={(event) => handleTicketRowClick(event, item.publicId)}
                         >
                           <td>
-                            {/*
-                              * The visible Ticket Number is contained in the
-                              * accessible name, so WCAG 2.5.3 Label in Name holds
-                              * for anyone speaking what they can see.
-                              */}
                             <Link
                               className="tt-row-link tt-ticket-no"
-                              to={`/tickets/${item.publicId}`}
+                              to={`/tickets/${item.publicId}${location.search}`}
                               aria-label={`Open ticket ${item.ticketNumber}`}
                             >
                               {item.ticketNumber}
@@ -621,20 +641,19 @@ export default function MyTickets() {
                   title="No tickets yet."
                   description="Create your first support ticket."
                   action={
-                    <Button variant="primary" onClick={() => navigate("/tickets/new")}>
+                    <Link
+                      className="btn btn-primary"
+                      to="/tickets/new"
+                      aria-label="Create Ticket for this Requester"
+                    >
                       Create Ticket
-                    </Button>
+                    </Link>
                   }
                 />
               ) : (
                 <EmptyState
                   title="No tickets found."
                   description="Try changing your search or filters."
-                  action={
-                    <Button variant="secondary" onClick={clearFilters}>
-                      Clear Filters
-                    </Button>
-                  }
                 />
               )
             ) : null}
@@ -712,7 +731,7 @@ export default function MyTickets() {
       >
         <MultiSelect
           label="Category"
-          placeholder="Any Category"
+          placeholder="Any Category…"
           options={categories.map((category) => ({
             value: String(category.id),
             label: category.name,
@@ -725,7 +744,7 @@ export default function MyTickets() {
 
         <MultiSelect
           label="Related System"
-          placeholder="Any Related System"
+          placeholder="Any Related System…"
           options={relatedSystems.map((system) => ({
             value: String(system.id),
             label: system.name,
@@ -738,7 +757,7 @@ export default function MyTickets() {
 
         <MultiSelect
           label="Requested Priority"
-          placeholder="Any Requested Priority"
+          placeholder="Any Requested Priority…"
           options={PRIORITY_OPTIONS.map((priority) => ({ value: priority, label: priority }))}
           selected={filterDraft?.requestedPriority ?? []}
           onChange={(requestedPriority) =>
@@ -748,7 +767,7 @@ export default function MyTickets() {
 
         <MultiSelect
           label="Status"
-          placeholder="Any Status"
+          placeholder="Any Status…"
           options={STATUS_OPTIONS.map((status) => ({ value: status, label: status }))}
           selected={filterDraft?.currentStatus ?? []}
           onChange={(currentStatus) =>

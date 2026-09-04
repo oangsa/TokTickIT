@@ -48,6 +48,11 @@ npm run dev                 # http://localhost:5173
 npm test                    # vitest run
 ```
 
+For a single-host development tunnel (for example, `https://vite.oangsa.com`),
+set `VITE_API_URL=""` in `client/.env.local`. The Vite dev server proxies
+`/api` to the local Express server on port 3000, so both dev servers must stay
+running. Restart Vite after changing this value.
+
 ### Lab 2 client
 
 Run `npm ci` in `client/` after pulling: Lab 2 adds `react-router-dom`

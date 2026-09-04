@@ -121,7 +121,10 @@ export default function RequesterTicketDetail() {
         titleClassName="tt-ticket-no"
         {...(heading === null ? {} : { eyebrow: "Ticket Detail" })}
         actions={
-          <Link className="btn btn-outline-secondary" to="/tickets">
+          <Link
+            className="btn btn-outline-secondary"
+            to={{ pathname: "/tickets", search: location.search }}
+          >
             Back to My Tickets
           </Link>
         }
@@ -129,7 +132,7 @@ export default function RequesterTicketDetail() {
 
       {/* Skeletons are decorative, so the screen owns the announcement. */}
       <p role="status" className="visually-hidden">
-        {ticket === null ? "Loading ticket." : `Ticket ${ticket.ticketNumber} loaded.`}
+        {ticket === null ? "Loading ticket…" : `Ticket ${ticket.ticketNumber} loaded.`}
       </p>
 
       {ticket === null ? (

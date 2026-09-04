@@ -109,6 +109,8 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
           <img
             src={objectUrl}
             alt={`Preview of ${target.originalName}`}
+            width={1200}
+            height={800}
             className="img-fluid d-block mx-auto"
           />
         )}

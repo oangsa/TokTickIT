@@ -154,6 +154,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
   const [removing, setRemoving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
   const rows = useMemo(() => {
@@ -229,12 +230,15 @@ export function AttachmentSection(props: AttachmentSectionProps) {
         timeoutMs: ATTACHMENT_TIMEOUT_MS,
       });
       updateEntry(key, { state: "Pending", attachment, message: null });
+      setAnnouncement(`${file.name} uploaded and ready.`);
     } catch (error) {
+      const message = uploadFailureMessage(error, "create");
       updateEntry(key, {
         state: "Failed",
-        message: uploadFailureMessage(error, "create"),
+        message,
         attachment: null,
       });
+      setAnnouncement(`${file.name} upload failed.`);
     }
   }
 
@@ -251,16 +255,19 @@ export function AttachmentSection(props: AttachmentSectionProps) {
         { method: "POST", body, timeoutMs: ATTACHMENT_TIMEOUT_MS },
       );
       updateEntry(key, { state: "Active", attachment, message: null });
+      setAnnouncement(`${file.name} uploaded.`);
 
       if (props.mode === "detail") {
         props.onChanged();
       }
     } catch (error) {
+      const message = uploadFailureMessage(error, "detail");
       updateEntry(key, {
         state: "Failed",
         attachment: null,
-        message: uploadFailureMessage(error, "detail"),
+        message,
       });
+      setAnnouncement(`${file.name} upload failed.`);
     } finally {
       setUploading(false);
     }
@@ -550,6 +557,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
           <input
             ref={inputRef}
             id={inputId}
+            name="attachments"
             type="file"
             className="form-control"
             accept=".jpg,.jpeg,.png,.webp,.pdf"
@@ -560,6 +568,9 @@ export function AttachmentSection(props: AttachmentSectionProps) {
           />
           <p id={rulesId} className="form-text">
             {ATTACHMENT_RULES_TEXT}
+          </p>
+          <p aria-live="polite" aria-atomic="true" className="visually-hidden">
+            {announcement}
           </p>
         </div>
 
@@ -578,9 +589,11 @@ export function AttachmentSection(props: AttachmentSectionProps) {
         {props.mode === "detail" && selected.length > 0 ? (
           <div className="d-flex align-items-center justify-content-between gap-3 mb-3">
             <span role="status">{selected.length} selected</span>
-            <Button variant="destructive" onClick={() => openRemoval(selected)}>
-              Remove Selected
-            </Button>
+            {selected.length > 1 ? (
+              <Button variant="destructive" onClick={() => openRemoval(selected)}>
+                Remove Selected
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -745,13 +758,17 @@ function AttachmentTableRow({
       {mode === "detail" ? (
         <td>
           {selectable ? (
-            <input
-              type="checkbox"
-              className="form-check-input"
-              checked={selected}
-              aria-label={`Select ${row.name}`}
-              onChange={() => onToggleSelected(row.attachmentId ?? "")}
-            />
+            <label htmlFor={`attachment-select-${row.key}`} className="tt-checkbox-hit-area">
+              <input
+                id={`attachment-select-${row.key}`}
+                type="checkbox"
+                name="selectedAttachments"
+                className="form-check-input"
+                checked={selected}
+                onChange={() => onToggleSelected(row.attachmentId ?? "")}
+              />
+              <span className="visually-hidden">Select {row.name}</span>
+            </label>
           ) : null}
         </td>
       ) : null}
@@ -766,7 +783,9 @@ function AttachmentTableRow({
           <div className="small text-secondary">Removal reason: {row.removalReason}</div>
         ) : null}
         {row.message === null ? null : (
-          <div className="small tt-invalid-text">{row.message}</div>
+          <div aria-live="polite" className="small tt-invalid-text">
+            {row.message}
+          </div>
         )}
       </td>
       <td className={SECONDARY_COLUMN}>{(row.extension ?? "").toUpperCase()}</td>

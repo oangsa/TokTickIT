@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 // Inter with the system fallback stack (ui-spec Section 3.2). Weights map to
 // body, field labels, section titles/buttons, and page titles.
 //
@@ -23,10 +23,15 @@ import "./styles/theme.css";
 import "./styles/components.css";
 import App from "./App.js";
 
+const router = createBrowserRouter([
+  {
+    path: "*",
+    element: <App enableHistoryBlocking />,
+  },
+]);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <RouterProvider router={router} />
   </React.StrictMode>
 );
