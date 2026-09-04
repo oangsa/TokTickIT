@@ -1,3 +1,6 @@
+/* Hallmark · component: card header · genre: modern-minimal · theme: Zen Green
+ * pre-emit critique: P4 H4 E5 S4 R5 V4 · contrast: pass
+ */
 /*
  * Hand-written shell and primitive styling that Bootstrap classes cannot
  * express (ui-spec Sections 5, 7.3, 28, 29.8). Imported after theme.css.
@@ -521,11 +524,19 @@ a {
 .tt-section-title,
 .tt-table thead th,
 .tt-caption {
-  font-size: var(--tt-label-size);
   font-weight: 600;
   letter-spacing: var(--tt-label-tracking);
   text-transform: uppercase;
   color: var(--tt-text-muted);
+}
+
+.tt-section-title {
+  font-size: var(--tt-card-title-size);
+}
+
+.tt-table thead th,
+.tt-caption {
+  font-size: var(--tt-label-size);
 }
 
 /*

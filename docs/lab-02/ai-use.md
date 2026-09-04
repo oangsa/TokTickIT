@@ -27,6 +27,7 @@ not a transcript.
 | current (release UX/accessibility fix) | Fix the release-blocking UX and accessibility findings from the design and flow audit. | Added semantic Ticket navigation, drawer focus trapping and focus return, history-safe dirty-form blocking, URL-preserving list/detail navigation, async failure announcements, form metadata, resilient filter selections, and missing image dimensions; updated focused and browser-flow tests. |
 | current (continued release gate) | Continue the release fix and close the last verification warning. | Made route focus pathname-aware so list query changes keep keyboard focus, corrected a navigation test fixture that produced an invalid Ticket-row key warning, and reran client tests/builds plus pure server unit tests. |
 | current (single-host tunnel) | Make the tunneled app reach the local API from `https://vite.oangsa.com`. | Added a Vite `/api` proxy to local Express, set the ignored local client API base to same-origin, documented the tunnel setup, and verified `/api/health` returned the Express JSON response through the live Cloudflare tunnel. |
+| current (card header refinement) | Redesign the current frontend while retaining the same flow and Zen Green theme; increase the card header size. | Increased shared card-title text to 16px while leaving table headers, captions, routes, and interaction behavior unchanged. |
 
 ## Reflection
 

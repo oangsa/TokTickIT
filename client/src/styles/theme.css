@@ -61,6 +61,8 @@
    * so they read as one voice and never compete with the values underneath.
    */
   --tt-label-size: 0.75rem;
+  /* Card headings step up one text size; table/caption labels stay compact. */
+  --tt-card-title-size: 1rem;
   --tt-label-tracking: 0.07em;
 
   /* Focus uses Secondary Green (Section 7.4) */
