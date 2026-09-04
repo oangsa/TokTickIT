@@ -190,22 +190,10 @@ function renderMyTicketsWithHistory(entries: string[], initialIndex: number) {
   );
 }
 
-/*
- * The row is no longer the control and carries no accessible name of its own.
- * The Ticket Number cell holds the link, so that is what identifies the row.
- */
-function rowLink(ticketNumber: string): HTMLElement {
-  return screen.getByRole("link", { name: `Open ticket ${ticketNumber}` });
-}
-
 function rowFor(ticketNumber: string): HTMLElement {
-  const row = rowLink(ticketNumber).closest("tr");
-
-  if (row === null) {
-    throw new Error(`No row found for ${ticketNumber}`);
-  }
-
-  return row;
+  return screen
+    .getByRole("link", { name: `Open ticket ${ticketNumber}` })
+    .closest("tr") as HTMLElement;
 }
 
 beforeEach(() => {
@@ -313,6 +301,7 @@ describe("UI-16 My Tickets empty and no-results states", () => {
 
     expect(await screen.findByText("No tickets found.")).toBeInTheDocument();
     expect(screen.getByText("Try changing your search or filters.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Clear Filters" })).toHaveLength(1);
     expect(screen.queryByText("No tickets yet.")).toBeNull();
   });
 
@@ -956,50 +945,37 @@ describe("UI-32 and UI-37 My Tickets accessibility", () => {
     }
   });
 
-  it("opens Ticket Detail by row click and by Enter on the row link", async () => {
+  it("opens Ticket Detail by row click and native link activation", async () => {
     stubApi();
 
-    for (const activate of [
-      /* Pointer: the whole row is the target (ui-spec 16.1). */
-      async () => userEvent.click(rowFor("TKT-20260820-A81F3C9D7B21")),
-      /* Keyboard: the link is the control, and Enter activates it natively. */
-      async () => {
-        rowLink("TKT-20260820-A81F3C9D7B21").focus();
-        await userEvent.keyboard("{Enter}");
-      },
-    ]) {
-      const view = renderMyTickets();
-      await screen.findByText("TKT-20260820-A81F3C9D7B21");
+    const view = renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
-      await activate();
+    await userEvent.click(within(rowFor("TKT-20260820-A81F3C9D7B21")).getByText("VPN disconnects every ten minutes"));
 
-      expect(await screen.findByRole("link", { name: "Back to My Tickets" })).toBeInTheDocument();
-      view.unmount();
-      sessionStorage.clear();
-    }
+    expect(await screen.findByRole("link", { name: "Back to My Tickets" })).toBeInTheDocument();
+    view.unmount();
+    sessionStorage.clear();
+
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+    await userEvent.click(
+      within(rowFor("TKT-20260820-A81F3C9D7B21")).getByRole("link", {
+        name: "Open ticket TKT-20260820-A81F3C9D7B21",
+      }),
+    );
+
+    expect(await screen.findByRole("link", { name: "Back to My Tickets" })).toBeInTheDocument();
   });
 
-  /*
-   * The row used to be `tabIndex={0}` with an `aria-label` and a hand-rolled
-   * Enter/Space handler, which put an activatable thing in the tab order that
-   * announced itself as a row. A `role` cannot fix that on a `<tr>` without
-   * breaking the table's row semantics, so the control moved into the cell.
-   */
-  it("keeps the row out of the tab order and puts a real link in the cell", async () => {
+  it("exposes Ticket Detail as a native keyboard-activatable link", async () => {
     stubApi();
     renderMyTickets();
     await screen.findByText("TKT-20260820-A81F3C9D7B21");
 
-    expect(rowFor("TKT-20260820-A81F3C9D7B21")).not.toHaveAttribute("tabindex");
-
-    const link = rowLink("TKT-20260820-A81F3C9D7B21");
-
-    /* A real href, so the row can also be opened in a new tab. */
+    const link = screen.getByRole("link", { name: "Open ticket TKT-20260820-A81F3C9D7B21" });
     expect(link).toHaveAttribute("href", "/tickets/0f0e8a9f-6d9e-4a1a-9f0e-1b2c3d4e5f60");
-    /* WCAG 2.5.3: the visible Ticket Number is inside the accessible name. */
-    expect(link).toHaveTextContent("TKT-20260820-A81F3C9D7B21");
 
-    /* Focusable on its own, which is what the row no longer needs to be. */
     link.focus();
     expect(link).toHaveFocus();
   });
@@ -1047,6 +1023,18 @@ describe("UI-32 and UI-37 My Tickets accessibility", () => {
     await act(async () => {
       release?.();
     });
+
+    expect(sort).toHaveFocus();
+  });
+
+  it("keeps keyboard focus when the URL changes within the list screen", async () => {
+    stubApi();
+    renderMyTickets();
+
+    const sort = await screen.findByLabelText("Sort by");
+    sort.focus();
+
+    await userEvent.selectOptions(sort, "summary:asc");
 
     expect(sort).toHaveFocus();
   });

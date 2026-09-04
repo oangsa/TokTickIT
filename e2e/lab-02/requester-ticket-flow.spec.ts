@@ -225,7 +225,7 @@ test.describe("Lab 2 Requester browser flows", () => {
     await expect(previewDialog).toHaveCount(0);
 
     await page.getByRole("checkbox", { name: `Select ${detailFile.name}` }).check();
-    await page.getByRole("button", { name: "Remove Selected", exact: true }).click();
+    await detailRow.getByRole("button", { name: `Remove ${detailFile.name}`, exact: true }).click();
     const removalDialog = page.getByRole("dialog", { name: "Remove 1 Attachment" });
     await removalDialog.locator("input").fill("No longer needed");
     await removalDialog.getByRole("button", { name: "Remove", exact: true }).click();

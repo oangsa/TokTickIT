@@ -504,7 +504,7 @@ describe("Create Ticket failure behaviour", () => {
     await screen.findByRole("alert");
 
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry Again" })).toBeNull();
   });
 
   it("reuses the same key for an unchanged retry and mints a new one after a change", async () => {
@@ -567,7 +567,8 @@ describe("Create Ticket failure behaviour", () => {
     await fillValidForm(user);
 
     await user.click(submitButton());
-    await screen.findByRole("button", { name: "Resume Submission Recovery" });
+    await screen.findByRole("button", { name: "Retry Again" });
+    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).toBeNull();
 
     const stored = JSON.parse(sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? "{}");
     expect(Object.keys(stored).sort()).toEqual(
@@ -575,6 +576,30 @@ describe("Create Ticket failure behaviour", () => {
     );
     expect(stored.requesterId).toBe(1);
     expect(stored.payload.attachmentIds).toEqual([]);
+  });
+
+  it("changes the primary action to Retry Again without adding a recovery button", async () => {
+    const user = userEvent.setup();
+    let attempt = 0;
+    const { calls } = stubApi(() => {
+      attempt += 1;
+      return attempt === 1
+        ? { ok: false, status: 500, body: { statusCode: 500, code: "INTERNAL_SERVER_ERROR" } }
+        : { ok: true, status: 200, body: TICKET };
+    });
+    renderCreateTicket();
+    await fillValidForm(user);
+
+    await user.click(submitButton());
+    const retry = await screen.findByRole("button", { name: "Retry Again" });
+    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).toBeNull();
+
+    await user.click(retry);
+    await waitFor(() => expect(createCalls(calls)).toHaveLength(2));
+    expect(createCalls(calls)[0].init?.headers?.["Idempotency-Key"]).toBe(
+      createCalls(calls)[1].init?.headers?.["Idempotency-Key"],
+    );
+    expect(await screen.findByRole("heading", { name: TICKET.ticketNumber })).toBeInTheDocument();
   });
 
   /*
@@ -601,7 +626,7 @@ describe("Create Ticket failure behaviour", () => {
     expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Resume Submission Recovery" }),
+      screen.queryByRole("button", { name: "Retry Again" }),
     ).not.toBeInTheDocument();
   });
 
@@ -623,11 +648,11 @@ describe("Create Ticket failure behaviour", () => {
     const { calls } = stubApi();
     renderCreateTicket();
 
-    await screen.findByRole("button", { name: "Resume Submission Recovery" });
+    await screen.findByRole("button", { name: "Retry Again" });
     expect(createCalls(calls)).toHaveLength(0);
   });
 
-  it("retries the unchanged request under the original key when Resume is chosen", async () => {
+  it("retries the unchanged request under the original key when Retry Again is chosen", async () => {
     const user = userEvent.setup();
     const record: RecoveryRecord = {
       requesterId: 1,
@@ -646,7 +671,7 @@ describe("Create Ticket failure behaviour", () => {
     const { calls } = stubApi(() => ({ ok: true, status: 200, body: TICKET }));
     renderCreateTicket();
 
-    await user.click(await screen.findByRole("button", { name: "Resume Submission Recovery" }));
+    await user.click(await screen.findByRole("button", { name: "Retry Again" }));
     await waitFor(() => expect(createCalls(calls)).toHaveLength(1));
 
     expect(createCalls(calls)[0].init?.headers?.["Idempotency-Key"]).toBe(record.idempotencyKey);
@@ -675,7 +700,7 @@ describe("Create Ticket failure behaviour", () => {
     renderCreateTicket();
     await screen.findByLabelText(/^Category/);
 
-    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry Again" })).toBeNull();
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
   });
 
@@ -700,7 +725,7 @@ describe("Create Ticket failure behaviour", () => {
     renderCreateTicket();
     await screen.findByLabelText(/^Category/);
 
-    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry Again" })).toBeNull();
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
   });
 });
@@ -747,6 +772,42 @@ describe("Cancel and discard", () => {
 
     expect(screen.getByRole("dialog")).toBeDefined();
     expect(screen.getByLabelText(/^Category/)).toBeDefined();
+  });
+
+  it("uses the same discard confirmation for sidebar navigation", async () => {
+    const user = userEvent.setup();
+    stubApi();
+    renderCreateTicket();
+    await fillValidForm(user);
+
+    await user.click(screen.getByRole("link", { name: "My Tickets" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Create Ticket" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
+  });
+
+  it("delays Change Requester until the dirty form is discarded", async () => {
+    const user = userEvent.setup();
+    stubApi();
+    renderCreateTicket();
+    await fillValidForm(user);
+
+    await user.click(screen.getByRole("button", { name: "Change Requester" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Create Ticket" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText(/^Summary/)).toHaveValue("Cannot connect to campus VPN");
+
+    await user.click(screen.getByRole("button", { name: "Change Requester" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(await screen.findByRole("heading", { name: /Select a Development Requester/i })).toBeInTheDocument();
   });
 
   it("keeps the draft unchanged when the user keeps editing", async () => {
@@ -842,7 +903,7 @@ describe("Cancel and discard", () => {
     });
 
     expect(screen.getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry Again" })).not.toBeInTheDocument();
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
   });
 });
@@ -914,6 +975,7 @@ describe("Stale Requester submission completion", () => {
     await waitFor(() => expect(createCalls(stubbedCalls).length).toBe(1));
 
     await user.click(screen.getByRole("button", { name: "Change Requester" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
     await user.selectOptions(
       await screen.findByLabelText(/^Development Requester/),
       String(BOB.id),
@@ -995,7 +1057,7 @@ describe("Stale Requester submission completion", () => {
     expect(document.activeElement).not.toBe(categorySelect);
     /* Bob's own resumable attempt is still offered. */
     expect(
-      screen.getByRole("button", { name: "Resume Submission Recovery" }),
+      screen.getByRole("button", { name: "Retry Again" }),
     ).toBeInTheDocument();
   });
 });

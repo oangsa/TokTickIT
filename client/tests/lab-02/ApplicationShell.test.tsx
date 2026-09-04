@@ -1,7 +1,14 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { act, render, renderHook, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+  useNavigate,
+} from "react-router-dom";
 import { ComponentProps } from "react";
 import App from "../../src/App.js";
 import { setViewportWidth } from "../setup.js";
@@ -68,6 +75,46 @@ function renderAtWithHistory(entries: Entry[], initialIndex: number, requester?:
       <App />
     </MemoryRouter>,
   );
+}
+
+function renderDataRouterWithHistory(
+  entries: Entry[],
+  initialIndex: number,
+  requester: StoredRequester,
+) {
+  /*
+   * The Node MSW interceptor patches undici's Request. In jsdom, the memory
+   * router can supply an AbortSignal from a different realm during navigation,
+   * and undici rejects that signal before the route can commit. This route has
+   * no data loaders, so dropping the internal signal keeps the harness focused
+   * on the blocker without changing browser behaviour.
+   */
+  const NativeRequest = globalThis.Request;
+  vi.stubGlobal(
+    "Request",
+    class TestRequest extends NativeRequest {
+      constructor(input: RequestInfo | URL, init?: RequestInit) {
+        super(input, init === undefined ? undefined : { ...init, signal: undefined });
+      }
+    },
+  );
+  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
+  const router = createMemoryRouter(
+    [
+      {
+        path: "*",
+        element: (
+          <>
+            <HistoryBackButton />
+            <App enableHistoryBlocking />
+          </>
+        ),
+      },
+    ],
+    { initialEntries: entries, initialIndex },
+  );
+
+  render(<RouterProvider router={router} />);
 }
 
 /* RequesterSelection fetches on mount; without a stub, fetch is undefined in jsdom. */
@@ -272,6 +319,27 @@ describe("UI-05 Change Requester", () => {
   });
 });
 
+describe("UI-32 dirty navigation protection", () => {
+  it("blocks browser history until the Requester confirms discard", async () => {
+    renderDataRouterWithHistory(["/tickets", "/tickets/new"], 1, ALICE);
+
+    await userEvent.type(await screen.findByLabelText(/^Summary/), "Draft summary");
+    await userEvent.click(screen.getByRole("button", { name: "Go back" }));
+
+    expect(screen.getByRole("dialog", { name: "Discard this Ticket?" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Create Ticket" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.queryByRole("dialog", { name: "Discard this Ticket?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Create Ticket" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Go back" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(await screen.findByRole("heading", { name: "My Tickets" })).toBeInTheDocument();
+  });
+});
+
 describe("UI-32 and UI-37 accessibility foundations", () => {
   it("gives the navigation toggle an accessible name and an associated visible tooltip", async () => {
     renderAt("/tickets", ALICE);
@@ -313,6 +381,11 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
     const openToggle = screen.getByRole("button", { name: "Close navigation menu" });
     expect(openToggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Close navigation menu");
+    expect(
+      within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", {
+        name: "Create Ticket",
+      }),
+    ).toHaveFocus();
   });
 
   it("closes the drawer on Escape and returns focus to the toggle", async () => {
@@ -331,7 +404,11 @@ describe("UI-32 and UI-37 accessibility foundations", () => {
     renderAt("/tickets", ALICE);
 
     await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
-    await userEvent.click(screen.getByRole("link", { name: "Create Ticket" }));
+    await userEvent.click(
+      within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", {
+        name: "Create Ticket",
+      }),
+    );
 
     expect(screen.getByRole("button", { name: "Open navigation menu" })).toHaveAttribute(
       "aria-expanded",

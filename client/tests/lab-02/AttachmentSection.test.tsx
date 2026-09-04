@@ -520,7 +520,7 @@ describe("UI-11 compensation after an ambiguous Ticket-create 5xx", () => {
      * A confirmed release means the rows were still Pending, so the create never
      * bound them and nothing is left to resume.
      */
-    expect(screen.queryByRole("button", { name: "Resume Submission Recovery" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry Again" })).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The Ticket was not created. Retry the uploads shown below, then submit again.",
     );
@@ -535,12 +535,10 @@ describe("UI-11 compensation after an ambiguous Ticket-create 5xx", () => {
 
     await waitFor(() => expect(cleanupCall(calls)).toBeDefined());
 
-    expect(
-      await screen.findByRole("button", { name: "Resume Submission Recovery" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Retry Again" })).toBeInTheDocument();
     expect(within(rowFor("vpn-error.png")).getByText("Pending")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "The Ticket submission did not complete. Use Resume Submission Recovery to retry it.",
+      "The Ticket submission did not complete. Use Retry Again to recover the Ticket without creating a duplicate.",
     );
   });
 
@@ -770,6 +768,7 @@ describe("UI-28 selection for batch removal", () => {
 
     await userEvent.click(screen.getByRole("checkbox", { name: "Select vpn-error.png" }));
     expect(screen.getByText("1 selected")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Selected" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("checkbox", { name: "Select router-log.pdf" }));
     expect(screen.getByText("2 selected")).toBeInTheDocument();
@@ -798,7 +797,13 @@ describe("UI-29 a required reason per selected Attachment", () => {
       await userEvent.click(screen.getByRole("checkbox", { name: `Select ${name}` }));
     }
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove Selected" }));
+    if (names.length === 1) {
+      await userEvent.click(
+        within(rowFor(names[0])).getByRole("button", { name: `Remove ${names[0]}` }),
+      );
+    } else {
+      await userEvent.click(screen.getByRole("button", { name: "Remove Selected" }));
+    }
     return screen.findByRole("dialog");
   }
 

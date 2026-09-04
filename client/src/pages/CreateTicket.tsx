@@ -23,6 +23,10 @@ import { Select } from "../components/Select.js";
 import { Skeleton } from "../components/Skeleton.js";
 import { Textarea } from "../components/Textarea.js";
 import { TextInput } from "../components/TextInput.js";
+import {
+  NavigationAction,
+  useNavigationGuard,
+} from "../navigation/NavigationGuard.js";
 import { useRequester } from "../requester/RequesterProvider.js";
 import { useRequesterApi } from "../requester/useRequesterApi.js";
 import {
@@ -125,6 +129,7 @@ function mapServerErrors(error: ApiResponseError): FieldErrors {
 
 export default function CreateTicket() {
   const navigate = useNavigate();
+  const { register, allowNavigation, cancelNavigation } = useNavigationGuard();
   const { requester, captureRequesterContext, isRequesterContextCurrent } = useRequester();
   const callApi = useRequesterApi();
 
@@ -138,6 +143,7 @@ export default function CreateTicket() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null);
+  const pendingNavigationRef = useRef<NavigationAction | null>(null);
   /*
    * AC-16: an intended file that is still Uploading, or that Failed or was
    * Invalid, blocks Submit until it is retried successfully or explicitly
@@ -168,19 +174,19 @@ export default function CreateTicket() {
    * create. The Cancel confirmation and the unload warning both read this, so
    * those two can never disagree about what counts as work worth keeping.
    */
-  const dirty = isDirty(draft) || draft.attachmentIds.length > 0 || unresolvedFiles;
+  const dirty =
+    isDirty(draft) ||
+    draft.attachmentIds.length > 0 ||
+    unresolvedFiles ||
+    recovery !== null;
 
   /*
-   * Cancel confirms through the discard dialog, but a reload, a tab close, or a
-   * Back out of the application never reaches it. The browser's own prompt is
-   * the only guard on those, and it is worth having: the draft lives in
-   * component state, so nothing survives the navigation.
+   * Cancel confirms through the discard dialog. The shared shell navigation uses
+   * the same guard, so leaving through My Tickets or Change Requester cannot
+   * silently drop the draft or a stored recovery attempt.
    *
-   * It does NOT cover an in-application route change -- the sidebar links leave
-   * this screen without an unload, and the draft is dropped silently. Closing
-   * that needs `useBlocker`, which requires a data router; the application is
-   * mounted under `BrowserRouter` and every test under `MemoryRouter`, so the
-   * guard stops at the two paths that do unload.
+   * A reload or tab close still uses the browser's own prompt. In-app history
+   * navigation is blocked by the data-router guard registered above.
    */
   useEffect(() => {
     if (!dirty) {
@@ -197,6 +203,16 @@ export default function CreateTicket() {
 
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+
+  const requestDiscard = useCallback((action: NavigationAction): void => {
+    pendingNavigationRef.current = action;
+    setConfirmDiscard(true);
+  }, []);
+
+  useEffect(
+    () => register({ dirty, onBlockedNavigation: requestDiscard }),
+    [dirty, register, requestDiscard],
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -310,9 +326,11 @@ export default function CreateTicket() {
       /* Confirmed success: nothing is left ambiguous to resume. */
       clearRecovery();
       setRecovery(null);
-      navigate(`/tickets/${ticket.publicId}`, {
-        state: { created: true, ticketNumber: ticket.ticketNumber },
-      });
+      allowNavigation(() =>
+        navigate(`/tickets/${ticket.publicId}`, {
+          state: { created: true, ticketNumber: ticket.ticketNumber },
+        }),
+      );
     } catch (error) {
       /*
        * Checked before the failure is classified at all: a stale 4xx must not
@@ -352,7 +370,7 @@ export default function CreateTicket() {
 
       /*
        * Section 12.2: a 5xx or a transport failure leaves completion ambiguous.
-       * Persist the approved recovery data so an explicit Resume can retry the
+       * Persist the approved recovery data so an explicit Retry Again action can retry the
        * unchanged request under the same key.
        */
       if (requester !== null) {
@@ -367,7 +385,7 @@ export default function CreateTicket() {
       }
 
       setErrors({
-        form: "The Ticket submission did not complete. Use Resume Submission Recovery to retry it.",
+        form: "The Ticket submission did not complete. Use Retry Again to recover the Ticket without creating a duplicate.",
       });
 
       /*
@@ -377,7 +395,7 @@ export default function CreateTicket() {
        * the answer informative rather than merely safe:
        *
        * - refused: the rows may be Active on a Ticket that did commit, so the
-       *   recovery record stands and Resume replays the same key.
+       *   recovery record stands and Retry Again replays the same key.
        * - confirmed: every row was still Pending, so the create never bound
        *   them; and a create that commits after this finds them gone, fails its
        *   guarded binding, and rolls back. Nothing is left to resume, so the
@@ -411,6 +429,11 @@ export default function CreateTicket() {
       return;
     }
 
+    if (recovery !== null) {
+      handleRetrySubmission();
+      return;
+    }
+
     const fieldErrors = validate(draft);
     setErrors(fieldErrors);
 
@@ -423,7 +446,7 @@ export default function CreateTicket() {
     void submit(payload, idempotencyKeyFor(payload));
   }
 
-  function handleResume(): void {
+  function handleRetrySubmission(): void {
     if (recovery === null || submitting) {
       return;
     }
@@ -438,6 +461,7 @@ export default function CreateTicket() {
   /* BR-25: an untouched empty draft leaves directly; anything else confirms. */
   function handleCancel(): void {
     if (dirty) {
+      pendingNavigationRef.current = null;
       setConfirmDiscard(true);
       return;
     }
@@ -462,10 +486,15 @@ export default function CreateTicket() {
    * known not to have been submitted.
    */
   function handleConfirmDiscard(): void {
-    const preparedIds = draft.attachmentIds;
+    const preparedIds = Array.from(
+      new Set([...draft.attachmentIds, ...(recovery?.payload.attachmentIds ?? [])]),
+    );
+    const pendingNavigation =
+      pendingNavigationRef.current ?? (() => allowNavigation(() => navigate("/tickets")));
 
     invalidateSubmission();
     setConfirmDiscard(false);
+    pendingNavigationRef.current = null;
     clearRecovery();
     setRecovery(null);
     setDraft(EMPTY_DRAFT);
@@ -474,7 +503,13 @@ export default function CreateTicket() {
 
     void releasePendingAttachments(callApi, preparedIds);
 
-    navigate("/tickets");
+    pendingNavigation();
+  }
+
+  function handleKeepEditing(): void {
+    pendingNavigationRef.current = null;
+    cancelNavigation();
+    setConfirmDiscard(false);
   }
 
   /* No <main> here: AppShell owns the main landmark for in-shell routes. */
@@ -500,6 +535,14 @@ export default function CreateTicket() {
           <Skeleton height="8rem" />
         </Card>
       ) : null}
+
+      <p role="status" className="visually-hidden">
+        {loadState === "loading"
+          ? "Loading Ticket form…"
+          : loadState === "loaded"
+            ? "Ticket form loaded."
+            : ""}
+      </p>
 
       {loadState === "loaded" ? (
         <Form onSubmit={handleSubmit} aria-label="Create Ticket">
@@ -531,6 +574,7 @@ export default function CreateTicket() {
                   name="category"
                   label="Category"
                   required
+                  autoComplete="off"
                   value={draft.categoryId}
                   error={errors.categoryId}
                   onChange={(event) => update({ categoryId: event.target.value })}
@@ -549,6 +593,7 @@ export default function CreateTicket() {
                   name="relatedSystem"
                   label="Related System"
                   required
+                  autoComplete="off"
                   value={draft.relatedSystemId}
                   error={errors.relatedSystemId}
                   onChange={(event) => update({ relatedSystemId: event.target.value })}
@@ -568,6 +613,7 @@ export default function CreateTicket() {
               name="requestedPriority"
               label="Requested Priority"
               required
+              autoComplete="off"
               value={draft.requestedPriority}
               error={errors.requestedPriority}
               onChange={(event) => update({ requestedPriority: event.target.value })}
@@ -601,6 +647,7 @@ export default function CreateTicket() {
             <Textarea
               id={FIELD_IDS.description}
               name="description"
+              autoComplete="off"
               label="Description"
               required
               value={draft.description}
@@ -629,18 +676,6 @@ export default function CreateTicket() {
             onUnresolvedChange={setUnresolvedFiles}
           />
 
-          {recovery !== null ? (
-            <Card>
-              <p role="status" className="mb-3">
-                A previous submission did not complete. Resume it to recover the Ticket without
-                creating a duplicate.
-              </p>
-              <Button variant="secondary" onClick={handleResume} disabled={submitting}>
-                Resume Submission Recovery
-              </Button>
-            </Card>
-          ) : null}
-
           {errors.form !== undefined ? (
             <p role="alert" className="tt-invalid-text mb-0">
               {errors.form}
@@ -657,7 +692,7 @@ export default function CreateTicket() {
               busy={submitting}
               disabled={submitting || unresolvedFiles}
             >
-              Submit Ticket
+              {recovery === null ? "Submit Ticket" : "Retry Again"}
             </Button>
           </div>
         </Form>
@@ -666,10 +701,10 @@ export default function CreateTicket() {
       <Modal
         open={confirmDiscard}
         title="Discard this Ticket?"
-        onClose={() => setConfirmDiscard(false)}
+        onClose={handleKeepEditing}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setConfirmDiscard(false)}>
+            <Button variant="secondary" onClick={handleKeepEditing}>
               Keep editing
             </Button>
             <Button variant="destructive" onClick={handleConfirmDiscard}>

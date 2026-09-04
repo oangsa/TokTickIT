@@ -36,7 +36,13 @@ const REQUESTERS = [
 
 function stubJson(body: unknown, ok = true, status = 200) {
   const fetchMock = vi.fn(
-    async (_url: string, _init?: ApiRequestInit) => ({ ok, status, headers: new Headers(), json: async () => body }),
+    async (url: string, _init?: ApiRequestInit) => ({
+      ok,
+      status,
+      headers: new Headers(),
+      /* Navigation after selection mounts My Tickets; keep its list fixture valid. */
+      json: async () => (url.includes("/api/requesters") ? body : []),
+    }),
   );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;

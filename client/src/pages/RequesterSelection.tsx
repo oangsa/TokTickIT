@@ -69,7 +69,7 @@ export default function RequesterSelection() {
    */
   const announcement =
     loadState === "loading"
-      ? "Loading Development Requesters"
+      ? "Loading Development Requesters…"
       : loadState === "loaded"
         ? `${requesters.length} Development Requester${requesters.length === 1 ? "" : "s"} loaded`
         : "";

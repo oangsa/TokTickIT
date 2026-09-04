@@ -83,13 +83,15 @@ export function MultiSelect({ label, placeholder, options, selected, onChange }:
     }
   }
 
+  const selectedLabels = options
+    .filter((option) => selected.includes(option.value))
+    .map((option) => option.label);
   const summary =
     selected.length === 0
       ? placeholder
-      : options
-          .filter((option) => selected.includes(option.value))
-          .map((option) => option.label)
-          .join(", ");
+      : selectedLabels.length > 0
+        ? selectedLabels.join(", ")
+        : `${selected.length} selected`;
 
   return (
     <div className="mb-3 dropdown" ref={rootRef} onKeyDown={handleKeyDown}>
@@ -120,6 +122,7 @@ export function MultiSelect({ label, placeholder, options, selected, onChange }:
               <input
                 type="checkbox"
                 className="form-check-input flex-shrink-0 mt-0"
+                name={`${label}-${option.value}`}
                 checked={selected.includes(option.value)}
                 onChange={() => toggleValue(option.value)}
               />

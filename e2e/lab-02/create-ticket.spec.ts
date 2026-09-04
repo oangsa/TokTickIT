@@ -148,7 +148,7 @@ test("E2E-03 recovers an ambiguous Create Ticket submission across reload", asyn
   await fillTicketForm(page, marker, attachment);
   await page.getByRole("button", { name: "Submit Ticket", exact: true }).click();
 
-  const recovery = page.getByRole("button", { name: "Resume Submission Recovery", exact: true });
+  const recovery = page.getByRole("button", { name: "Retry Again", exact: true });
   await expect(recovery).toBeVisible();
   await expect(recovery).toBeEnabled();
   expect(createRequests).toBe(1);

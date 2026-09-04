@@ -159,6 +159,8 @@ export function Pagination({
         Rows per page
         <select
           className="form-select form-select-sm w-auto"
+          name="pageSize"
+          autoComplete="off"
           value={pageSize}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
         >

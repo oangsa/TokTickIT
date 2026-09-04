@@ -212,7 +212,7 @@ describe("UI-23 read-only Ticket Detail", () => {
   it("announces the loaded Ticket and offers a real Back link", async () => {
     renderDetail();
 
-    expect(screen.getByRole("status")).toHaveTextContent("Loading ticket.");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading ticket…");
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent("Ticket TKT-20260820-A81F3C9D7B21 loaded."),
     );
