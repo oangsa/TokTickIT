@@ -1,5 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 
 import { IconButton } from "./IconButton.js";
 
@@ -50,7 +51,7 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
      * Focus the dialog itself, not its first focusable control. That control is
      * the close IconButton, and focusing it fires that button's focus tooltip,
      * so every dialog would open with a "Close dialog" label floating under the
-     * × instead of leaving the reader on the dialog copy. The container
+     * close icon instead of leaving the reader on the dialog copy. The container
      * carries `tabIndex={-1}` for exactly this.
      */
     dialogRef.current?.focus();
@@ -150,7 +151,7 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
                 {title}
               </h2>
               <IconButton label={closeLabel} onClick={onClose}>
-                <span aria-hidden="true">×</span>
+                <X size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
               </IconButton>
             </div>
             <div className="modal-body">{children}</div>

@@ -1,4 +1,5 @@
 import { ChangeEvent, MutableRefObject, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Eye, X } from "lucide-react";
 
 import { ApiResponseError, Attachment } from "../api.js";
 import { AttachmentState, AttachmentStateName } from "../components/AttachmentState.js";
@@ -817,20 +818,7 @@ function AttachmentTableRow({
                 })
               }
             >
-              {/*
-                An SVG rather than 👁: the emoji renders in colour presentation
-                on most platforms, which put a brown pictogram in a row of
-                monochrome controls, and its shape depends on the platform's
-                emoji font.
-              */}
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4Z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                />
-                <circle cx="8" cy="8" r="1.75" stroke="currentColor" strokeWidth="1.3" />
-              </svg>
+              <Eye size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
             </IconButton>
           ) : null}
 
@@ -851,7 +839,7 @@ function AttachmentTableRow({
           {(mode === "create" && row.state !== "Uploading") ||
           row.state === "Failed" || row.state === "Invalid" ? (
             <IconButton label={`Remove ${row.name}`} onClick={() => onRemoveLocal(row.key)}>
-              <span aria-hidden="true">✕</span>
+              <X size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
             </IconButton>
           ) : null}
 
@@ -860,7 +848,7 @@ function AttachmentTableRow({
               label={`Remove ${row.name}`}
               onClick={() => onRemoveActive(row.attachmentId ?? "")}
             >
-              <span aria-hidden="true">✕</span>
+              <X size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
             </IconButton>
           ) : null}
         </div>

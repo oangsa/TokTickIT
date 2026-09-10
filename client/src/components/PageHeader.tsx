@@ -16,13 +16,15 @@ interface PageHeaderProps {
  */
 export function PageHeader({ title, titleClassName, eyebrow, subtitle, actions }: PageHeaderProps) {
   return (
-    <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-      <div>
+    <div className="tt-page-header d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+      <div className="tt-page-header__copy">
         {eyebrow ? <p className="tt-caption mb-1">{eyebrow}</p> : null}
-        <h1 className={`h3 mb-0${titleClassName ? ` ${titleClassName}` : ""}`}>{title}</h1>
+        <h1 className={`h3 tt-page-header__title mb-0${titleClassName ? ` ${titleClassName}` : ""}`}>
+          {title}
+        </h1>
         {subtitle ? <p className="text-secondary mb-0 mt-1">{subtitle}</p> : null}
       </div>
-      {actions ? <div className="d-flex flex-wrap gap-2">{actions}</div> : null}
+      {actions ? <div className="tt-page-header__actions d-flex flex-wrap gap-2">{actions}</div> : null}
     </div>
   );
 }

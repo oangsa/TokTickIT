@@ -554,6 +554,13 @@ layout or appearance.
 
 Do not add Tailwind CSS.
 
+### Icons
+
+Use only icons from `lucide-react` or `react-icons`. This client uses
+`lucide-react` as its current icon library. Do not hand-code inline SVG icons,
+use Unicode icon glyphs, or draw interface icons with CSS or data-URI images.
+Keep decorative icons `aria-hidden="true"` and `focusable="false"`.
+
 ---
 
 ## 8. Express backend rules

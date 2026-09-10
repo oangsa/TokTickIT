@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { Check } from "lucide-react";
 
 interface SuccessMessageProps {
   children: ReactNode;
@@ -15,7 +16,7 @@ interface SuccessMessageProps {
 export function SuccessMessage({ children, className }: SuccessMessageProps) {
   return (
     <p role="status" className={["tt-success", "mb-0", className].filter(Boolean).join(" ")}>
-      <span aria-hidden="true">✓</span>
+      <Check size={16} strokeWidth={2} aria-hidden="true" focusable="false" />
       <span>{children}</span>
     </p>
   );

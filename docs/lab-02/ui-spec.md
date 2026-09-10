@@ -200,6 +200,14 @@ treatment the navigation list uses, so "current" reads identically for both
 items and a filled button never offers an action the Requester has already
 taken.
 
+The sidebar uses the maintenance-tracking-system reference's divided brand
+header, icon-led navigation, and separated profile footer. TokTickIT retains
+its 240px desktop width, Zen Green tokens, and primary Create Ticket control.
+My Tickets pairs its uniform Pale Green active surface with semibold text.
+The footer shows the full Requester name (wrapping when needed),
+a decorative profile icon, and an explicitly labelled Change Requester action;
+it is not a nested card. Icons are decorative and do not alter accessible names.
+
 ## 5.2. Mobile Shell
 
 On mobile, the sidebar is collapsed by default.
@@ -711,6 +719,14 @@ View and manage your support requests.
 
 On mobile, Create Ticket moves below the title and remains easy to tap.
 
+The My Tickets table takes visual direction from the
+`maintenance-tracking-system` Common/DataTable: grouped search and filter
+controls, a right-aligned Sort by control, a thin bordered table with muted
+sentence-case headers, and individually spaced pagination buttons. Search spans
+the toolbar above the remaining controls below 992px. Existing Zen Green tokens,
+visible control labels, responsive column visibility, and query behavior remain
+authoritative. Hover and keyboard focus highlight the Ticket row's cells.
+
 ## 13.2. Search
 
 Placeholder:
@@ -925,7 +941,7 @@ Priority badges remain within the Zen Green visual language.
 Suggested visual hierarchy:
 
 - LOW: light/pale green;
-- MEDIUM: medium Zen Green emphasis;
+- MEDIUM: mid-light green fill (25% Primary Green mixed with Pale Green) with Primary Green text;
 - HIGH: strongest/darkest Zen Green emphasis.
 
 Every badge also includes the text label:
@@ -963,8 +979,14 @@ Showing 1–10 of 47
 
 Rows per page [10 ▼]
 
-‹ Previous   1  2  3  4  5   Next ›
+«  ‹   1  2  3  4  5   ›  »
 ```
+
+Navigation follows the maintenance-tracking-system reference: separate compact
+outlined chevron buttons for First page, Previous, Next, and Last page, with a
+filled green current page. Each chevron has an accessible name and a visible
+hover/focus tooltip. Boundary controls are disabled on the first/last page.
+Desktop controls are 32px high; coarse-pointer devices receive 44px targets.
 
 Page-size presets:
 
@@ -980,7 +1002,7 @@ Use compact controls:
 
 ```text
 Page 1 of 5
-[ Previous ] [ Next ]
+[ « ] [ ‹ ] [ › ] [ » ]
 
 Rows per page [10 ▼]
 ```

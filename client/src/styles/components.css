@@ -1,5 +1,5 @@
-/* Hallmark · component: card header · genre: modern-minimal · theme: Zen Green
- * pre-emit critique: P4 H4 E5 S4 R5 V4 · contrast: pass
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: Zen Green · enrichment: none · nav: N3 · footer: none
+ * pre-emit critique: P4 H5 E5 S4 R5 V4 · designed-as-app
  */
 /*
  * Hand-written shell and primitive styling that Bootstrap classes cannot
@@ -64,6 +64,19 @@ a {
   padding-inline-start: max(var(--tt-page-pad), env(safe-area-inset-left));
   padding-inline-end: max(var(--tt-page-pad), env(safe-area-inset-right));
   padding-block-end: max(var(--tt-page-pad), env(safe-area-inset-bottom));
+  animation: tt-page-enter var(--tt-duration-long) var(--tt-ease-out) both;
+}
+
+@keyframes tt-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .tt-brand {
@@ -101,11 +114,27 @@ a {
 .tt-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
   inline-size: min(280px, 85vw);
   padding: var(--tt-page-pad) 1rem;
   background-color: var(--tt-surface);
   border-right: 1px solid var(--tt-border);
+  overflow-y: auto;
+}
+
+.tt-sidebar > * {
+  flex-shrink: 0;
+}
+
+.tt-sidebar__brand {
+  padding: 0 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--tt-border);
+}
+
+.tt-sidebar__icon {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  flex-shrink: 0;
 }
 
 /*
@@ -126,7 +155,56 @@ a {
   border-top: 1px solid var(--tt-border);
 }
 
+.tt-sidebar__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.tt-sidebar__avatar {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  flex-shrink: 0;
+  border-radius: var(--tt-radius-control);
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+}
+
+.tt-sidebar__requester {
+  min-width: 0;
+}
+
+.tt-sidebar__name,
+.tt-sidebar__caption {
+  display: block;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.tt-sidebar__caption {
+  color: var(--tt-text-muted);
+  font-size: 0.75rem;
+}
+
+.tt-sidebar .tt-sidebar__switch {
+  justify-content: flex-start;
+  gap: 0.75rem;
+  padding-inline: 0.75rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
 .tt-sidebar .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  font-size: 0.875rem;
   color: var(--tt-text);
   border-radius: var(--tt-radius-control);
   padding: 0.5rem 0.75rem;
@@ -142,6 +220,10 @@ a {
   background-color: var(--tt-green-pale);
   color: var(--tt-green-primary);
   font-weight: 600;
+}
+
+.tt-sidebar .nav-link:active {
+  background-color: var(--tt-readonly-bg);
 }
 
 /*
@@ -170,14 +252,14 @@ a {
     transform: translateX(-100%);
     visibility: hidden;
     transition:
-      transform 0.2s ease,
-      visibility 0s linear 0.2s;
+      transform var(--tt-duration-short) var(--tt-ease-out),
+      visibility 0s linear var(--tt-duration-short);
   }
 
   .tt-sidebar--open {
     transform: none;
     visibility: visible;
-    transition: transform 0.2s ease;
+    transition: transform var(--tt-duration-short) var(--tt-ease-out);
   }
 }
 
@@ -212,7 +294,7 @@ a {
   .tt-sidebar {
     position: sticky;
     top: 0;
-    block-size: 100vh;
+    block-size: 100dvh;
     inline-size: auto;
     overflow-y: auto;
     transform: none;
@@ -226,7 +308,7 @@ a {
   z-index: 1040;
   padding: 0;
   border: 0;
-  background-color: rgba(22, 36, 29, 0.4);
+  background-color: var(--tt-backdrop);
 }
 
 .tt-checkbox-hit-area {
@@ -288,13 +370,30 @@ a {
   color: var(--tt-text);
 }
 
-/* Busy buttons keep their width and their original action text (Section 10.6). */
+/* Busy buttons keep their width and center their original action text (Section 10.6). */
+.tt-btn--busy {
+  display: inline-grid;
+  grid-template-columns: 1rem auto 1rem;
+  column-gap: 0.375rem;
+  align-items: center;
+  justify-content: center;
+}
+
 .tt-btn__spinner {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  grid-column: 1;
   width: 1rem;
-  margin-right: 0.375rem;
+  margin: 0;
+}
+
+.tt-btn__label {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
 }
 
 /*
@@ -352,8 +451,8 @@ a {
 }
 
 .tt-badge--medium {
-  background-color: var(--tt-green-secondary);
-  color: var(--tt-surface);
+  background-color: color-mix(in srgb, var(--tt-green-primary) 25%, var(--tt-green-pale));
+  color: var(--tt-green-primary);
 }
 
 .tt-badge--strong {
@@ -378,7 +477,7 @@ a {
 /* Skeletons resemble the final layout without distracting animation (Section 28). */
 .tt-skeleton {
   display: block;
-  background-color: #e4eae6;
+  background-color: var(--tt-skeleton);
   border-radius: var(--tt-radius-control);
   opacity: 1;
 }
@@ -422,7 +521,7 @@ a {
 }
 
 .tt-attachment-state--error {
-  background-color: #fbeced;
+  background-color: var(--tt-danger-surface);
   color: var(--tt-danger);
   border: 1px solid var(--tt-danger);
 }
@@ -568,39 +667,57 @@ a {
  * search field share one baseline instead of stepping.
  */
 .tt-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 1rem;
+  margin-block-end: 1.25rem;
 }
 
 .tt-toolbar__search {
-  flex: 1 1 18rem;
   min-width: 0;
 }
 
 .tt-toolbar__controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
+  display: contents;
 }
 
 .tt-toolbar__sort {
   min-width: 12rem;
 }
 
-/*
- * The magnifier replaces the label the toolbar drops: it names the field for
- * sighted users while the visually hidden <label> keeps naming it for everyone
- * else. Inline SVG as a data URI, so it needs no icon dependency and no extra
- * request.
- */
+.tt-toolbar__sort > .mb-3 {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.tt-toolbar__sort .form-label {
+  margin-bottom: 0;
+}
+
+.tt-toolbar__search > .mb-3,
+.tt-toolbar__filter,
+.tt-toolbar__sort > .mb-3 {
+  margin-bottom: 0 !important;
+}
+
+/* The visible Lucide icon replaces the label the toolbar drops. */
+.tt-search-field {
+  position: relative;
+}
+
+.tt-search-field__icon {
+  position: absolute;
+  top: 1.375rem;
+  inset-inline-start: 0.75rem;
+  z-index: 1;
+  color: var(--tt-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
 .tt-search-input {
   padding-inline-start: 2.25rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%235b6b63' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='M10.5 10.5 14 14'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: 0.75rem center;
-  background-size: 1rem;
 }
 
 /*
@@ -622,15 +739,15 @@ a {
  * no rendered cells still claims its share of the table.
  */
 .tt-table--tickets th:nth-child(1) {
-  width: 19%;
+  width: 17%;
 }
 
 .tt-table--tickets th:nth-child(2) {
-  width: 27%;
+  width: 31%;
 }
 
 .tt-table--tickets th:nth-child(3) {
-  width: 12%;
+  width: 11%;
 }
 
 .tt-table--tickets th:nth-child(4) {
@@ -646,7 +763,7 @@ a {
 }
 
 .tt-table--tickets th:nth-child(7) {
-  width: 11%;
+  width: 10%;
 }
 
 /* Tablet still shows all seven columns, in two thirds of the width. */
@@ -665,7 +782,7 @@ a {
   }
 
   .tt-table--tickets th:nth-child(2) {
-    width: 24%;
+    width: 28%;
   }
 
   .tt-table--tickets th:nth-child(3),
@@ -721,6 +838,12 @@ a {
     font-size: 0.6875rem;
   }
 
+  .tt-table--tickets tbody td:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /*
    * The meter is the first thing to go where space is scarcest: it restates a
    * level the badge's colour and text already carry, and keeping it here would
@@ -744,6 +867,12 @@ a {
 
   .tt-table--tickets th:nth-child(6) {
     width: 17%;
+  }
+
+  .tt-table--tickets th:nth-child(2),
+  .tt-table--tickets th:nth-child(5),
+  .tt-table--tickets th:nth-child(6) {
+    white-space: nowrap;
   }
 }
 
@@ -772,18 +901,13 @@ a {
   min-width: 8rem;
 }
 
-/*
- * The table is flush with the card's content edge. Bootstrap pads every cell,
- * including the outer two, which inset the first column 8px from the search
- * field, the applied-filter chips, and the pagination footer above and below it
- * -- close enough to read as a misalignment rather than a margin.
- */
+/* Keep the outer cells inset so the table frame does not crowd its content. */
 .tt-table > :not(caption) > * > *:first-child {
-  padding-inline-start: 0;
+  padding-inline-start: 0.5rem;
 }
 
 .tt-table > :not(caption) > * > *:last-child {
-  padding-inline-end: 0;
+  padding-inline-end: 0.5rem;
 }
 
 /*
@@ -948,12 +1072,324 @@ a {
 
 /* The toolbar's controls take the full row once they wrap below the search. */
 @media (max-width: 575.98px) {
-  .tt-toolbar__controls {
-    flex: 1 1 100%;
+  .tt-toolbar {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .tt-toolbar__search {
+    grid-column: 1 / -1;
   }
 
   .tt-toolbar__sort {
-    flex: 1 1 auto;
     min-width: 0;
+    width: 100%;
+  }
+
+  .tt-toolbar__sort select {
+    width: 100%;
+  }
+
+  .tt-toolbar__filter .btn {
+    padding-inline: 0.75rem;
+  }
+}
+
+/*
+ * ── Hallmark app refresh ──────────────────────────────────────────────────
+ *
+ * The flow stays unchanged. These rules give the app one quieter surface
+ * hierarchy, reserve mobile toolbar space before the table renders, and keep
+ * interaction feedback small enough for repeated use.
+ */
+.tt-page-header {
+  padding-block-end: 0.875rem;
+}
+
+.tt-page-header__copy,
+.tt-page-header__title {
+  min-width: 0;
+}
+
+.tt-page-header__title {
+  font-size: var(--tt-page-title-size);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.tt-page-header__actions {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
+.tt-page-header__actions .btn,
+.tt-pagination__actions .btn,
+.tt-sidebar .nav-link {
+  white-space: nowrap;
+}
+
+.tt-sidebar > .btn {
+  gap: 0.5rem;
+}
+
+.tt-card {
+  background-color: var(--tt-surface);
+  border-color: var(--tt-border);
+  box-shadow: var(--tt-shadow-card);
+}
+
+.tt-card .card-body {
+  min-width: 0;
+}
+
+.tt-card .card-header {
+  background-color: var(--tt-surface-subtle) !important;
+  border-block-end-color: var(--tt-border);
+}
+
+.tt-card .card-header .tt-section-title {
+  letter-spacing: 0.06em;
+}
+
+.tt-table--tickets {
+  border: 1px solid var(--tt-border);
+  border-radius: var(--tt-radius-control);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.tt-table--tickets thead th {
+  padding-block: 0.75rem;
+  background-color: var(--tt-page-bg) !important;
+  border-bottom-width: 1px;
+  font-size: 0.8125rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.tt-table--tickets tbody td {
+  padding-block: 0.75rem;
+}
+
+.tt-table--tickets .tt-ticket-no {
+  display: inline-block;
+  max-inline-size: 100%;
+  color: var(--tt-text);
+  font-weight: 500;
+}
+
+.tt-table--tickets tbody tr {
+  transition: background-color var(--tt-duration-fast) var(--tt-ease-out);
+}
+
+.tt-table--tickets tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Reference: maintenance-tracking-system Common/DataTable. Reuse local tokens
+ * and query controls; keep responsive columns and native navigation intact.
+ */
+.tt-ticket-list .tt-toolbar {
+  grid-template-columns: minmax(0, 24rem) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+
+.tt-ticket-list .tt-toolbar__sort {
+  justify-self: end;
+  min-width: 0;
+}
+
+.tt-ticket-list .tt-toolbar__sort > .mb-3 {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tt-ticket-list .tt-toolbar__sort .form-label {
+  color: var(--tt-text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.tt-ticket-list .tt-toolbar__filter .btn {
+  gap: 0.375rem;
+}
+
+.tt-ticket-list .tt-toolbar__filter svg {
+  flex-shrink: 0;
+}
+
+/* Bootstrap paints cell surfaces; row background alone is covered by them. */
+.tt-table--tickets .tt-row:hover > td,
+.tt-table--tickets .tt-row:has(.tt-row-link:focus-visible) > td {
+  background-color: var(--tt-green-pale);
+}
+
+.tt-table--tickets .tt-row:active > td {
+  background-color: var(--tt-readonly-bg);
+}
+
+.tt-ticket-list .tt-pagination {
+  margin-block-start: 1rem;
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+
+.tt-ticket-list .pagination {
+  gap: 0.25rem;
+}
+
+.tt-ticket-list .page-link {
+  margin-inline-start: 0;
+  border-radius: var(--tt-radius-control);
+}
+
+@media (max-width: 991.98px) {
+  .tt-ticket-list .tt-toolbar {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .tt-ticket-list .tt-toolbar__search {
+    grid-column: 1 / -1;
+  }
+
+  .tt-ticket-list .tt-toolbar__sort {
+    width: auto;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 375px) {
+  .tt-table--tickets thead th {
+    font-size: 0.625rem;
+  }
+
+  .tt-table--tickets .tt-badge {
+    padding-inline: 0.2rem;
+    letter-spacing: normal;
+  }
+
+  .tt-ticket-list .tt-toolbar__sort > .mb-3 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+
+  .tt-ticket-list .tt-toolbar {
+    align-items: end;
+  }
+}
+
+.form-control[type="file"] {
+  height: 2.75rem;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--tt-green-pale);
+}
+
+.form-control[type="file"]::file-selector-button {
+  margin: -0.25rem 0.75rem -0.25rem -0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 0;
+  border-right: 1px solid var(--tt-border);
+  background-color: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+  font: inherit;
+  font-weight: 600;
+}
+
+.form-control[type="file"]:hover:not(:disabled)::file-selector-button {
+  background-color: var(--tt-green-primary);
+  color: var(--tt-surface);
+}
+
+.tt-filter-summary {
+  min-width: 0;
+}
+
+.tt-pagination {
+  display: grid !important;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: 0.75rem;
+}
+
+.tt-pagination__actions {
+  justify-self: end;
+}
+
+.tt-pagination__size {
+  white-space: nowrap;
+}
+
+/* Match the reference's discrete, equally sized navigation controls. */
+.tt-pagination__actions .tt-pagination__arrow,
+.tt-pagination__actions .page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  height: 2rem;
+  padding: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1;
+  border-radius: var(--tt-radius-control);
+}
+
+.tt-pagination__actions .tt-tip-host {
+  display: inline-flex;
+}
+
+.tt-pagination__actions .btn:hover,
+.tt-pagination__actions .btn:active {
+  transform: none;
+}
+
+@media (pointer: coarse) {
+  .tt-pagination__actions .tt-pagination__arrow,
+  .tt-pagination__actions .page-link {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .tt-page-header__actions {
+    flex-basis: 100%;
+    margin-inline-start: 0;
+  }
+
+  .tt-pagination {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tt-pagination__actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-main__inner {
+    animation: none;
+  }
+
+  .btn,
+  .nav-link,
+  .page-link,
+  .form-control,
+  .form-select {
+    transition: none;
+  }
+
+  .btn:not(:disabled):not(.disabled):hover,
+  .btn:not(:disabled):not(.disabled):active {
+    transform: none;
+  }
+
+  .tt-table--tickets tbody tr {
+    transition: none;
   }
 }

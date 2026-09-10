@@ -139,6 +139,22 @@ describe("UI-32 modal focus management (ui-spec 29.5, 29.6)", () => {
 });
 
 describe("UI-32 pagination (ui-spec 18)", () => {
+  it("navigates to boundary pages and labels chevrons on keyboard focus", async () => {
+    const onPageChange = vi.fn();
+    render(
+      <Pagination pageNumber={3} pageSize={10} totalItems={47}
+        onPageChange={onPageChange} onPageSizeChange={vi.fn()} />,
+    );
+    const first = screen.getByRole("button", { name: "First page" });
+    const last = screen.getByRole("button", { name: "Last page" });
+    await userEvent.click(first);
+    expect(onPageChange).toHaveBeenLastCalledWith(1);
+    await userEvent.click(last);
+    expect(onPageChange).toHaveBeenLastCalledWith(5);
+    fireEvent.focus(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getAllByRole("tooltip").some((tooltip) => tooltip.textContent === "Next")).toBe(true);
+  });
+
   it("windows the page numbers instead of rendering one button per page", () => {
     render(
       <Pagination
@@ -302,6 +318,7 @@ describe("UI-32 pagination (ui-spec 18)", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "First page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
     unmount();
 
@@ -315,6 +332,7 @@ describe("UI-32 pagination (ui-spec 18)", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Last page" })).toBeDisabled();
   });
 });
 
@@ -465,7 +483,7 @@ describe("UI-32 button hierarchy (ui-spec 10)", () => {
     expect(button).not.toHaveTextContent(/Submitting/);
   });
 
-  it("reserves the spinner slot while idle so a busy button does not shift", () => {
+  it("keeps a progress slot while idle without moving the centered label", () => {
     const { container } = render(
       <Button variant="primary" busy={false}>
         Submit Ticket
@@ -473,13 +491,13 @@ describe("UI-32 button hierarchy (ui-spec 10)", () => {
     );
 
     expect(container.querySelector(".tt-btn__spinner")).toBeInTheDocument();
+    expect(container.querySelector(".tt-btn__label")).toHaveTextContent("Submit Ticket");
     expect(screen.getByRole("button", { name: "Submit Ticket" })).not.toHaveAttribute("aria-busy");
   });
 
   it("adds no spinner slot to a button that never becomes busy", () => {
-    // The reserved slot is 1rem plus its margin. On a button with no busy state
-    // it is dead space that indents the label, which is visible on the `px-0`
-    // tertiary action sitting under the sidebar navigation links.
+    // A button without a busy state gets no progress container or related
+    // layout space, which keeps its label centered.
     const { container } = render(
       <Button variant="tertiary" className="px-0">
         Change Requester

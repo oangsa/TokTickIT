@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { ArrowLeftRight, Plus, Ticket, UserRound } from "lucide-react";
 import { Link, useMatch, useNavigate } from "react-router-dom";
 
 import { useRequester } from "../requester/RequesterProvider.js";
@@ -80,7 +81,7 @@ export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function Side
       aria-label="Main"
       className={`tt-sidebar${open ? " tt-sidebar--open" : ""}`}
     >
-      <span className="tt-brand h5 mb-0">
+      <span className="tt-brand tt-sidebar__brand h5 mb-0">
         <BrandMark />
         TokTickIT
       </span>
@@ -115,7 +116,7 @@ export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function Side
         }}
       >
         {/* Decoration: the accessible name is "Create Ticket", the destination. */}
-        <span aria-hidden="true">+ </span>
+        <Plus className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
         Create Ticket
       </Link>
 
@@ -127,17 +128,24 @@ export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function Side
             aria-current={myTicketsActive ? "page" : undefined}
             onClick={(event) => handleLinkClick(event, "/tickets")}
           >
+            <Ticket className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
             My Tickets
           </Link>
         </li>
       </ul>
 
       <div className="tt-sidebar__footer">
-        <p className="mb-2">
-          <span className="tt-caption d-block">Requester</span>
-          <span className="fw-semibold">{requester?.name}</span>
-        </p>
-        <Button variant="tertiary" className="px-0" onClick={handleChangeRequester}>
+        <div className="tt-sidebar__identity">
+          <span className="tt-sidebar__avatar" aria-hidden="true">
+            <UserRound className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+          </span>
+          <p className="mb-0 tt-sidebar__requester">
+            <span className="tt-sidebar__name fw-semibold">{requester?.name}</span>
+            <span className="tt-sidebar__caption">Requester</span>
+          </p>
+        </div>
+        <Button variant="tertiary" className="tt-sidebar__switch w-100" onClick={handleChangeRequester}>
+          <ArrowLeftRight className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
           Change Requester
         </Button>
       </div>
