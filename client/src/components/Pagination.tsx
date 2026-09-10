@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
-import { Button } from "./Button.js";
+import { IconButton } from "./IconButton.js";
 
 interface PaginationProps {
   pageNumber: number;
@@ -59,8 +60,8 @@ function pageWindow(pageNumber: number, pageCount: number): (number | null)[] {
 
 /*
  * Pagination (ui-spec Section 18). Desktop shows the range and a windowed page
- * list; mobile keeps compact Previous/Next controls. Both arrows carry visible
- * text, so no icon-only control is introduced here.
+ * list; mobile keeps compact navigation controls. IconButton provides an
+ * accessible name and visible hover/focus label for every chevron control.
  */
 export function Pagination({
   pageNumber,
@@ -155,7 +156,7 @@ export function Pagination({
         )}
       </p>
 
-      <label className="d-flex align-items-center gap-2 mb-0 small">
+      <label className="tt-pagination__size d-flex align-items-center gap-2 mb-0 small">
         Rows per page
         <select
           className="form-select form-select-sm w-auto"
@@ -172,14 +173,23 @@ export function Pagination({
         </select>
       </label>
 
-      <div className="d-flex align-items-center gap-2 ms-auto">
-        <Button
-          variant="secondary"
+      <div className="tt-pagination__actions d-flex align-items-center gap-1 ms-auto">
+        <IconButton
+          label="First page"
+          className="btn-outline-secondary tt-pagination__arrow"
+          disabled={page <= 1}
+          onClick={() => onPageChange(1)}
+        >
+          <ChevronsLeft size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+        </IconButton>
+        <IconButton
+          label="Previous"
+          className="btn-outline-secondary tt-pagination__arrow"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
-          <span aria-hidden="true">‹ </span>Previous
-        </Button>
+          <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+        </IconButton>
 
         <ul className="pagination mb-0 d-none d-lg-flex">
           {pages.map((entry, index) =>
@@ -204,13 +214,22 @@ export function Pagination({
           )}
         </ul>
 
-        <Button
-          variant="secondary"
+        <IconButton
+          label="Next"
+          className="btn-outline-secondary tt-pagination__arrow"
           disabled={page >= pageCount}
           onClick={() => onPageChange(page + 1)}
         >
-          Next<span aria-hidden="true"> ›</span>
-        </Button>
+          <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+        </IconButton>
+        <IconButton
+          label="Last page"
+          className="btn-outline-secondary tt-pagination__arrow"
+          disabled={page >= pageCount}
+          onClick={() => onPageChange(pageCount)}
+        >
+          <ChevronsRight size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+        </IconButton>
       </div>
     </nav>
   );

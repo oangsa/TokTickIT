@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ListFilter, Plus, Search } from "lucide-react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import {
@@ -442,18 +443,26 @@ export default function MyTickets() {
         subtitle="View and manage your support requests."
         actions={
           <Link
-            className="btn btn-primary"
+            className="btn btn-primary gap-2"
             to="/tickets/new"
             aria-label="Create Ticket (new support ticket)"
           >
-            + Create Ticket
+            <Plus size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+            Create Ticket
           </Link>
         }
       />
 
-      <Card>
+      <Card className="tt-ticket-list">
         <div className="tt-toolbar">
-          <div className="tt-toolbar__search">
+          <div className="tt-toolbar__search tt-search-field">
+            <Search
+              className="tt-search-field__icon"
+              size={16}
+              strokeWidth={1.75}
+              aria-hidden="true"
+              focusable="false"
+            />
             {/*
               * The label is hidden, not dropped: the magnifier and the
               * placeholder name the field in place, and the label still names
@@ -476,7 +485,7 @@ export default function MyTickets() {
           </div>
 
           <div className="tt-toolbar__controls">
-            <div className="mb-3">
+            <div className="tt-toolbar__filter mb-3">
             {/*
               * Not disabled during a fetch. Disabling a focused control moves
               * focus to `<body>`, and this screen fetches on every search
@@ -496,6 +505,7 @@ export default function MyTickets() {
                 className={appliedCount > 0 ? "tt-filters--applied" : undefined}
                 onClick={() => setFilterDraft(selectedFilters(query))}
               >
+                <ListFilter size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
                 Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
               </Button>
             </div>
@@ -536,7 +546,7 @@ export default function MyTickets() {
         ) : null}
 
         {queryActive ? (
-          <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+          <div className="tt-filter-summary d-flex flex-wrap align-items-center gap-2 mb-3">
             {FILTER_FIELDS.flatMap((field) =>
               query[field].map((value) => (
                 <FilterChip

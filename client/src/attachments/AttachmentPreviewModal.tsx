@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 
 import { Button } from "../components/Button.js";
 import { IconButton } from "../components/IconButton.js";
@@ -209,7 +210,7 @@ export function AttachmentDownloadButton({
           {busy ? (
             <span className="spinner-border spinner-border-sm" aria-hidden="true" />
           ) : (
-            <span aria-hidden="true">⤓</span>
+            <Download size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
           )}
         </IconButton>
       ) : (

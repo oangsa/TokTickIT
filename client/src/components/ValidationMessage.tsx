@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 
 interface ValidationMessageProps {
   id?: string;
@@ -17,7 +18,7 @@ interface ValidationMessageProps {
 export function ValidationMessage({ id, children }: ValidationMessageProps) {
   return (
     <p id={id} className="invalid-feedback d-block tt-validation mb-0">
-      <span aria-hidden="true">⚠ </span>
+      <TriangleAlert className="me-1" size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
       {children}
     </p>
   );

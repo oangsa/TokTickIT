@@ -17,13 +17,12 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
 
 /*
  * Button hierarchy from ui-spec Section 10. A busy button stays disabled, keeps
- * its original action text, and reserves the spinner slot at all times so the
- * layout does not shift when it starts working (Section 10.6).
+ * its original action text, and keeps the progress slot available so the layout
+ * does not shift when it starts working (Section 10.6).
  *
- * The slot is opt-in: passing `busy` at all reserves it, omitting it renders
- * none. Section 10.6 governs buttons that can become busy, and reserving the
- * slot unconditionally would indent the label of every button that never does —
- * visibly so for `px-0` tertiary actions sitting under the sidebar navigation.
+ * The slot is opt-in: passing `busy` at all keeps it available, omitting it
+ * renders none. It is positioned outside label layout so busy buttons preserve
+ * width without shifting their centered action text.
  */
 export function Button({
   variant = "secondary",
@@ -34,7 +33,14 @@ export function Button({
   children,
   ...rest
 }: ButtonProps) {
-  const classes = ["btn", VARIANT_CLASS[variant], className].filter(Boolean).join(" ");
+  const classes = [
+    "btn",
+    VARIANT_CLASS[variant],
+    busy === undefined ? null : "tt-btn--busy",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <button
@@ -49,7 +55,7 @@ export function Button({
           {busy ? <span className="spinner-border spinner-border-sm" /> : null}
         </span>
       )}
-      {children}
+      <span className="tt-btn__label">{children}</span>
     </button>
   );
 }

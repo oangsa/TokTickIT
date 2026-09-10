@@ -10,7 +10,7 @@ interface CardProps {
 /* White bordered surface on the quiet page background (ui-spec Sections 2, 3.3). */
 export function Card({ title, actions, className, children }: CardProps) {
   const titleId = useId();
-  const classes = ["card", className].filter(Boolean).join(" ");
+  const classes = ["card", "tt-card", className].filter(Boolean).join(" ");
   const body = (
     <>
       {title ? (

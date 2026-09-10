@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { Outlet, useLocation } from "react-router-dom";
 
 import { BrandMark } from "./BrandMark.js";
@@ -125,7 +126,11 @@ export function AppShell() {
           aria-controls={SIDEBAR_ID}
           onClick={() => setOpen((current) => !current)}
         >
-          <span aria-hidden="true">☰</span>
+          {open ? (
+            <X size={20} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+          ) : (
+            <Menu size={20} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+          )}
         </IconButton>
         <span className="tt-brand">
           <BrandMark />

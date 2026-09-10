@@ -135,7 +135,7 @@ describe("UI-03 application shell and navigation", () => {
 
     expect(screen.getAllByText(/TokTickIT/).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "My Tickets" })).toBeInTheDocument();
-    /* Create Ticket is shell navigation, styled as the primary action; the "+" is decorative. */
+    /* Create Ticket is shell navigation, styled as the primary action; its icon is decorative. */
     expect(screen.getByRole("link", { name: "Create Ticket" })).toBeInTheDocument();
     expect(screen.getByText(ALICE.name)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Change Requester" })).toBeInTheDocument();
@@ -818,6 +818,20 @@ describe("UI-04 obsolete requester-scoped requests", () => {
 });
 
 describe("UI-03 the sidebar's primary action and brand mark (ui-spec 5.1, 5.2, 10.1)", () => {
+  it("keeps icon-led navigation and requester switching explicitly named", () => {
+    renderAt("/tickets", ALICE);
+
+    const tickets = screen.getByRole("link", { name: "My Tickets" });
+    const change = screen.getByRole("button", { name: "Change Requester" });
+
+    for (const control of [tickets, change]) {
+      expect(control.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      expect(control.querySelector("svg")).toHaveAttribute("focusable", "false");
+    }
+    expect(tickets).toHaveAttribute("href", "/tickets");
+    expect(tickets).toHaveAttribute("aria-current", "page");
+  });
+
   /*
    * Create Ticket is shell navigation the Lab Sheet requires, but it is the
    * application's primary action rather than a second list destination, so it
@@ -830,8 +844,9 @@ describe("UI-03 the sidebar's primary action and brand mark (ui-spec 5.1, 5.2, 1
 
     expect(create).toHaveClass("btn", "btn-primary");
     expect(create.closest("ul")).toBeNull();
-    /* The "+" is decoration: visible on the control, absent from its name. */
-    expect(create).toHaveTextContent("+ Create Ticket");
+    /* The Plus icon is decoration: visible on the control, absent from its name. */
+    expect(create.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(create).toHaveTextContent("Create Ticket");
     expect(create).toHaveAccessibleName("Create Ticket");
   });
 

@@ -1,3 +1,5 @@
+import { X } from "lucide-react";
+
 import { IconButton } from "./IconButton.js";
 
 interface FilterChipProps {
@@ -12,7 +14,7 @@ export function FilterChip({ label, onRemove, removeLabel }: FilterChipProps) {
     <span className="badge rounded-pill tt-chip">
       {label}
       <IconButton label={removeLabel ?? `Remove filter ${label}`} onClick={onRemove}>
-        <span aria-hidden="true">×</span>
+        <X size={14} strokeWidth={1.75} aria-hidden="true" focusable="false" />
       </IconButton>
     </span>
   );
