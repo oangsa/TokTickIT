@@ -11,7 +11,7 @@ interface MaintenanceFakePrisma {
   $queryRaw: () => Promise<unknown[]>;
 }
 
-describe("MaintenanceService @issue-2", () => {
+describe("UNIT-16 MaintenanceService @issue-2", () => {
   it("deletes expired technical state through repeatable service methods", async () => {
     const calls: string[] = [];
     let queryIndex = 0;

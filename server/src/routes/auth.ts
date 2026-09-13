@@ -102,7 +102,12 @@ authRouter.post(
       if (typeof body.newPassword !== "string") {
         throw new ApiError("VALIDATION_ERROR");
       }
-      if (req.auth.stage === "FULL" && body.currentPassword !== undefined && typeof body.currentPassword !== "string") {
+      if (body.currentPassword !== undefined && typeof body.currentPassword !== "string") {
+        throw new ApiError("VALIDATION_ERROR", [
+          { field: "currentPassword", message: "currentPassword must be a string." },
+        ]);
+      }
+      if (req.auth.stage === "FULL" && typeof body.currentPassword !== "string") {
         throw new ApiError("VALIDATION_ERROR");
       }
       await new AuthService(getPrisma()).changePassword(req.auth, {

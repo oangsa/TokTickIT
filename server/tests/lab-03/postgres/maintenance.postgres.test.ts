@@ -11,7 +11,7 @@ describe("Lab 3 maintenance cleanup @issue-2", () => {
   beforeAll(() => { target = assertLab3TestDatabase(); prisma = createTestPrisma(target); });
   afterAll(async () => prisma?.$disconnect());
 
-  it("removes expired technical rows, preserves live rows, and is repeatable", async () => {
+  it("PG-17 removes expired technical rows, preserves live rows, and is repeatable @issue-2", async () => {
     const now = new Date();
     const liveUser = await prisma.user.findFirst({ where: { deleted: false } });
     if (!liveUser) throw new Error("Seeded User required for maintenance test");

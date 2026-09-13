@@ -15,6 +15,7 @@ interface SessionFakePrisma {
 
 function fakePrisma() {
   let row: Record<string, unknown> | null = null;
+  let queryCount = 0;
   const prisma: SessionFakePrisma = {
     userSession: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -32,12 +33,19 @@ function fakePrisma() {
       },
     },
     $transaction: async <T>(callback: (tx: SessionFakePrisma) => Promise<T>) => callback(prisma),
-    $queryRaw: async () => [{ id: row?.id }],
+    $queryRaw: async () => {
+      queryCount += 1;
+      return row ? [{ id: row.id }] : [];
+    },
   };
-  return prisma;
+  return {
+    ...prisma,
+    getRow: () => row,
+    getQueryCount: () => queryCount,
+  };
 }
 
-describe("SessionService @issue-2", () => {
+describe("UNIT-04 SessionService @issue-2", () => {
   it("stores only refresh hashes and rotates current token", async () => {
     const prisma = fakePrisma();
     const service = new SessionService(prisma as never);
@@ -66,5 +74,55 @@ describe("SessionService @issue-2", () => {
     const rescued = await service.refresh(created.refreshToken, new Date("2026-09-13T00:01:30.000Z"));
     expect(rescued.refreshToken).not.toBe(first.refreshToken);
     await expect(service.refresh(created.refreshToken, new Date("2026-09-13T00:01:31.000Z"))).rejects.toBeInstanceOf(SessionInvalidError);
+  });
+
+  it("rejects malformed refresh tokens before any UUID query", async () => {
+    const prisma = fakePrisma();
+    const service = new SessionService(prisma as never);
+    const malformedTokens = [
+      "not-a-refresh-token",
+      "20000000-0000-4000-8000-000000000001",
+      "20000000-0000-4000-8000-000000000001.secret.extra",
+      `${"-".repeat(36)}.secret`,
+      "200000000000-4000-8000-000000000001.secret",
+      "20000000-0000-4000-8000-00000000000g.secret",
+      "20000000-0000-5000-8000-000000000001.secret",
+      "20000000-0000-4000-8000-000000000001.",
+    ];
+
+    for (const token of malformedTokens) {
+      await expect(service.refresh(token)).rejects.toBeInstanceOf(SessionInvalidError);
+      await service.revokeByToken(token);
+    }
+    expect(prisma.getQueryCount()).toBe(0);
+  });
+
+  it("does not revoke a session when the UUID is paired with a wrong secret", async () => {
+    const prisma = fakePrisma();
+    const service = new SessionService(prisma as never);
+    const created = await service.create({
+      userId: 7,
+      stage: "FULL",
+      rememberMe: false,
+      now: new Date("2026-09-13T00:00:00.000Z"),
+    });
+
+    await service.revokeByToken(`${created.session.id}.fake-secret`, new Date("2026-09-13T00:00:01.000Z"));
+    await expect(service.refresh(created.refreshToken, new Date("2026-09-13T00:00:02.000Z"))).resolves.toBeTruthy();
+  });
+
+  it("ignores Remember Me for restricted sessions and expires at the exact boundary", async () => {
+    const prisma = fakePrisma();
+    const service = new SessionService(prisma as never);
+    const created = await service.create({
+      userId: 7,
+      stage: "PASSWORD_CHANGE_REQUIRED",
+      rememberMe: true,
+      now: new Date("2026-09-13T00:00:00.000Z"),
+    });
+
+    expect(created.session.rememberMe).toBe(false);
+    expect(created.session.absoluteExpiresAt).toEqual(new Date("2026-09-13T00:15:00.000Z"));
+    await expect(service.refresh(created.refreshToken, new Date("2026-09-13T00:15:00.000Z"))).rejects.toBeInstanceOf(SessionInvalidError);
   });
 });

@@ -10,6 +10,15 @@ export const PREVIOUS_REFRESH_WINDOW_MS = 30 * 1000;
 
 export class SessionInvalidError extends Error {}
 
+export const SESSION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const REFRESH_SECRET_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+export function isValidSessionId(value: string): boolean {
+  return SESSION_ID_PATTERN.test(value);
+}
+
 export interface SessionTokenResult {
   session: UserSession;
   refreshToken: string;
@@ -23,11 +32,13 @@ function createRefreshToken(sessionId: string): string {
   return `${sessionId}.${randomBytes(32).toString("base64url")}`;
 }
 
-function parseSessionId(token: string): string | null {
-  const [sessionId, secret, extra] = token.split(".");
-  return extra === undefined && /^[0-9a-f-]{36}$/i.test(sessionId ?? "") && Boolean(secret)
-    ? sessionId
-    : null;
+function parseSessionId(token: unknown): string | null {
+  if (typeof token !== "string") {
+    return null;
+  }
+
+  const match = /^([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]+)$/i.exec(token);
+  return match && REFRESH_SECRET_PATTERN.test(match[2] as string) ? match[1] as string : null;
 }
 
 function expiryForSession(input: { stage: "FULL" | "PASSWORD_CHANGE_REQUIRED"; rememberMe: boolean; createdAt: Date }): Date {
@@ -142,6 +153,9 @@ export class SessionService {
   }
 
   async findActive(sessionId: string, now = new Date()): Promise<UserSession | null> {
+    if (!isValidSessionId(sessionId)) {
+      return null;
+    }
     const session = await this.prisma.userSession.findUnique({ where: { id: sessionId } });
     if (!session || sessionExpired(session, now)) {
       return null;
@@ -154,9 +168,29 @@ export class SessionService {
     if (!sessionId) {
       return;
     }
-    await this.prisma.userSession.updateMany({
-      where: { id: sessionId, revokedAt: null },
-      data: { revokedAt: now, revokeReason: "logout" },
+
+    const presentedHash = hashRefreshToken(token);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM user_session WHERE id = ${sessionId}::uuid FOR UPDATE
+      `;
+      const session = await tx.userSession.findUnique({ where: { id: sessionId } });
+      if (!session || session.revokedAt !== null) {
+        return;
+      }
+
+      const currentMatches = presentedHash === session.refreshTokenHash;
+      const previousMatches = presentedHash === session.previousRefreshTokenHash &&
+        session.previousRefreshValidUntil !== null &&
+        now.getTime() <= session.previousRefreshValidUntil.getTime();
+      if (!currentMatches && !previousMatches) {
+        return;
+      }
+
+      await tx.userSession.update({
+        where: { id: session.id },
+        data: { revokedAt: now, revokeReason: "logout" },
+      });
     });
   }
 

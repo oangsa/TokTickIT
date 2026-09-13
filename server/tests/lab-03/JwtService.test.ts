@@ -1,10 +1,15 @@
 import { randomBytes } from "node:crypto";
-import { decodeJwt, decodeProtectedHeader } from "jose";
+import { decodeJwt, decodeProtectedHeader, SignJWT } from "jose";
 import { describe, expect, it, beforeEach } from "vitest";
 
-import { ACCESS_TOKEN_SECONDS, AccessTokenExpiredError, JwtService } from "../../src/services/jwtService.js";
+import {
+  ACCESS_TOKEN_SECONDS,
+  AccessTokenExpiredError,
+  InvalidAccessTokenError,
+  JwtService,
+} from "../../src/services/jwtService.js";
 
-describe("JwtService @issue-2", () => {
+describe("UNIT-03 JwtService @issue-2", () => {
   beforeEach(() => {
     process.env.JWT_SECRET = randomBytes(32).toString("base64url");
   });
@@ -33,5 +38,31 @@ describe("JwtService @issue-2", () => {
       now: new Date("2020-01-01T00:00:00.000Z"),
     });
     await expect(new JwtService().verify(token)).rejects.toBeInstanceOf(AccessTokenExpiredError);
+  });
+
+  it("rejects malformed or incorrectly signed tokens and excludes role authority", async () => {
+    const service = new JwtService();
+    const token = await service.sign({
+      userPublicId: "10000000-0000-4000-8000-000000000001",
+      sessionId: "20000000-0000-4000-8000-000000000001",
+    });
+
+    await expect(new JwtService(randomBytes(32).toString("base64url")).verify(token))
+      .rejects.toBeInstanceOf(InvalidAccessTokenError);
+    await expect(service.verify("not-a-jwt")).rejects.toBeInstanceOf(InvalidAccessTokenError);
+
+    const now = Math.floor(Date.now() / 1000);
+    const roleToken = await new SignJWT({
+      sub: "10000000-0000-4000-8000-000000000001",
+      sid: "20000000-0000-4000-8000-000000000001",
+      jti: randomBytes(16).toString("hex"),
+      role: "ADMINISTRATOR",
+    })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setIssuedAt(now)
+      .setExpirationTime(now + ACCESS_TOKEN_SECONDS)
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET as string));
+
+    await expect(service.verify(roleToken)).rejects.toBeInstanceOf(InvalidAccessTokenError);
   });
 });

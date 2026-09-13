@@ -1,17 +1,19 @@
 import type { PrismaClient, User, UserRole } from "../generated/prisma/client.js";
 import { ApiError } from "../http/errors.js";
 import {
-  DUMMY_PASSWORD_HASH,
+  dummyPasswordHash,
   hashPassword,
+  NORMAL_ARGON2_PROFILE,
   validatePassword,
   verifyPassword,
+  type Argon2Profile,
 } from "./passwordService.js";
 import {
   LoginRateLimitService,
   normalizeLoginEmail,
 } from "./loginRateLimitService.js";
 import { JwtService } from "./jwtService.js";
-import { SessionInvalidError, SessionService } from "./sessionService.js";
+import { isValidSessionId, SessionInvalidError, SessionService } from "./sessionService.js";
 
 export interface AuthTokenDTO {
   accessToken: string;
@@ -73,7 +75,10 @@ export class AuthService {
   private readonly rateLimits: LoginRateLimitService;
   private readonly jwt: JwtService;
 
-  constructor(private readonly prisma: PrismaClient) {
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly passwordProfile: Argon2Profile = NORMAL_ARGON2_PROFILE,
+  ) {
     this.sessions = new SessionService(prisma);
     this.rateLimits = new LoginRateLimitService(prisma);
     this.jwt = new JwtService();
@@ -91,7 +96,7 @@ export class AuthService {
         const user = await tx.user.findUnique({ where: { email } });
         const passwordMatches = user
           ? await verifyPassword(user.passwordHash, input.password)
-          : await verifyPassword(DUMMY_PASSWORD_HASH, input.password);
+          : await verifyPassword(dummyPasswordHash(this.passwordProfile), input.password);
 
         if (!user || !user.isActive || user.deleted || !passwordMatches) {
           return null;
@@ -159,8 +164,8 @@ export class AuthService {
     }
   }
 
-  async context(sessionId: string, userPublicId: string, stage: SessionStage, now = new Date()): Promise<AuthContext> {
-    if (!UUID_PATTERN.test(sessionId) || !UUID_PATTERN.test(userPublicId)) {
+  async context(sessionId: string, userPublicId: string, now = new Date()): Promise<AuthContext> {
+    if (!isValidSessionId(sessionId) || !UUID_PATTERN.test(userPublicId)) {
       throw new ApiError("UNAUTHENTICATED");
     }
     const session = await this.sessions.findActive(sessionId, now);
@@ -197,7 +202,12 @@ export class AuthService {
     }
 
     if (context.stage === "FULL") {
-      if (!input.currentPassword || !(await verifyPassword(context.user.passwordHash, input.currentPassword))) {
+      if (typeof input.currentPassword !== "string") {
+        throw new ApiError("VALIDATION_ERROR", [
+          { field: "currentPassword", message: "Current password is required." },
+        ]);
+      }
+      if (!(await verifyPassword(context.user.passwordHash, input.currentPassword))) {
         throw new ApiError("AUTHENTICATION_FAILED");
       }
     }
@@ -208,7 +218,7 @@ export class AuthService {
       ]);
     }
 
-    const passwordHash = await hashPassword(input.newPassword);
+    const passwordHash = await hashPassword(input.newPassword, this.passwordProfile);
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: context.userId },

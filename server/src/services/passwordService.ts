@@ -55,9 +55,7 @@ export function validatePassword(password: unknown, field = "password"): Passwor
 
 export async function hashPassword(
   password: string,
-  profile: Argon2Profile = process.env.NODE_ENV === "test"
-    ? TEST_ARGON2_PROFILE
-    : NORMAL_ARGON2_PROFILE,
+  profile: Argon2Profile = NORMAL_ARGON2_PROFILE,
 ): Promise<string> {
   return argon2.hash(password, { type: argon2id, ...profile });
 }
@@ -72,8 +70,15 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
 
 const DUMMY_NORMAL_PASSWORD_HASH =
   "$argon2id$v=19$m=32768,p=1,t=2$/fXNnVdPRL1m3iN+ts9LVg$L4L7lHlTNa8KDJzvPJAiHub5Rwk3m9ue527s9HLGVbU";
-const DUMMY_TEST_PASSWORD_HASH =
+export const DUMMY_TEST_PASSWORD_HASH =
   "$argon2id$v=19$m=8192,p=1,t=1$NjU0MzIxMDk4NzY1NDMyMQ$T9z5nuy6HLXsGrro5e/7L8AnABae9LCL8Iaktep/GQA";
 
-export const DUMMY_PASSWORD_HASH =
-  process.env.NODE_ENV === "test" ? DUMMY_TEST_PASSWORD_HASH : DUMMY_NORMAL_PASSWORD_HASH;
+export const DUMMY_PASSWORD_HASH = DUMMY_NORMAL_PASSWORD_HASH;
+
+export function dummyPasswordHash(profile: Argon2Profile = NORMAL_ARGON2_PROFILE): string {
+  return profile.memoryCost === TEST_ARGON2_PROFILE.memoryCost &&
+    profile.timeCost === TEST_ARGON2_PROFILE.timeCost &&
+    profile.parallelism === TEST_ARGON2_PROFILE.parallelism
+    ? DUMMY_TEST_PASSWORD_HASH
+    : DUMMY_NORMAL_PASSWORD_HASH;
+}

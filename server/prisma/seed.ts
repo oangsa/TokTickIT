@@ -1,7 +1,14 @@
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+
 import { assertLab3TargetEnvironment } from "../src/databaseTargetGuard.js";
 import { getPrisma } from "../src/prisma.js";
 import { generateInitialPassword } from "../src/services/initialPasswordGenerator.js";
-import { hashPassword, NORMAL_ARGON2_PROFILE } from "../src/services/passwordService.js";
+import {
+  hashPassword,
+  NORMAL_ARGON2_PROFILE,
+  validatePassword,
+} from "../src/services/passwordService.js";
 
 const CATEGORIES = ["Account and Access", "Hardware", "Software", "Network"];
 const RELATED_SYSTEMS = [
@@ -13,6 +20,57 @@ const RELATED_SYSTEMS = [
   "Email",
   "Learning Management System",
 ];
+
+const SEED_CREDENTIALS_PATH = resolve(process.cwd(), ".local/lab3-seed-credentials.json");
+type SeedCredentials = Record<string, string>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function loadSeedCredentials(): SeedCredentials {
+  if (!existsSync(SEED_CREDENTIALS_PATH)) {
+    return {};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(SEED_CREDENTIALS_PATH, "utf8"));
+  } catch {
+    throw new Error("Seed credential handoff file is invalid");
+  }
+  if (!isRecord(parsed)) {
+    throw new Error("Seed credential handoff file is invalid");
+  }
+
+  const credentials: SeedCredentials = {};
+  for (const [email, password] of Object.entries(parsed)) {
+    if (
+      typeof password !== "string" ||
+      [...password].length !== 16 ||
+      validatePassword(password).length > 0
+    ) {
+      throw new Error(`Seed credential for ${email} does not meet the password policy`);
+    }
+    credentials[email] = password;
+  }
+  chmodSync(SEED_CREDENTIALS_PATH, 0o600);
+  return credentials;
+}
+
+function writeSeedCredentials(credentials: SeedCredentials): void {
+  if (Object.keys(credentials).length === 0) {
+    return;
+  }
+
+  mkdirSync(dirname(SEED_CREDENTIALS_PATH), { recursive: true, mode: 0o700 });
+  writeFileSync(
+    SEED_CREDENTIALS_PATH,
+    `${JSON.stringify(credentials, null, 2)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+  chmodSync(SEED_CREDENTIALS_PATH, 0o600);
+}
 
 const USERS = [
   { name: "Alice Johnson", email: "alice.johnson@example.com", role: "REQUESTER" as const, isActive: true },
@@ -36,12 +94,27 @@ const TICKETS = [
   { publicId: "10000000-0000-4000-8000-000000000006", ticketNumber: "TKT-20260913-000000000006", email: "bob.smith@example.com", category: "Hardware", system: "Printer", status: "CLOSED" as const, priority: "LOW" as const, summary: "Printer queue stuck", description: "The shared printer queue stopped processing jobs." },
 ];
 
-async function upsertUser(prisma: ReturnType<typeof getPrisma>, input: (typeof USERS)[number]) {
+async function upsertUser(
+  prisma: ReturnType<typeof getPrisma>,
+  input: (typeof USERS)[number],
+  credentials: SeedCredentials,
+) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
+    if (existing.mustChangePassword && credentials[input.email] === undefined) {
+      const initialPassword = generateInitialPassword();
+      credentials[input.email] = initialPassword;
+      const passwordHash = await hashPassword(initialPassword, NORMAL_ARGON2_PROFILE);
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { passwordHash, mustChangePassword: true, updatedBy: "seed" },
+      });
+    }
     return existing;
   }
+
   const initialPassword = generateInitialPassword();
+  credentials[input.email] = initialPassword;
   const passwordHash = await hashPassword(initialPassword, NORMAL_ARGON2_PROFILE);
   return prisma.user.create({
     data: {
@@ -60,6 +133,7 @@ async function upsertUser(prisma: ReturnType<typeof getPrisma>, input: (typeof U
 
 async function main(): Promise<void> {
   assertLab3TargetEnvironment();
+  const credentials = loadSeedCredentials();
   const prisma = getPrisma();
   try {
     for (const name of CATEGORIES) {
@@ -80,7 +154,7 @@ async function main(): Promise<void> {
 
     const users = new Map<string, Awaited<ReturnType<typeof upsertUser>>>();
     for (const input of USERS) {
-      users.set(input.email, await upsertUser(prisma, input));
+      users.set(input.email, await upsertUser(prisma, input, credentials));
     }
 
     const categories = new Map(
@@ -164,6 +238,7 @@ async function main(): Promise<void> {
       }
     }
 
+    writeSeedCredentials(credentials);
     console.log(JSON.stringify({ job: "prisma:seed", categories: CATEGORIES.length, relatedSystems: RELATED_SYSTEMS.length, users: USERS.length, tickets: TICKETS.length }));
   } finally {
     await prisma.$disconnect();

@@ -641,6 +641,17 @@ Seed also creates realistic Tickets across statuses, Requested/IT priorities, as
 
 Credentials are synthetic local-development data only.
 
+The guarded local-development/test seed command writes each newly generated
+synthetic initial credential to the operator-local
+`server/.local/lab3-seed-credentials.json` file with filesystem mode `0600`.
+This ignored file is the credential handoff for the seeded Requester, IT Staff,
+and Administrator accounts; credentials are never printed or logged and are
+never stored in PostgreSQL. Seed reruns reuse recorded credentials and only
+replace a missing credential for a seeded User whose `mustChangePassword` flag
+is still true. A User who has completed the first password change is never
+silently reset by a seed rerun. The file is local-development/test-only and
+must be deleted or protected by the operator after use.
+
 ## 8. API Contract
 
 The exact wire contract is defined in `docs/lab-03/api-spec.md`.

@@ -96,11 +96,7 @@ export function requireAuthentication(): RequestHandler {
         throw new ApiError("UNAUTHENTICATED");
       }
       const claims = await new JwtService().verify(token);
-      const context = await new AuthService(getPrisma()).context(
-        claims.sid,
-        claims.sub,
-        "FULL",
-      );
+      const context = await new AuthService(getPrisma()).context(claims.sid, claims.sub);
       req.auth = context;
       req.requesterId = context.userId;
       req.requesterEmail = context.email;

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { assertLab3TargetEnvironment } from "../../src/databaseTargetGuard.js";
 
-describe("Lab 3 database target guard @issue-2", () => {
+describe("DATA-02 Lab 3 database target guard @issue-2", () => {
   const base = {
     NODE_ENV: "test",
     TEST_DATABASE_URL: "postgresql://test:test@localhost:5432/toktickit_lab3_test",

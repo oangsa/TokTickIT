@@ -15,7 +15,7 @@ const GUARDED_TARGET_ENV = {
 };
 
 describe("auth transport @issue-2", () => {
-  it("accepts only an explicit disposable Lab 3 target", () => {
+  it("API-54 accepts only an explicit disposable Lab 3 target @issue-2", () => {
     expect(assertLab3TargetEnvironment(GUARDED_TARGET_ENV)).toBe(
       GUARDED_TARGET_ENV.TEST_DATABASE_URL,
     );
@@ -37,21 +37,38 @@ describe("auth transport @issue-2", () => {
     ).toThrow();
   });
 
-  it("fails closed when NODE_ENV is absent and no origin is configured", () => {
+  it("API-54 fails closed when NODE_ENV is absent and no origin is configured @issue-2", () => {
     expect(() => resolveAllowedOrigins({})).toThrow();
   });
 
-  it("allows exact development origin and exposes correlation headers", async () => {
+  it("API-54 allows exact origin and exposes safe transport headers @issue-2", async () => {
     const response = await request(app).options("/api/auth/refresh").set("Origin", "http://localhost:5173");
     expect(response.status).toBe(204);
     expect(response.headers["access-control-allow-credentials"]).toBe("true");
     expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
     expect(response.headers["access-control-allow-headers"]).toContain("Authorization");
+    expect(response.headers["access-control-expose-headers"]).toContain("X-Pagination");
+    expect(response.headers["access-control-expose-headers"]).toContain("X-Request-Id");
+    expect(response.headers["access-control-allow-origin"]).not.toBe("*");
   });
 
-  it("rejects cookie mutation from an unapproved origin", async () => {
+  it("API-54 rejects cookie mutation from an unapproved origin @issue-2", async () => {
     const response = await request(app).post("/api/auth/refresh").set("Origin", "https://evil.example");
     expect(response.status).toBe(403);
     expect(response.body.code).toBe("FORBIDDEN");
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers["x-request-id"]).toEqual(expect.any(String));
+  });
+
+  it("API-54 replaces malformed correlation IDs and keeps responses no-store @issue-2", async () => {
+    const response = await request(app)
+      .get("/api/health")
+      .set("X-Request-Id", "not-a-uuid");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["x-request-id"]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(response.headers["cache-control"]).toBe("no-store");
   });
 });

@@ -9,7 +9,7 @@ describe("Lab 3 schema contract @issue-2", () => {
   beforeAll(() => { target = assertLab3TestDatabase(); prisma = createTestPrisma(target); });
   afterAll(async () => prisma?.$disconnect());
 
-  it("has citext User email and all Issue 2 persistence tables", async () => {
+  it("PG-02 has citext User email and all Issue 2 persistence tables @issue-2", async () => {
     const tables = await prisma.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name IN

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { generateInitialPassword } from "../../src/services/initialPasswordGenerator.js";
 
-describe("InitialPasswordGenerator @issue-2", () => {
+describe("UNIT-02 InitialPasswordGenerator @issue-2", () => {
   it("generates a fresh 16-character password with all required classes", () => {
     const password = generateInitialPassword();
     expect([...password]).toHaveLength(16);

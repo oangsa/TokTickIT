@@ -287,6 +287,10 @@ npm run build
 The guard rejects missing, invalid, baseline-equal, non-Lab-3, or implicit
 database targets. Do not print baseline URLs or the synthetic password. The
 same sequence runs in `.github/workflows/lab3-issue2-verification.yml`.
+The guarded seed command hands off synthetic initial credentials through the
+ignored `server/.local/lab3-seed-credentials.json` file (mode `0600`), never
+through logs or PostgreSQL. Seed reruns reuse those credentials and do not
+reset a User who already completed the mandatory first password change.
 
 ### Lab 2 browser verification
 

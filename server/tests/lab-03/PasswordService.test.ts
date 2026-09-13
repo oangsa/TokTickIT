@@ -8,7 +8,7 @@ import {
   verifyPassword,
 } from "../../src/services/passwordService.js";
 
-describe("PasswordService @issue-2", () => {
+describe("UNIT-01 PasswordService @issue-2", () => {
   it("accepts exact Unicode length boundaries and required composition", () => {
     expect(validatePassword("Aa1!" + "x".repeat(4))).toEqual([]);
     expect(validatePassword("Aa1!" + "x".repeat(124))).toEqual([]);
@@ -29,5 +29,17 @@ describe("PasswordService @issue-2", () => {
     expect(hash).toMatch(/^\$argon2id\$/);
     expect(await verifyPassword(hash, password)).toBe(true);
     expect(await verifyPassword(hash, `${password}x`)).toBe(false);
+  });
+
+  it("uses the normal runtime profile by default and only uses the faster profile when injected", async () => {
+    const password = generateInitialPassword();
+    const normalHash = await hashPassword(password);
+    const testHash = await hashPassword(password, TEST_ARGON2_PROFILE);
+    const readParameters = (hash: string) => Object.fromEntries(
+      hash.split("$")[3]!.split(",").map((entry) => entry.split("=")),
+    );
+
+    expect(readParameters(normalHash)).toMatchObject({ m: "32768", t: "2", p: "1" });
+    expect(readParameters(testHash)).toMatchObject({ m: "8192", t: "1", p: "1" });
   });
 });

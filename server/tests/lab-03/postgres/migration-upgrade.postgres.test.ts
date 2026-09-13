@@ -190,7 +190,7 @@ describe("Lab 3 populated migration @issue-2", () => {
   });
   afterAll(async () => prisma?.$disconnect());
 
-  it("keeps numeric User/Ticket/Attachment/Idempotency ownership linked", async () => {
+  it("PG-01 keeps numeric User/Ticket/Attachment/Idempotency ownership linked @issue-2", async () => {
     const schemaName = `lab3_upgrade_${Date.now()}_${process.pid}`;
     const schema = quoteIdentifier(schemaName);
     const upgradedUrl = new URL(target.url);
