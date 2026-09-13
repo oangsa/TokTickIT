@@ -119,8 +119,8 @@ function contentDisposition(kind: "inline" | "attachment", originalName: string)
 }
 
 /*
- * `Cache-Control: no-store` is already set by `transport`, and `Vary: Origin,
- * X-Requester-Id` by `transport` plus the requester guard. Neither is re-set
+ * `Cache-Control: no-store` is already set by `transport`, and `Vary: Origin`
+ * by CORS/transport. Neither is re-set
  * here: doing so would overwrite the merged CORS value rather than add to it.
  */
 function sendBinary(

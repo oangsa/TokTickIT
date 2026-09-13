@@ -18,6 +18,7 @@ import {
 import { FencedOutError, TicketService } from "../../../src/services/ticketService.js";
 import {
   assertLab2TestDatabase,
+  createRequesterUser,
   createTestPrisma,
   deployMigrations,
   resetTestSchema,
@@ -41,13 +42,9 @@ interface IdempotencyInsert {
 }
 
 async function createFixture(prisma: PrismaClient): Promise<Fixture> {
-  const requester = await prisma.developmentRequester.create({
-    data: {
-      name: "Idempotency Test Requester",
-      email: "idempotency.test@example.com",
-      createdBy: "system",
-      updatedBy: "system",
-    },
+  const requester = await createRequesterUser(prisma, {
+    name: "Idempotency Test Requester",
+    email: "idempotency.test@example.com",
   });
   const category = await prisma.category.create({
     data: { name: "Idempotency Test Category", createdBy: "system", updatedBy: "system" },
@@ -297,13 +294,9 @@ describe.sequential("Lab 2 IdempotencyRecord PostgreSQL contract", () => {
       "23505",
     );
 
-    const requesterOnlyForEvidence = await prisma.developmentRequester.create({
-      data: {
-        name: "Requester FK Evidence",
-        email: "requester.fk.evidence@example.com",
-        createdBy: "system",
-        updatedBy: "system",
-      },
+    const requesterOnlyForEvidence = await createRequesterUser(prisma, {
+      name: "Requester FK Evidence",
+      email: "requester.fk.evidence@example.com",
     });
     await expect(
       insertIdempotency(
@@ -312,7 +305,7 @@ describe.sequential("Lab 2 IdempotencyRecord PostgreSQL contract", () => {
       ),
     ).resolves.toBeUndefined();
     await expectDatabaseReject(
-      () => prisma.developmentRequester.delete({ where: { id: requesterOnlyForEvidence.id } }),
+      () => prisma.user.delete({ where: { id: requesterOnlyForEvidence.id } }),
       "23503",
     );
 
@@ -388,13 +381,9 @@ describe.sequential("Lab 2 Ticket-create idempotency concurrency", () => {
     prisma = createTestPrisma(target);
     connections = [createTestPrisma(target), createTestPrisma(target), createTestPrisma(target)];
 
-    const requester = await prisma.developmentRequester.create({
-      data: {
-        name: "Concurrency Test Requester",
-        email: ACTOR,
-        createdBy: "system",
-        updatedBy: "system",
-      },
+    const requester = await createRequesterUser(prisma, {
+      name: "Concurrency Test Requester",
+      email: ACTOR,
     });
     const category = await prisma.category.create({
       data: { name: `Concurrency Category ${randomUUID()}`, createdBy: "system", updatedBy: "system" },

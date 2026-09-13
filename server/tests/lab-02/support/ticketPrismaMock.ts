@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 
+import { testUser } from "./authenticatedRequester.js";
+
 /*
  * One Prisma double shared by the three Ticket-create API suites. It is a module
  * singleton so `vi.mock("../../src/prisma.js")` in each suite can resolve it
@@ -27,6 +29,8 @@ export const tx = {
 };
 
 export const prismaMock = {
+  user: { findUnique: vi.fn() },
+  userSession: { findUnique: vi.fn() },
   developmentRequester: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
   category: { findMany: vi.fn() },
   relatedSystem: { findMany: vi.fn() },
@@ -61,6 +65,13 @@ export const ALICE = {
   updatedBy: "seed",
   updatedAt: new Date("2026-08-20T01:00:00.000Z"),
 };
+
+export const ALICE_AUTH = testUser(ALICE);
+export const BOB_AUTH = testUser({
+  id: 4,
+  name: "Bob Smith",
+  email: "bob.smith@example.com",
+});
 
 export const KEY = "550e8400-e29b-41d4-a716-446655440000";
 export const OTHER_KEY = "8e294972-f950-4db7-a83e-d3bbd55a8799";

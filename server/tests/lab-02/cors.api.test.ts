@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
+import {
+  bearerToken,
+  configureRequesterAuth,
+  testUser,
+  type RequesterTokens,
+} from "./support/authenticatedRequester.js";
+
 const prismaMock = vi.hoisted(() => ({
+  user: { findUnique: vi.fn() },
+  userSession: { findUnique: vi.fn() },
   developmentRequester: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
@@ -18,22 +27,12 @@ vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 import { app } from "../../src/app.js";
 import { resolveAllowedOrigins } from "../../src/middleware/cors.js";
 
-const ALICE = {
-  id: 1,
-  name: "Alice Johnson",
-  email: "alice.johnson@example.com",
-  isActive: true,
-  deleted: false,
-  createdBy: "seed",
-  createdAt: new Date("2026-08-20T01:00:00.000Z"),
-  updatedBy: "seed",
-  updatedAt: new Date("2026-08-20T01:00:00.000Z"),
-};
+const ALICE = testUser({ id: 1, name: "Alice Johnson", email: "alice.johnson@example.com" });
+let tokens: RequesterTokens;
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
-  prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);
-  prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
+  tokens = await configureRequesterAuth(prismaMock, [ALICE]);
   prismaMock.category.findMany.mockResolvedValue([]);
   prismaMock.ticket.findMany.mockResolvedValue([]);
   prismaMock.ticket.count.mockResolvedValue(0);
@@ -44,10 +43,10 @@ afterEach(() => {
 });
 
 describe("CORS (API-66, API-71)", () => {
-  it("falls back to the Vite dev origin in development, test, and unset environments", () => {
-    expect(resolveAllowedOrigins({})).toEqual(["http://localhost:5173"]);
+  it("uses the Vite dev origin only in development and test", () => {
     expect(resolveAllowedOrigins({ NODE_ENV: "development" })).toEqual(["http://localhost:5173"]);
     expect(resolveAllowedOrigins({ NODE_ENV: "test" })).toEqual(["http://localhost:5173"]);
+    expect(() => resolveAllowedOrigins({})).toThrow();
   });
 
   it("reads an exact comma-separated origin list", () => {
@@ -71,7 +70,7 @@ describe("CORS (API-66, API-71)", () => {
 
   it("echoes an allowed origin and never a wildcard", async () => {
     const res = await request(app)
-      .get("/api/requesters")
+      .get("/api/health")
       .set("Origin", "http://localhost:5173");
 
     expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
@@ -79,14 +78,14 @@ describe("CORS (API-66, API-71)", () => {
   });
 
   it("sends no allow-origin header for a disallowed origin", async () => {
-    const res = await request(app).get("/api/requesters").set("Origin", "http://evil.example");
+    const res = await request(app).get("/api/health").set("Origin", "http://evil.example");
 
     expect(res.headers["access-control-allow-origin"]).toBeUndefined();
     expect(res.status).toBe(200);
   });
 
   it("serves origin-less requests normally", async () => {
-    const res = await request(app).get("/api/requesters");
+    const res = await request(app).get("/api/health");
 
     expect(res.status).toBe(200);
     expect(res.headers["access-control-allow-origin"]).toBeUndefined();
@@ -94,7 +93,7 @@ describe("CORS (API-66, API-71)", () => {
 
   it("exposes the pagination and correlation headers", async () => {
     const res = await request(app)
-      .get("/api/requesters")
+      .get("/api/health")
       .set("Origin", "http://localhost:5173");
 
     expect(res.headers["access-control-expose-headers"]).toBe("X-Pagination,X-Request-Id");
@@ -104,9 +103,9 @@ describe("CORS (API-66, API-71)", () => {
     // The other half of API-66: the allowlist above only promises the headers
     // are readable, so the collection response has to actually carry them.
     const res = await request(app)
-      .get("/api/tickets")
+      .get("/api/users/me/tickets")
       .set("Origin", "http://localhost:5173")
-      .set("X-Requester-Id", String(ALICE.id));
+      .set("Authorization", bearerToken(tokens, ALICE.id));
 
     expect(res.status).toBe(200);
     expect(res.headers["access-control-expose-headers"]).toBe("X-Pagination,X-Request-Id");
@@ -118,16 +117,16 @@ describe("CORS (API-66, API-71)", () => {
     expect(res.headers["x-request-id"]).toBeTruthy();
   });
 
-  it("permits the four Lab 2 request headers on preflight", async () => {
+  it("permits the authenticated Lab 3 request headers on preflight", async () => {
     const res = await request(app)
-      .options("/api/tickets")
+      .options("/api/users/me/tickets")
       .set("Origin", "http://localhost:5173")
       .set("Access-Control-Request-Method", "POST")
-      .set("Access-Control-Request-Headers", "X-Requester-Id");
+      .set("Access-Control-Request-Headers", "Authorization");
 
     expect(res.status).toBe(204);
     expect(res.headers["access-control-allow-headers"]).toBe(
-      "Content-Type,X-Requester-Id,Idempotency-Key,X-Request-Id",
+      "Authorization,Content-Type,Idempotency-Key,X-Request-Id",
     );
   });
 });

@@ -49,7 +49,7 @@ export interface TicketListItemDTO {
   relatedSystemName: string;
   summary: string;
   requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
+  currentStatus: "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
   createdAt: string;
 }
 
@@ -84,7 +84,7 @@ export async function listTicketsForRequester(
    * in a `where` as "predicate not supplied", so an unresolved Requester would
    * turn `{ requesterId }` below into `{}` and answer 200 with every Requester's
    * rows, counts, and pagination metadata -- failing open, silently, with no
-   * error to log. `requireRequesterContext` covers this route today; this makes
+   * error to log. authenticated middleware covers this route today; this makes
    * a future gap in that cover a loud 500 instead of a scope leak.
    */
   if (!Number.isSafeInteger(requesterId) || requesterId <= 0) {

@@ -843,6 +843,12 @@ Do not:
 - use real credentials
 - claim tests passed when they were not run
 
+When a current-lab specification intentionally changes behavior inherited from
+an earlier lab, update the affected earlier-lab tests in the same change.
+Preserve tests that remain valid and evolve only stale fixtures, routes,
+assertions, or setup so earlier-lab coverage remains equivalent or stronger;
+do not leave those tests stale or exclude them from CI.
+
 After fixing a defect:
 
 1. add or update a regression test when appropriate

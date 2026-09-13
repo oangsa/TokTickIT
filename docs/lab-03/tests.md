@@ -402,6 +402,14 @@ DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
 DIRECT_URL="$LAB3_TEST_DATABASE_URL" \
 LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" \
 LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" \
+npm run prisma:provision-migrated-passwords
+
+NODE_ENV=test \
+TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DIRECT_URL="$LAB3_TEST_DATABASE_URL" \
+LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" \
+LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" \
 npm run prisma:seed
 
 NODE_ENV=test \
@@ -422,6 +430,7 @@ implementation. No database reset is permitted.
 | Install backend dependencies | `server/` | `npm install` | Uses committed manifest/lockfile; no secret embedded in package scripts. |
 | Apply development migration | `server/` | Guarded `NODE_ENV=test ... npm run prisma:migrate` | Development-only schema iteration; never use as release evidence and never target a normal/shared database. |
 | Fresh migration evidence | `server/` | Guarded `NODE_ENV=test ... npx --no-install prisma migrate deploy` | Reproduce fresh schema from committed migrations after the read-only `prisma migrate status` preflight. |
+| Provision migrated passwords | `server/` | Guarded `NODE_ENV=test ... npm run prisma:provision-migrated-passwords` | Replace fail-closed migration markers with per-User Argon2id hashes and write the one-time `0600` operator handoff without logging passwords. |
 | Seed Lab 3 | `server/` | Guarded `NODE_ENV=test ... npm run prisma:seed` | Run twice and record unchanged/idempotent result. |
 | Maintenance cleanup | `server/` | Guarded `NODE_ENV=test ... npm run maintenance:cleanup` | Record eligible-count/repeat-run behavior; no application timer implied. |
 | Focused backend test | `server/` | `npm test -- tests/lab-03/<file>.test.ts -t '@issue-N'` | Owning Issue close gate; shared files are filtered by primary ownership tag. |
@@ -490,12 +499,12 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| UNIT-01 | Unit | BR-11–14, AC-04–05 | Password policy and Argon2id service: exact 8–128 code-point boundary, no trimming, uppercase/lowercase/digit/non-whitespace-symbol rules, same-as-current rejection, runtime vs injected test hash profile. | Valid boundaries pass; invalid composition/length fails; encoded Argon2id hashes verify and plaintext is never returned. | tests/lab-03/PasswordService.test.ts | Not Run |
-| UNIT-02 | Unit | BR-34–36, AC-48, AC-53 | Initial-password generator: cryptographically secure 16-character output with uppercase, lowercase, digit, and symbol coverage. | Generated values satisfy the approved policy and are returned only by the calling one-time credential workflow. | tests/lab-03/InitialPasswordGenerator.test.ts | Not Run |
-| UNIT-03 | Unit | BR-15–17, AC-01, AC-07, AC-13 | JWT service: HS256 signing/verification, `sub/sid/jti/iat/exp` claims, 10-minute lifetime, invalid signature/expiry behavior. | Only approved claims are emitted; invalid/expired tokens fail with safe domain errors; role is not treated as token authority. | tests/lab-03/JwtService.test.ts | Not Run |
-| UNIT-04 | Unit | BR-18–24, AC-06–08, AC-10–11 | Session service: refresh hashing/rotation, previous-token ambiguity window, restricted/full lifetimes, Remember Me deadlines, revocation and logout semantics. | Boundary behavior is deterministic at exact expiry/ambiguity times; refresh plaintext is not persisted; revoked/expired sessions cannot continue. | tests/lab-03/SessionService.test.ts | Not Run |
-| UNIT-05 | Unit | BR-09–10, AC-12 | Login rate limiter: `(normalizedEmail, IP)` and global-IP windows, exact thresholds, block duration, successful-login pair reset. | 5th/6th pair boundary and 30th/31st IP boundary behave exactly as specified without revealing account existence. | tests/lab-03/LoginRateLimitService.test.ts | Not Run |
-| UNIT-06 | Unit | FR-01–12, BR-01–10, BR-24–29, AC-01–05 | Auth service orchestration: valid Login, dummy verify for unknown email, inactive/deleted/wrong-password equivalence, restricted-session creation, password change, session revocation. | Auth workflow produces the correct safe domain result and calls persistence/crypto/session collaborators in the approved order. | tests/lab-03/AuthService.test.ts | Not Run |
+| UNIT-01 | Unit | BR-11–14, AC-04–05 | Password policy and Argon2id service: exact 8–128 code-point boundary, no trimming, uppercase/lowercase/digit/non-whitespace-symbol rules, same-as-current rejection, runtime vs injected test hash profile. | Valid boundaries pass; invalid composition/length fails; encoded Argon2id hashes verify and plaintext is never returned. | tests/lab-03/PasswordService.test.ts | Pass |
+| UNIT-02 | Unit | BR-34–36, AC-48, AC-53 | Initial-password generator: cryptographically secure 16-character output with uppercase, lowercase, digit, and symbol coverage. | Generated values satisfy the approved policy and are returned only by the calling one-time credential workflow. | tests/lab-03/InitialPasswordGenerator.test.ts | Pass |
+| UNIT-03 | Unit | BR-15–17, AC-01, AC-07, AC-13 | JWT service: HS256 signing/verification, `sub/sid/jti/iat/exp` claims, 10-minute lifetime, invalid signature/expiry behavior. | Only approved claims are emitted; invalid/expired tokens fail with safe domain errors; role is not treated as token authority. | tests/lab-03/JwtService.test.ts | Pass |
+| UNIT-04 | Unit | BR-18–24, AC-06–08, AC-10–11 | Session service: refresh hashing/rotation, previous-token ambiguity window, restricted/full lifetimes, Remember Me deadlines, revocation and logout semantics. | Boundary behavior is deterministic at exact expiry/ambiguity times; refresh plaintext is not persisted; revoked/expired sessions cannot continue. | tests/lab-03/SessionService.test.ts | Pass |
+| UNIT-05 | Unit | BR-09–10, AC-12 | Login rate limiter: `(normalizedEmail, IP)` and global-IP windows, exact thresholds, block duration, successful-login pair reset. | 5th/6th pair boundary and 30th/31st IP boundary behave exactly as specified without revealing account existence. | tests/lab-03/LoginRateLimitService.test.ts | Pass |
+| UNIT-06 | Unit | FR-01–12, BR-01–10, BR-24–29, AC-01–05 | Auth service orchestration: valid Login, dummy verify for unknown email, inactive/deleted/wrong-password equivalence, restricted-session creation, password change, session revocation. | Auth workflow produces the correct safe domain result and calls persistence/crypto/session collaborators in the approved order. | tests/lab-03/AuthService.test.ts | Pass |
 | UNIT-07 | Unit | FR-13–FR-16, FR-18, AC-15–16 | Authenticated Requester authorization policy. | Requester scope comes from auth context; foreign requester input cannot expand scope; unavailable/cross-owner resources resolve to the safe 404 policy. | tests/lab-03/AuthorizationService.test.ts | Not Run |
 | UNIT-08 | Unit | BR-49–55, AC-19–24 | Ticket ownership service: Claim, eligible target validation, expected-owner compare, reassignment/unassignment, Admin-owner rules. | Unassigned Claim/assign and owner changes produce the correct domain mutations/conflicts; inactive/Requester owner targets fail. | tests/lab-03/TicketOwnershipService.test.ts | Not Run |
 | UNIT-09 | Unit | BR-57–58, BR-60, BR-64–67, AC-26, AC-29–30, AC-33 | Staff Ticket workflow transition matrix and confirmation preconditions independent of HTTP. | Every Staff-owned allowed state/action pair resolves to the approved next state; every disallowed pair yields `INVALID_STATUS_TRANSITION`; Cancelled is terminal. | tests/lab-03/TicketWorkflowService.test.ts | Not Run |
@@ -505,7 +514,7 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | UNIT-13 | Unit | BR-78–86, AC-41–46 | Staff Queue query validator: searchable/filterable/sortable whitelist, typed conversion, Created Date range, defaults, terminal-filter semantics. | Only approved queue fields/operators/types reach QueryBuilder; operational default ordering is constructed correctly. | tests/lab-03/StaffQueueQueryValidator.test.ts | Not Run |
 | UNIT-14 | Unit | BR-78–82, AC-47 | Administrator User-list query validator: name/email search, `role` EQUAL filter, approved sort fields, and page defaults. | Only the exact User collection query surface is accepted; invalid fields/conditions/cardinality fail before data access and default name ordering is deterministic. | tests/lab-03/UserQueryValidator.test.ts | Not Run |
 | UNIT-15 | Unit | BR-32–46, AC-48–53 | Administrator User service: create/edit/reset, duplicate email mapping, self-safety, last-admin safety requests, session revocation and owner-unassignment orchestration. | Valid changes produce the planned transactional work; unsafe self/last-admin operations fail before success is reported. | tests/lab-03/UserService.test.ts | Not Run |
-| UNIT-16 | Unit | FR-66, AC-66 | Maintenance service: expired/revoked session and expired rate-limit selection, bounded repeat-until-empty cleanup, safe rerun. | Only eligible technical rows are selected; live sessions are never targeted; repeated run is idempotent. | tests/lab-03/MaintenanceService.test.ts | Not Run |
+| UNIT-16 | Unit | FR-66, AC-66 | Maintenance service: expired/revoked session and expired rate-limit selection, bounded repeat-until-empty cleanup, safe rerun. | Only eligible technical rows are selected; live sessions are never targeted; repeated run is idempotent. | tests/lab-03/MaintenanceService.test.ts | Pass |
 | UNIT-17 | Unit | FR-64, BR-78–80, AC-41–46 | Existing reusable QueryBuilder regression plus new Queue validated inputs. | Generic builder constructs approved search/filter/order expressions from already typed input without learning Ticket authorization rules. | tests/lab-02/QueryBuilder.test.ts; tests/lab-03/QueryBuilderRegression.test.ts | Not Run |
 | UNIT-18 | Unit | FR-14–FR-16, FR-18, AC-15, AC-17 | Authenticated Requester service boundary: identity-scoped Ticket operations and preservation of Lab 2 idempotency/Attachment orchestration. | Requester identity is derived from auth context; no supplied requester ID changes scope; existing create/list/detail/Attachment behavior remains callable. | tests/lab-03/RequesterRegressionService.test.ts | Not Run |
 
@@ -513,19 +522,19 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| API-01 | API | AC-01 | Valid active User Login. | `200`; refresh cookie issued; body contains only access token and expiry; server session is created through mocked persistence boundary. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-02 | API | AC-02 | Unknown email, inactive/deleted User, and wrong password. | All cases return identical `401 AUTHENTICATION_FAILED` message/body shape; no account-state detail leaks. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-03 | API | AC-03 | Initial-password Login and restricted current-user access. | `/auth/me` reports `PASSWORD_CHANGE_REQUIRED`; normal protected business endpoint returns `403 PASSWORD_CHANGE_REQUIRED`. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-04 | API | AC-04 | Mandatory password-change request, validation, and terminal restricted-session behavior. | Valid new password returns `204`, clears/revokes restricted session, and subsequent old session access fails until new Login. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-05 | API | AC-05 | Normal Change Password including wrong current password and successful all-session revocation. | Wrong current password is safe; successful change returns `204`, revokes sessions and requires Login. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-06 | API | AC-06 | Restricted, non-Remember, and Remember expiry boundaries with injected clock. | Exact 15-minute, 8-hour, 30-day idle, and 90-day absolute boundaries match contract without real-time sleeps. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-07 | API | AC-07 | Refresh success and rotation. | Cookie token rotates; response contains new access token; old current hash becomes previous hash through service boundary. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-08 | API | AC-08 | Previous refresh-token reuse immediately before/at/after the 30-second ambiguity deadline. | At or before the deadline, the locked session performs exactly one fresh rotation without revocation and returns that rotation's credentials; after the deadline, or after the token is no longer current/previous, it revokes and returns `401 SESSION_INVALID`. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-09 | API | AC-10 | Logout with missing/expired bearer but valid refresh session; repeat Logout. | Current session is revoked, cookie cleared, and repeat call remains `204`. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-10 | API | AC-11 | Logout All with a FULL authenticated session. | All active target sessions are revoked; current cookie is cleared; prior tokens no longer authorize requests. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-11 | API | AC-12 | Layered Login rate-limit response and `Retry-After`. | Pair/global thresholds return safe `429 RATE_LIMITED` without confirming account existence. | tests/lab-03/auth.api.test.ts | Not Run |
-| API-12 | API | AC-13 | Missing, malformed, invalid-signature, expired access token and revoked authoritative session. | Protected endpoints return the approved `401` family without protected data. | tests/lab-03/authorization.api.test.ts | Not Run |
-| API-13 | API | AC-14 | Direct role authorization across Requester, IT Staff, Admin non-owner, and Admin owner. | Forbidden role/capability calls return `403` even if the corresponding UI could be bypassed. | tests/lab-03/authorization.api.test.ts | Not Run |
+| API-01 | API | AC-01 | Valid active User Login. | `200`; refresh cookie issued; body contains only access token and expiry; server session is created through mocked persistence boundary. | tests/lab-03/auth.api.test.ts | Pass |
+| API-02 | API | AC-02 | Unknown email, inactive/deleted User, and wrong password. | All cases return identical `401 AUTHENTICATION_FAILED` message/body shape; no account-state detail leaks. | tests/lab-03/auth.api.test.ts | Pass |
+| API-03 | API | AC-03 | Initial-password Login, restricted current-user access, and restricted refresh. | `/auth/me` reports `PASSWORD_CHANGE_REQUIRED`; refresh preserves that stage; normal protected business endpoint returns `403 PASSWORD_CHANGE_REQUIRED`. | tests/lab-03/auth.api.test.ts | Pass |
+| API-04 | API | AC-04 | Mandatory password-change request, validation, and terminal restricted-session behavior. | Valid new password returns `204`, clears/revokes restricted session, and subsequent old session access fails until new Login. | tests/lab-03/auth.api.test.ts | Pass |
+| API-05 | API | AC-05 | Normal Change Password including wrong current password and successful all-session revocation. | Wrong current password is safe; successful change returns `204`, revokes sessions and requires Login. | tests/lab-03/auth.api.test.ts | Pass |
+| API-06 | API | AC-06 | Restricted, non-Remember, and Remember expiry boundaries with injected clock. | Exact 15-minute, 8-hour, 30-day idle, and 90-day absolute boundaries match contract without real-time sleeps. | tests/lab-03/auth.api.test.ts | Pass |
+| API-07 | API | AC-07 | Refresh success and rotation. | Cookie token rotates; response contains new access token; old current hash becomes previous hash through service boundary. | tests/lab-03/auth.api.test.ts | Pass |
+| API-08 | API | AC-08 | Previous refresh-token reuse immediately before/at/after the 30-second ambiguity deadline. | At or before the deadline, the locked session performs exactly one fresh rotation without revocation and returns that rotation's credentials; after the deadline, or after the token is no longer current/previous, it revokes and returns `401 SESSION_INVALID`. | tests/lab-03/auth.api.test.ts | Pass |
+| API-09 | API | AC-10 | Logout with valid, missing, expired, malformed, or invalid refresh credentials; repeat Logout. | Only an authenticated refresh credential revokes the intended session; invalid credentials cannot revoke another session; the cookie is cleared and repeat call remains `204`. | tests/lab-03/auth.api.test.ts | Pass |
+| API-10 | API | AC-11 | Logout All with a FULL authenticated session. | All active target sessions are revoked; current cookie is cleared; prior tokens no longer authorize requests. | tests/lab-03/auth.api.test.ts | Pass |
+| API-11 | API | AC-12 | Layered Login rate-limit response and `Retry-After`. | Pair/global thresholds return safe `429 RATE_LIMITED` without confirming account existence. | tests/lab-03/auth.api.test.ts | Pass |
+| API-12 | API | AC-13 | Missing, malformed, invalid-signature, expired access token and revoked authoritative session. | Protected endpoints return the approved `401` family without protected data. | tests/lab-03/authorization.api.test.ts | Pass |
+| API-13 | API | AC-14 | Requester role guard enforcement. Authenticated Requester reaches Requester-protected routes; authenticated IT Staff and Administrator receive `403 FORBIDDEN`. Resource-owner-dependent Administrator behavior is verified by Issue 5/6 tests. | Requester reaches the protected route successfully; IT Staff and Administrator are rejected with `403 FORBIDDEN` before Requester data access. Administrator non-owner/owner Ticket capability remains covered by API-23 and later Issue 5/6 tests. | tests/lab-03/auth.api.test.ts | Pass |
 | API-14 | API | AC-15 | Requester Ticket create/list request attempts to provide another requester identity in headers/query/body. | Backend scope remains authenticated User; foreign requester input cannot change ownership and unsupported ownership fields are rejected with `400 VALIDATION_ERROR`. | tests/lab-03/authorization.api.test.ts; tests/lab-03/requester-regression.api.test.ts | Not Run |
 | API-15 | API | AC-16 | Requester direct-open of another Requester's Ticket/Attachment and malformed/missing public IDs. | All unavailable/cross-owner cases use the same safe `404 NOT_FOUND` without owner/existence leakage. | tests/lab-03/authorization.api.test.ts | Not Run |
 | API-16 | API | AC-17 | Authenticated Requester Create Ticket/list/detail/idempotent replay regression. | Lab 2 Ticket request validation, canonical idempotency, direct DTO behavior, search/filter/sort/page, and current-state replay continue under auth. | tests/lab-03/requester-regression.api.test.ts | Not Run |
@@ -566,7 +575,7 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | API-51 | API | AC-52 | Last active Administrator protection. | Demotion/deactivation of last active Admin returns conflict; another active Admin makes otherwise valid target operation possible. | tests/lab-03/users-admin.api.test.ts | Not Run |
 | API-52 | API | AC-53 | Set new initial password for another User. | Returns one generated password, sets must-change, revokes all target sessions; password value is not included in later GET User. | tests/lab-03/users-admin.api.test.ts | Not Run |
 | API-53 | API | AC-54 | Non-Administrator calls every User Management route. | All reads/writes are `403 FORBIDDEN`; no User list/detail/security data is returned. | tests/lab-03/authorization.api.test.ts; tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-54 | API | AC-64 | CORS, cookie-origin check, no-store, request correlation, centralized safe errors and logging redaction. | Credentialed approved origin works; disallowed cookie mutation origin fails; approved headers exposed; logs/errors omit secrets, credentials, note content and DB internals. | tests/lab-03/auth-transport.api.test.ts; tests/lab-03/error-contract.api.test.ts | Not Run |
+| API-54 | API | AC-64 | CORS, cookie-origin check, no-store, request correlation, centralized safe errors and logging redaction. | Credentialed approved origin works; disallowed cookie mutation origin fails; approved headers exposed; logs/errors omit secrets, credentials, note content and DB internals. | tests/lab-03/auth-transport.api.test.ts; tests/lab-03/error-contract.api.test.ts | Pass |
 | API-55 | API | AC-17, AC-24, AC-64 | Staff/Admin existing Attachment metadata/preview/download read routes. | Authorized Ticket readers can read existing evidence; Removed binary remains Gone; no Staff/Admin Attachment write route exists; safe failures leak no cross-owner/requester detail. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
 
 ### 7.1 Planned PostgreSQL Integration Tests
@@ -575,12 +584,12 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| PG-01 | PostgreSQL Integration | AC-65 | Upgrade a populated Lab 2 database through the committed Lab 3 migration. | Existing DevelopmentRequester numeric IDs become User IDs; Ticket Requester ownership, Category/System/Ticket/Attachment/idempotency rows and public Ticket identities are preserved exactly. | tests/lab-03/postgres/migration-upgrade.postgres.test.ts | Not Run |
-| PG-02 | PostgreSQL Integration | AC-64, AC-65 | Fresh Lab 3 schema/migration contract. | User/session/rate-limit/comment/note tables, enums, unique keys, restrictive FKs, Ticket owner/priority/status fields, indexes and `citext` extension/column are present with approved nullability/defaults. | tests/lab-03/postgres/schema-contract.postgres.test.ts | Not Run |
+| PG-01 | PostgreSQL Integration | AC-64–65 | Upgrade a populated Lab 2 database and provision migrated User credentials. | Existing DevelopmentRequester numeric IDs become User IDs; migration leaves unique fail-closed markers, guarded provisioning creates per-User Argon2id hashes and one-time handoff credentials, and Ticket Requester ownership, Category/System/Ticket/Attachment/idempotency rows and public Ticket identities remain exact. | tests/lab-03/postgres/migration-upgrade.postgres.test.ts | Pass |
+| PG-02 | PostgreSQL Integration | AC-64, AC-65 | Fresh Lab 3 schema/migration contract. | User/session/rate-limit/comment/note tables, enums, unique keys, restrictive FKs, Ticket owner/priority/status fields, indexes and `citext` extension/column are present with approved nullability/defaults. | tests/lab-03/postgres/schema-contract.postgres.test.ts | Pass |
 | PG-03 | PostgreSQL Integration | AC-49 | Case-insensitive email unique constraint under real PostgreSQL including concurrent insert/update. | Only one case-insensitive email identity persists; losing transaction maps to duplicate-email behavior. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
-| PG-04 | PostgreSQL Integration | AC-01, AC-48, AC-53, AC-64 | Persisted password/session security representation. | User rows contain encoded Argon2id hashes rather than fixture plaintext; session rows contain refresh hashes and no refresh plaintext column/value. | tests/lab-03/postgres/auth-session.postgres.test.ts | Not Run |
-| PG-05 | PostgreSQL Integration | AC-06–08, AC-10–11 | Real session state across expiry, rotation, previous-token window and revocation. | Row-locked session timestamps/hash transitions enforce the approved deadlines; one valid previous-token reuse rotates without revocation; all-session revocation makes every session inactive. | tests/lab-03/postgres/auth-session.postgres.test.ts | Not Run |
-| PG-06 | PostgreSQL Integration | AC-12 | Concurrent failed Login bucket increments for email/IP and global IP. | Threshold counters do not lose updates under concurrent attempts; blockedUntil/window behavior remains deterministic. | tests/lab-03/postgres/rate-limit.postgres.test.ts | Not Run |
+| PG-04 | PostgreSQL Integration | AC-01, AC-48, AC-53, AC-64 | Persisted password/session security representation. | User rows contain encoded Argon2id hashes rather than fixture plaintext; session rows contain refresh hashes and no refresh plaintext column/value. | tests/lab-03/postgres/auth-session.postgres.test.ts | Pass |
+| PG-05 | PostgreSQL Integration | AC-06–08, AC-10–11 | Real session state across expiry, rotation, previous-token window and revocation. | Row-locked session timestamps/hash transitions enforce the approved deadlines; one valid previous-token reuse rotates without revocation; all-session revocation makes every session inactive. | tests/lab-03/postgres/auth-session.postgres.test.ts | Pass |
+| PG-06 | PostgreSQL Integration | AC-12 | Concurrent failed Login bucket increments for email/IP and global IP. | Threshold counters do not lose updates under concurrent attempts; exact block/window boundaries and successful pair-only clearing preserve deterministic global-IP history. | tests/lab-03/postgres/rate-limit.postgres.test.ts | Pass |
 | PG-07 | PostgreSQL Integration | AC-19, AC-20 | Two separate connections Claim the same unassigned NEW Ticket concurrently. | Exactly one owner wins, Ticket ends OPEN with one owner, losing request observes conflict; no split owner/status commit occurs. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
 | PG-08 | PostgreSQL Integration | AC-20–22 | Concurrent expected-owner reassign/unassign mutations. | Stale expected-owner writer cannot overwrite winner; valid unassign preserves status; only active eligible owner is persisted. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
 | PG-09 | PostgreSQL Integration | AC-19 | Assign previously unassigned NEW Ticket through the owner-update path. | Owner assignment and NEW→OPEN commit atomically or neither commits. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
@@ -591,7 +600,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-14 | PostgreSQL Integration | AC-35–37 | Public Comment thread persistence/order using real relational data. | Root/reply indexes and relationships retrieve newest roots, oldest replies, previews, page boundaries and flattened depth-2 reply targets without broken FK state. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Not Run |
 | PG-15 | PostgreSQL Integration | AC-40 | Internal Note persistence and restrictive author/Ticket relationships. | Valid flat notes persist with author/time relation; historical note evidence is not cascade-deleted by User/Ticket lifecycle operations. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Not Run |
 | PG-16 | PostgreSQL Integration | AC-17, AC-65 | Authenticated migrated Requester uses existing Ticket/Attachment/idempotency data on real PostgreSQL. | Migrated User owns the same Tickets; existing idempotent replay/Attachment lifecycle remains valid after FK evolution. | tests/lab-03/postgres/requester-regression.postgres.test.ts | Not Run |
-| PG-17 | PostgreSQL Integration | AC-66 | Maintenance cleanup against live/expired/revoked session and rate-limit fixtures. | Only eligible technical rows are removed; active valid sessions survive; repeat cleanup changes nothing. | tests/lab-03/postgres/maintenance.postgres.test.ts | Not Run |
+| PG-17 | PostgreSQL Integration | AC-66 | Maintenance cleanup against live/expired/revoked session and rate-limit fixtures. | Only eligible technical rows are removed; active valid sessions survive; repeat cleanup changes nothing. | tests/lab-03/postgres/maintenance.postgres.test.ts | Pass |
 
 ## 8. Planned UI Tests
 
@@ -911,7 +920,8 @@ DATA-01–DATA-11
 ### 14.2 Focused close-gate commands
 
 Commands below are named against the repository scripts and planned Lab 3
-paths. They are required gates, not claims that the tests have already run.
+paths. They remain required gates; the current Issue 2 execution is recorded
+after the command matrix.
 Every focused test title must carry the owning `@issue-N` tag from Section 2;
 unfiltered shared files do not close an Issue.
 
@@ -919,8 +929,18 @@ Issue 2:
 
 ~~~bash
 cd server
-npm test -- tests/lab-03/PasswordService.test.ts tests/lab-03/InitialPasswordGenerator.test.ts tests/lab-03/JwtService.test.ts tests/lab-03/SessionService.test.ts tests/lab-03/LoginRateLimitService.test.ts tests/lab-03/AuthService.test.ts tests/lab-03/MaintenanceService.test.ts tests/lab-03/auth.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/auth-transport.api.test.ts tests/lab-03/error-contract.api.test.ts -t '@issue-2'
-NODE_ENV=test TEST_DATABASE_URL=<dedicated_lab3_test_url> npm test -- tests/lab-03/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/schema-contract.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/rate-limit.postgres.test.ts tests/lab-03/postgres/maintenance.postgres.test.ts -t '@issue-2'
+npm test -- tests/lab-03/PasswordService.test.ts tests/lab-03/InitialPasswordGenerator.test.ts tests/lab-03/JwtService.test.ts tests/lab-03/SessionService.test.ts tests/lab-03/LoginRateLimitService.test.ts tests/lab-03/AuthService.test.ts tests/lab-03/MaintenanceService.test.ts tests/lab-03/databaseTargetGuard.test.ts tests/lab-03/auth.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/auth-transport.api.test.ts tests/lab-03/error-contract.api.test.ts -t '@issue-2'
+LAB3_TEST_DATABASE_URL=<dedicated_lab3_test_url>
+LAB3_BASELINE_DATABASE_URL=<captured_normal_database_url>
+LAB3_BASELINE_DIRECT_URL=<captured_normal_direct_url>
+
+NODE_ENV=test \
+TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DIRECT_URL="$LAB3_TEST_DATABASE_URL" \
+LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" \
+LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" \
+npm test -- tests/lab-03/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/schema-contract.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/rate-limit.postgres.test.ts tests/lab-03/postgres/maintenance.postgres.test.ts -t '@issue-2'
 npm run build
 ~~~
 
@@ -993,6 +1013,32 @@ applies to PG-03 and PG-12–PG-16 in Issue 6. A focused gate is closed
 only after its listed tests, required build, and required browser evidence
 pass; “when available” is not a valid substitute.
 
+Issue 2 execution record for 2026-09-13:
+
+- Dedicated disposable Docker target: `toktickit_lab3_test` at `127.0.0.1:55433`; baseline `DATABASE_URL` and `DIRECT_URL` values were captured locally and were not recorded.
+- Guarded `prisma migrate status`: Pass; the target was identified before the write command and reported up to date after deployment.
+- Guarded `prisma migrate deploy`: Pass; all four committed migrations applied with no pending migrations afterward.
+- Guarded `npm run prisma:provision-migrated-passwords`: Pass; fresh target had no migrated Users to provision and emitted only a sanitized count.
+- Guarded `npm run prisma:seed`, twice: Pass; both runs reported the same non-secret counts (`categories:4`, `relatedSystems:7`, `users:10`, `tickets:6`).
+- Guarded `npm run maintenance:cleanup`, twice: Pass; both runs reported zero remaining eligible technical rows.
+- Exact focused Issue 2 unit/API command: Pass; 12 files, 47 tests.
+- Exact five-suite Issue 2 PostgreSQL command: Pass; 5 files, 7 tests.
+- Full server Lab 1–3 regression: Pass; 48 files, 721 tests.
+- Full client regression: Pass; 10 files, 296 tests.
+- Client build: Pass.
+- Server build: Pass.
+- Changed-file security/credential inspection: Pass; current-head inspection found no production credentials, database URLs, refresh plaintext, password plaintext/hash snapshots, JWT secret, or logged one-time credential. The ignored local seed/migrated-password handoff files remain operator-local with mode `0600`; GitGuardian incident `37228452` was dispositioned as a false positive caused by a synthetic invalid-password fixture in historical test-only commit `d8691ba`.
+- `git diff --check`: Pass.
+
+The PostgreSQL migration-upgrade test creates an isolated schema inside the
+dedicated target, applies the three committed Lab 2 migrations, inserts
+representative populated Lab 2 rows, applies the committed Lab 3 migration,
+verifies unique fail-closed password markers, provisions per-User Argon2id
+hashes with an in-memory test handoff, and verifies preserved numeric IDs,
+public identifiers, lifecycle state, and requester/User foreign keys. PG-05 now exercises real persisted session
+creation, hash rotation, previous-token rescue and post-window revocation,
+restricted/non-Remember/Remember expiry, logout, and all-session revocation.
+
 ### 14.3 Issue 7 final rerun/release gate
 
 Issue 7 performs these as explicit reruns:
@@ -1038,15 +1084,15 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | Evidence ID | Type | Requirement / AC | Required Proof | Expected Result / Final |
 | --- | --- | --- | --- | --- |
 | DATA-01 | Delivery | Handout Spec DD | Required `docs/lab-03/` files exist before main implementation work and remain mutually consistent. | Rendered specification/tests/ui/api documents are committed; reviewer/ai_use files are added through the Lab workflow. | Not Run |
-| DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Not Run |
-| DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates. | Not Run |
-| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | No real secret, JWT signing secret, refresh plaintext, password plaintext/hash exposure, DB URL, or one-time password is committed/logged in prohibited locations. | Not Run |
+| DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
+| DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
+| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`. |
 | DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Not Run |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Not Run |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Not Run |
 | DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Tracked evidence exists under `docs/lab-03/evidence/screenshots/` and is readable and passes Section 12 checklist. | Not Run |
 | DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Not Run |
-| DATA-10 | Maintenance | AC-66 | Documented maintenance command and safe repeat-run evidence. | Command targets only eligible session/rate-limit technical state and can be repeated safely. | Not Run |
+| DATA-10 | Maintenance | AC-66 | Documented maintenance command and safe repeat-run evidence. | Command targets only eligible session/rate-limit technical state and can be repeated safely. | Pass |
 | DATA-11 | Workflow | DoD | Feature branches/PRs/focused close gates follow Lab 3 staging flow. | No implementation Issue is marked Done before its owned focused tests pass; final release regression does not replace feature gates. | Not Run |
 
 ### 15.1 Explicit Security and Exclusion Evidence

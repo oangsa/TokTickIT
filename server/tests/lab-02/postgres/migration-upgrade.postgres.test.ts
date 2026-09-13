@@ -88,6 +88,7 @@ const BOOLEAN = ["boolean", "bool", null] as const;
 const TIMESTAMPTZ = ["timestamp with time zone", "timestamptz", null] as const;
 const UUID = ["uuid", "uuid", null] as const;
 const BYTEA = ["bytea", "bytea", null] as const;
+const CITEXT = ["USER-DEFINED", "citext", null] as const;
 const varchar = (length: number): ExpectedColumnType => [
   "character varying",
   "varchar",
@@ -111,10 +112,14 @@ const AUDIT_COLUMNS = {
 };
 
 const EXPECTED_COLUMNS = {
-  development_requester: {
+  user: {
     id: column(INTEGER, { defaultPattern: /nextval/ }),
+    public_id: column(UUID, { defaultPattern: /gen_random_uuid/ }),
     name: column(varchar(100)),
-    email: column(varchar(254)),
+    email: column(CITEXT),
+    role: column(nativeEnum("UserRole")),
+    password_hash: column(varchar(255)),
+    must_change_password: column(BOOLEAN),
     is_active: column(BOOLEAN, { defaultPattern: /true/i }),
     deleted: column(BOOLEAN, { defaultPattern: /false/i }),
     ...AUDIT_COLUMNS,
@@ -138,12 +143,15 @@ const EXPECTED_COLUMNS = {
     public_id: column(UUID),
     ticket_number: column(varchar(25)),
     requester_id: column(INTEGER),
+    owner_user_id: column(INTEGER, { nullable: true }),
     category_id: column(INTEGER),
     related_system_id: column(INTEGER),
     summary: column(varchar(150)),
     requested_priority: column(nativeEnum("RequestedPriority")),
+    it_priority: column(nativeEnum("TicketPriority"), { defaultPattern: /LOW/ }),
     description: column(varchar(2000)),
     current_status: column(nativeEnum("TicketStatus"), { defaultPattern: /NEW/ }),
+    requester_resolution_confirmed_at: column(TIMESTAMPTZ, { nullable: true }),
     deleted: column(BOOLEAN, { defaultPattern: /false/i }),
     ...AUDIT_COLUMNS,
   },
@@ -151,7 +159,7 @@ const EXPECTED_COLUMNS = {
     id: column(INTEGER, { defaultPattern: /nextval/ }),
     storage_key: column(UUID),
     ticket_id: column(INTEGER, { nullable: true }),
-    uploaded_by_requester_id: column(INTEGER),
+    uploaded_by_user_id: column(INTEGER),
     original_name: column(varchar(255)),
     extension: column(varchar(10)),
     mime_type: column(varchar(50)),
@@ -177,7 +185,7 @@ const EXPECTED_COLUMNS = {
 
 async function readSeedSnapshot(
   prisma: PrismaClient,
-  tableName: "category" | "related_system" | "development_requester",
+  tableName: "category" | "related_system" | "user",
 ): Promise<SeedSnapshot[]> {
   if (tableName === "category") {
     return prisma.$queryRaw<SeedSnapshot[]>`
@@ -206,7 +214,7 @@ async function readSeedSnapshot(
            to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.MS') AS created_at,
            updated_by,
            to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.MS') AS updated_at
-    FROM development_requester
+    FROM "user"
     ORDER BY id
   `;
 }
@@ -231,16 +239,16 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public'
-        AND table_name IN ('development_requester', 'category', 'related_system', 'ticket', 'attachment', 'idempotency_record')
+        AND table_name IN ('user', 'category', 'related_system', 'ticket', 'attachment', 'idempotency_record')
       ORDER BY table_name
     `;
     expect(tables.map((row) => row.table_name)).toEqual([
       "attachment",
       "category",
-      "development_requester",
       "idempotency_record",
       "related_system",
       "ticket",
+      "user",
     ]);
 
     const columns = await prisma.$queryRaw<ColumnRow[]>`
@@ -248,7 +256,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
              column_default, character_maximum_length
       FROM information_schema.columns
       WHERE table_schema = 'public'
-        AND table_name IN ('development_requester', 'category', 'related_system', 'ticket', 'attachment', 'idempotency_record')
+        AND table_name IN ('user', 'category', 'related_system', 'ticket', 'attachment', 'idempotency_record')
     `;
     const columnByName = new Map(
       columns.map((column) => [`${column.table_name}.${column.column_name}`, column]),
@@ -280,7 +288,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       SELECT t.typname AS type_name, e.enumlabel AS enum_label
       FROM pg_type t
       JOIN pg_enum e ON e.enumtypid = t.oid
-      WHERE t.typname IN ('RequestedPriority', 'TicketStatus', 'IdempotencyStatus')
+      WHERE t.typname IN ('RequestedPriority', 'TicketStatus', 'IdempotencyStatus', 'TicketPriority', 'UserRole')
       ORDER BY t.typname, e.enumsortorder
     `;
     expect(enumValues).toEqual([
@@ -289,7 +297,20 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       { type_name: "RequestedPriority", enum_label: "LOW" },
       { type_name: "RequestedPriority", enum_label: "MEDIUM" },
       { type_name: "RequestedPriority", enum_label: "HIGH" },
+      { type_name: "TicketPriority", enum_label: "LOW" },
+      { type_name: "TicketPriority", enum_label: "MEDIUM" },
+      { type_name: "TicketPriority", enum_label: "HIGH" },
       { type_name: "TicketStatus", enum_label: "NEW" },
+      { type_name: "TicketStatus", enum_label: "OPEN" },
+      { type_name: "TicketStatus", enum_label: "IN_PROGRESS" },
+      { type_name: "TicketStatus", enum_label: "WAITING_FOR_REQUESTER" },
+      { type_name: "TicketStatus", enum_label: "RESOLVED" },
+      { type_name: "TicketStatus", enum_label: "CLOSED" },
+      { type_name: "TicketStatus", enum_label: "REOPENED" },
+      { type_name: "TicketStatus", enum_label: "CANCELLED" },
+      { type_name: "UserRole", enum_label: "REQUESTER" },
+      { type_name: "UserRole", enum_label: "IT_STAFF" },
+      { type_name: "UserRole", enum_label: "ADMINISTRATOR" },
     ]);
 
     const constraints = await prisma.$queryRaw<ConstraintRow[]>`
@@ -297,7 +318,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       FROM information_schema.table_constraints
       WHERE table_schema = 'public'
         AND table_name IN (
-          'development_requester',
+          'user',
           'category',
           'related_system',
           'ticket',
@@ -309,8 +330,10 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       constraints.map((constraint) => [constraint.constraint_name, constraint]),
     );
     const expectedConstraintTypes = {
-      development_requester_pkey: "PRIMARY KEY",
-      development_requester_email_key: "UNIQUE",
+      user_pkey: "PRIMARY KEY",
+      user_email_key: "UNIQUE",
+      user_public_id_key: "UNIQUE",
+      user_email_length_check: "CHECK",
       category_pkey: "PRIMARY KEY",
       related_system_pkey: "PRIMARY KEY",
       related_system_name_key: "UNIQUE",
@@ -372,10 +395,10 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         confupdtype: "r",
       },
       {
-        conname: "attachment_uploaded_by_requester_id_fkey",
+        conname: "attachment_uploaded_by_user_id_fkey",
         child_table: "attachment",
-        child_column: "uploaded_by_requester_id",
-        parent_table: "development_requester",
+        child_column: "uploaded_by_user_id",
+        parent_table: "\"user\"",
         parent_column: "id",
         confdeltype: "r",
         confupdtype: "r",
@@ -384,7 +407,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         conname: "idempotency_record_requester_id_fkey",
         child_table: "idempotency_record",
         child_column: "requester_id",
-        parent_table: "development_requester",
+        parent_table: "\"user\"",
         parent_column: "id",
         confdeltype: "r",
         confupdtype: "r",
@@ -408,6 +431,15 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         confupdtype: "r",
       },
       {
+        conname: "ticket_owner_user_id_fkey",
+        child_table: "ticket",
+        child_column: "owner_user_id",
+        parent_table: "\"user\"",
+        parent_column: "id",
+        confdeltype: "r",
+        confupdtype: "r",
+      },
+      {
         conname: "ticket_related_system_id_fkey",
         child_table: "ticket",
         child_column: "related_system_id",
@@ -420,7 +452,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         conname: "ticket_requester_id_fkey",
         child_table: "ticket",
         child_column: "requester_id",
-        parent_table: "development_requester",
+        parent_table: "\"user\"",
         parent_column: "id",
         confdeltype: "r",
         confupdtype: "r",
@@ -483,7 +515,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         "deleted = false",
       ],
       attachment_uploader_ticket_idx: [
-        "(uploaded_by_requester_id, ticket_id)",
+        "(uploaded_by_user_id, ticket_id)",
       ],
       idempotency_record_expires_at_id_idx: ["(expires_at, id)"],
     };
@@ -536,7 +568,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
     const first = {
       categories: await readSeedSnapshot(prisma, "category"),
       systems: await readSeedSnapshot(prisma, "related_system"),
-      requesters: await readSeedSnapshot(prisma, "development_requester"),
+      users: await readSeedSnapshot(prisma, "user"),
     };
 
     expect(first.categories.map((row) => row.label)).toEqual([
@@ -554,7 +586,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       "Email",
       "Learning Management System",
     ]);
-    expect(first.requesters.map(({ label, name, is_active }) => ({
+    expect(first.users.map(({ label, name, is_active }) => ({
       email: label,
       name,
       isActive: is_active,
@@ -584,6 +616,31 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         name: "Eve Wilson",
         isActive: false,
       },
+      {
+        email: "iris.patel@example.com",
+        name: "Iris Patel",
+        isActive: true,
+      },
+      {
+        email: "jon.bell@example.com",
+        name: "Jon Bell",
+        isActive: true,
+      },
+      {
+        email: "kim.nguyen@example.com",
+        name: "Kim Nguyen",
+        isActive: true,
+      },
+      {
+        email: "lee.carter@example.com",
+        name: "Lee Carter",
+        isActive: false,
+      },
+      {
+        email: "morgan.admin@example.com",
+        name: "Morgan Admin",
+        isActive: true,
+      },
     ]);
     for (const rows of Object.values(first)) {
       for (const row of rows) {
@@ -597,7 +654,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
     const second = {
       categories: await readSeedSnapshot(prisma, "category"),
       systems: await readSeedSnapshot(prisma, "related_system"),
-      requesters: await readSeedSnapshot(prisma, "development_requester"),
+      users: await readSeedSnapshot(prisma, "user"),
     };
     expect(second).toEqual(first);
   }, 120_000);

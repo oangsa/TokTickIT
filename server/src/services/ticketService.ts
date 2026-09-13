@@ -64,7 +64,7 @@ export interface TicketDTO {
   summary: string;
   description: string;
   requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
+  currentStatus: "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
   attachments: AttachmentDTO[];
   createdBy: string;
   createdAt: string;
@@ -150,7 +150,7 @@ export async function findTicketForRequester(
    * and arrives here through an `as number` cast. Prisma reads `undefined` in a
    * `where` as "predicate not supplied", so an unresolved Requester would drop
    * the ownership predicate and answer 200 with another Requester's Ticket.
-   * `requireRequesterContext` covers this route today; this makes a future gap
+   * authenticated middleware covers this route today; this makes a future gap
    * in that cover a loud 500 instead of a scope leak.
    */
   if (!Number.isSafeInteger(requesterId) || requesterId <= 0) {
@@ -418,6 +418,7 @@ export class TicketService {
             relatedSystemId: input.payload.relatedSystemId,
             summary: input.payload.summary,
             requestedPriority: input.payload.requestedPriority,
+            itPriority: input.payload.requestedPriority,
             description: input.payload.description,
             currentStatus: "NEW",
             deleted: false,

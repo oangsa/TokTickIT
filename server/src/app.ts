@@ -1,10 +1,11 @@
 import express, { Request, Response } from "express";
 
 import { errorHandler, notFoundHandler } from "./http/errors.js";
+import { requireFullSession, requireRole } from "./middleware/authentication.js";
 import { createCorsMiddleware } from "./middleware/cors.js";
 import { requestLog } from "./middleware/requestLog.js";
-import { requireRequesterContext } from "./middleware/requesterContext.js";
 import { transport } from "./middleware/transport.js";
+import { authRouter } from "./routes/auth.js";
 import { attachmentsRouter } from "./routes/attachments.js";
 import { referenceDataRouter } from "./routes/referenceData.js";
 import { ticketsRouter } from "./routes/tickets.js";
@@ -19,12 +20,11 @@ export const app = express();
 //   and the merged Vary;
 //   the JSON parser before the guard so a 413 or a parse-400 is not masked by a
 //   missing-header 400;
-//   the guard mounted at "/api", default-deny with a two-route exemption.
+//   authentication middleware is mounted after public health/auth routes.
 app.use(createCorsMiddleware());
 app.use(transport);
 app.use(express.json({ limit: 131072 }));
 app.use(requestLog);
-app.use("/api", requireRequesterContext);
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
@@ -33,22 +33,23 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", service: "TokTickIT API" });
 });
 
+app.use("/api", authRouter);
+app.use("/api", requireFullSession());
+
 // ---------------------------------------------------------------------------
-// Issue 20 — Development Requester bootstrap.
-// Issue 21 — Categories (moved here from the Lab 1 inline handler and widened
-// from { id, name } to the full CategoryDTO) and Related Systems.
+// Reference data and authenticated Lab 2 requester routes.
 // ---------------------------------------------------------------------------
 app.use("/api", referenceDataRouter);
 
 // ---------------------------------------------------------------------------
 // Issue 21 — Ticket creation
 // ---------------------------------------------------------------------------
-app.use("/api", ticketsRouter);
+app.use("/api/users/me", requireRole("REQUESTER"), ticketsRouter);
 
 // ---------------------------------------------------------------------------
 // Issue 24 — Attachment lifecycle
 // ---------------------------------------------------------------------------
-app.use("/api", attachmentsRouter);
+app.use("/api/users/me", requireRole("REQUESTER"), attachmentsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -5,6 +5,7 @@ import type { PrismaClient } from "../../../src/generated/prisma/client.js";
 import { findTicketForRequester } from "../../../src/services/ticketService.js";
 import {
   assertLab2TestDatabase,
+  createRequesterUser,
   createTestPrisma,
   deployMigrations,
   resetTestSchema,
@@ -56,9 +57,7 @@ describe.sequential("Lab 2 Ticket Detail PostgreSQL read", () => {
     await deployMigrations(target);
 
     const requester = (name: string, email: string) =>
-      prisma.developmentRequester.create({
-        data: { name, email, createdBy: "system", updatedBy: "system" },
-      });
+      createRequesterUser(prisma, { name, email });
 
     const [alice, bob] = await Promise.all([
       requester("Detail Alice", "detail.alice@example.com"),

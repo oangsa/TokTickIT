@@ -20,6 +20,12 @@ vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
 import { app } from "../../src/app.js";
 import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import {
+  bearerToken,
+  configureRequesterAuth,
+  testUser,
+  type RequesterTokens,
+} from "./support/authenticatedRequester.js";
 import { listTicketsForRequester } from "../../src/services/ticketListService.js";
 import { parseTicketListQuery } from "../../src/services/ticketQueryValidator.js";
 
@@ -48,6 +54,10 @@ const ALICE = {
 };
 
 const BOB = { ...ALICE, id: 4, name: "Bob Smith", email: "bob.smith@example.com" };
+const ALICE_AUTH = testUser(ALICE);
+const BOB_AUTH = testUser(BOB);
+
+let tokens: RequesterTokens;
 
 function ticketRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -66,8 +76,8 @@ function ticketRow(overrides: Record<string, unknown> = {}) {
 }
 
 function list(query = "", requesterId = ALICE.id) {
-  const path = query === "" ? "/api/tickets" : `/api/tickets?${query}`;
-  return request(app).get(path).set("X-Requester-Id", String(requesterId));
+  const path = query === "" ? "/api/users/me/tickets" : `/api/users/me/tickets?${query}`;
+  return request(app).get(path).set("Authorization", bearerToken(tokens, requesterId));
 }
 
 /* The arguments the route handed Prisma, for scope and composition assertions. */
@@ -89,8 +99,9 @@ async function expectRejected(query: string, field: string) {
   return response;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  tokens = await configureRequesterAuth(prismaMock, [ALICE_AUTH, BOB_AUTH]);
   prismaMock.developmentRequester.findFirst.mockImplementation(
     ({ where }: { where: { id: number } }) =>
       Promise.resolve(where.id === ALICE.id ? ALICE : where.id === BOB.id ? BOB : null),
@@ -169,10 +180,10 @@ describe("Ticket list ownership and projection (API-21)", () => {
     }
   });
 
-  it("requires a Requester context on the collection route", async () => {
-    const response = await request(app).get("/api/tickets").expect(400);
+  it("requires an authenticated session on the collection route", async () => {
+    const response = await request(app).get("/api/users/me/tickets").expect(401);
 
-    expect(response.body.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(response.body.code).toBe("UNAUTHENTICATED");
     expect(prismaMock.ticket.findMany).not.toHaveBeenCalled();
   });
 });

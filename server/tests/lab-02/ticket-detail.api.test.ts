@@ -3,10 +3,12 @@ import request from "supertest";
 
 import {
   ALICE,
+  ALICE_AUTH,
   attachmentRow,
   prismaMock,
   ticketRow,
 } from "./support/ticketPrismaMock.js";
+import { bearerToken, configureRequesterAuth, type RequesterTokens } from "./support/authenticatedRequester.js";
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
@@ -32,14 +34,19 @@ const REMOVED_ATTACHMENT = attachmentRow({
   deleted: true,
 });
 
-function get(publicId: string, requesterId: number | null = ALICE.id) {
-  const call = request(app).get(`/api/tickets/${publicId}`);
+let tokens: RequesterTokens;
 
-  return requesterId === null ? call : call.set("X-Requester-Id", String(requesterId));
+function get(publicId: string, requesterId: number | null = ALICE_AUTH.id) {
+  const call = request(app).get(`/api/users/me/tickets/${publicId}`);
+
+  return requesterId === null
+    ? call
+    : call.set("Authorization", bearerToken(tokens, requesterId));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  tokens = await configureRequesterAuth(prismaMock, [ALICE_AUTH]);
   prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
   prismaMock.ticket.findFirst.mockResolvedValue(
     ticketRow({ attachments: [ACTIVE_ATTACHMENT, REMOVED_ATTACHMENT] }),
@@ -216,19 +223,22 @@ describe("API-38 historical Category and Related System metadata", () => {
   });
 });
 
-describe("Requester context on Ticket Detail", () => {
-  it.each([
-    ["missing", null],
-    ["unknown", 404],
-  ])("rejects a %s Requester before any Ticket is read", async (label, requesterId) => {
-    if (label === "unknown") {
-      prismaMock.developmentRequester.findFirst.mockResolvedValue(null);
-    }
+describe("Authentication on Ticket Detail", () => {
+  it("rejects a request without an authenticated session before any Ticket is read", async () => {
+    const res = await get(PUBLIC_ID, null);
 
-    const res = await get(PUBLIC_ID, requesterId as number | null);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+    expect(prismaMock.ticket.findFirst).not.toHaveBeenCalled();
+  });
 
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
+  it("does not treat the removed requester selector as authentication", async () => {
+    const res = await request(app)
+      .get(`/api/users/me/tickets/${PUBLIC_ID}`)
+      .set("X-Requester-Id", String(ALICE.id));
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
     expect(prismaMock.ticket.findFirst).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ import type { PrismaClient } from "../../../src/generated/prisma/client.js";
 import { AttachmentService } from "../../../src/services/attachmentService.js";
 import {
   assertLab2TestDatabase,
+  createRequesterUser,
   createTestPrisma,
   deployMigrations,
   resetTestSchema,
@@ -37,8 +38,9 @@ function file(name: string) {
 }
 
 async function createFixture(prisma: PrismaClient): Promise<Fixture> {
-  const requester = await prisma.developmentRequester.create({
-    data: { name: "Concurrency Requester", email: ACTOR, createdBy: "system", updatedBy: "system" },
+  const requester = await createRequesterUser(prisma, {
+    name: "Concurrency Requester",
+    email: ACTOR,
   });
   const category = await prisma.category.create({
     data: { name: "Concurrency Category", createdBy: "system", updatedBy: "system" },

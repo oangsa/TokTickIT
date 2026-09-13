@@ -6,7 +6,9 @@ import { promisify } from "node:util";
 import { config } from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+import { assertLab3TargetEnvironment } from "../../../src/databaseTargetGuard.js";
 import { PrismaClient } from "../../../src/generated/prisma/client.js";
+import { DUMMY_PASSWORD_HASH } from "../../../src/services/passwordService.js";
 
 config({ path: [".env.local", ".env"] });
 
@@ -17,6 +19,28 @@ const lab1MigrationPath = `${serverRoot}prisma/migrations/20260808064543_add_cat
 export interface TestDatabaseTarget {
   url: string;
   databaseName: string;
+}
+
+/*
+ * Lab 2 PostgreSQL behavior now runs against the evolved Lab 3 schema. Keep
+ * the old fixture intent (a requester identity) without reintroducing a
+ * DevelopmentRequester Prisma model that no longer exists in the database.
+ */
+export function createRequesterUser(
+  prisma: PrismaClient,
+  input: { name: string; email: string },
+) {
+  return prisma.user.create({
+    data: {
+      name: input.name,
+      email: input.email,
+      role: "REQUESTER",
+      passwordHash: DUMMY_PASSWORD_HASH,
+      mustChangePassword: false,
+      createdBy: "system",
+      updatedBy: "system",
+    },
+  });
 }
 
 function redactDatabaseUrls(value: string): string {
@@ -77,6 +101,20 @@ export function assertLab2TestDatabase(): TestDatabaseTarget {
   if (!/(^|[_-])test([_-]|$)/i.test(databaseName)) {
     throw new Error("TEST_DATABASE_URL database name must contain an explicit test marker");
   }
+
+  /*
+   * The Lab 3 schema supersedes the Lab 2 schema in place. The historical Lab
+   * 2 PostgreSQL suites therefore run against the disposable Lab 3 target in
+   * the cross-lab regression job, while retaining their original assertions.
+   */
+  if (/(^|[_-])lab3([_-]|$)/i.test(databaseName)) {
+    const guardedUrl = assertLab3TargetEnvironment();
+    if (guardedUrl !== rawTestUrl) {
+      throw new Error("Test database target must match the guarded TEST_DATABASE_URL");
+    }
+    return { url: rawTestUrl, databaseName };
+  }
+
   if (!/(^|[_-])lab2([_-]|$)/i.test(databaseName)) {
     throw new Error(
       "TEST_DATABASE_URL database name must identify the dedicated Lab 2 test database",

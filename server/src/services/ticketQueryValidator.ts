@@ -38,7 +38,16 @@ export const TICKET_SORT_FIELDS = [
   "relatedSystemId",
 ] as const;
 
-export const TICKET_STATUSES = ["NEW"] as const;
+export const TICKET_STATUSES = [
+  "NEW",
+  "OPEN",
+  "IN_PROGRESS",
+  "WAITING_FOR_REQUESTER",
+  "RESOLVED",
+  "CLOSED",
+  "REOPENED",
+  "CANCELLED",
+] as const;
 
 export const SORT_DIRECTIONS = ["asc", "desc"] as const;
 
