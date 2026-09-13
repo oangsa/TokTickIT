@@ -5,6 +5,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient, type Prisma } from "../../../src/generated/prisma/client.js";
+import { provisionMigratedPasswordsInTransaction } from "../../../src/services/migratedPasswordProvisioning.js";
+import { TEST_ARGON2_PROFILE, verifyPassword } from "../../../src/services/passwordService.js";
 import { assertLab3TestDatabase, createTestPrisma, type Lab3TestTarget } from "./testDatabase.js";
 
 const migrationRoot = fileURLToPath(new URL("../../../prisma/migrations/", import.meta.url));
@@ -229,6 +231,49 @@ describe("Lab 3 populated migration @issue-2", () => {
           { id: 301, email: "legacy.requester@example.com", is_active: true, deleted: false },
           { id: 302, email: "deleted.requester@example.com", is_active: false, deleted: true },
         ]);
+
+        const migrationCredentials: Record<string, string> = {};
+        const unprovisionedUsers = await tx.$queryRawUnsafe<Array<{
+          id: number;
+          name: string;
+          email: string;
+          password_hash: string;
+          must_change_password: boolean;
+        }>>(
+          `SELECT id, name, email::text AS email, password_hash, must_change_password FROM ${schema}."user" WHERE id IN (301, 302) ORDER BY id`,
+        );
+        expect(unprovisionedUsers).toHaveLength(2);
+        expect(unprovisionedUsers.every((user) => user.password_hash.startsWith("!migrated-password-unprovisioned:"))).toBe(true);
+        expect(new Set(unprovisionedUsers.map((user) => user.password_hash)).size).toBe(2);
+        expect(unprovisionedUsers.every((user) => user.must_change_password)).toBe(true);
+        expect(await verifyPassword(unprovisionedUsers[0]!.password_hash, "Legacy Requester@passWorD!123")).toBe(false);
+
+        expect(await provisionMigratedPasswordsInTransaction(tx, {
+          profile: TEST_ARGON2_PROFILE,
+          persistHandoff: (credentials) => Object.assign(migrationCredentials, credentials),
+        })).toBe(2);
+        expect(new Set(Object.values(migrationCredentials)).size).toBe(2);
+
+        const provisionedUsers = await tx.$queryRawUnsafe<Array<{
+          id: number;
+          name: string;
+          email: string;
+          password_hash: string;
+          must_change_password: boolean;
+        }>>(
+          `SELECT id, name, email::text AS email, password_hash, must_change_password FROM ${schema}."user" WHERE id IN (301, 302) ORDER BY id`,
+        );
+        expect(provisionedUsers.every((user) => /^\$argon2id\$/.test(user.password_hash))).toBe(true);
+        expect(provisionedUsers.every((user) => user.must_change_password)).toBe(true);
+        for (const user of provisionedUsers) {
+          const password = migrationCredentials[user.email];
+          if (!password) {
+            throw new Error("Migrated password handoff missing test credential");
+          }
+          expect(await verifyPassword(user.password_hash, password)).toBe(true);
+          expect(await verifyPassword(user.password_hash, `${user.name}@passWorD!123`)).toBe(false);
+        }
+        expect(await provisionMigratedPasswordsInTransaction(tx)).toBe(0);
 
         const ticket = (await tx.$queryRawUnsafe<Array<{
           id: number;

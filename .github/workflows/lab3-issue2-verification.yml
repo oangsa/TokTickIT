@@ -98,6 +98,16 @@ jobs:
           LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
         run: npx --no-install prisma migrate deploy
 
+      - name: Provision migrated User passwords
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: npm run prisma:provision-migrated-passwords
+
       - name: Seed Lab 3 database twice
         env:
           NODE_ENV: test

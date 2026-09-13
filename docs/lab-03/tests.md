@@ -402,6 +402,14 @@ DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
 DIRECT_URL="$LAB3_TEST_DATABASE_URL" \
 LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" \
 LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" \
+npm run prisma:provision-migrated-passwords
+
+NODE_ENV=test \
+TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DIRECT_URL="$LAB3_TEST_DATABASE_URL" \
+LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" \
+LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" \
 npm run prisma:seed
 
 NODE_ENV=test \
@@ -422,6 +430,7 @@ implementation. No database reset is permitted.
 | Install backend dependencies | `server/` | `npm install` | Uses committed manifest/lockfile; no secret embedded in package scripts. |
 | Apply development migration | `server/` | Guarded `NODE_ENV=test ... npm run prisma:migrate` | Development-only schema iteration; never use as release evidence and never target a normal/shared database. |
 | Fresh migration evidence | `server/` | Guarded `NODE_ENV=test ... npx --no-install prisma migrate deploy` | Reproduce fresh schema from committed migrations after the read-only `prisma migrate status` preflight. |
+| Provision migrated passwords | `server/` | Guarded `NODE_ENV=test ... npm run prisma:provision-migrated-passwords` | Replace fail-closed migration markers with per-User Argon2id hashes and write the one-time `0600` operator handoff without logging passwords. |
 | Seed Lab 3 | `server/` | Guarded `NODE_ENV=test ... npm run prisma:seed` | Run twice and record unchanged/idempotent result. |
 | Maintenance cleanup | `server/` | Guarded `NODE_ENV=test ... npm run maintenance:cleanup` | Record eligible-count/repeat-run behavior; no application timer implied. |
 | Focused backend test | `server/` | `npm test -- tests/lab-03/<file>.test.ts -t '@issue-N'` | Owning Issue close gate; shared files are filtered by primary ownership tag. |
@@ -575,7 +584,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| PG-01 | PostgreSQL Integration | AC-65 | Upgrade a populated Lab 2 database through the committed Lab 3 migration. | Existing DevelopmentRequester numeric IDs become User IDs; Ticket Requester ownership, Category/System/Ticket/Attachment/idempotency rows and public Ticket identities are preserved exactly. | tests/lab-03/postgres/migration-upgrade.postgres.test.ts | Pass |
+| PG-01 | PostgreSQL Integration | AC-64–65 | Upgrade a populated Lab 2 database and provision migrated User credentials. | Existing DevelopmentRequester numeric IDs become User IDs; migration leaves unique fail-closed markers, guarded provisioning creates per-User Argon2id hashes and one-time handoff credentials, and Ticket Requester ownership, Category/System/Ticket/Attachment/idempotency rows and public Ticket identities remain exact. | tests/lab-03/postgres/migration-upgrade.postgres.test.ts | Pass |
 | PG-02 | PostgreSQL Integration | AC-64, AC-65 | Fresh Lab 3 schema/migration contract. | User/session/rate-limit/comment/note tables, enums, unique keys, restrictive FKs, Ticket owner/priority/status fields, indexes and `citext` extension/column are present with approved nullability/defaults. | tests/lab-03/postgres/schema-contract.postgres.test.ts | Pass |
 | PG-03 | PostgreSQL Integration | AC-49 | Case-insensitive email unique constraint under real PostgreSQL including concurrent insert/update. | Only one case-insensitive email identity persists; losing transaction maps to duplicate-email behavior. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
 | PG-04 | PostgreSQL Integration | AC-01, AC-48, AC-53, AC-64 | Persisted password/session security representation. | User rows contain encoded Argon2id hashes rather than fixture plaintext; session rows contain refresh hashes and no refresh plaintext column/value. | tests/lab-03/postgres/auth-session.postgres.test.ts | Pass |
@@ -1009,22 +1018,24 @@ Issue 2 execution record for 2026-09-13:
 - Dedicated disposable Docker target: `toktickit_lab3_test` at `127.0.0.1:55433`; baseline `DATABASE_URL` and `DIRECT_URL` values were captured locally and were not recorded.
 - Guarded `prisma migrate status`: Pass; the target was identified before the write command and reported up to date after deployment.
 - Guarded `prisma migrate deploy`: Pass; all four committed migrations applied with no pending migrations afterward.
+- Guarded `npm run prisma:provision-migrated-passwords`: Pass; fresh target had no migrated Users to provision and emitted only a sanitized count.
 - Guarded `npm run prisma:seed`, twice: Pass; both runs reported the same non-secret counts (`categories:4`, `relatedSystems:7`, `users:10`, `tickets:6`).
 - Guarded `npm run maintenance:cleanup`, twice: Pass; both runs reported zero remaining eligible technical rows.
-- Exact focused Issue 2 unit/API command: Pass; 12 files, 46 tests.
+- Exact focused Issue 2 unit/API command: Pass; 12 files, 47 tests.
 - Exact five-suite Issue 2 PostgreSQL command: Pass; 5 files, 7 tests.
-- Full server Lab 1–3 regression: Pass; 48 files, 720 tests.
+- Full server Lab 1–3 regression: Pass; 48 files, 721 tests.
 - Full client regression: Pass; 10 files, 296 tests.
 - Client build: Pass.
 - Server build: Pass.
-- Changed-file security/credential inspection: Pass; current-head inspection found no production credentials, database URLs, refresh plaintext, password plaintext/hash snapshots, JWT secret, or one-time credential, and the local seed handoff remains ignored with mode `0600`; GitGuardian incident `37228452` was dispositioned as a false positive caused by a synthetic invalid-password fixture in historical test-only commit `d8691ba`.
+- Changed-file security/credential inspection: Pass; current-head inspection found no production credentials, database URLs, refresh plaintext, password plaintext/hash snapshots, JWT secret, or logged one-time credential. The ignored local seed/migrated-password handoff files remain operator-local with mode `0600`; GitGuardian incident `37228452` was dispositioned as a false positive caused by a synthetic invalid-password fixture in historical test-only commit `d8691ba`.
 - `git diff --check`: Pass.
 
 The PostgreSQL migration-upgrade test creates an isolated schema inside the
 dedicated target, applies the three committed Lab 2 migrations, inserts
 representative populated Lab 2 rows, applies the committed Lab 3 migration,
-and verifies preserved numeric IDs, public identifiers, lifecycle state, and
-requester/User foreign keys. PG-05 now exercises real persisted session
+verifies unique fail-closed password markers, provisions per-User Argon2id
+hashes with an in-memory test handoff, and verifies preserved numeric IDs,
+public identifiers, lifecycle state, and requester/User foreign keys. PG-05 now exercises real persisted session
 creation, hash rotation, previous-token rescue and post-window revocation,
 restricted/non-Remember/Remember expiry, logout, and all-session revocation.
 

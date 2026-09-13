@@ -19,18 +19,22 @@ ALTER INDEX development_requester_email_key RENAME TO user_email_key;
 ALTER TABLE "user"
   ADD COLUMN public_id UUID,
   ADD COLUMN role "UserRole" NOT NULL DEFAULT 'REQUESTER',
-  ADD COLUMN password_hash VARCHAR(255) NOT NULL DEFAULT '$argon2id$v=19$m=32768,p=1,t=2$8st3brONIgPOpNbrZLZmCw$0oVUzjw4rFAoNHBE1jPyWE3S9rdptGGr959ORwl06hU',
+  ADD COLUMN password_hash VARCHAR(255),
   ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT TRUE;
 
 UPDATE "user"
 SET public_id = gen_random_uuid()
 WHERE public_id IS NULL;
 
+UPDATE "user"
+SET password_hash = '!migrated-password-unprovisioned:' || gen_random_uuid()::text
+WHERE password_hash IS NULL;
+
 ALTER TABLE "user"
   ALTER COLUMN public_id SET NOT NULL,
   ALTER COLUMN public_id SET DEFAULT gen_random_uuid(),
   ALTER COLUMN role DROP DEFAULT,
-  ALTER COLUMN password_hash DROP DEFAULT,
+  ALTER COLUMN password_hash SET NOT NULL,
   ALTER COLUMN must_change_password DROP DEFAULT,
   ALTER COLUMN email TYPE CITEXT USING email::citext;
 

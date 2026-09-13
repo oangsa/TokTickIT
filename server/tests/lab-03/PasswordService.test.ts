@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { generateInitialPassword } from "../../src/services/initialPasswordGenerator.js";
 import {
   hashPassword,
+  MIGRATED_PASSWORD_UNPROVISIONED_PREFIX,
   TEST_ARGON2_PROFILE,
   validatePassword,
   verifyPassword,
@@ -41,5 +42,9 @@ describe("UNIT-01 PasswordService @issue-2", () => {
 
     expect(readParameters(normalHash)).toMatchObject({ m: "32768", t: "2", p: "1" });
     expect(readParameters(testHash)).toMatchObject({ m: "8192", t: "1", p: "1" });
+  });
+
+  it("rejects an unprovisioned migrated-user marker", async () => {
+    expect(await verifyPassword(`${MIGRATED_PASSWORD_UNPROVISIONED_PREFIX}marker`, "Aa1!xxxx")).toBe(false);
   });
 });

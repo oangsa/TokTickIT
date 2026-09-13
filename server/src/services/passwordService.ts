@@ -21,6 +21,8 @@ export const TEST_ARGON2_PROFILE: Argon2Profile = {
 const CODE_POINT_MIN = 8;
 const CODE_POINT_MAX = 128;
 
+export const MIGRATED_PASSWORD_UNPROVISIONED_PREFIX = "!migrated-password-unprovisioned:";
+
 export interface PasswordValidationError {
   field: string;
   message: string;
@@ -61,6 +63,10 @@ export async function hashPassword(
 }
 
 export async function verifyPassword(hash: string, password: string): Promise<boolean> {
+  if (hash.startsWith(MIGRATED_PASSWORD_UNPROVISIONED_PREFIX)) {
+    return false;
+  }
+
   try {
     return await argon2.verify(hash, password);
   } catch {

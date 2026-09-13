@@ -617,13 +617,23 @@ The committed migration shall:
 3. add and backfill unique User public UUIDs;
 4. convert email uniqueness to case-insensitive `citext`;
 5. assign migrated Requesters the `REQUESTER` role;
-6. backfill encoded Argon2id hashes for documented synthetic local-development initial credentials and set `mustChangePassword = true`;
+6. initialize migrated Users with unique unprovisioned password markers and `mustChangePassword = true`; the guarded provisioning command must replace those markers with per-User encoded Argon2id hashes before application startup;
 7. retarget Ticket Requester, Attachment uploader, and IdempotencyRecord Requester foreign keys to User;
 8. add Ticket ownership, IT Priority, full status enum, and Requester-resolution-confirmation fields;
 9. create UserSession, login-rate-limit, PublicComment, and InternalNote tables;
 10. preserve all existing Ticket ownership by Requester;
 11. remove no historical Ticket/Attachment evidence; and
 12. support both a fresh database and a populated Lab 2 database upgraded forward.
+
+For a populated upgrade, `npm run prisma:provision-migrated-passwords` must run
+against the guarded target before the application starts. It generates one
+cryptographically secure initial password per migrated User using the existing
+initial-password generator, hashes it with the normal Argon2id profile, and
+stores only the hash in PostgreSQL. The command writes the one-time plaintext
+handoff to the ignored operator-local
+`server/.local/lab3-migrated-user-credentials.json` file with mode `0600`; it
+does not print or log passwords. Rerunning the command does not replace an
+already provisioned User.
 
 ### 7.12 Seed data
 
@@ -651,6 +661,9 @@ replace a missing credential for a seeded User whose `mustChangePassword` flag
 is still true. A User who has completed the first password change is never
 silently reset by a seed rerun. The file is local-development/test-only and
 must be deleted or protected by the operator after use.
+
+Migrated legacy Users use the separate provisioning command and
+`server/.local/lab3-migrated-user-credentials.json` handoff described above.
 
 ## 8. API Contract
 
