@@ -121,12 +121,12 @@ function cookieHeader(token: string): string {
   return `toktickit_refresh=${encodeURIComponent(token)}`;
 }
 
-async function loginRequest(options: { rememberMe?: boolean; password?: string } = {}): Promise<request.Response> {
+async function loginRequest(options: { rememberMe?: boolean; password: string }): Promise<request.Response> {
   return request(app)
     .post("/api/auth/login")
     .send({
       email: "Alice@Example.com",
-      password: options.password ?? "InitialAa1!",
+      password: options.password,
       rememberMe: options.rememberMe ?? false,
     });
 }
@@ -247,6 +247,7 @@ describe("Auth API @issue-2", () => {
     const firstLogin = await loginRequest({ password: testPassword });
     await loginRequest({ password: testPassword });
     const newPassword = generateInitialPassword();
+    const wrongPassword = `${testPassword}x`;
 
     const missing = await request(app)
       .post("/api/auth/change-password")
@@ -265,7 +266,7 @@ describe("Auth API @issue-2", () => {
     const wrong = await request(app)
       .post("/api/auth/change-password")
       .set("Authorization", `Bearer ${firstLogin.body.accessToken}`)
-      .send({ currentPassword: "WrongAa1!", newPassword });
+      .send({ currentPassword: wrongPassword, newPassword });
     expect(wrong.status).toBe(401);
     expect(wrong.body.code).toBe("AUTHENTICATION_FAILED");
 

@@ -161,18 +161,19 @@ describe("UNIT-06 AuthService @issue-2", () => {
     fake.prisma.user.findUnique = async () => null;
     const service = new AuthService(fake.prisma as never, TEST_ARGON2_PROFILE);
     const verifySpy = vi.spyOn(argon2, "verify");
+    const wrongPassword = generateInitialPassword();
 
     try {
       await expect(service.login({
         email: "unknown@example.com",
-        password: "WrongAa1!",
+        password: wrongPassword,
         rememberMe: false,
         ipAddress: "127.0.0.1",
       })).rejects.toMatchObject({ code: "AUTHENTICATION_FAILED" });
       expect(verifySpy).toHaveBeenCalledTimes(1);
       expect(verifySpy).toHaveBeenCalledWith(
         expect.stringContaining("$argon2id$v=19$m=8192,p=1,t=1$"),
-        "WrongAa1!",
+        wrongPassword,
       );
     } finally {
       verifySpy.mockRestore();
