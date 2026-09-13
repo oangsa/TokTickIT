@@ -575,12 +575,12 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| PG-01 | PostgreSQL Integration | AC-65 | Upgrade a populated Lab 2 database through the committed Lab 3 migration. | Existing DevelopmentRequester numeric IDs become User IDs; Ticket Requester ownership, Category/System/Ticket/Attachment/idempotency rows and public Ticket identities are preserved exactly. | tests/lab-03/postgres/migration-upgrade.postgres.test.ts | Not Run |
-| PG-02 | PostgreSQL Integration | AC-64, AC-65 | Fresh Lab 3 schema/migration contract. | User/session/rate-limit/comment/note tables, enums, unique keys, restrictive FKs, Ticket owner/priority/status fields, indexes and `citext` extension/column are present with approved nullability/defaults. | tests/lab-03/postgres/schema-contract.postgres.test.ts | Not Run |
+| PG-01 | PostgreSQL Integration | AC-65 | Upgrade a populated Lab 2 database through the committed Lab 3 migration. | Existing DevelopmentRequester numeric IDs become User IDs; Ticket Requester ownership, Category/System/Ticket/Attachment/idempotency rows and public Ticket identities are preserved exactly. | tests/lab-03/postgres/migration-upgrade.postgres.test.ts | Passed |
+| PG-02 | PostgreSQL Integration | AC-64, AC-65 | Fresh Lab 3 schema/migration contract. | User/session/rate-limit/comment/note tables, enums, unique keys, restrictive FKs, Ticket owner/priority/status fields, indexes and `citext` extension/column are present with approved nullability/defaults. | tests/lab-03/postgres/schema-contract.postgres.test.ts | Passed |
 | PG-03 | PostgreSQL Integration | AC-49 | Case-insensitive email unique constraint under real PostgreSQL including concurrent insert/update. | Only one case-insensitive email identity persists; losing transaction maps to duplicate-email behavior. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
-| PG-04 | PostgreSQL Integration | AC-01, AC-48, AC-53, AC-64 | Persisted password/session security representation. | User rows contain encoded Argon2id hashes rather than fixture plaintext; session rows contain refresh hashes and no refresh plaintext column/value. | tests/lab-03/postgres/auth-session.postgres.test.ts | Not Run |
-| PG-05 | PostgreSQL Integration | AC-06–08, AC-10–11 | Real session state across expiry, rotation, previous-token window and revocation. | Row-locked session timestamps/hash transitions enforce the approved deadlines; one valid previous-token reuse rotates without revocation; all-session revocation makes every session inactive. | tests/lab-03/postgres/auth-session.postgres.test.ts | Not Run |
-| PG-06 | PostgreSQL Integration | AC-12 | Concurrent failed Login bucket increments for email/IP and global IP. | Threshold counters do not lose updates under concurrent attempts; blockedUntil/window behavior remains deterministic. | tests/lab-03/postgres/rate-limit.postgres.test.ts | Not Run |
+| PG-04 | PostgreSQL Integration | AC-01, AC-48, AC-53, AC-64 | Persisted password/session security representation. | User rows contain encoded Argon2id hashes rather than fixture plaintext; session rows contain refresh hashes and no refresh plaintext column/value. | tests/lab-03/postgres/auth-session.postgres.test.ts | Passed |
+| PG-05 | PostgreSQL Integration | AC-06–08, AC-10–11 | Real session state across expiry, rotation, previous-token window and revocation. | Row-locked session timestamps/hash transitions enforce the approved deadlines; one valid previous-token reuse rotates without revocation; all-session revocation makes every session inactive. | tests/lab-03/postgres/auth-session.postgres.test.ts | Partial — focused security representation only |
+| PG-06 | PostgreSQL Integration | AC-12 | Concurrent failed Login bucket increments for email/IP and global IP. | Threshold counters do not lose updates under concurrent attempts; blockedUntil/window behavior remains deterministic. | tests/lab-03/postgres/rate-limit.postgres.test.ts | Passed |
 | PG-07 | PostgreSQL Integration | AC-19, AC-20 | Two separate connections Claim the same unassigned NEW Ticket concurrently. | Exactly one owner wins, Ticket ends OPEN with one owner, losing request observes conflict; no split owner/status commit occurs. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
 | PG-08 | PostgreSQL Integration | AC-20–22 | Concurrent expected-owner reassign/unassign mutations. | Stale expected-owner writer cannot overwrite winner; valid unassign preserves status; only active eligible owner is persisted. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
 | PG-09 | PostgreSQL Integration | AC-19 | Assign previously unassigned NEW Ticket through the owner-update path. | Owner assignment and NEW→OPEN commit atomically or neither commits. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
@@ -591,7 +591,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-14 | PostgreSQL Integration | AC-35–37 | Public Comment thread persistence/order using real relational data. | Root/reply indexes and relationships retrieve newest roots, oldest replies, previews, page boundaries and flattened depth-2 reply targets without broken FK state. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Not Run |
 | PG-15 | PostgreSQL Integration | AC-40 | Internal Note persistence and restrictive author/Ticket relationships. | Valid flat notes persist with author/time relation; historical note evidence is not cascade-deleted by User/Ticket lifecycle operations. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Not Run |
 | PG-16 | PostgreSQL Integration | AC-17, AC-65 | Authenticated migrated Requester uses existing Ticket/Attachment/idempotency data on real PostgreSQL. | Migrated User owns the same Tickets; existing idempotent replay/Attachment lifecycle remains valid after FK evolution. | tests/lab-03/postgres/requester-regression.postgres.test.ts | Not Run |
-| PG-17 | PostgreSQL Integration | AC-66 | Maintenance cleanup against live/expired/revoked session and rate-limit fixtures. | Only eligible technical rows are removed; active valid sessions survive; repeat cleanup changes nothing. | tests/lab-03/postgres/maintenance.postgres.test.ts | Not Run |
+| PG-17 | PostgreSQL Integration | AC-66 | Maintenance cleanup against live/expired/revoked session and rate-limit fixtures. | Only eligible technical rows are removed; active valid sessions survive; repeat cleanup changes nothing. | tests/lab-03/postgres/maintenance.postgres.test.ts | Passed |
 
 ## 8. Planned UI Tests
 
@@ -911,7 +911,8 @@ DATA-01–DATA-11
 ### 14.2 Focused close-gate commands
 
 Commands below are named against the repository scripts and planned Lab 3
-paths. They are required gates, not claims that the tests have already run.
+paths. They remain required gates; the current Issue 2 execution is recorded
+after the command matrix.
 Every focused test title must carry the owning `@issue-N` tag from Section 2;
 unfiltered shared files do not close an Issue.
 
@@ -919,8 +920,18 @@ Issue 2:
 
 ~~~bash
 cd server
-npm test -- tests/lab-03/PasswordService.test.ts tests/lab-03/InitialPasswordGenerator.test.ts tests/lab-03/JwtService.test.ts tests/lab-03/SessionService.test.ts tests/lab-03/LoginRateLimitService.test.ts tests/lab-03/AuthService.test.ts tests/lab-03/MaintenanceService.test.ts tests/lab-03/auth.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/auth-transport.api.test.ts tests/lab-03/error-contract.api.test.ts -t '@issue-2'
-NODE_ENV=test TEST_DATABASE_URL=<dedicated_lab3_test_url> npm test -- tests/lab-03/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/schema-contract.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/rate-limit.postgres.test.ts tests/lab-03/postgres/maintenance.postgres.test.ts -t '@issue-2'
+npm test -- tests/lab-03/PasswordService.test.ts tests/lab-03/InitialPasswordGenerator.test.ts tests/lab-03/JwtService.test.ts tests/lab-03/SessionService.test.ts tests/lab-03/LoginRateLimitService.test.ts tests/lab-03/AuthService.test.ts tests/lab-03/MaintenanceService.test.ts tests/lab-03/databaseTargetGuard.test.ts tests/lab-03/auth.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/auth-transport.api.test.ts tests/lab-03/error-contract.api.test.ts -t '@issue-2'
+LAB3_TEST_DATABASE_URL=<dedicated_lab3_test_url>
+LAB3_BASELINE_DATABASE_URL=<captured_normal_database_url>
+LAB3_BASELINE_DIRECT_URL=<captured_normal_direct_url>
+
+NODE_ENV=test \
+TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DATABASE_URL="$LAB3_TEST_DATABASE_URL" \
+DIRECT_URL="$LAB3_TEST_DATABASE_URL" \
+LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" \
+LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" \
+npm test -- tests/lab-03/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/schema-contract.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/rate-limit.postgres.test.ts tests/lab-03/postgres/maintenance.postgres.test.ts -t '@issue-2'
 npm run build
 ~~~
 
@@ -993,6 +1004,25 @@ applies to PG-03 and PG-12–PG-16 in Issue 6. A focused gate is closed
 only after its listed tests, required build, and required browser evidence
 pass; “when available” is not a valid substitute.
 
+Issue 2 execution record for 2026-09-13:
+
+- Dedicated disposable Docker target: `toktickit_lab3_test` at `127.0.0.1:55433`; baseline `DATABASE_URL` and `DIRECT_URL` values were captured locally and were not recorded.
+- Guarded `prisma migrate status`: Passed; the target was identified before the write command.
+- Guarded `prisma migrate deploy`: Passed; all four committed migrations applied.
+- Guarded `npm run prisma:seed`, twice: Passed; both runs reported the same non-secret counts (`categories:4`, `relatedSystems:7`, `users:10`, `tickets:6`).
+- Guarded `npm run maintenance:cleanup`, twice: Passed; both runs reported zero remaining eligible technical rows.
+- Exact focused Issue 2 unit/API command: Passed; 12 files, 24 tests (including the dedicated target-guard test).
+- Exact five-suite Issue 2 PostgreSQL command: Passed; 5 files, 5 tests.
+- `npm run build`: Passed.
+
+The PostgreSQL migration-upgrade test creates an isolated schema inside the
+dedicated target, applies the three committed Lab 2 migrations, inserts
+representative populated Lab 2 rows, applies the committed Lab 3 migration,
+and verifies preserved numeric IDs, public identifiers, lifecycle state, and
+requester/User foreign keys. PG-05 remains a narrower persistence
+representation check; full session rotation behavior remains covered by the
+focused service/API tests.
+
 ### 14.3 Issue 7 final rerun/release gate
 
 Issue 7 performs these as explicit reruns:
@@ -1038,15 +1068,15 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | Evidence ID | Type | Requirement / AC | Required Proof | Expected Result / Final |
 | --- | --- | --- | --- | --- |
 | DATA-01 | Delivery | Handout Spec DD | Required `docs/lab-03/` files exist before main implementation work and remain mutually consistent. | Rendered specification/tests/ui/api documents are committed; reviewer/ai_use files are added through the Lab workflow. | Not Run |
-| DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Not Run |
-| DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates. | Not Run |
+| DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Passed — fresh deploy and populated-schema regression |
+| DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates. | Passed — identical guarded runs |
 | DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | No real secret, JWT signing secret, refresh plaintext, password plaintext/hash exposure, DB URL, or one-time password is committed/logged in prohibited locations. | Not Run |
 | DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Not Run |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Not Run |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Not Run |
 | DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Tracked evidence exists under `docs/lab-03/evidence/screenshots/` and is readable and passes Section 12 checklist. | Not Run |
 | DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Not Run |
-| DATA-10 | Maintenance | AC-66 | Documented maintenance command and safe repeat-run evidence. | Command targets only eligible session/rate-limit technical state and can be repeated safely. | Not Run |
+| DATA-10 | Maintenance | AC-66 | Documented maintenance command and safe repeat-run evidence. | Command targets only eligible session/rate-limit technical state and can be repeated safely. | Passed — two guarded no-op reruns |
 | DATA-11 | Workflow | DoD | Feature branches/PRs/focused close gates follow Lab 3 staging flow. | No implementation Issue is marked Done before its owned focused tests pass; final release regression does not replace feature gates. | Not Run |
 
 ### 15.1 Explicit Security and Exclusion Evidence

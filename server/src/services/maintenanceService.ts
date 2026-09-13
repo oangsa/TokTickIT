@@ -7,19 +7,26 @@ export const CLEANUP_BATCH_SIZE = 100;
 export interface CleanupSummary {
   pendingAttachments: number;
   idempotencyRecords: number;
+  sessions: number;
+  rateLimitBuckets: number;
 }
 
 interface LockedRow {
   id: number;
 }
 
+interface LockedSessionRow {
+  id: string;
+}
+
 /*
  * Operational maintenance (api-spec Section 17.1, BR-80/81).
  *
- * Two jobs, both idempotent, both bounded: expired Pending Attachments and
- * logically expired COMPLETED Idempotency Records. Neither has an HTTP route and
- * neither runs on an in-process timer -- production scheduling is external, and
- * a cleanup endpoint would be a destructive operation reachable from a browser.
+ * Four jobs, all idempotent and bounded: expired Pending Attachments, logically
+ * expired COMPLETED Idempotency Records, expired/revoked sessions, and expired
+ * rate-limit buckets. None has an HTTP route or runs on an in-process timer --
+ * production scheduling is external, and a cleanup endpoint would be a
+ * destructive operation reachable from a browser.
  *
  * `PROCESSING` records are never selected, deleted, or reclaimed here. Stale
  * reclaim is request-time behavior owned by `IdempotencyService.reclaim`, where
@@ -33,7 +40,71 @@ export class MaintenanceService {
     return {
       pendingAttachments: await this.cleanupExpiredPendingAttachments(now),
       idempotencyRecords: await this.cleanupExpiredIdempotencyRecords(now),
+      sessions: await this.cleanupExpiredSessions(now),
+      rateLimitBuckets: await this.cleanupExpiredRateLimitBuckets(now),
     };
+  }
+
+  async cleanupExpiredSessions(now: Date = new Date()): Promise<number> {
+    const rememberIdleCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return this.drain(async (tx) => {
+      const locked = await tx.$queryRaw<LockedSessionRow[]>`
+        SELECT id FROM user_session
+        WHERE revoked_at IS NOT NULL
+           OR absolute_expires_at <= ${now}
+           OR (stage = 'FULL'::"SessionStage"
+               AND remember_me = true
+               AND last_used_at <= ${rememberIdleCutoff})
+        ORDER BY absolute_expires_at, id
+        LIMIT ${CLEANUP_BATCH_SIZE}
+        FOR UPDATE SKIP LOCKED
+      `;
+
+      if (locked.length === 0) {
+        return 0;
+      }
+
+      const result = await tx.userSession.deleteMany({
+        where: {
+          id: { in: locked.map((row) => row.id) },
+          OR: [
+            { revokedAt: { not: null } },
+            { absoluteExpiresAt: { lte: now } },
+            { stage: "FULL", rememberMe: true, lastUsedAt: { lte: rememberIdleCutoff } },
+          ],
+        },
+      });
+      return result.count;
+    });
+  }
+
+  async cleanupExpiredRateLimitBuckets(now: Date = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - 15 * 60 * 1000);
+    return this.drain(async (tx) => {
+      const locked = await tx.$queryRaw<LockedRow[]>`
+        SELECT id FROM login_rate_limit_bucket
+        WHERE blocked_until <= ${now}
+           OR (blocked_until IS NULL AND window_started_at <= ${cutoff})
+        ORDER BY window_started_at, id
+        LIMIT ${CLEANUP_BATCH_SIZE}
+        FOR UPDATE SKIP LOCKED
+      `;
+
+      if (locked.length === 0) {
+        return 0;
+      }
+
+      const result = await tx.loginRateLimitBucket.deleteMany({
+        where: {
+          id: { in: locked.map((row) => row.id) },
+          OR: [
+            { blockedUntil: { lte: now } },
+            { blockedUntil: null, windowStartedAt: { lte: cutoff } },
+          ],
+        },
+      });
+      return result.count;
+    });
   }
 
   /*

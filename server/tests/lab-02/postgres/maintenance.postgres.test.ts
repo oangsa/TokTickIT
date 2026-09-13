@@ -7,6 +7,7 @@ import { MaintenanceService } from "../../../src/services/maintenanceService.js"
 import { PENDING_ATTACHMENT_TTL_HOURS } from "../../../src/services/ticketService.js";
 import {
   assertLab2TestDatabase,
+  createRequesterUser,
   createTestPrisma,
   deployMigrations,
   resetTestSchema,
@@ -35,8 +36,9 @@ function hoursAgo(hours: number): Date {
 }
 
 async function createFixture(prisma: PrismaClient): Promise<Fixture> {
-  const requester = await prisma.developmentRequester.create({
-    data: { name: "Maintenance Requester", email: ACTOR, createdBy: "system", updatedBy: "system" },
+  const requester = await createRequesterUser(prisma, {
+    name: "Maintenance Requester",
+    email: ACTOR,
   });
   const category = await prisma.category.create({
     data: { name: "Maintenance Category", createdBy: "system", updatedBy: "system" },

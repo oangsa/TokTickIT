@@ -7,6 +7,7 @@ import { config } from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../../../src/generated/prisma/client.js";
+import { DUMMY_PASSWORD_HASH } from "../../../src/services/passwordService.js";
 
 config({ path: [".env.local", ".env"] });
 
@@ -17,6 +18,28 @@ const lab1MigrationPath = `${serverRoot}prisma/migrations/20260808064543_add_cat
 export interface TestDatabaseTarget {
   url: string;
   databaseName: string;
+}
+
+/*
+ * Lab 2 PostgreSQL behavior now runs against the evolved Lab 3 schema. Keep
+ * the old fixture intent (a requester identity) without reintroducing a
+ * DevelopmentRequester Prisma model that no longer exists in the database.
+ */
+export function createRequesterUser(
+  prisma: PrismaClient,
+  input: { name: string; email: string },
+) {
+  return prisma.user.create({
+    data: {
+      name: input.name,
+      email: input.email,
+      role: "REQUESTER",
+      passwordHash: DUMMY_PASSWORD_HASH,
+      mustChangePassword: false,
+      createdBy: "system",
+      updatedBy: "system",
+    },
+  });
 }
 
 function redactDatabaseUrls(value: string): string {

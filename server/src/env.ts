@@ -10,5 +10,5 @@
 const DEVELOPMENT_ENVIRONMENTS = new Set(["development", "test"]);
 
 export function isDevelopmentOrTest(nodeEnv: string | undefined): boolean {
-  return nodeEnv === undefined || DEVELOPMENT_ENVIRONMENTS.has(nodeEnv);
+  return DEVELOPMENT_ENVIRONMENTS.has(nodeEnv ?? "");
 }

@@ -4,19 +4,19 @@ export class DevelopmentRequesterService {
   constructor(private readonly prisma: PrismaClient) {}
 
   listSelectable() {
-    return this.prisma.developmentRequester.findMany({
+    return this.prisma.user.findMany({
       where: { deleted: false, isActive: true },
       orderBy: { id: "asc" },
     });
   }
 
   findSelectableById(id: number) {
-    return this.prisma.developmentRequester.findFirst({
+    return this.prisma.user.findFirst({
       where: { id, deleted: false, isActive: true },
     });
   }
 
   findHistoricalById(id: number) {
-    return this.prisma.developmentRequester.findUnique({ where: { id } });
+    return this.prisma.user.findUnique({ where: { id } });
   }
 }

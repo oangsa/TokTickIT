@@ -14,9 +14,8 @@ import { findTicketForRequester } from "../services/ticketService.js";
 export const ticketsRouter = Router();
 
 /*
- * My Tickets (api-spec Section 9). The Requester comes from
- * `requireRequesterContext`, which already guards this path -- GET /tickets is
- * not exempt -- so the handler never re-derives it. Validation runs before any
+ * My Tickets (api-spec Section 10). The Requester comes from authenticated
+ * middleware, so the handler never re-derives it. Validation runs before any
  * data access, and a page past the last one is a 200 with an empty array
  * rather than an error (BR-38).
  */
@@ -87,8 +86,8 @@ ticketsRouter.post(
 );
 
 /*
- * Ticket Detail (api-spec Section 8.6). The Requester comes from
- * `requireRequesterContext`, and the ownership and soft-delete predicates live
+ * Ticket Detail (api-spec Section 10.3). The Requester comes from
+ * authenticated middleware, and ownership/soft-delete predicates live
  * inside the query rather than in a check on the answer. Every miss -- missing,
  * malformed, logically deleted, or owned by someone else -- resolves to the one
  * centralized 404, so the response cannot be read as a statement about who owns

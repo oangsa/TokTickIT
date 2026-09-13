@@ -7,6 +7,7 @@ import { listTicketsForRequester } from "../../../src/services/ticketListService
 import { parseTicketListQuery } from "../../../src/services/ticketQueryValidator.js";
 import {
   assertLab2TestDatabase,
+  createRequesterUser,
   createTestPrisma,
   deployMigrations,
   resetTestSchema,
@@ -78,9 +79,7 @@ interface TicketSeed {
 
 async function createReference(prisma: PrismaClient): Promise<Fixture> {
   const requester = (name: string, email: string) =>
-    prisma.developmentRequester.create({
-      data: { name, email, createdBy: "system", updatedBy: "system" },
-    });
+    createRequesterUser(prisma, { name, email });
   const category = (name: string) =>
     prisma.category.create({ data: { name, createdBy: "system", updatedBy: "system" } });
   const system = (name: string) =>

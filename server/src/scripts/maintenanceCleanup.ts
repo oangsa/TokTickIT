@@ -1,10 +1,11 @@
+import { assertLab3TargetEnvironment } from "../databaseTargetGuard.js";
 import { getPrisma } from "../prisma.js";
 import { MaintenanceService } from "../services/maintenanceService.js";
 
 /*
  * `npm run maintenance:cleanup` (api-spec Section 17.1).
  *
- * The whole CLI is the scheduling boundary: it runs the two bounded cleanup
+ * The whole CLI is the scheduling boundary: it runs the four bounded cleanup
  * jobs once and exits. Lab 2 introduces no HTTP cleanup route and no in-process
  * timer, so how often this runs is an operational decision made outside the
  * application.
@@ -13,6 +14,7 @@ import { MaintenanceService } from "../services/maintenanceService.js";
  * filenames, no connection strings (BR-86).
  */
 async function main(): Promise<void> {
+  assertLab3TargetEnvironment();
   const prisma = getPrisma();
 
   try {
