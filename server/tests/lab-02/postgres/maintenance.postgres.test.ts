@@ -302,6 +302,8 @@ describe.sequential("PG-09 expired Idempotency Record cleanup", () => {
     expect(await new MaintenanceService(prisma).run()).toEqual({
       pendingAttachments: 1,
       idempotencyRecords: 1,
+      sessions: 0,
+      rateLimitBuckets: 0,
     });
   }, 30_000);
 });

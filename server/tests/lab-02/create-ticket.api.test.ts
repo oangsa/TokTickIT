@@ -9,6 +9,8 @@ vi.mock("../../src/prisma.js", async () => {
 import {
   ATTACHMENT_A,
   ATTACHMENT_B,
+  ALICE_AUTH,
+  BOB_AUTH,
   KEY,
   VALID_BODY,
   arrangeHappyPath,
@@ -16,12 +18,15 @@ import {
   prismaMock,
   tx,
 } from "./support/ticketPrismaMock.js";
+import { bearerToken, configureRequesterAuth, type RequesterTokens } from "./support/authenticatedRequester.js";
 import { app } from "../../src/app.js";
 
-function post(body: unknown) {
+let tokens: RequesterTokens;
+
+function post(body: unknown, userId = ALICE_AUTH.id) {
   return request(app)
-    .post("/api/tickets")
-    .set("X-Requester-Id", "3")
+    .post("/api/users/me/tickets")
+    .set("Authorization", bearerToken(tokens, userId))
     .set("Idempotency-Key", KEY)
     .send(body as object);
 }
@@ -30,8 +35,9 @@ function fieldsOf(body: { details?: { field: string }[] }): string[] {
   return (body.details ?? []).map((detail) => detail.field);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   arrangeHappyPath();
+  tokens = await configureRequesterAuth(prismaMock, [ALICE_AUTH, BOB_AUTH]);
 });
 
 // API-06 (AC-08).
@@ -229,20 +235,8 @@ describe("backend-managed fields", () => {
     expect(data.updatedAt).toBeUndefined();
   });
 
-  it("derives ownership from X-Requester-Id, not from the body", async () => {
-    prismaMock.developmentRequester.findFirst.mockResolvedValue({
-      id: 4,
-      name: "Bob Smith",
-      email: "bob.smith@example.com",
-      isActive: true,
-      deleted: false,
-    });
-
-    await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", "4")
-      .set("Idempotency-Key", KEY)
-      .send({ ...VALID_BODY, requesterId: 3 });
+  it("derives ownership from the authenticated User, not from the body", async () => {
+    await post({ ...VALID_BODY, requesterId: 3 }, BOB_AUTH.id);
 
     const { data } = tx.ticket.create.mock.calls[0][0];
     expect(data.requesterId).toBe(4);
@@ -252,10 +246,10 @@ describe("backend-managed fields", () => {
 
 // API-65 (BR-74).
 describe("Ticket deletion route and default deletion state", () => {
-  it("does not register DELETE /api/tickets/:publicId", async () => {
+  it("does not register DELETE /api/users/me/tickets/:publicId", async () => {
     const res = await request(app)
-      .delete("/api/tickets/05a214b4-b957-4ed7-a58e-73f4392b35ec")
-      .set("X-Requester-Id", "3");
+      .delete("/api/users/me/tickets/05a214b4-b957-4ed7-a58e-73f4392b35ec")
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id));
 
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("NOT_FOUND");

@@ -5,7 +5,7 @@ import { DevelopmentRequesterService } from "../../src/services/developmentReque
 
 function createPrismaMock() {
   return {
-    developmentRequester: {
+    user: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -28,11 +28,11 @@ const activeRequester = {
 describe("DevelopmentRequesterService", () => {
   it("returns only active, non-deleted Development Requesters for selection", async () => {
     const prisma = createPrismaMock();
-    prisma.developmentRequester.findMany.mockResolvedValue([activeRequester]);
+    prisma.user.findMany.mockResolvedValue([activeRequester]);
     const service = new DevelopmentRequesterService(prisma as unknown as PrismaClient);
 
     await expect(service.listSelectable()).resolves.toEqual([activeRequester]);
-    expect(prisma.developmentRequester.findMany).toHaveBeenCalledWith({
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
       where: { deleted: false, isActive: true },
       orderBy: { id: "asc" },
     });
@@ -40,7 +40,7 @@ describe("DevelopmentRequesterService", () => {
 
   it("rejects inactive and deleted Development Requesters for requester context", async () => {
     const prisma = createPrismaMock();
-    prisma.developmentRequester.findFirst
+    prisma.user.findFirst
       .mockResolvedValueOnce(activeRequester)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
@@ -49,8 +49,8 @@ describe("DevelopmentRequesterService", () => {
     await expect(service.findSelectableById(1)).resolves.toEqual(activeRequester);
     await expect(service.findSelectableById(2)).resolves.toBeNull();
     await expect(service.findSelectableById(3)).resolves.toBeNull();
-    expect(prisma.developmentRequester.findFirst).toHaveBeenCalledTimes(3);
-    expect(prisma.developmentRequester.findFirst).toHaveBeenNthCalledWith(1, {
+    expect(prisma.user.findFirst).toHaveBeenCalledTimes(3);
+    expect(prisma.user.findFirst).toHaveBeenNthCalledWith(1, {
       where: { id: 1, deleted: false, isActive: true },
     });
   });
@@ -59,14 +59,14 @@ describe("DevelopmentRequesterService", () => {
     const prisma = createPrismaMock();
     const inactiveRequester = { ...activeRequester, id: 2, isActive: false };
     const deletedRequester = { ...activeRequester, id: 3, deleted: true };
-    prisma.developmentRequester.findUnique
+    prisma.user.findUnique
       .mockResolvedValueOnce(inactiveRequester)
       .mockResolvedValueOnce(deletedRequester);
     const service = new DevelopmentRequesterService(prisma as unknown as PrismaClient);
 
     await expect(service.findHistoricalById(2)).resolves.toEqual(inactiveRequester);
     await expect(service.findHistoricalById(3)).resolves.toEqual(deletedRequester);
-    expect(prisma.developmentRequester.findUnique).toHaveBeenNthCalledWith(1, { where: { id: 2 } });
-    expect(prisma.developmentRequester.findUnique).toHaveBeenNthCalledWith(2, { where: { id: 3 } });
+    expect(prisma.user.findUnique).toHaveBeenNthCalledWith(1, { where: { id: 2 } });
+    expect(prisma.user.findUnique).toHaveBeenNthCalledWith(2, { where: { id: 3 } });
   });
 });

@@ -16,6 +16,8 @@ const NOW = new Date("2026-08-26T12:00:00.000Z");
 const tx = {
   attachment: { deleteMany: vi.fn() },
   idempotencyRecord: { deleteMany: vi.fn() },
+  userSession: { deleteMany: vi.fn() },
+  loginRateLimitBucket: { deleteMany: vi.fn() },
   $queryRaw: vi.fn(),
 };
 
@@ -44,6 +46,8 @@ beforeEach(() => {
   tx.$queryRaw.mockResolvedValue([]);
   tx.attachment.deleteMany.mockResolvedValue({ count: 0 });
   tx.idempotencyRecord.deleteMany.mockResolvedValue({ count: 0 });
+  tx.userSession.deleteMany.mockResolvedValue({ count: 0 });
+  tx.loginRateLimitBucket.deleteMany.mockResolvedValue({ count: 0 });
 });
 
 describe("UNIT-16 expired Pending Attachment cleanup", () => {
@@ -156,7 +160,12 @@ describe("UNIT-16 run orchestration", () => {
     tx.attachment.deleteMany.mockResolvedValueOnce({ count: 3 });
     tx.idempotencyRecord.deleteMany.mockResolvedValueOnce({ count: 2 });
 
-    expect(await service().run(NOW)).toEqual({ pendingAttachments: 3, idempotencyRecords: 2 });
+    expect(await service().run(NOW)).toEqual({
+      pendingAttachments: 3,
+      idempotencyRecords: 2,
+      sessions: 0,
+      rateLimitBuckets: 0,
+    });
 
     vi.clearAllMocks();
     prisma.$transaction.mockImplementation(async (work: (client: typeof tx) => unknown) =>
@@ -164,6 +173,11 @@ describe("UNIT-16 run orchestration", () => {
     );
     tx.$queryRaw.mockResolvedValue([]);
 
-    expect(await service().run(NOW)).toEqual({ pendingAttachments: 0, idempotencyRecords: 0 });
+    expect(await service().run(NOW)).toEqual({
+      pendingAttachments: 0,
+      idempotencyRecords: 0,
+      sessions: 0,
+      rateLimitBuckets: 0,
+    });
   });
 });

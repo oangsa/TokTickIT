@@ -2,7 +2,16 @@ import { Buffer } from "node:buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
+import {
+  bearerToken,
+  configureRequesterAuth,
+  testUser,
+  type RequesterTokens,
+} from "./support/authenticatedRequester.js";
+
 const prismaMock = vi.hoisted(() => ({
+  user: { findUnique: vi.fn() },
+  userSession: { findUnique: vi.fn() },
   developmentRequester: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
@@ -30,6 +39,8 @@ const ALICE = {
   updatedBy: "seed",
   updatedAt: new Date("2026-08-20T01:00:00.000Z"),
 };
+const ALICE_AUTH = testUser({ id: ALICE.id, name: ALICE.name, email: ALICE.email });
+let tokens: RequesterTokens;
 
 const TICKET_PUBLIC_ID = "05a214b4-b957-4ed7-a58e-73f4392b35ec";
 
@@ -41,8 +52,9 @@ function jsonBodyOfExactly(totalBytes: number): string {
   return JSON.stringify({ padding: "a".repeat(totalBytes - 14) });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  tokens = await configureRequesterAuth(prismaMock, [ALICE_AUTH]);
   prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);
   prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
   prismaMock.category.findMany.mockResolvedValue([]);
@@ -59,18 +71,19 @@ describe("transport hardening (API-72, API-74)", () => {
     expect(Buffer.byteLength(jsonBodyOfExactly(131072))).toBe(131072);
 
     const res = await request(app)
-      .post("/api/tickets")
+      .post("/api/users/me/tickets")
       .set("Content-Type", "application/json")
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
       .send(jsonBodyOfExactly(131072));
 
-    // Reaching the requester guard is the proof it was not size-rejected.
+    // Reaching the authenticated route is the proof it was not size-rejected.
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(res.body.code).toBe("VALIDATION_ERROR");
   });
 
   it("rejects a body one byte over the boundary with 413", async () => {
     const res = await request(app)
-      .post("/api/tickets")
+      .post("/api/users/me/tickets")
       .set("Content-Type", "application/json")
       .send(jsonBodyOfExactly(131073));
 
@@ -82,7 +95,7 @@ describe("transport hardening (API-72, API-74)", () => {
 
   it("rejects malformed JSON within the limit with 400 BAD_REQUEST", async () => {
     const res = await request(app)
-      .post("/api/tickets")
+      .post("/api/users/me/tickets")
       .set("Content-Type", "application/json")
       .send("{");
 
@@ -91,24 +104,23 @@ describe("transport hardening (API-72, API-74)", () => {
     expect(res.body.details).toBeUndefined();
   });
 
-  it("classifies an invalid X-Requester-Id as REQUESTER_CONTEXT_INVALID", async () => {
-    // API-72's `VALIDATION_ERROR` row needs a field-validating endpoint and is
-    // owned by Issue #21. Requester context is deliberately not that row: it
-    // carries its own protocol code so the client can tell the two apart.
+  it("ignores an invalid X-Requester-Id and requires a bearer token", async () => {
     const res = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
 
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
   });
 
-  it("sends Cache-Control: no-store on the bootstrap endpoint", async () => {
-    const res = await request(app).get("/api/requesters");
+  it("sends Cache-Control: no-store on the public health endpoint", async () => {
+    const res = await request(app).get("/api/health");
 
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
   it("sends Cache-Control: no-store on a guarded endpoint", async () => {
-    const res = await request(app).get("/api/categories").set("X-Requester-Id", "1");
+    const res = await request(app)
+      .get("/api/categories")
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id));
 
     expect(res.headers["cache-control"]).toBe("no-store");
   });
@@ -116,35 +128,33 @@ describe("transport hardening (API-72, API-74)", () => {
   it("sends Cache-Control: no-store on an error response", async () => {
     const res = await request(app).get("/api/categories");
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
-  it("merges Vary on a requester-scoped response without clobbering the CORS value", async () => {
+  it("keeps Vary limited to the exact CORS origin", async () => {
     const res = await request(app)
       .get("/api/categories")
-      .set("X-Requester-Id", "1")
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
       .set("Origin", "http://localhost:5173");
 
     const varyValues = res.headers.vary.split(/,\s*/);
     expect(varyValues).toContain("Origin");
-    expect(varyValues).toContain("X-Requester-Id");
+    expect(varyValues).not.toContain("X-Requester-Id");
     expect(varyValues.filter((value) => value === "Origin")).toHaveLength(1);
   });
 
-  it("varies a requester-scoped error response by X-Requester-Id too", async () => {
+  it("does not vary an authentication error by the removed requester header", async () => {
     const res = await request(app).get("/api/categories").set("Origin", "http://localhost:5173");
 
-    expect(res.status).toBe(400);
-    expect(res.headers.vary.split(/,\s*/)).toContain("X-Requester-Id");
+    expect(res.status).toBe(401);
+    expect(res.headers.vary.split(/,\s*/)).not.toContain("X-Requester-Id");
   });
 
-  it("does not vary the bootstrap response by X-Requester-Id", async () => {
-    // `GET /api/requesters` returns the same body to every Requester and never
-    // reads the header, so claiming to vary by it would be a false cache key
-    // (api-spec Section 3.6).
+  it("does not vary the public health response by X-Requester-Id", async () => {
     const res = await request(app)
-      .get("/api/requesters")
+      .get("/api/health")
       .set("Origin", "http://localhost:5173");
 
     const varyValues = res.headers.vary.split(/,\s*/);
@@ -161,36 +171,40 @@ describe("transport hardening (API-72, API-74)", () => {
   it("sends Cache-Control: no-store on Ticket Detail", async () => {
     prismaMock.ticket.findFirst.mockResolvedValue(ticketRow());
 
-    const res = await request(app).get(`/api/tickets/${TICKET_PUBLIC_ID}`).set("X-Requester-Id", "1");
+    const res = await request(app)
+      .get(`/api/users/me/tickets/${TICKET_PUBLIC_ID}`)
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id));
 
     expect(res.status).toBe(200);
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
   it("sends Cache-Control: no-store on the Ticket Detail 404", async () => {
-    const res = await request(app).get(`/api/tickets/${TICKET_PUBLIC_ID}`).set("X-Requester-Id", "1");
+    const res = await request(app)
+      .get(`/api/users/me/tickets/${TICKET_PUBLIC_ID}`)
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id));
 
     expect(res.status).toBe(404);
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
-  it("varies Ticket Detail by X-Requester-Id on both the hit and the miss", async () => {
+  it("keeps Ticket Detail Vary limited to Origin on both the hit and the miss", async () => {
     prismaMock.ticket.findFirst.mockResolvedValue(ticketRow());
     const hit = await request(app)
-      .get(`/api/tickets/${TICKET_PUBLIC_ID}`)
-      .set("X-Requester-Id", "1")
+      .get(`/api/users/me/tickets/${TICKET_PUBLIC_ID}`)
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
       .set("Origin", "http://localhost:5173");
 
     prismaMock.ticket.findFirst.mockResolvedValue(null);
     const miss = await request(app)
-      .get(`/api/tickets/${TICKET_PUBLIC_ID}`)
-      .set("X-Requester-Id", "1")
+      .get(`/api/users/me/tickets/${TICKET_PUBLIC_ID}`)
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
       .set("Origin", "http://localhost:5173");
 
     for (const res of [hit, miss]) {
       const varyValues = res.headers.vary.split(/,\s*/);
       expect(varyValues).toContain("Origin");
-      expect(varyValues).toContain("X-Requester-Id");
+      expect(varyValues).not.toContain("X-Requester-Id");
       expect(varyValues.filter((value) => value === "Origin")).toHaveLength(1);
     }
   });
@@ -222,8 +236,8 @@ describe("binary response hardening (API-70)", () => {
     arrangeBinary();
 
     const res = await request(app)
-      .get(`/api/attachments/${ATTACHMENT_KEY}/${route}`)
-      .set("X-Requester-Id", "1")
+      .get(`/api/users/me/attachments/${ATTACHMENT_KEY}/${route}`)
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
       .set("Origin", "http://localhost:5173")
       .buffer(true)
       .parse(binaryParser);
@@ -240,7 +254,7 @@ describe("binary response hardening (API-70)", () => {
 
     const varyValues = res.headers.vary.split(/,\s*/);
     expect(varyValues).toContain("Origin");
-    expect(varyValues).toContain("X-Requester-Id");
+    expect(varyValues).not.toContain("X-Requester-Id");
     expect(varyValues.filter((value: string) => value === "Origin")).toHaveLength(1);
   });
 
@@ -248,8 +262,8 @@ describe("binary response hardening (API-70)", () => {
     arrangeBinary('re"port\\;.pdf');
 
     const res = await request(app)
-      .get(`/api/attachments/${ATTACHMENT_KEY}/download`)
-      .set("X-Requester-Id", "1")
+      .get(`/api/users/me/attachments/${ATTACHMENT_KEY}/download`)
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
       .buffer(true)
       .parse(binaryParser);
 
@@ -272,12 +286,12 @@ describe("binary response hardening (API-70)", () => {
     );
 
     const res = await request(app)
-      .get(`/api/attachments/${ATTACHMENT_KEY}/preview`)
-      .set("X-Requester-Id", "1")
+      .get(`/api/users/me/attachments/${ATTACHMENT_KEY}/preview`)
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
       .set("Origin", "http://localhost:5173");
 
     expect(res.status).toBe(410);
     expect(res.headers["cache-control"]).toBe("no-store");
-    expect(res.headers.vary.split(/,\s*/)).toContain("X-Requester-Id");
+    expect(res.headers.vary.split(/,\s*/)).not.toContain("X-Requester-Id");
   });
 });
