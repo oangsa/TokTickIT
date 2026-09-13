@@ -1017,7 +1017,7 @@ Issue 2 execution record for 2026-09-13:
 - Full client regression: Pass; 10 files, 296 tests.
 - Client build: Pass.
 - Server build: Pass.
-- Changed-file security/credential inspection: Partial; current-tree inspection found no production credentials, database URLs, refresh plaintext, password plaintext/hash snapshots, JWT secret, or one-time credential, and the local seed handoff remains ignored with mode `0600`; GitGuardian still reports two synthetic Generic Password findings in earlier feature commits, with incident disposition/history cleanup pending.
+- Changed-file security/credential inspection: Pass; current-head inspection found no production credentials, database URLs, refresh plaintext, password plaintext/hash snapshots, JWT secret, or one-time credential, and the local seed handoff remains ignored with mode `0600`; GitGuardian incident `37228452` was dispositioned as a false positive caused by a synthetic invalid-password fixture in historical test-only commit `d8691ba`.
 - `git diff --check`: Pass.
 
 The PostgreSQL migration-upgrade test creates an isolated schema inside the
@@ -1075,7 +1075,7 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-01 | Delivery | Handout Spec DD | Required `docs/lab-03/` files exist before main implementation work and remain mutually consistent. | Rendered specification/tests/ui/api documents are committed; reviewer/ai_use files are added through the Lab workflow. | Not Run |
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
-| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-tree inspection passes, but GitGuardian history findings must be resolved or explicitly dispositioned before this evidence is complete. | Partial — no current-tree secret exposure found; two synthetic Generic Password findings from earlier feature commits remain unresolved in GitGuardian. |
+| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`. |
 | DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Not Run |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Not Run |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Not Run |
