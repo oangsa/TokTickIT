@@ -74,6 +74,20 @@ const prisma = vi.hoisted(() => ({
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prisma }));
 
+vi.mock("../../src/services/ticketListService.js", () => ({
+  listTicketsForRequester: async () => ({
+    items: [],
+    pagination: {
+      pageNumber: 1,
+      pageSize: 10,
+      totalItems: 0,
+      totalPages: 0,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    },
+  }),
+}));
+
 import { app } from "../../src/app.js";
 import { generateInitialPassword } from "../../src/services/initialPasswordGenerator.js";
 import { JwtService } from "../../src/services/jwtService.js";
@@ -510,6 +524,15 @@ describe("Auth API @issue-2", () => {
   });
 
   it("API-13 applies server-side role authorization to protected requester routes @issue-2", async () => {
+    configureUser({ role: "REQUESTER" });
+    const requesterLogin = await loginRequest({ password: testPassword });
+    const requesterResponse = await request(app)
+      .get("/api/users/me/tickets")
+      .set("Authorization", `Bearer ${requesterLogin.body.accessToken}`);
+
+    expect(requesterResponse.status).toBe(200);
+    expect(requesterResponse.body).toEqual([]);
+
     for (const role of ["IT_STAFF", "ADMINISTRATOR"]) {
       state.sessions = [];
       configureUser({ role });
