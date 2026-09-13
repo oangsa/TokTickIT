@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { decodeJwt, decodeProtectedHeader } from "jose";
 import { describe, expect, it, beforeEach } from "vitest";
 
@@ -5,7 +6,7 @@ import { ACCESS_TOKEN_SECONDS, AccessTokenExpiredError, JwtService } from "../..
 
 describe("JwtService @issue-2", () => {
   beforeEach(() => {
-    process.env.JWT_SECRET = "test-secret-that-is-at-least-32-characters-long";
+    process.env.JWT_SECRET = randomBytes(32).toString("base64url");
   });
 
   it("signs only approved HS256 claims for ten minutes", async () => {

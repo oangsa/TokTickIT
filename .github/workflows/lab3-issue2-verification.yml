@@ -20,7 +20,6 @@ env:
   LAB3_BASELINE_DIRECT_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_baseline
   DATABASE_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_baseline
   DIRECT_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_baseline
-  JWT_SECRET: ci-only-secret-with-at-least-32-characters
   CORS_ALLOWED_ORIGINS: http://localhost:5173
 
 jobs:
@@ -76,7 +75,18 @@ jobs:
           DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
           LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
           LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
-        run: npx --no-install prisma migrate status
+        run: |
+          set +e
+          status_output="$(npx --no-install prisma migrate status 2>&1)"
+          status_code=$?
+          set -e
+          printf '%s\n' "$status_output"
+
+          printf '%s\n' "$status_output" | grep -Fq 'Datasource "db": PostgreSQL database "toktickit_lab3_test", schema "public" at "127.0.0.1:5432"'
+          if [ "$status_code" -ne 0 ]; then
+            [ "$status_code" -eq 1 ]
+            printf '%s\n' "$status_output" | grep -Fq 'Following migrations have not yet been applied:'
+          fi
 
       - name: Deploy Lab 3 migrations
         env:
@@ -153,5 +163,40 @@ jobs:
           tests/lab-03/postgres/maintenance.postgres.test.ts
           -t '@issue-2'
 
+      - name: Run full server regression suite from Lab 1 through Lab 3
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: npm test
+
       - name: Build server
+        run: npm run build
+
+  client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci
+
+      - name: Run full client regression suite from Lab 1 through Lab 2
+        run: npm test
+
+      - name: Build client
         run: npm run build

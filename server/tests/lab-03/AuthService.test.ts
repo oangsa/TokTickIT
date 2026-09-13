@@ -1,6 +1,8 @@
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { AuthService } from "../../src/services/authService.js";
+import { generateInitialPassword } from "../../src/services/initialPasswordGenerator.js";
 import { hashPassword } from "../../src/services/passwordService.js";
 
 interface AuthFakePrisma {
@@ -19,8 +21,9 @@ interface AuthFakePrisma {
 
 describe("AuthService @issue-2", () => {
   it("creates a restricted session for an initial-password User", async () => {
-    process.env.JWT_SECRET = "test-secret-that-is-at-least-32-characters-long";
-    const passwordHash = await hashPassword("Aa1!test");
+    process.env.JWT_SECRET = randomBytes(32).toString("base64url");
+    const initialPassword = generateInitialPassword();
+    const passwordHash = await hashPassword(initialPassword);
     const user = {
       id: 7,
       publicId: "10000000-0000-4000-8000-000000000001",
@@ -52,7 +55,7 @@ describe("AuthService @issue-2", () => {
     };
     const result = await new AuthService(prisma as never).login({
       email: "ALICE@example.com",
-      password: "Aa1!test",
+      password: initialPassword,
       rememberMe: true,
       ipAddress: "127.0.0.1",
     });

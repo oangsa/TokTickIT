@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -46,18 +48,22 @@ const prisma = vi.hoisted(() => ({
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prisma }));
 
 import { app } from "../../src/app.js";
+import { generateInitialPassword } from "../../src/services/initialPasswordGenerator.js";
 import { hashPassword } from "../../src/services/passwordService.js";
 
 describe("authentication API @issue-2", () => {
+  let testPassword: string;
+
   beforeEach(async () => {
-    process.env.JWT_SECRET = "test-secret-that-is-at-least-32-characters-long";
+    process.env.JWT_SECRET = randomBytes(32).toString("base64url");
+    testPassword = generateInitialPassword();
     state.user = {
       id: 7,
       publicId: "10000000-0000-4000-8000-000000000001",
       name: "Alice Johnson",
       email: "alice@example.com",
       role: "REQUESTER",
-      passwordHash: await hashPassword("Aa1!test"),
+      passwordHash: await hashPassword(testPassword),
       mustChangePassword: false,
       isActive: true,
       deleted: false,
@@ -69,7 +75,7 @@ describe("authentication API @issue-2", () => {
   it("returns token data only and sets an opaque refresh cookie", async () => {
     const response = await request(app)
       .post("/api/auth/login")
-      .send({ email: "Alice@Example.com", password: "Aa1!test", rememberMe: true });
+      .send({ email: "Alice@Example.com", password: testPassword, rememberMe: true });
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ accessToken: expect.any(String), expiresIn: 600 });
     expect(response.body).not.toHaveProperty("user");
@@ -82,7 +88,7 @@ describe("authentication API @issue-2", () => {
     state.user = null;
     const response = await request(app)
       .post("/api/auth/login")
-      .send({ email: "unknown@example.com", password: "Aa1!test", rememberMe: false });
+      .send({ email: "unknown@example.com", password: testPassword, rememberMe: false });
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({ code: "AUTHENTICATION_FAILED", message: "Invalid email or password." });
   });
@@ -91,7 +97,7 @@ describe("authentication API @issue-2", () => {
     state.blocked = true;
     const response = await request(app)
       .post("/api/auth/login")
-      .send({ email: "unknown@example.com", password: "Aa1!test", rememberMe: false });
+      .send({ email: "unknown@example.com", password: testPassword, rememberMe: false });
     expect(response.status).toBe(429);
     expect(response.headers["retry-after"]).toBe("900");
     expect(response.body.code).toBe("RATE_LIMITED");

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { generateInitialPassword } from "../../src/services/initialPasswordGenerator.js";
 import {
   hashPassword,
   TEST_ARGON2_PROFILE,
@@ -23,9 +24,10 @@ describe("PasswordService @issue-2", () => {
   });
 
   it("hashes and verifies Argon2id with injected test profile", async () => {
-    const hash = await hashPassword("Aa1!test", TEST_ARGON2_PROFILE);
+    const password = generateInitialPassword();
+    const hash = await hashPassword(password, TEST_ARGON2_PROFILE);
     expect(hash).toMatch(/^\$argon2id\$/);
-    expect(await verifyPassword(hash, "Aa1!test")).toBe(true);
-    expect(await verifyPassword(hash, "Aa1!wrong")).toBe(false);
+    expect(await verifyPassword(hash, password)).toBe(true);
+    expect(await verifyPassword(hash, `${password}x`)).toBe(false);
   });
 });
