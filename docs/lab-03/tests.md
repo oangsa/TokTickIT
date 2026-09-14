@@ -971,9 +971,6 @@ The Issue 3 browser command sets `ISSUE_3_UI_ONLY=1`: its authentication and
 responsive specs mock all auth traffic and intentionally start only the client.
 All other browser suites keep the guarded API web server and require the
 dedicated Lab 3 test target and baseline variables.
-The committed `.github/workflows/lab3-issue3-verification.yml` runs this same
-Issue 3 gate on pull requests and feature-branch pushes, with pinned Chromium
-installation and an uploaded Playwright report artifact.
 
 Issue 3 execution at the current head:
 

@@ -70,8 +70,5 @@ Implemented on the current Issue 3 feature branch:
   shell checks at all three required viewports. The mocked Issue 3 browser
   command explicitly sets `ISSUE_3_UI_ONLY=1`; database-backed suites remain
   guarded by default.
-- The committed [Issue 3 verification workflow](../../.github/workflows/lab3-issue3-verification.yml)
-  runs the focused client gate, full client regression, client build, and the
-  exact 22-test Playwright command, then uploads the browser report artifact.
 - Current-head counts are 28 focused UI tests and 324 full client tests; these
   supersede the older 27/323 counts in the PR description.
