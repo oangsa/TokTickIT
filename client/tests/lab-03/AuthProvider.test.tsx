@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import App from "../../src/App.js";
+import { API_TIMEOUT_MS } from "../../src/api.js";
 import { authenticatedRequest, clearAccessToken, getAccessToken, refreshAccessToken, setAccessToken } from "../../src/auth/authTransport.js";
 
 function response(body: unknown, status = 200): Response {
@@ -10,6 +11,8 @@ function response(body: unknown, status = 200): Response {
 }
 
 afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
   clearAccessToken(false);
   vi.unstubAllGlobals();
 });
@@ -198,6 +201,93 @@ describe("Issue 3 AuthProvider", () => {
     settleRefresh(response({ accessToken: "fresh-token", expiresIn: 600 }));
 
     await expect(Promise.all(requests)).resolves.toEqual([{ ok: true }, { ok: true }]);
+    expect(refreshRequests).toBe(1);
+    expect(transportB.getAccessToken()).toBe("fresh-token");
+    transportA.clearAccessToken(false);
+    transportB.clearAccessToken(false);
+  });
+
+  it("UI-08 shares one refresh result across cold browser realms @issue-3", async () => {
+    vi.useFakeTimers();
+
+    class FakeBroadcastChannel {
+      static instances: FakeBroadcastChannel[] = [];
+      private listener: ((event: MessageEvent) => void) | null = null;
+
+      constructor(readonly name: string) {
+        FakeBroadcastChannel.instances.push(this);
+      }
+
+      addEventListener(_type: string, listener: (event: MessageEvent) => void): void {
+        this.listener = listener;
+      }
+
+      postMessage(message: unknown): void {
+        queueMicrotask(() => {
+          for (const instance of FakeBroadcastChannel.instances) {
+            if (instance !== this) instance.listener?.({ data: message } as MessageEvent);
+          }
+        });
+      }
+    }
+
+    let lockHeld = false;
+    const lockRequest = vi.fn(async (_name: string, options: { ifAvailable?: boolean }, callback: (lock: object | null) => Promise<string | null>) => {
+      if (lockHeld && options.ifAvailable) return callback(null);
+      lockHeld = true;
+      try {
+        return await callback({});
+      } finally {
+        lockHeld = false;
+      }
+    });
+    let refreshRequests = 0;
+    let settleRefresh!: (value: Response) => void;
+    const pendingRefresh = new Promise<Response>((resolve) => {
+      settleRefresh = resolve;
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input).replace(/^https?:\/\/[^/]+/, "");
+      if (path !== "/api/auth/refresh") return Promise.resolve(response(undefined, 404));
+      refreshRequests += 1;
+      return refreshRequests === 1
+        ? pendingRefresh
+        : Promise.resolve(response({ accessToken: "unexpected-second-refresh", expiresIn: 600 }));
+    });
+
+    vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
+    vi.stubGlobal("crypto", { randomUUID: vi.fn().mockReturnValueOnce("cold-session-a").mockReturnValueOnce("cold-session-b") });
+    vi.stubGlobal("navigator", { locks: { request: lockRequest } });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.resetModules();
+    const transportA = await import("../../src/auth/authTransport.js");
+    vi.resetModules();
+    const transportB = await import("../../src/auth/authTransport.js");
+    transportA.subscribeAuthEvents(() => {});
+    transportB.subscribeAuthEvents(() => {});
+
+    const requests = Promise.all([
+      transportA.refreshAccessToken(null),
+      transportB.refreshAccessToken(null),
+    ]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refreshRequests).toBe(1);
+
+    settleRefresh(response({ accessToken: "fresh-token", expiresIn: 600 }));
+    const outcomePromise = Promise.race([
+      requests.then((value) => ({ kind: "settled" as const, value })),
+      new Promise<{ kind: "timed-out" }>((resolve) => setTimeout(() => resolve({ kind: "timed-out" }), 1)),
+    ]);
+    await vi.advanceTimersByTimeAsync(1);
+    const outcome = await outcomePromise;
+
+    if (outcome.kind === "timed-out") {
+      await vi.advanceTimersByTimeAsync(API_TIMEOUT_MS);
+      await requests;
+    }
+
+    expect(outcome.kind).toBe("settled");
+    if (outcome.kind === "settled") expect(outcome.value).toEqual(["fresh-token", "fresh-token"]);
     expect(refreshRequests).toBe(1);
     expect(transportB.getAccessToken()).toBe("fresh-token");
     transportA.clearAccessToken(false);

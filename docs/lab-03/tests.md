@@ -611,7 +611,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-03 | UI | AC-02, AC-12 | Login validation, generic failure and rate-limit feedback. | Unknown/inactive/wrong-password response renders same safe message; 429 shows safe retry guidance; typed values/secret handling remain appropriate. | tests/lab-03/Login.test.tsx | Pass |
 | UI-04 | UI | AC-03, AC-04 | Mandatory Change Password UI. | Restricted User sees only New/Confirm fields and password guidance; invalid input blocks request; success clears auth and routes Login. | tests/lab-03/ChangePassword.test.tsx | Pass |
 | UI-05 | UI | AC-05 | Normal Change Password UI. | Current/New/Confirm fields render; mismatch/current-error behavior is local; successful change ends current auth and returns Login. | tests/lab-03/ChangePassword.test.tsx | Pass |
-| UI-06 | UI | AC-10, AC-11, AC-14 | Authenticated AppShell identity/role navigation and Logout controls. | Name/role shown; only permitted destinations render; Logout/Logout All state clears appropriately; role meaning has visible text. | tests/lab-03/ApplicationShellAuth.test.tsx | Pass |
+| UI-06 | UI | AC-10, AC-11, AC-14 | Authenticated AppShell identity/role navigation and Logout controls. | Name/role shown; only permitted destinations render; current-session Logout state clears appropriately; role meaning has visible text. | tests/lab-03/ApplicationShellAuth.test.tsx | Pass |
 | UI-07 | UI | AC-13, AC-14 | Anonymous and wrong-role route guards. | Protected content never renders before redirect/error; wrong role uses standalone safe 403. | tests/lab-03/ApplicationShellAuth.test.tsx | Pass |
 | UI-08 | UI | AC-07, AC-09, AC-18 | Central API refresh handling and same-origin tab coordination using mocked `navigator.locks`/`BroadcastChannel`. | Same-realm and independent-realm concurrent expired-token calls use one refresh, retry originals once, broadcast the ephemeral bearer/session-ended state, and never persist access token in Web Storage. | tests/lab-03/AuthProvider.test.tsx | Pass |
 | UI-09 | UI | AC-15, AC-17 | Requester Create Ticket regression after CommonForm/auth migration. | Authenticated Requester shown read-only; no Change Requester; Lab 2 fields/counters/Pending upload/idempotent submit/recovery/discard behavior remains. | tests/lab-03/RequesterRegression.test.tsx; tests/lab-02/CreateTicket.test.tsx | Not Run |
@@ -829,8 +829,8 @@ does not replace the implementation owner’s focused gate.
 | Primary Issue | Implementation owner and API/UI seam | FR IDs | BR IDs | AC IDs | Primary verification artifacts |
 | --- | --- | --- | --- | --- | --- |
 | Issue 2 | User/session/auth backend: /api/auth/*, auth middleware, User/UserSession/LoginRateLimit Prisma models, migration/seed/maintenance, centralized transport/error middleware. | FR-01–FR-12; FR-61–FR-63; FR-65–FR-66 | BR-01–BR-02; BR-06–BR-32 | AC-01–AC-14; AC-64–AC-66 | UNIT-01–UNIT-06; UNIT-16; API-01–API-13; API-54; PG-01–PG-02; PG-04–PG-06; PG-17; DATA-02–DATA-04; DATA-10 |
-| Issue 3 | AuthProvider and authenticated shell: /api/auth/refresh and /api/auth/me consumers, route guards, CommonForm, useManagedForm, shared form constants, Bootstrap layout. | FR-50–FR-60 | BR-87–BR-95 | AC-18; AC-57–AC-62 | UI-01–UI-08; UI-32–UI-36; UI-38; RESP-01; RESP-06; E2E-01–E2E-02; DATA-07 |
-| Issue 4 | Authenticated Requester scope: /api/users/me/tickets and /api/users/me/attachments consumers, Create Ticket, My Tickets, base Ticket Detail, ownership-safe 404, resolution/reopen/cancel UI. Public Comment behavior is consumed later through the Issue 6 communication seam. | FR-13–FR-18 | BR-03; BR-05; BR-59; BR-61–BR-63 | AC-15–AC-17; AC-31–AC-32 | UNIT-07; UNIT-18; API-14–API-17; API-30–API-31; PG-11; PG-16; UI-09–UI-12; RESP-02; E2E-03; DATA-05–DATA-06 |
+| Issue 3 | AuthProvider and authenticated shell: /api/auth/refresh and /api/auth/me consumers, route guards, CommonForm, useManagedForm, shared form constants, Bootstrap layout. | FR-50–FR-60 | BR-87–BR-95 | AC-18; AC-57–AC-59; AC-61–AC-62 | UI-01–UI-08; UI-32–UI-34; UI-36; UI-38; RESP-01; RESP-06; E2E-01–E2E-02; DATA-07 |
+| Issue 4 | Authenticated Requester scope: /api/users/me/tickets and /api/users/me/attachments consumers, Create Ticket, My Tickets, base Ticket Detail, ownership-safe 404, resolution/reopen/cancel UI. Public Comment behavior is consumed later through the Issue 6 communication seam. | FR-13–FR-18 | BR-03; BR-05; BR-59; BR-61–BR-63 | AC-15–AC-17; AC-31–AC-32; AC-60 | UNIT-07; UNIT-18; API-14–API-17; API-30–API-31; PG-11; PG-16; UI-09–UI-12; UI-35; RESP-02; E2E-03; DATA-05–DATA-06 |
 | Issue 5 | Staff Queue and Ticket workflow: /api/tickets queue/detail, ownership and semantic lifecycle actions, existing Staff/Admin Attachment reads, QueryBuilder boundary, and queue/detail workflow UI. | FR-19–FR-34; FR-64 | BR-47–BR-58; BR-60; BR-64–BR-67; BR-78–BR-81; BR-83–BR-86 | AC-19–AC-27; AC-29–AC-30; AC-33; AC-41–AC-46 | UNIT-08–UNIT-10; UNIT-13; UNIT-17; API-18–API-26; API-28–API-29; API-32; API-40–API-45; API-55; PG-07–PG-10; UI-13–UI-20; UI-22; RESP-03; E2E-04 |
 | Issue 6 | Public Comments integrated into Requester/Staff Detail, Internal Notes, and Administrator User Management under /api/admin/users. Consumes Issue 4’s Requester Detail seam and Issue 5’s Staff Ticket Detail seam. | FR-35–FR-49 | BR-04; BR-33–BR-46; BR-68–BR-77; BR-82 | AC-28; AC-34–AC-40; AC-47–AC-56; AC-63 | UNIT-11–UNIT-12; UNIT-14–UNIT-15; API-27; API-33–API-39; API-46–API-53; PG-03; PG-12–PG-15; UI-21; UI-23–UI-31; UI-37; RESP-04–RESP-05; E2E-05–E2E-06 |
 
@@ -898,8 +898,8 @@ second owner.
 | --- | --- |
 | Issue 1 | DATA-01, DATA-09 |
 | Issue 2 | UNIT-01–UNIT-06; UNIT-16; API-01–API-13; API-54; PG-01–PG-02; PG-04–PG-06; PG-17; DATA-02–DATA-04; DATA-10 |
-| Issue 3 | UI-01–UI-08; UI-32–UI-36; UI-38; RESP-01; RESP-06; E2E-01–E2E-02; DATA-07 |
-| Issue 4 | UNIT-07; UNIT-18; API-14–API-17; API-30–API-31; PG-11; PG-16; UI-09–UI-12; RESP-02; E2E-03; DATA-05–DATA-06 |
+| Issue 3 | UI-01–UI-08; UI-32–UI-34; UI-36; UI-38; RESP-01; RESP-06; E2E-01–E2E-02; DATA-07 |
+| Issue 4 | UNIT-07; UNIT-18; API-14–API-17; API-30–API-31; PG-11; PG-16; UI-09–UI-12; UI-35; RESP-02; E2E-03; DATA-05–DATA-06 |
 | Issue 5 | UNIT-08–UNIT-10; UNIT-13; UNIT-17; API-18–API-26; API-28–API-29; API-32; API-40–API-45; API-55; PG-07–PG-10; UI-13–UI-20; UI-22; RESP-03; E2E-04 |
 | Issue 6 | UNIT-11–UNIT-12; UNIT-14–UNIT-15; API-27; API-33–API-39; API-46–API-53; PG-03; PG-12–PG-15; UI-21; UI-23–UI-31; UI-37; RESP-04–RESP-05; E2E-05–E2E-06 |
 | Issue 7 | VIS-01–VIS-06; DATA-08; DATA-11 — final evidence ownership only |
@@ -964,6 +964,9 @@ cd ..
 ISSUE_3_UI_ONLY=1 npm run test:e2e -- --grep '@issue-3' e2e/lab-03/authentication.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
 
+UI-35 is intentionally excluded from the Issue 3 close gate; Issue 4 owns its
+Requester AttachmentSection/CommonForm integration and regression evidence.
+
 The Issue 3 browser command sets `ISSUE_3_UI_ONLY=1`: its authentication and
 responsive specs mock all auth traffic and intentionally start only the client.
 All other browser suites keep the guarded API web server and require the
@@ -971,12 +974,12 @@ dedicated Lab 3 test target and baseline variables.
 
 Issue 3 execution at the current head:
 
-- The exact focused client command passed: 7 files, 27 tests with `@issue-3`.
+- The exact focused client command passed: 7 files, 28 tests with `@issue-3`.
 - `npm run build` passed.
 - The exact browser command passed: 22 tests with `@issue-3`, including
   unknown/inactive/incorrect-password safe feedback and Requester, IT Staff,
   and Administrator shell checks at all three required viewports.
-- The full client regression passed: 17 files, 323 tests. The seven legacy Lab
+- The full client regression passed: 17 files, 324 tests. The seven legacy Lab
   2 imports use a test-only route harness; production `App` retains the Issue 3
   authenticated route map.
 - The previously recorded guarded full server Lab 1–3 regression remains:
@@ -1106,7 +1109,7 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
 | DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`. |
-| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — prior guarded server regression: 48 files/721 tests; current client regression: 17 files/323 tests. |
+| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — prior guarded server regression: 48 files/721 tests; current client regression: 17 files/324 tests. |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Not Run |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Pass |
 | DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Tracked evidence exists under `docs/lab-03/evidence/screenshots/` and is readable and passes Section 12 checklist. | Not Run |

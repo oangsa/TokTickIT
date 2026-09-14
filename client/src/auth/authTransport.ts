@@ -14,6 +14,7 @@ export type AuthEvent =
 interface AuthSession {
   id: string;
   startedAt: number;
+  provisional: boolean;
 }
 
 interface RefreshOperation {
@@ -39,8 +40,8 @@ function createSessionId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function createSession(): AuthSession {
-  return { id: createSessionId(), startedAt: Date.now() };
+function createSession(provisional = false): AuthSession {
+  return { id: createSessionId(), startedAt: Date.now(), provisional };
 }
 
 function sessionEvent<T extends "ACCESS_UPDATED" | "SESSION_ENDED" | "LOGOUT">(type: T): AuthEvent {
@@ -56,6 +57,7 @@ function isCurrentSession(sessionId: string | null): boolean {
 interface AccessUpdateWaiter {
   expectedToken: string | null;
   sessionId: string;
+  allowSessionAdoption: boolean;
   timer?: ReturnType<typeof setTimeout>;
   resolve: (result: AccessUpdateWaitResult) => void;
 }
@@ -77,7 +79,7 @@ function notifyAccessUpdateWaiters(event: AuthEvent): void {
   for (const waiter of accessUpdateWaiters) {
     if (
       event.type === "ACCESS_UPDATED" &&
-      event.sessionId === waiter.sessionId &&
+      (event.sessionId === waiter.sessionId || waiter.allowSessionAdoption) &&
       typeof event.accessToken === "string" &&
       event.accessToken !== waiter.expectedToken
     ) {
@@ -105,7 +107,12 @@ function waitForAccessUpdate(sessionId: string, expectedToken: string | null): P
   }
 
   return new Promise((resolve) => {
-    const waiter: AccessUpdateWaiter = { expectedToken, sessionId, resolve };
+    const waiter: AccessUpdateWaiter = {
+      expectedToken,
+      sessionId,
+      allowSessionAdoption: authSession?.id === sessionId && authSession.provisional,
+      resolve,
+    };
     waiter.timer = setTimeout(() => finishAccessUpdateWaiter(waiter, { accessToken: null, timedOut: true }), API_TIMEOUT_MS);
     accessUpdateWaiters.add(waiter);
   });
@@ -118,15 +125,16 @@ function compareSessions(left: AuthSession, right: AuthSession): number {
 
 function remoteSession(event: AuthEvent): AuthSession | null {
   return typeof event.sessionId === "string" && event.sessionId !== ""
-    ? { id: event.sessionId, startedAt: typeof event.sessionStartedAt === "number" ? event.sessionStartedAt : 0 }
+    ? { id: event.sessionId, startedAt: typeof event.sessionStartedAt === "number" ? event.sessionStartedAt : 0, provisional: false }
     : null;
 }
 
 /*
  * ACCESS_UPDATED carries the short-lived bearer ephemerally. The session marker
  * lets a late refresh or logout from an older browser session become inert
- * instead of touching a new login. Refreshes in the same session keep the
- * marker stable.
+ * instead of touching a new login. A marker created for a cold refresh is
+ * provisional until its first bearer, so it may adopt the lock holder's
+ * session. Refreshes in the same established session keep the marker stable.
  */
 function applyRemoteEvent(event: AuthEvent): boolean {
   const remote = remoteSession(event);
@@ -139,7 +147,7 @@ function applyRemoteEvent(event: AuthEvent): boolean {
     return true;
   }
 
-  if (authSession !== null && authSession.id !== remote.id && compareSessions(remote, authSession) < 0) {
+  if (authSession !== null && !authSession.provisional && authSession.id !== remote.id && compareSessions(remote, authSession) < 0) {
     return false;
   }
 
@@ -209,6 +217,7 @@ export function beginAuthSession(): void {
 
 export function setAccessToken(token: string, expiresIn?: number, broadcast = true): void {
   authSession ??= createSession();
+  authSession.provisional = false;
   accessToken = token;
   if (broadcast) {
     publish({
@@ -285,7 +294,7 @@ export async function refreshAccessToken(expectedToken?: string | null, expected
   }
 
   if (expectedSessionId !== undefined && !isCurrentSession(expectedSessionId)) return null;
-  if (authSession === null) authSession = createSession();
+  if (authSession === null) authSession = createSession(true);
   const targetSessionId = authSession.id;
   if (expectedToken !== undefined && accessToken !== expectedToken) {
     return isCurrentSession(targetSessionId) ? accessToken : null;

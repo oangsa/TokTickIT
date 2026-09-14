@@ -60,8 +60,8 @@ Implemented on the current Issue 3 feature branch:
 - Shared form constants under `client/src/constants/forms/{index,auth,ticket,user}.ts`.
 - In-memory auth transport and AuthProvider states (`BOOTSTRAPPING`, `ANONYMOUS`, `PASSWORD_CHANGE_REQUIRED`, `AUTHENTICATED`) with `/api/auth/refresh`, `/api/auth/me`, bounded auth requests, same- and independent-realm single-flight refresh, `navigator.locks`, and ephemeral bearer `BroadcastChannel("toktickit-auth")` coordination without Web Storage persistence.
 - Login, restricted/full Change Password, role guards, temporary protected destination screens for later Issue-owned domains, role-aware AppShell navigation, logout, mobile drawer behavior, and standalone safe 403/404/500 error routing.
-- Focused UI coverage: `client/tests/lab-03/` — 7 files, 27 tests passed with `@issue-3`.
-- Full client regression: 17 files, 323 tests passed. The seven legacy Lab 2
+- Focused UI coverage: `client/tests/lab-03/` — 7 files, 28 tests passed with `@issue-3`.
+- Full client regression: 17 files, 324 tests passed. The seven legacy Lab 2
   imports use a test-only route harness so production `App` keeps the Issue 3
   authenticated route map.
 - Client production build passed.
