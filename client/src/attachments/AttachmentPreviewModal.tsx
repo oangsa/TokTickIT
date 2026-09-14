@@ -4,7 +4,7 @@ import { Download } from "lucide-react";
 import { Button } from "../components/Button.js";
 import { IconButton } from "../components/IconButton.js";
 import { Modal } from "../components/Modal.js";
-import { useRequesterBlob } from "../requester/useRequesterApi.js";
+import { useAuthenticatedBlob } from "../auth/useAuthenticatedApi.js";
 import { ATTACHMENT_TIMEOUT_MS } from "./attachmentRules.js";
 
 export interface PreviewTarget {
@@ -22,9 +22,8 @@ interface AttachmentPreviewModalProps {
  * Attachment preview (ui-spec Section 24).
  *
  * The binary is fetched through the API client rather than pointed at: an
- * `<img src>` or an `<iframe src>` cannot carry `X-Requester-Id`, so a
- * requester-scoped URL used directly would answer 400 and the picture would
- * simply not appear. The bytes arrive as a Blob and are rendered from a
+ * Binary access uses authenticated transport rather than a direct URL, so the
+ * bytes arrive as a Blob and are rendered from a
  * temporary object URL instead.
  *
  * Every object URL this component creates is revoked: when the modal closes,
@@ -34,7 +33,7 @@ interface AttachmentPreviewModalProps {
  * `Modal` already owns the focus trap, Escape, and focus return.
  */
 export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewModalProps) {
-  const fetchBlob = useRequesterBlob();
+  const fetchBlob = useAuthenticatedBlob();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -48,7 +47,7 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
 
     setFailed(false);
 
-    void fetchBlob(`/api/attachments/${encodeURIComponent(target.attachmentId)}/preview`, {
+    void fetchBlob(`/api/users/me/attachments/${encodeURIComponent(target.attachmentId)}/preview`, {
       timeoutMs: ATTACHMENT_TIMEOUT_MS,
     })
       .then((blob) => {
@@ -128,8 +127,8 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
 }
 
 /*
- * Download shares the preview's rule: fetch with the requester header, check the
- * response before reading the body, and use the already-known
+ * Download shares the preview's rule: fetch through authenticated transport,
+ * check the response before reading the body, and use the already-known
  * `AttachmentDTO.originalName` as the filename rather than parsing
  * `Content-Disposition`. The object URL is revoked as soon as the download has
  * been initiated.
@@ -149,7 +148,7 @@ export function AttachmentDownloadButton({
    */
   variant?: "secondary" | "tertiary" | "icon";
 }) {
-  const fetchBlob = useRequesterBlob();
+  const fetchBlob = useAuthenticatedBlob();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -165,7 +164,7 @@ export function AttachmentDownloadButton({
     setFailed(false);
 
     try {
-      const blob = await fetchBlob(`/api/attachments/${encodeURIComponent(attachmentId)}/download`, {
+      const blob = await fetchBlob(`/api/users/me/attachments/${encodeURIComponent(attachmentId)}/download`, {
         timeoutMs: ATTACHMENT_TIMEOUT_MS,
       });
       const url = URL.createObjectURL(blob);

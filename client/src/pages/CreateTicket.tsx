@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
 
 import {
   ApiResponseError,
-  InvalidRequesterContextError,
   MasterDataItem,
   Ticket,
 } from "../api.js";
+import { useAuth } from "../auth/AuthProvider.js";
 import { Button } from "../components/Button.js";
 import {
   AttachmentSection,
@@ -14,56 +15,31 @@ import {
 } from "../attachments/AttachmentSection.js";
 import { releasePendingAttachments } from "../attachments/pendingCleanup.js";
 import { Card } from "../components/Card.js";
+import { CommonForm } from "../components/CommonForm.js";
 import { ErrorState } from "../components/ErrorState.js";
-import { Form } from "../components/Form.js";
 import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
-import { ReadOnlyField } from "../components/ReadOnlyField.js";
-import { Select } from "../components/Select.js";
 import { Skeleton } from "../components/Skeleton.js";
-import { Textarea } from "../components/Textarea.js";
-import { TextInput } from "../components/TextInput.js";
+import type { FormSection } from "../forms/formTypes.js";
+import { useManagedForm } from "../forms/useManagedForm.js";
+import { TICKET_FORM_RULES } from "../constants/forms/ticket.js";
 import {
   NavigationAction,
   useNavigationGuard,
 } from "../navigation/NavigationGuard.js";
-import { useRequester } from "../requester/RequesterProvider.js";
-import { useRequesterApi } from "../requester/useRequesterApi.js";
+import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import {
-  CreateTicketDraft,
   CreateTicketPayload,
-  EMPTY_DRAFT,
   RecoveryRecord,
   clearRecovery,
-  isDirty,
   payloadSignature,
   readRecovery,
-  toPayload,
   writeRecovery,
 } from "../tickets/createTicketDraft.js";
 
 type LoadState = "loading" | "loaded" | "failed";
 
-type FieldErrors = Partial<Record<keyof CreateTicketDraft | "form", string>>;
-
 const GENERATED_VALUE_TEXT = "Assigned on submission";
-
-/* Field order drives first-invalid focus (ui-spec Section 8.2). */
-const FIELD_ORDER: (keyof CreateTicketDraft)[] = [
-  "categoryId",
-  "relatedSystemId",
-  "requestedPriority",
-  "summary",
-  "description",
-];
-
-const FIELD_IDS: Record<string, string> = {
-  categoryId: "create-ticket-category",
-  relatedSystemId: "create-ticket-related-system",
-  requestedPriority: "create-ticket-priority",
-  summary: "create-ticket-summary",
-  description: "create-ticket-description",
-};
 
 /*
  * Mirrors api-spec Section 7.3 so the user sees the message beside the field
@@ -79,67 +55,83 @@ function characters(value: string): number {
   return [...value].length;
 }
 
-function validate(draft: CreateTicketDraft): FieldErrors {
-  const errors: FieldErrors = {};
-  const summary = draft.summary.trim();
-  const description = draft.description.trim();
-
-  if (draft.categoryId === "") {
-    errors.categoryId = "Select a Category.";
-  }
-
-  if (draft.relatedSystemId === "") {
-    errors.relatedSystemId = "Select a Related System.";
-  }
-
-  if (draft.requestedPriority === "") {
-    errors.requestedPriority = "Select a Requested Priority.";
-  }
-
-  if (characters(summary) < 3 || characters(summary) > 150) {
-    errors.summary = "Summary must contain 3-150 characters.";
-  }
-
-  if (characters(description) < 10 || characters(description) > 2000) {
-    errors.description = "Description must contain 10-2000 characters.";
-  }
-
-  return errors;
+function payloadFromForm(values: CreateTicketFormValues): CreateTicketPayload {
+  return {
+    categoryId: values.categoryId as number,
+    relatedSystemId: values.relatedSystemId as number,
+    requestedPriority: values.requestedPriority as "LOW" | "MEDIUM" | "HIGH",
+    summary: values.summary.trim(),
+    description: values.description.trim(),
+    attachmentIds: values.attachmentIds,
+  };
 }
 
-/* Only the fields this form owns; anything else stays a form-level message. */
-function mapServerErrors(error: ApiResponseError): FieldErrors {
-  const errors: FieldErrors = {};
-
-  for (const detail of error.details) {
-    if (detail.field in FIELD_IDS) {
-      errors[detail.field as keyof CreateTicketDraft] = detail.message;
-    }
-  }
-
-  if (Object.keys(errors).length === 0) {
-    errors.form =
-      error.status === 409
-        ? "This submission conflicts with the current state. Review the form and try again."
-        : "The Ticket could not be created. Review the form and try again.";
-  }
-
-  return errors;
+interface CreateTicketFormValues {
+  ticketNumber: string;
+  ticketDate: string;
+  requester: string;
+  categoryId: number | undefined;
+  relatedSystemId: number | undefined;
+  requestedPriority: "" | "LOW" | "MEDIUM" | "HIGH";
+  summary: string;
+  description: string;
+  attachmentIds: string[];
 }
+
+const TICKET_FORM_FIELDS = new Set([
+  "categoryId",
+  "relatedSystemId",
+  "requestedPriority",
+  "summary",
+  "description",
+  "attachmentIds",
+]);
+
+const ticketSchema = z.object({
+  ticketNumber: z.string(),
+  ticketDate: z.string(),
+  requester: z.string(),
+  categoryId: z.number({ error: "Select a Category." }).int().positive("Select a Category."),
+  relatedSystemId: z.number({ error: "Select a Related System." }).int().positive("Select a Related System."),
+  requestedPriority: z.enum(["LOW", "MEDIUM", "HIGH"], { error: "Select a Requested Priority." }),
+  summary: z.string()
+    .trim()
+    .refine((value) => characters(value) >= TICKET_FORM_RULES.summary.minLength, "Summary must contain 3-150 characters.")
+    .refine((value) => characters(value) <= TICKET_FORM_RULES.summary.maxLength, "Summary must contain 3-150 characters."),
+  description: z.string()
+    .trim()
+    .refine((value) => characters(value) >= TICKET_FORM_RULES.description.minLength, "Description must contain 10-2000 characters.")
+    .refine((value) => characters(value) <= TICKET_FORM_RULES.description.maxLength, "Description must contain 10-2000 characters."),
+  attachmentIds: z.array(z.string()).max(5),
+});
 
 export default function CreateTicket() {
   const navigate = useNavigate();
   const { register, allowNavigation, cancelNavigation } = useNavigationGuard();
-  const { requester, captureRequesterContext, isRequesterContextCurrent } = useRequester();
-  const callApi = useRequesterApi();
+  const { user } = useAuth();
+  const callApi = useAuthenticatedApi();
+  const identityRef = useRef<string | null>(user?.publicId ?? null);
+
+  const form = useManagedForm<CreateTicketFormValues>({
+    schema: ticketSchema as never,
+    defaultValues: {
+      ticketNumber: GENERATED_VALUE_TEXT,
+      ticketDate: GENERATED_VALUE_TEXT,
+      requester: user?.name ?? "",
+      categoryId: undefined,
+      relatedSystemId: undefined,
+      requestedPriority: "",
+      summary: "",
+      description: "",
+      attachmentIds: [],
+    },
+  });
 
   const [categories, setCategories] = useState<MasterDataItem[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<MasterDataItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [reloadCount, setReloadCount] = useState(0);
 
-  const [draft, setDraft] = useState<CreateTicketDraft>(EMPTY_DRAFT);
-  const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null);
@@ -167,6 +159,10 @@ export default function CreateTicket() {
    * Create Ticket attempt even when the Requester remains unchanged. */
   const submissionGenerationRef = useRef(0);
 
+  useEffect(() => {
+    identityRef.current = user?.publicId ?? null;
+  }, [user?.publicId]);
+
   /*
    * BR-25's "anything else". `unresolvedFiles` is part of it: a file still
    * Uploading is in neither `isDirty` nor `attachmentIds` yet, but the Requester
@@ -175,14 +171,14 @@ export default function CreateTicket() {
    * those two can never disagree about what counts as work worth keeping.
    */
   const dirty =
-    isDirty(draft) ||
-    draft.attachmentIds.length > 0 ||
+    form.formState.isDirty ||
+    form.watch("attachmentIds").length > 0 ||
     unresolvedFiles ||
     recovery !== null;
 
   /*
    * Cancel confirms through the discard dialog. The shared shell navigation uses
-   * the same guard, so leaving through My Tickets or Change Requester cannot
+   * the same guard, so leaving through My Tickets cannot
    * silently drop the draft or a stored recovery attempt.
    *
    * A reload or tab close still uses the browser's own prompt. In-app history
@@ -253,24 +249,109 @@ export default function CreateTicket() {
    * auto-submitted on load.
    */
   useEffect(() => {
-    if (requester === null) {
+    if (user === null) {
       return;
     }
 
-    setRecovery(readRecovery(requester.id, Date.now()));
-  }, [requester]);
+    setRecovery(readRecovery(user.publicId, Date.now()));
+  }, [user]);
 
-  const update = useCallback((patch: Partial<CreateTicketDraft>) => {
-    setDraft((current) => ({ ...current, ...patch }));
-  }, []);
+  const handlePendingIdsChange = useCallback(
+    (attachmentIds: string[]) => {
+      const current = form.getValues("attachmentIds");
+      if (current.join(",") === attachmentIds.join(",")) return;
+      form.setValue("attachmentIds", attachmentIds, { shouldDirty: true, shouldValidate: true });
+    },
+    [form],
+  );
 
-  function focusFirstInvalid(fieldErrors: FieldErrors): void {
-    const first = FIELD_ORDER.find((field) => fieldErrors[field] !== undefined);
-
-    if (first !== undefined) {
-      document.getElementById(FIELD_IDS[first])?.focus();
-    }
-  }
+  const sections = useMemo<FormSection<CreateTicketFormValues>[]>(
+    () => [
+      {
+        key: "ticket-information",
+        title: "Ticket Information",
+        fields: [
+          { key: "ticketNumber", name: "ticketNumber", label: "Ticket Number", type: "readonly", value: GENERATED_VALUE_TEXT, span: "half" },
+          { key: "ticketDate", name: "ticketDate", label: "Ticket Date", type: "readonly", value: GENERATED_VALUE_TEXT, span: "half" },
+          { key: "requester", name: "requester", label: "Requester", type: "readonly", value: user?.name ?? "", helpText: "Authenticated User", span: "full" },
+          {
+            key: "categoryId",
+            name: "categoryId",
+            label: "Category",
+            type: "select",
+            required: true,
+            autoComplete: "off",
+            options: categories.map((category) => ({ value: category.id, label: category.name })),
+            span: "half",
+          },
+          {
+            key: "relatedSystemId",
+            name: "relatedSystemId",
+            label: "Related System",
+            type: "select",
+            required: true,
+            autoComplete: "off",
+            options: relatedSystems.map((system) => ({ value: system.id, label: system.name })),
+            span: "half",
+          },
+          {
+            key: "requestedPriority",
+            name: "requestedPriority",
+            label: "Requested Priority",
+            type: "select",
+            required: true,
+            autoComplete: "off",
+            options: [
+              { value: "LOW", label: "Low" },
+              { value: "MEDIUM", label: "Medium" },
+              { value: "HIGH", label: "High" },
+            ],
+            span: "half",
+          },
+          {
+            key: "summary",
+            name: "summary",
+            label: "Summary",
+            type: "text",
+            required: true,
+            maxLength: TICKET_FORM_RULES.summary.maxLength,
+            enforceMaxLength: false,
+            showCount: true,
+            autoComplete: "off",
+            span: "full",
+          },
+          {
+            key: "description",
+            name: "description",
+            label: "Description",
+            type: "textarea",
+            required: true,
+            maxLength: TICKET_FORM_RULES.description.maxLength,
+            enforceMaxLength: false,
+            showCount: true,
+            autoComplete: "off",
+            span: "full",
+          },
+          {
+            key: "attachments",
+            name: "attachmentIds",
+            label: "Attachments",
+            type: "custom",
+            span: "full",
+            render: () => (
+              <AttachmentSection
+                mode="create"
+                handleRef={attachmentsRef}
+                onPendingIdsChange={handlePendingIdsChange}
+                onUnresolvedChange={setUnresolvedFiles}
+              />
+            ),
+          },
+        ],
+      },
+    ],
+    [categories, relatedSystems, user?.name, handlePendingIdsChange],
+  );
 
   /*
    * Reuses the current key when the normalized payload is unchanged and mints a
@@ -296,30 +377,22 @@ export default function CreateTicket() {
     submissionGenerationRef.current += 1;
   }
 
-  /*
-   * A submission belongs to the Requester context that started it. The request
-   * can outlive that context -- the user may change Requester while it is still
-   * pending -- and every completion path below writes requester-scoped state:
-   * navigation, the shared `sessionStorage` recovery record, the form's own
-   * errors. Applying any of that under a different Requester would render
-   * Requester A's outcome for Requester B, so an obsolete completion is dropped
-   * instead. The server result stays authoritative and is simply not consumed
-   * by this session; selecting Requester A again discovers it normally.
-   */
+  /* A submission can outlive an auth identity change; stale completions cannot
+   * write form state, recovery, or navigation into the replacement session. */
   async function submit(payload: CreateTicketPayload, key: string): Promise<void> {
-    const token = captureRequesterContext();
+    const identityAtStart = identityRef.current;
     const generation = ++submissionGenerationRef.current;
 
     setSubmitting(true);
 
     try {
-      const ticket = await callApi<Ticket>("/api/tickets", {
+      const ticket = await callApi<Ticket>("/api/users/me/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": key },
         body: JSON.stringify(payload),
       });
 
-      if (!isRequesterContextCurrent(token) || !isSubmissionCurrent(generation)) {
+      if (identityRef.current !== identityAtStart || !isSubmissionCurrent(generation)) {
         return;
       }
 
@@ -333,23 +406,10 @@ export default function CreateTicket() {
       );
     } catch (error) {
       /*
-       * Checked before the failure is classified at all: a stale 4xx must not
-       * clear the current Requester's recovery record, and a stale 5xx or
-       * transport failure -- which is also how the requester-change abort
-       * surfaces -- must not write the previous Requester's record over it.
+       * Check identity before classifying failures so stale results cannot write
+       * recovery or form state into a replacement session.
        */
-      if (!isRequesterContextCurrent(token) || !isSubmissionCurrent(generation)) {
-        return;
-      }
-
-      /*
-       * A context-invalidating 400 is a confirmed non-ambiguous failure: the
-       * guard rejected the request before the route, so no Ticket exists.
-       * `useRequesterApi` has already cleared the requester and its recovery
-       * record, and `RequesterGuard` is redirecting to `/requesters`; writing a
-       * recovery record here would resurrect one for a Requester that is gone.
-       */
-      if (error instanceof InvalidRequesterContextError) {
+      if (identityRef.current !== identityAtStart || !isSubmissionCurrent(generation)) {
         return;
       }
 
@@ -361,10 +421,13 @@ export default function CreateTicket() {
          */
         clearRecovery();
         setRecovery(null);
-
-        const mapped = mapServerErrors(error);
-        setErrors(mapped);
-        focusFirstInvalid(mapped);
+        form.mapServerErrors(
+          error,
+          TICKET_FORM_FIELDS,
+          error.status === 409
+            ? "This submission conflicts with the current state. Review the form and try again."
+            : "The Ticket could not be created. Review the form and try again.",
+        );
         return;
       }
 
@@ -373,9 +436,9 @@ export default function CreateTicket() {
        * Persist the approved recovery data so an explicit Retry Again action can retry the
        * unchanged request under the same key.
        */
-      if (requester !== null) {
+      if (user !== null) {
         const record: RecoveryRecord = {
-          requesterId: requester.id,
+          userPublicId: user.publicId,
           idempotencyKey: key,
           keyCreatedAt: keyCreatedAtRef.current,
           payload,
@@ -384,9 +447,9 @@ export default function CreateTicket() {
         setRecovery(record);
       }
 
-      setErrors({
-        form: "The Ticket submission did not complete. Use Retry Again to recover the Ticket without creating a duplicate.",
-      });
+      form.setFormError(
+        "The Ticket submission did not complete. Use Retry Again to recover the Ticket without creating a duplicate.",
+      );
 
       /*
        * BR-23 compensation. The release carries an empty reason per item, so a
@@ -406,44 +469,30 @@ export default function CreateTicket() {
 
       if (
         released &&
-        isRequesterContextCurrent(token) &&
+        identityRef.current === identityAtStart &&
         isSubmissionCurrent(generation)
       ) {
         clearRecovery();
         setRecovery(null);
-        setErrors({
-          form: "The Ticket was not created. Retry the uploads shown below, then submit again.",
-        });
+        form.setFormError("The Ticket was not created. Retry the uploads shown below, then submit again.");
       }
     } finally {
-      if (isRequesterContextCurrent(token) && isSubmissionCurrent(generation)) {
+      if (identityRef.current === identityAtStart && isSubmissionCurrent(generation)) {
         setSubmitting(false);
       }
     }
   }
 
-  function handleSubmit(event: React.FormEvent): void {
-    event.preventDefault();
-
-    if (submitting) {
-      return;
-    }
+  async function handleFormSubmit(values: CreateTicketFormValues): Promise<void> {
+    if (submitting) return;
 
     if (recovery !== null) {
       handleRetrySubmission();
       return;
     }
 
-    const fieldErrors = validate(draft);
-    setErrors(fieldErrors);
-
-    if (Object.keys(fieldErrors).length > 0) {
-      focusFirstInvalid(fieldErrors);
-      return;
-    }
-
-    const payload = toPayload(draft);
-    void submit(payload, idempotencyKeyFor(payload));
+    const payload = payloadFromForm(values);
+    await submit(payload, idempotencyKeyFor(payload));
   }
 
   function handleRetrySubmission(): void {
@@ -487,7 +536,7 @@ export default function CreateTicket() {
    */
   function handleConfirmDiscard(): void {
     const preparedIds = Array.from(
-      new Set([...draft.attachmentIds, ...(recovery?.payload.attachmentIds ?? [])]),
+      new Set([...form.getValues("attachmentIds"), ...(recovery?.payload.attachmentIds ?? [])]),
     );
     const pendingNavigation =
       pendingNavigationRef.current ?? (() => allowNavigation(() => navigate("/tickets")));
@@ -497,7 +546,18 @@ export default function CreateTicket() {
     pendingNavigationRef.current = null;
     clearRecovery();
     setRecovery(null);
-    setDraft(EMPTY_DRAFT);
+    form.reset({
+      ticketNumber: GENERATED_VALUE_TEXT,
+      ticketDate: GENERATED_VALUE_TEXT,
+      requester: user?.name ?? "",
+      categoryId: undefined,
+      relatedSystemId: undefined,
+      requestedPriority: "",
+      summary: "",
+      description: "",
+      attachmentIds: [],
+    });
+    form.setFormError(undefined);
     keyRef.current = null;
     signatureRef.current = null;
 
@@ -545,157 +605,18 @@ export default function CreateTicket() {
       </p>
 
       {loadState === "loaded" ? (
-        <Form onSubmit={handleSubmit} aria-label="Create Ticket">
-          <Card title="Ticket Information">
-            {/*
-             * ui-spec Section 11.3. The generated values are shown as read-only
-             * controls that state they are assigned on submission. They are
-             * never request-body fields, so they live outside the draft.
-             */}
-            <div className="row g-3">
-              <div className="col-12 col-md-6">
-                <ReadOnlyField label="Ticket Number" value={GENERATED_VALUE_TEXT} />
-              </div>
-              <div className="col-12 col-md-6">
-                <ReadOnlyField label="Ticket Date" value={GENERATED_VALUE_TEXT} />
-              </div>
-            </div>
-
-            <ReadOnlyField
-              label="Requester"
-              value={requester?.name ?? ""}
-              helpText="Change the Requester from the navigation, not from this form."
-            />
-
-            <div className="row g-3">
-              <div className="col-12 col-md-6">
-                <Select
-                  id={FIELD_IDS.categoryId}
-                  name="category"
-                  label="Category"
-                  required
-                  autoComplete="off"
-                  value={draft.categoryId}
-                  error={errors.categoryId}
-                  onChange={(event) => update({ categoryId: event.target.value })}
-                >
-                  <option value="">Select a Category</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="col-12 col-md-6">
-                <Select
-                  id={FIELD_IDS.relatedSystemId}
-                  name="relatedSystem"
-                  label="Related System"
-                  required
-                  autoComplete="off"
-                  value={draft.relatedSystemId}
-                  error={errors.relatedSystemId}
-                  onChange={(event) => update({ relatedSystemId: event.target.value })}
-                >
-                  <option value="">Select a Related System</option>
-                  {relatedSystems.map((system) => (
-                    <option key={system.id} value={system.id}>
-                      {system.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <Select
-              id={FIELD_IDS.requestedPriority}
-              name="requestedPriority"
-              label="Requested Priority"
-              required
-              autoComplete="off"
-              value={draft.requestedPriority}
-              error={errors.requestedPriority}
-              onChange={(event) => update({ requestedPriority: event.target.value })}
-            >
-              <option value="">Select a Requested Priority</option>
-              <option value="LOW">Low</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="HIGH">High</option>
-            </Select>
-
-            {/*
-             * No `maxLength`: the attribute counts UTF-16 code units, so it
-             * would cut a 150-character emoji Summary off at 75 -- a value the
-             * counter, the validator, and the column all accept. Section 9
-             * makes the always-visible counter the feedback mechanism, and
-             * `validate` is the hard stop.
-             */}
-            <TextInput
-              id={FIELD_IDS.summary}
-              name="summary"
-              /* Single-line free text: the one field a password manager offers to fill. */
-              autoComplete="off"
-              label="Summary"
-              required
-              value={draft.summary}
-              error={errors.summary}
-              counter={{ value: characters(draft.summary.trim()), max: 150 }}
-              onChange={(event) => update({ summary: event.target.value })}
-            />
-
-            <Textarea
-              id={FIELD_IDS.description}
-              name="description"
-              autoComplete="off"
-              label="Description"
-              required
-              value={draft.description}
-              error={errors.description}
-              counter={{ value: characters(draft.description.trim()), max: 2000 }}
-              onChange={(event) => update({ description: event.target.value })}
-            />
-          </Card>
-
-          {/*
-            Each valid selection is pre-uploaded on its own and becomes a Pending
-            row; the prepared IDs are what the submission sends. They are written
-            into the draft rather than held here, because they are part of the
-            payload the idempotency key is derived from.
-          */}
-          <AttachmentSection
-            mode="create"
-            handleRef={attachmentsRef}
-            onPendingIdsChange={(attachmentIds) =>
-              setDraft((current) =>
-                current.attachmentIds.join(",") === attachmentIds.join(",")
-                  ? current
-                  : { ...current, attachmentIds },
-              )
-            }
-            onUnresolvedChange={setUnresolvedFiles}
-          />
-
-          {errors.form !== undefined ? (
-            <p role="alert" className="tt-invalid-text mb-0">
-              {errors.form}
-            </p>
-          ) : null}
-
-          <div className="d-flex justify-content-end gap-2">
-            <Button variant="secondary" type="button" onClick={handleCancel}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              busy={submitting}
-              disabled={submitting || unresolvedFiles}
-            >
-              {recovery === null ? "Submit Ticket" : "Retry Again"}
-            </Button>
-          </div>
-        </Form>
+        <CommonForm
+          form={form}
+          sections={sections}
+          onSubmit={handleFormSubmit}
+          onCancel={handleCancel}
+          submitLabel={recovery === null ? "Submit Ticket" : "Retry Again"}
+          submitting={submitting}
+          submitDisabled={submitting || unresolvedFiles}
+          bypassValidation={recovery !== null}
+          className="tt-stack"
+          ariaLabel="Create Ticket"
+        />
       ) : null}
 
       <Modal

@@ -45,40 +45,12 @@ export async function checkSystem(): Promise<SystemStatus> {
   return { online: true, categories };
 }
 
-/* api-spec Section 5.1. Every field is synthetic development/test data. */
-export interface DevelopmentRequester {
-  id: number;
-  name: string;
-  email: string;
-  isActive: boolean;
-  deleted: boolean;
-  createdBy: string;
-  createdAt: string;
-  updatedBy: string;
-  updatedAt: string;
-}
-
-/*
- * Thrown only for the defined context-invalidating 400 (api-spec Section 3.1):
- * an error envelope carrying `code: "REQUESTER_CONTEXT_INVALID"`. An ordinary
- * BAD_REQUEST/VALIDATION_ERROR must never produce this, or submitting a bad
- * form would wipe the session.
- */
-export class InvalidRequesterContextError extends Error {
-  constructor() {
-    super("The stored Development Requester is no longer valid.");
-    this.name = "InvalidRequesterContextError";
-  }
-}
-
 /*
  * A caller `signal` is merged with the per-request timeout rather than
- * replacing it, so a requester-scoped request can be cancelled when the
- * Requester context changes and still keeps its own deadline. Cancellation is
- * best effort: an abort proves nothing about whether the server committed, so
- * callers still need the `ignore` flag pattern (see `RequesterSelection`) or a
- * requester generation check (see `CreateTicket`) to decide whether a settled
- * Promise may touch current state.
+ * replacing it, so a protected request can be cancelled while still keeping
+ * its own deadline. Cancellation is best effort: an abort proves nothing about
+ * whether the server committed, so callers still need an ignore flag or an
+ * identity generation check before a settled Promise may touch current state.
  */
 export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
   headers?: Record<string, string>;
@@ -102,11 +74,6 @@ export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
 export interface ApiErrorDetail {
   field: string;
   message: string;
-}
-
-interface ErrorEnvelope {
-  code?: string;
-  details?: ApiErrorDetail[];
 }
 
 /*
@@ -136,8 +103,8 @@ export class ApiResponseError extends Error {
  * exercise. Whichever fires first wins.
  *
  * ponytail: a completed request leaves its `abort` listener on the caller's
- * signal until that signal is discarded, which for a requester signal is the
- * next Requester change -- a handful of listeners, not a leak worth managing.
+ * signal until that signal is discarded. This is a handful of listeners, not a
+ * leak worth managing for the current request lifetimes.
  * Swap in `AbortSignal.any` if the client ever drops jsdom or the count grows.
  */
 export function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSignal {
@@ -153,97 +120,6 @@ export function mergeSignals(first: AbortSignal, second: AbortSignal): AbortSign
   }
 
   return controller.signal;
-}
-
-/*
- * Everything up to a verified successful `Response`: headers, the requester
- * context header, the merged deadline, and the error classification that decides
- * between `InvalidRequesterContextError` and `ApiResponseError`.
- *
- * It is separate from `apiFetch` only so the binary path can share it. An
- * Attachment preview is fetched rather than linked precisely because it needs
- * the requester header (api-spec Section 12.3), and it has to fail exactly the
- * way every other request fails -- a blob path with its own error handling would
- * be the one place a `REQUESTER_CONTEXT_INVALID` stopped clearing the session.
- */
-async function requestApi(
-  path: string,
-  init?: ApiRequestInit,
-  requesterId?: number,
-): Promise<Response> {
-  const { onResponse, timeoutMs, ...requestInit } = init ?? {};
-  const headers: Record<string, string> = { ...init?.headers };
-
-  if (requesterId !== undefined) {
-    headers["X-Requester-Id"] = String(requesterId);
-  }
-
-  const timeout = AbortSignal.timeout(timeoutMs ?? API_TIMEOUT_MS);
-
-  const response = await fetch(`${API_URL}${path}`, {
-    ...requestInit,
-    headers,
-    signal: init?.signal ? mergeSignals(timeout, init.signal) : timeout,
-  }).catch(() => {
-    throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
-  });
-
-  if (!response.ok) {
-    const envelope: ErrorEnvelope | null = await response.json().catch(() => null);
-
-    if (envelope?.code === "REQUESTER_CONTEXT_INVALID") {
-      throw new InvalidRequesterContextError();
-    }
-
-    /* Backend `message` text is never surfaced to the UI. */
-    throw new ApiResponseError(
-      response.status,
-      envelope?.code,
-      Array.isArray(envelope?.details) ? envelope.details : [],
-    );
-  }
-
-  onResponse?.(response);
-
-  return response;
-}
-
-export async function apiFetch<T>(
-  path: string,
-  init?: ApiRequestInit,
-  requesterId?: number,
-): Promise<T> {
-  const response = await requestApi(path, init, requesterId);
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return (await response.json().catch(() => {
-    throw new Error("Could not read the API response.");
-  })) as T;
-}
-
-/*
- * The Attachment binary path (ui-spec Section 24). The response is checked
- * before the body is read -- `requestApi` throws on a non-OK answer, so an error
- * envelope is never handed to the caller as if it were file content.
- */
-export async function apiFetchBlob(
-  path: string,
-  init?: ApiRequestInit,
-  requesterId?: number,
-): Promise<Blob> {
-  const response = await requestApi(path, init, requesterId);
-
-  return await response.blob().catch(() => {
-    throw new Error("Could not read the API response.");
-  });
-}
-
-/* The one Lab 2 endpoint that must not send X-Requester-Id (api-spec Section 3.1). */
-export function fetchRequesters(): Promise<DevelopmentRequester[]> {
-  return apiFetch<DevelopmentRequester[]>("/api/requesters");
 }
 
 /* api-spec Sections 5.2 and 5.3. Both master DTOs share the same shape. */
@@ -279,6 +155,7 @@ export interface Ticket {
   publicId: string;
   ticketNumber: string;
   requesterId: number;
+  requesterPublicId?: string;
   requesterName: string;
   requesterEmail: string;
   categoryId: number;
@@ -288,7 +165,10 @@ export interface Ticket {
   summary: string;
   description: string;
   requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
+  itPriority?: "LOW" | "MEDIUM" | "HIGH";
+  currentStatus: "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
+  owner?: { publicId: string; name: string; role: "IT_STAFF" | "ADMINISTRATOR" } | null;
+  requesterResolutionConfirmedAt?: string | null;
   attachments: Attachment[];
   createdBy: string;
   createdAt: string;
@@ -309,7 +189,7 @@ export interface TicketListItem {
   relatedSystemName: string;
   summary: string;
   requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
+  currentStatus: "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
   createdAt: string;
 }
 

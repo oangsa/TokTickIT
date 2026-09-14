@@ -535,7 +535,7 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | API-11 | API | AC-12 | Layered Login rate-limit response and `Retry-After`. | Pair/global thresholds return safe `429 RATE_LIMITED` without confirming account existence. | tests/lab-03/auth.api.test.ts | Pass |
 | API-12 | API | AC-13 | Missing, malformed, invalid-signature, expired access token and revoked authoritative session. | Protected endpoints return the approved `401` family without protected data. | tests/lab-03/authorization.api.test.ts | Pass |
 | API-13 | API | AC-14 | Requester role guard enforcement. Authenticated Requester reaches Requester-protected routes; authenticated IT Staff and Administrator receive `403 FORBIDDEN`. Resource-owner-dependent Administrator behavior is verified by Issue 5/6 tests. | Requester reaches the protected route successfully; IT Staff and Administrator are rejected with `403 FORBIDDEN` before Requester data access. Administrator non-owner/owner Ticket capability remains covered by API-23 and later Issue 5/6 tests. | tests/lab-03/auth.api.test.ts | Pass |
-| API-14 | API | AC-15 | Requester Ticket create/list request attempts to provide another requester identity in headers/query/body. | Backend scope remains authenticated User; foreign requester input cannot change ownership and unsupported ownership fields are rejected with `400 VALIDATION_ERROR`. | tests/lab-03/authorization.api.test.ts; tests/lab-03/requester-regression.api.test.ts | Not Run |
+| API-14 | API | AC-15 | Requester Ticket create/list request attempts to provide another requester identity in headers/query/body. | Backend scope remains authenticated User; foreign requester input cannot change ownership, and extra backend-managed fields retain Lab 2’s ignored-field behavior. | tests/lab-03/authorization.api.test.ts; tests/lab-03/requester-regression.api.test.ts | Not Run |
 | API-15 | API | AC-16 | Requester direct-open of another Requester's Ticket/Attachment and malformed/missing public IDs. | All unavailable/cross-owner cases use the same safe `404 NOT_FOUND` without owner/existence leakage. | tests/lab-03/authorization.api.test.ts | Not Run |
 | API-16 | API | AC-17 | Authenticated Requester Create Ticket/list/detail/idempotent replay regression. | Lab 2 Ticket request validation, canonical idempotency, direct DTO behavior, search/filter/sort/page, and current-state replay continue under auth. | tests/lab-03/requester-regression.api.test.ts | Not Run |
 | API-17 | API | AC-17 | Authenticated Requester Attachment regression. | Pending pre-upload, existing-Ticket Active upload, metadata, preview/download, max-five limit, removal, Removed binary behavior, and collection atomicity remain. | tests/lab-03/requester-attachments.api.test.ts | Not Run |
@@ -1002,8 +1002,30 @@ npm test -- tests/lab-01 tests/lab-02
 npm run build
 cd ..
 npm run build --prefix server
-npm run test:e2e -- --grep '@issue-4' e2e/lab-03/requester-regression.spec.ts e2e/lab-03/responsive-visual.spec.ts
+NODE_ENV=test TEST_DATABASE_URL=<dedicated_lab3_test_url> npm run test:e2e -- --grep '@issue-4' e2e/lab-03/requester-regression.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
+
+Issue 4 current-head execution record:
+
+- The non-PostgreSQL subset of the focused server gate passed: 4 files, 25
+  tests with `@issue-4`.
+- The server Lab 1/Lab 2 non-PostgreSQL regression passed: 22 files, 585
+  tests. The documented directory-wide command also discovers PostgreSQL
+  suites, so the guarded database-inclusive form was not run without a
+  dedicated target.
+- The focused client Requester regression passed: 1 file, 4 tests. The
+  migrated Create Ticket/My Tickets/Ticket Detail suites passed: 3 files, 113
+  tests. The client Lab 1/Lab 2 regression passed: 10 files, 243 tests.
+- `npm run build` passed in both `client/` and `server/`.
+- The mocked UI-only RESP-02 browser run passed all three viewport cases; it
+  does not replace the required database-backed browser gate.
+- Playwright listing passed and discovers one real-seed E2E-03 case plus three
+  RESP-02 viewport cases. The documented browser command was not executed:
+  this workspace has no `TEST_DATABASE_URL`, so the guarded runner stops before
+  starting the API or browser.
+- PG-11, PG-16, RESP-02, E2E-03, and the database-inclusive full regression
+  remain unverified. The client test runs emit existing React `act(...)`
+  warnings in migrated suites, but no test failed.
 
 Issue 5:
 
@@ -1112,8 +1134,8 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
 | DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`. |
-| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — prior guarded server regression: 48 files/721 tests; current client regression: 17 files/324 tests. |
-| DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Not Run |
+| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Not Run — current-head non-PostgreSQL subsets passed (server 22 files/585 tests; client 10 files/243 tests); the required guarded PostgreSQL-inclusive command was not run without `TEST_DATABASE_URL`, and the prior 48-file server evidence is superseded by current Issue 4 server changes. |
+| DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Pass for production paths — current `client/src`/`server/src` scan is clean; focused client/API tests also assert the new routes and absent header. The only remaining requester-named storage is the approved authenticated-user discriminator inside Create Ticket recovery, not the removed selector identity. |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Pass |
 | DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Tracked evidence exists under `docs/lab-03/evidence/screenshots/` and is readable and passes Section 12 checklist. | Not Run |
 | DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Not Run |
@@ -1126,7 +1148,7 @@ The following items deserve explicit review because their absence is part of the
 
 | Contract item | Evidence | Final |
 | --- | --- | --- |
-| No `X-Requester-Id` identity mechanism in Lab 3 app traffic | DATA-06 + API-14 + browser network/E2E inspection | Not Run |
+| No `X-Requester-Id` identity mechanism in Lab 3 app traffic | DATA-06 + API-14 + browser network/E2E inspection | Not Run — production scan and focused API/client assertions pass; browser network inspection is blocked with the other DB-gated E2E checks. |
 | No self-registration endpoint/UI | route inventory + authorization/API tests | Not Run |
 | No User delete endpoint/UI | route inventory + User Management UI/API tests | Not Run |
 | No Public Comment edit/delete | API-37 + UI-24 | Not Run |

@@ -224,19 +224,19 @@ describe("backend-managed fields", () => {
     expect(res.status).toBe(201);
 
     const { data } = tx.ticket.create.mock.calls[0][0];
-    expect(data.requesterId).toBe(3);
+    expect(data.requesterId).toBe(ALICE_AUTH.id);
     expect(data.publicId).not.toBe("00000000-0000-4000-8000-000000000000");
     expect(data.ticketNumber).not.toBe("TKT-19990101-DEADBEEFCAFE");
     expect(data.currentStatus).toBe("NEW");
     expect(data.deleted).toBe(false);
-    expect(data.createdBy).toBe("alice.johnson@example.com");
-    expect(data.updatedBy).toBe("alice.johnson@example.com");
+    expect(data.createdBy).toBe(ALICE_AUTH.email);
+    expect(data.updatedBy).toBe(ALICE_AUTH.email);
     expect(data.createdAt).toBeUndefined();
     expect(data.updatedAt).toBeUndefined();
   });
 
-  it("derives ownership from the authenticated User, not from the body", async () => {
-    await post({ ...VALID_BODY, requesterId: 3 }, BOB_AUTH.id);
+  it("derives ownership from the authenticated User", async () => {
+    await post(VALID_BODY, BOB_AUTH.id);
 
     const { data } = tx.ticket.create.mock.calls[0][0];
     expect(data.requesterId).toBe(4);

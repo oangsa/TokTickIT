@@ -3,8 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 
-import App from "../helpers/LegacyLab2App.js";
-import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requesterStorage.js";
+import App from "../helpers/AuthenticatedRequesterApp.js";
 
 /*
  * UI-23, UI-24, UI-32, UI-36, and UI-37 (FR-21-23, AC-22, AC-38-39, AC-66).
@@ -14,7 +13,7 @@ import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requ
  * read-only presentation and the page-level failure routing.
  */
 
-const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
+const ALICE = { id: 3, name: "Alice Example" };
 const PUBLIC_ID = "0f0e8a9f-6d9e-4a1a-9f0e-1b2c3d4e5f60";
 
 const ACTIVE_ATTACHMENT = {
@@ -82,14 +81,16 @@ function stubApi(detail: () => DetailResult = () => ({ body: ticket() })) {
   const calls: StubbedCall[] = [];
 
   const fetchMock = vi.fn(async (url: string, init?: StubbedCall["init"]) => {
-    calls.push({ url, init });
+    const capturedInit = init === undefined
+      ? undefined
+      : { ...init, headers: Object.fromEntries(new Headers(init.headers).entries()) };
+    calls.push({ url, init: capturedInit });
 
     /* My Tickets is the route creation navigates away from, and it loads these. */
     if (
-      url.includes("/api/requesters") ||
       url.includes("/api/categories") ||
       url.includes("/api/related-systems") ||
-      url.includes("/api/tickets?")
+      url.includes("/api/users/me/tickets?")
     ) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => [] };
     }
@@ -112,11 +113,7 @@ function errorBody(statusCode: number, code: string) {
   return { statusCode, code, message: "Backend detail that must never reach the screen.", error: code };
 }
 
-function renderDetail(requester: StoredRequester | null = ALICE) {
-  if (requester) {
-    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
-  }
-
+function renderDetail() {
   return render(
     <MemoryRouter initialEntries={[`/tickets/${PUBLIC_ID}`]}>
       <App />
@@ -138,8 +135,6 @@ function CreationNavigationButton({ ticketNumber }: { ticketNumber: string }) {
 }
 
 async function renderAfterCreation(ticketNumber = "TKT-20260820-A81F3C9D7B21") {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
-
   render(
     <MemoryRouter initialEntries={["/tickets"]}>
       <CreationNavigationButton ticketNumber={ticketNumber} />
@@ -172,7 +167,7 @@ describe("UI-23 read-only Ticket Detail", () => {
     expect(fieldValue("Ticket Number")).toHaveValue("TKT-20260820-A81F3C9D7B21");
     /* `createdAt` is the authoritative Ticket Date, on the Asia/Bangkok calendar. */
     expect(fieldValue("Ticket Date")).toHaveValue("2026-08-20");
-    expect(fieldValue("Current Status")).toHaveValue("NEW");
+    expect(screen.getByLabelText("Current Status")).toHaveTextContent("NEW");
     expect(fieldValue("Requested Priority")).toHaveValue("HIGH");
     expect(fieldValue("Requester Name")).toHaveValue("Alice Example");
     expect(fieldValue("Requester Email")).toHaveValue("alice@example.com");
@@ -188,21 +183,22 @@ describe("UI-23 read-only Ticket Detail", () => {
     expect(fieldValue("Last Updated")).toHaveValue("2026-08-21, 09:00");
   });
 
-  it("sends the Requester context with the detail request", async () => {
+  it("sends the authenticated bearer with the detail request", async () => {
     const { calls } = stubApi();
     renderDetail();
 
     await screen.findByRole("heading", { name: "TKT-20260820-A81F3C9D7B21" });
 
-    const detail = calls.find((call) => call.url.includes(`/api/tickets/${PUBLIC_ID}`));
-    expect(detail?.init?.headers?.["X-Requester-Id"]).toBe("1");
+    const detail = calls.find((call) => call.url.includes(`/api/users/me/tickets/${PUBLIC_ID}`));
+    expect(new Headers(detail?.init?.headers).get("Authorization")).toBe("Bearer test-access-token");
+    expect(new Headers(detail?.init?.headers).get("X-Requester-Id")).toBeNull();
   });
 
   it("keeps every value read-only rather than disabled, so it stays reachable", async () => {
     renderDetail();
     await screen.findByRole("heading", { name: "TKT-20260820-A81F3C9D7B21" });
 
-    for (const label of ["Ticket Number", "Current Status", "Summary", "Description"]) {
+    for (const label of ["Ticket Number", "Summary", "Description"]) {
       const field = fieldValue(label);
       expect(field).toHaveAttribute("readonly");
       expect(field).not.toBeDisabled();
@@ -220,11 +216,12 @@ describe("UI-23 read-only Ticket Detail", () => {
     expect(screen.getByRole("link", { name: "Back to My Tickets" })).toHaveAttribute("href", "/tickets");
   });
 
-  it("exposes no workflow, assignment, or deletion control", async () => {
+  it("exposes requester actions but no internal workflow controls", async () => {
     renderDetail();
     await screen.findByRole("heading", { name: "TKT-20260820-A81F3C9D7B21" });
 
-    for (const forbidden of [/comment/i, /internal note/i, /action taken/i, /assign/i, /resolve/i, /close/i, /reopen/i, /cancel/i, /delete/i, /^save$/i, /^edit$/i]) {
+    expect(screen.getByRole("button", { name: "Cancel Ticket" })).toBeInTheDocument();
+    for (const forbidden of [/comment/i, /internal note/i, /action taken/i, /assign/i, /resolve/i, /close/i, /reopen/i, /delete/i, /^save$/i, /^edit$/i]) {
       expect(screen.queryByRole("button", { name: forbidden })).not.toBeInTheDocument();
     }
   });
@@ -248,8 +245,6 @@ describe("Ticket Detail after creation", () => {
    * 27.1 applies the same rule to `/error`).
    */
   it("shows no confirmation when the entry is restored rather than navigated to", async () => {
-    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
-
     render(
       <MemoryRouter
         initialEntries={[
@@ -363,10 +358,6 @@ describe("UI-24 Ticket Detail page-level failures", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.includes("/api/requesters")) {
-          return { ok: true, status: 200, headers: new Headers(), json: async () => [] };
-        }
-
         throw new TypeError("Failed to fetch");
       }),
     );

@@ -3,10 +3,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 
-import App from "../helpers/LegacyLab2App.js";
+import App from "../helpers/AuthenticatedRequesterApp.js";
 import { PaginationMetadata } from "../../src/api.js";
-import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requesterStorage.js";
-import { SEARCH_DEBOUNCE_MS } from "../../src/tickets/ticketListQuery.js";
+import { SEARCH_DEBOUNCE_MS, STATUS_OPTIONS } from "../../src/tickets/ticketListQuery.js";
 import { setViewportWidth } from "../setup.js";
 
 /*
@@ -17,8 +16,8 @@ import { setViewportWidth } from "../setup.js";
  * is read from.
  */
 
-const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
-const BOB: StoredRequester = { id: 2, name: "Bob Example" };
+const ALICE = { id: 3, name: "Alice Example" };
+const BOB = { id: 4, name: "Bob Example" };
 
 function masterRow(id: number, name: string) {
   return {
@@ -114,23 +113,11 @@ function stubApi(list: () => ListResult | Promise<ListResult> = () => DEFAULT_LI
       return { ok: true, status: 200, headers: new Headers(), json: async () => SYSTEMS };
     }
 
-    if (url.includes("/api/requesters")) {
-      return {
-        ok: true,
-        status: 200,
-        headers: new Headers(),
-        json: async () => [
-          { ...masterRow(ALICE.id, ALICE.name), email: "alice@example.com" },
-          { ...masterRow(BOB.id, BOB.name), email: "bob@example.com" },
-        ],
-      };
-    }
-
     /*
      * Ticket Detail, so the navigation cases land on the real page rather than
      * handing the list array to a screen that expects one Ticket.
      */
-    if (/\/api\/tickets\/[^?]/.test(url)) {
+    if (/\/api\/users\/me\/tickets\/[^?]/.test(url)) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => detailTicket() };
     }
 
@@ -154,7 +141,7 @@ function stubApi(list: () => ListResult | Promise<ListResult> = () => DEFAULT_LI
 }
 
 function listCalls(calls: StubbedCall[]): StubbedCall[] {
-  return calls.filter((call) => call.url.includes("/api/tickets?"));
+  return calls.filter((call) => call.url.includes("/api/users/me/tickets?"));
 }
 
 function lastListQuery(calls: StubbedCall[]): URLSearchParams {
@@ -162,9 +149,7 @@ function lastListQuery(calls: StubbedCall[]): URLSearchParams {
   return new URLSearchParams(requests[requests.length - 1].url.split("?")[1]);
 }
 
-function renderMyTickets(requester: StoredRequester = ALICE, entry = "/tickets") {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
-
+function renderMyTickets(_requester = ALICE, entry = "/tickets") {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <App />
@@ -180,8 +165,6 @@ function HistoryBackButton() {
 
 /* Back and Forward change the committed query without the toolbar touching it. */
 function renderMyTicketsWithHistory(entries: string[], initialIndex: number) {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
-
   return render(
     <MemoryRouter initialEntries={entries} initialIndex={initialIndex}>
       <HistoryBackButton />
@@ -266,20 +249,13 @@ describe("UI-15 My Tickets loading and stale-scope prevention", () => {
     expect(await screen.findByText(/Showing 1–10 of 47/)).toBeInTheDocument();
   });
 
-  it("never renders a previous Requester's rows once the Requester changes", async () => {
-    let release: (result: ListResult) => void = () => undefined;
-    stubApi(() => new Promise<ListResult>((resolve) => (release = resolve)));
-
+  it("does not expose a requester switch on the authenticated list", async () => {
+    stubApi();
     renderMyTickets();
 
-    await userEvent.click(screen.getByRole("button", { name: "Change Requester" }));
-
-    /* Alice's answer lands after the switch; it must reach nothing. */
-    await act(async () => {
-      release({ body: [ticket({ ticketNumber: "TKT-20260820-ALICEONLY001" })], pagination: meta() });
-    });
-
-    expect(screen.queryByText("TKT-20260820-ALICEONLY001")).toBeNull();
+    expect(await screen.findByText("TKT-20260820-A81F3C9D7B21")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change Requester" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Development Requester", { exact: true })).not.toBeInTheDocument();
   });
 });
 
@@ -528,6 +504,11 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
 
       await userEvent.click(toggle);
       expect(within(dialog).getAllByRole("checkbox").length).toBeGreaterThan(0);
+      if (label === "Status") {
+        expect(within(dialog).getAllByRole("checkbox").map((checkbox) => checkbox.parentElement?.textContent?.trim())).toEqual(
+          [...STATUS_OPTIONS],
+        );
+      }
       await userEvent.click(toggle);
     }
   });

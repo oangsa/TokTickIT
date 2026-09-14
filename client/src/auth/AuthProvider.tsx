@@ -5,6 +5,7 @@ import { AUTH_FORM_RULES } from "../constants/forms/auth.js";
 import type { ChangePasswordFormValues } from "../constants/forms/auth.js";
 import {
   authenticatedRequest,
+  authenticatedBlobRequest,
   beginAuthSession,
   broadcastLogout,
   clearAccessToken,
@@ -16,6 +17,7 @@ import {
   setAccessToken,
   subscribeAuthEvents,
   type AuthEvent,
+  type AuthenticatedRequestInit,
 } from "./authTransport.js";
 import type { AuthTokenDTO, CurrentUserDTO, LoginCredentials, UserRole } from "./authTypes.js";
 
@@ -46,10 +48,11 @@ export interface AuthContextValue {
   logoutAll: () => Promise<void>;
   changePassword: (values: ChangePasswordFormValues) => Promise<void>;
   refresh: () => Promise<CurrentUserDTO | null>;
-  request: <T>(path: string, init?: RequestInit) => Promise<T>;
+  request: <T>(path: string, init?: AuthenticatedRequestInit) => Promise<T>;
+  requestBlob: (path: string, init?: AuthenticatedRequestInit) => Promise<Blob>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 function validUser(value: unknown): value is CurrentUserDTO {
   if (typeof value !== "object" || value === null) return false;
@@ -270,11 +273,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     finishAnonymous();
   }, [finishAnonymous, loadCurrentUser, status]);
 
-  const request = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
+  const request = useCallback(async <T,>(path: string, init?: AuthenticatedRequestInit): Promise<T> => {
     const epochAtStart = authEpoch.current;
     const sessionIdAtStart = getAuthSessionId();
     try {
       return await authenticatedRequest<T>(path, init);
+    } catch (error) {
+      if (error instanceof ApiResponseError && error.code === "PASSWORD_CHANGE_REQUIRED") {
+        try {
+          if (epochAtStart === authEpoch.current && sessionIdAtStart === getAuthSessionId()) await loadCurrentUser();
+        } catch {
+          if (epochAtStart === authEpoch.current && sessionIdAtStart === getAuthSessionId()) finishAnonymous();
+        }
+      }
+      throw error;
+    }
+  }, [finishAnonymous, loadCurrentUser]);
+
+  const requestBlob = useCallback(async (path: string, init?: AuthenticatedRequestInit): Promise<Blob> => {
+    const epochAtStart = authEpoch.current;
+    const sessionIdAtStart = getAuthSessionId();
+    try {
+      return await authenticatedBlobRequest(path, init);
     } catch (error) {
       if (error instanceof ApiResponseError && error.code === "PASSWORD_CHANGE_REQUIRED") {
         try {
@@ -302,7 +322,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     changePassword,
     refresh,
     request,
-  }), [changePassword, login, logout, logoutAll, passwordChangeCompleted, refresh, request, sessionEnded, status, user]);
+    requestBlob,
+  }), [changePassword, login, logout, logoutAll, passwordChangeCompleted, refresh, request, requestBlob, sessionEnded, status, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

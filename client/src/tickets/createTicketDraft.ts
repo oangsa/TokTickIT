@@ -77,8 +77,8 @@ export const RECOVERY_DEADLINE_MS = 24 * 60 * 60 * 1000;
 export const RECOVERY_STORAGE_KEY = "toktickit.createTicketRecovery";
 
 export interface RecoveryRecord {
-  /* Requester-scoped: a record from another Requester is never resumed. */
-  requesterId: number;
+  /* Authenticated identity discriminator; never sent as API authority. */
+  userPublicId: string;
   idempotencyKey: string;
   /* Epoch milliseconds of initial client key creation, not of the failure. */
   keyCreatedAt: number;
@@ -106,12 +106,11 @@ function isPayload(value: unknown): value is CreateTicketPayload {
 }
 
 /*
- * Only the approved fields are persisted: the Requester, the key and its
+ * Only the approved fields are persisted: the authenticated User, the key and its
  * creation time, and the normalized original payload including its normalized
  * `attachmentIds`. No file content and no response data.
  *
- * Every storage call is guarded the same way `requesterStorage` guards its own:
- * `sessionStorage` throws outright in a browser configured to block site data.
+ * Browser storage may be unavailable; persistence is best effort.
  */
 export function writeRecovery(record: RecoveryRecord): void {
   try {
@@ -130,12 +129,12 @@ export function clearRecovery(): void {
 }
 
 /*
- * Returns a resumable record only. A record belonging to another Requester, or
+ * Returns a resumable record only. A record belonging to another User, or
  * one whose key has reached the 24-hour deadline, is discarded rather than
  * offered: reusing it would either leak across Requesters or reuse an expired
  * key. The caller still needs an explicit user action to submit it.
  */
-export function readRecovery(requesterId: number, now: number): RecoveryRecord | null {
+export function readRecovery(userPublicId: string, now: number): RecoveryRecord | null {
   let raw: string | null;
 
   try {
@@ -167,14 +166,14 @@ export function readRecovery(requesterId: number, now: number): RecoveryRecord |
   if (
     typeof candidate.idempotencyKey !== "string" ||
     typeof candidate.keyCreatedAt !== "number" ||
-    typeof candidate.requesterId !== "number" ||
+    typeof candidate.userPublicId !== "string" ||
     !isPayload(candidate.payload)
   ) {
     clearRecovery();
     return null;
   }
 
-  if (candidate.requesterId !== requesterId) {
+  if (candidate.userPublicId !== userPublicId) {
     clearRecovery();
     return null;
   }
