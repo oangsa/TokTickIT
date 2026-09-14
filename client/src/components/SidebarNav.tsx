@@ -1,8 +1,8 @@
-import { forwardRef } from "react";
-import { ArrowLeftRight, Plus, Ticket, UserRound } from "lucide-react";
-import { Link, useMatch, useNavigate } from "react-router-dom";
+import { forwardRef, useState } from "react";
+import { KeyRound, LayoutList, LogOut, Plus, Ticket, UserRound, Users } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { useRequester } from "../requester/RequesterProvider.js";
+import { useAuth } from "../auth/AuthProvider.js";
 import { useNavigationGuard } from "../navigation/NavigationGuard.js";
 import { BrandMark } from "./BrandMark.js";
 import { Button } from "./Button.js";
@@ -13,142 +13,61 @@ interface SidebarNavProps {
   onNavigate: () => void;
 }
 
-/*
- * One navigation node serves both the desktop sidebar and the mobile drawer
- * (ui-spec Sections 5.1, 5.2). Rendering it twice would duplicate every
- * accessible name, so the viewport difference is handled in CSS.
- *
- * Active state is computed here rather than delegated to NavLink because a
- * Ticket Detail route must keep My Tickets active while Create Ticket must not,
- * and `aria-current` carries that state programmatically (Section 29.9).
- *
- * Create Ticket is shell navigation the Lab Sheet requires (Section 8), but it
- * is the application's primary action rather than a second list destination, so
- * it is a primary link above the navigation instead of a row inside it. The
- * `/tickets/new` match does double duty: it carries that item's own active
- * state, and it keeps My Tickets dark, since `/tickets/new` also matches the
- * Ticket Detail pattern.
- */
-export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function SidebarNav(
-  { id, open, onNavigate },
-  ref,
-) {
-  const { requester, clearRequester } = useRequester();
+export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function SidebarNav({ id, open, onNavigate }, ref) {
+  const { user, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const { requestNavigation } = useNavigationGuard();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  if (!user) return null;
 
-  const createTicketActive = Boolean(useMatch({ path: "/tickets/new", end: true }));
-  const ticketsActive = useMatch({ path: "/tickets", end: true });
-  const ticketDetailActive = useMatch({ path: "/tickets/:publicId", end: true });
-  const myTicketsActive = Boolean(!createTicketActive && (ticketsActive || ticketDetailActive));
+  const roleLabel = user.role === "IT_STAFF" ? "IT STAFF" : user.role === "ADMINISTRATOR" ? "ADMINISTRATOR" : "REQUESTER";
+  const pathname = location.pathname.replace(/\/+$/, "") || "/";
+  const isActive = (path: string): boolean => {
+    if (path === "/tickets") {
+      return pathname === path || (pathname.startsWith("/tickets/") && pathname !== "/tickets/new");
+    }
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
-  function handleChangeRequester() {
+  function navigateWithGuard(path: string): void {
     onNavigate();
+    requestNavigation(() => navigate(path));
+  }
+
+  async function handleLogout(): Promise<void> {
+    setLogoutError(null);
+    try {
+      await logout();
+      onNavigate();
+      navigate("/login", { replace: true, state: { message: "You have been signed out." } });
+    } catch {
+      setLogoutError("Unable to sign out right now. Please try again.");
+    }
+  }
+
+  function requestLogout(): void {
     requestNavigation(() => {
-      clearRequester();
-      navigate("/requesters", { replace: true });
+      void handleLogout();
     });
   }
 
-  function handleLinkClick(
-    event: React.MouseEvent<HTMLAnchorElement>,
-    destination: string,
-  ): void {
-    if (
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.shiftKey
-    ) {
-      return;
-    }
+  const links = user.role === "REQUESTER"
+    ? [{ path: "/tickets", label: "My Tickets", icon: Ticket }]
+    : user.role === "IT_STAFF"
+      ? [{ path: "/staff/tickets", label: "Ticket Queue", icon: LayoutList }]
+      : [{ path: "/admin/users", label: "User Management", icon: Users }, { path: "/admin/tickets", label: "Tickets", icon: Ticket }];
 
-    event.preventDefault();
-    onNavigate();
-    requestNavigation(() => navigate(destination));
-  }
-
-  function linkClass(active: boolean): string {
-    return `nav-link${active ? " active" : ""}`;
-  }
-
-  return (
-    <nav
-      ref={ref}
-      id={id}
-      aria-label="Main"
-      className={`tt-sidebar${open ? " tt-sidebar--open" : ""}`}
-    >
-      <span className="tt-brand tt-sidebar__brand h5 mb-0">
-        <BrandMark />
-        TokTickIT
-      </span>
-
-      {/*
-        A solid primary control, not a nav row: on the Create Ticket route it
-        becomes an outlined "you are here" state instead, so the required active
-        indication is visible without a filled button claiming to be an action
-        the Requester has already taken (ui-spec Sections 5.1, 10.1).
-      */}
-      <Link
-        to="/tickets/new"
-        className={`btn w-100 ${createTicketActive ? "btn-outline-secondary tt-nav-action--current" : "btn-primary"}`}
-        aria-current={createTicketActive ? "page" : undefined}
-        onClick={(event) => {
-          if (createTicketActive) {
-            if (
-              event.button === 0 &&
-              !event.metaKey &&
-              !event.altKey &&
-              !event.ctrlKey &&
-              !event.shiftKey
-            ) {
-              event.preventDefault();
-            }
-
-            onNavigate();
-            return;
-          }
-
-          handleLinkClick(event, "/tickets/new");
-        }}
-      >
-        {/* Decoration: the accessible name is "Create Ticket", the destination. */}
-        <Plus className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
-        Create Ticket
-      </Link>
-
-      <ul className="nav flex-column gap-1">
-        <li className="nav-item">
-          <Link
-            to="/tickets"
-            className={linkClass(myTicketsActive)}
-            aria-current={myTicketsActive ? "page" : undefined}
-            onClick={(event) => handleLinkClick(event, "/tickets")}
-          >
-            <Ticket className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
-            My Tickets
-          </Link>
-        </li>
-      </ul>
-
-      <div className="tt-sidebar__footer">
-        <div className="tt-sidebar__identity">
-          <span className="tt-sidebar__avatar" aria-hidden="true">
-            <UserRound className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
-          </span>
-          <p className="mb-0 tt-sidebar__requester">
-            <span className="tt-sidebar__name fw-semibold">{requester?.name}</span>
-            <span className="tt-sidebar__caption">Requester</span>
-          </p>
-        </div>
-        <Button variant="tertiary" className="tt-sidebar__switch w-100" onClick={handleChangeRequester}>
-          <ArrowLeftRight className="tt-sidebar__icon" size={18} strokeWidth={1.75} aria-hidden="true" focusable="false" />
-          Change Requester
-        </Button>
-      </div>
-    </nav>
-  );
+  return <nav ref={ref} id={id} aria-label="Main" className={`tt-sidebar${open ? " tt-sidebar--open" : ""}`}>
+    <span className="tt-brand tt-sidebar__brand h5 mb-0"><BrandMark />TokTickIT</span>
+    {user.role === "REQUESTER" ? <Link to="/tickets/new" className={`btn w-100 ${isActive("/tickets/new") ? "btn-outline-secondary tt-nav-action--current" : "btn-primary"}`} aria-current={isActive("/tickets/new") ? "page" : undefined} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return; event.preventDefault(); navigateWithGuard("/tickets/new"); }}><Plus className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Create Ticket</Link> : null}
+    <ul className="nav flex-column gap-1 mt-3">{links.map(({ path, label, icon: Icon }) => <li className="nav-item" key={path}><Link to={path} className={`nav-link${isActive(path) ? " active" : ""}`} aria-current={isActive(path) ? "page" : undefined} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return; event.preventDefault(); navigateWithGuard(path); }}><Icon className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />{label}</Link></li>)}</ul>
+    <div className="tt-sidebar__footer">
+      <div className="tt-sidebar__identity"><span className="tt-sidebar__avatar" aria-hidden="true"><UserRound className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" /></span><p className="mb-0 tt-sidebar__requester"><span className="tt-sidebar__name fw-semibold">{user.name}</span><span className="tt-sidebar__caption">{user.email}</span></p></div>
+      <span className="badge text-bg-success align-self-start mt-2">{roleLabel}</span>
+      {logoutError ? <div className="alert alert-danger py-2 mt-2 mb-0" role="alert">{logoutError}</div> : null}
+      <Button variant="tertiary" className="tt-sidebar__switch w-100 mt-2" onClick={() => navigateWithGuard("/change-password")}><KeyRound className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Change Password</Button>
+      <Button variant="tertiary" className="tt-sidebar__switch w-100" onClick={requestLogout}><LogOut className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Logout</Button>
+    </div>
+  </nav>;
 });

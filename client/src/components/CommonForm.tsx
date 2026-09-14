@@ -1,0 +1,214 @@
+import { Eye, EyeOff, Search } from "lucide-react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import {
+  FormProvider,
+  type FieldErrors,
+  type FieldValues,
+  type Path,
+} from "react-hook-form";
+
+import { Card } from "./Card.js";
+import { Button } from "./Button.js";
+import { IconButton } from "./IconButton.js";
+import { ValidationMessage } from "./ValidationMessage.js";
+import type { ManagedForm } from "../forms/useManagedForm.js";
+import type {
+  ChoiceFormField,
+  FormField,
+  FormOption,
+  FormSection,
+  LookupFormField,
+  TextFormField,
+} from "../forms/formTypes.js";
+
+const SPAN_CLASS: Record<string, string> = {
+  full: "col-12",
+  half: "col-12 col-md-6",
+  third: "col-12 col-md-6 col-lg-4",
+  quarter: "col-12 col-md-6 col-lg-3",
+};
+
+interface CommonFormProps<TValues extends FieldValues> {
+  form: ManagedForm<TValues>;
+  sections: readonly FormSection<TValues>[];
+  onSubmit: (values: TValues) => void | Promise<void>;
+  onCancel?: () => void;
+  showSubmitButton?: boolean;
+  showCancelButton?: boolean;
+  submitLabel?: string;
+  cancelLabel?: string;
+  submitting?: boolean;
+  submitDisabled?: boolean;
+  cancelDisabled?: boolean;
+  className?: string;
+  ariaLabel?: string;
+}
+
+function fieldError<TValues extends FieldValues>(errors: FieldErrors<TValues>, name: Path<TValues>): string | undefined {
+  let value: unknown = errors;
+  for (const segment of String(name).split(".")) {
+    if (typeof value !== "object" || value === null) return undefined;
+    value = (value as Record<string, unknown>)[segment];
+  }
+  if (typeof value !== "object" || value === null) return undefined;
+  const message = (value as { message?: unknown }).message;
+  return typeof message === "string" ? message : undefined;
+}
+
+function fieldValue<TValues extends FieldValues>(form: ManagedForm<TValues>, name: Path<TValues>): unknown {
+  return form.watch(name);
+}
+
+function optionNodes(options: readonly FormOption[] | undefined): ReactNode {
+  return options?.map((option) => (
+    <option key={option.value} value={option.value} disabled={option.disabled}>
+      {option.label}
+    </option>
+  ));
+}
+
+function optionValue(value: string, options: readonly FormOption[] | undefined): string | number | undefined {
+  if (value === "") return undefined;
+  return options?.find((option) => String(option.value) === value)?.value ?? value;
+}
+
+function labelFor(field: FormField<FieldValues>, id: string): ReactNode {
+  return (
+    <label className="form-label fw-medium" htmlFor={id}>
+      {field.label}
+      {field.required ? <span className="tt-required" aria-hidden="true">{" *"}</span> : null}
+    </label>
+  );
+}
+
+function FieldRenderer<TValues extends FieldValues>({ field, form }: { field: FormField<TValues>; form: ManagedForm<TValues> }) {
+  const id = `field-${String(field.name).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const error = fieldError(form.formState.errors, field.name);
+  const helperText = [field.description, field.helpText].filter(Boolean).join(" ") || undefined;
+  const descriptionId = `${id}-description`;
+  const errorId = `${id}-error`;
+  const counterId = `${id}-counter`;
+  const registered = form.register(
+    field.name,
+    field.type === "number"
+      ? { valueAsNumber: true }
+      : field.type === "select"
+        ? { setValueAs: (value: string) => optionValue(value, field.options) }
+        : undefined,
+  );
+  const value = fieldValue(form, field.name);
+  const hasCounter = Boolean(field.showCount && typeof value === "string" && field.maxLength);
+  const describedBy = [helperText ? descriptionId : null, hasCounter ? counterId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined;
+  const invalidProps = error ? { "aria-invalid": true, "aria-describedby": describedBy } : { "aria-describedby": describedBy };
+  const [visible, setVisible] = useState(false);
+
+  const feedback = (
+    <>
+      {error ? <ValidationMessage id={errorId}>{error}</ValidationMessage> : null}
+      {helperText ? <span id={descriptionId} className="form-text d-block">{helperText}</span> : null}
+      {field.showCount && typeof value === "string" && field.maxLength ? (
+        <span id={counterId} className="form-text d-block text-end" aria-live="polite">{Array.from(value).length}/{field.maxLength}</span>
+      ) : null}
+    </>
+  );
+
+  if (field.type === "readonly") {
+    return <div className="mb-3">{labelFor(field as FormField<FieldValues>, id)}<output id={id} className="form-control-plaintext" aria-describedby={describedBy}>{field.value ?? String(value ?? "")}</output>{feedback}</div>;
+  }
+
+  if (field.type === "custom") {
+    return <div className="mb-3">{labelFor(field as FormField<FieldValues>, id)}{field.render({ id, name: field.name, value, setValue: (next) => form.setValue(field.name, next as never, { shouldDirty: true }), describedBy, invalid: Boolean(error) })}{feedback}</div>;
+  }
+
+  if (field.type === "radio") {
+    const radioField = field as ChoiceFormField<TValues>;
+    return <fieldset className="mb-3" aria-describedby={describedBy} aria-invalid={error ? true : undefined} aria-required={field.required || undefined}>
+      <legend className="form-label fw-medium fs-6">{field.label}{field.required ? <span className="tt-required" aria-hidden="true">{" *"}</span> : null}</legend>
+      {radioField.options?.map((option, index) => <div className="form-check" key={option.value}><input className={`form-check-input${error ? " is-invalid" : ""}`} id={`${id}-${option.value}`} type="radio" value={option.value} required={field.required && index === 0} aria-invalid={error ? true : undefined} aria-describedby={describedBy} disabled={field.disabled || option.disabled} {...registered} /><label className="form-check-label" htmlFor={`${id}-${option.value}`}>{option.label}</label></div>)}
+      {feedback}
+    </fieldset>;
+  }
+
+  if (field.type === "checkbox" || field.type === "switch") {
+    const choiceField = field as ChoiceFormField<TValues>;
+    const className = field.type === "switch" ? "form-check form-switch mb-3" : "form-check mb-3";
+    if (choiceField.options?.length) {
+      return <fieldset className={className} aria-describedby={describedBy} aria-invalid={error ? true : undefined} aria-required={field.required || undefined}><legend className="form-label fw-medium fs-6">{field.label}{field.required ? <span className="tt-required" aria-hidden="true">{" *"}</span> : null}</legend>{choiceField.options.map((option, index) => <div className="form-check" key={option.value}><input className={`form-check-input${error ? " is-invalid" : ""}`} id={`${id}-${option.value}`} type="checkbox" role={field.type === "switch" ? "switch" : undefined} value={option.value} required={field.required && index === 0} aria-invalid={error ? true : undefined} aria-describedby={describedBy} disabled={field.disabled || option.disabled} {...registered} /><label className="form-check-label" htmlFor={`${id}-${option.value}`}>{option.label}</label></div>)}{feedback}</fieldset>;
+    }
+    return <div className={className}><input className={`form-check-input${error ? " is-invalid" : ""}`} id={id} type="checkbox" role={field.type === "switch" ? "switch" : undefined} required={field.required} aria-invalid={error ? true : undefined} aria-describedby={describedBy} disabled={field.disabled} {...registered} /><label className="form-check-label" htmlFor={id}>{field.label}{field.required ? <span className="tt-required" aria-hidden="true">{" *"}</span> : null}</label>{feedback}</div>;
+  }
+
+  const label = labelFor(field as FormField<FieldValues>, id);
+  const common = { id, disabled: field.disabled, required: field.required, autoComplete: field.autoComplete, ...invalidProps };
+  let control: ReactNode;
+  if (field.type === "select") {
+    control = <select className={`form-select${error ? " is-invalid" : ""}`} {...common} {...registered}><option value="">{field.placeholder ?? `Select ${field.label}`}</option>{optionNodes(field.options)}</select>;
+  } else if (field.type === "textarea") {
+    control = <textarea className={`form-control${error ? " is-invalid" : ""}`} rows={field.rows ?? 4} placeholder={field.placeholder} maxLength={field.maxLength} {...common} {...registered} />;
+  } else if (field.type === "lookup") {
+    const lookup = field as LookupFormField<TValues>;
+    const lookupLabel = lookup.lookupLabel ?? `Lookup ${field.label}`;
+    control = <div className="input-group"><input className={`form-control${error ? " is-invalid" : ""}`} readOnly {...common} {...registered} /><IconButton className="btn-outline-secondary flex-shrink-0" label={lookupLabel} title={lookupLabel} onClick={() => lookup.onLookup?.(field.name)}><Search size={16} aria-hidden="true" focusable="false" /></IconButton></div>;
+  } else if (field.type === "attachment") {
+    control = <input className={`form-control${error ? " is-invalid" : ""}`} type="file" accept={field.accept} multiple={field.multiple} {...common} {...registered} />;
+  } else {
+    const textField = field as TextFormField<TValues>;
+    const passwordToggle = field.type === "password" && field.passwordToggle === true;
+    const type = passwordToggle ? (visible ? "text" : "password") : field.type;
+    const maxLength = field.type === "password" ? undefined : field.maxLength;
+    const passwordLabel = visible ? "Hide password" : "Show password";
+    control = passwordToggle ? <div className="input-group"><input className={`form-control${error ? " is-invalid" : ""}`} type={type} placeholder={textField.placeholder} maxLength={maxLength} min={textField.min} max={textField.max} step={textField.step} {...common} {...registered} /><IconButton className="btn-outline-secondary flex-shrink-0" label={passwordLabel} title={passwordLabel} onClick={() => setVisible((current) => !current)}>{visible ? <EyeOff size={16} aria-hidden="true" focusable="false" /> : <Eye size={16} aria-hidden="true" focusable="false" />}</IconButton></div> : <input className={`form-control${error ? " is-invalid" : ""}`} type={field.type} placeholder={textField.placeholder} maxLength={maxLength} min={textField.min} max={textField.max} step={textField.step} {...common} {...registered} />;
+  }
+
+  return <div className="mb-3">{label}{control}{feedback}</div>;
+}
+
+export function CommonForm<TValues extends FieldValues>({
+  form,
+  sections,
+  onSubmit,
+  onCancel,
+  showSubmitButton = true,
+  showCancelButton,
+  submitLabel = "Submit",
+  cancelLabel = "Cancel",
+  submitting = false,
+  submitDisabled = false,
+  cancelDisabled = false,
+  className,
+  ariaLabel,
+}: CommonFormProps<TValues>) {
+  const cancelVisible = showCancelButton ?? onCancel !== undefined;
+  const submit = form.handleSubmit(async (values) => {
+    form.setFormError(undefined);
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      const knownFields = new Set(sections.flatMap((section) => section.fields.map((field) => String(field.name))));
+      form.mapServerErrors(error, knownFields);
+    }
+  });
+
+  return <FormProvider {...form}>
+    <form className={className} aria-label={ariaLabel} noValidate onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); form.setFormError(undefined); void submit(event); }}>
+      {form.formError ? <div className="alert alert-danger" role="alert">{form.formError}</div> : null}
+      {sections.map((section) => {
+        const content = <div className="row">{section.fields.map((field) => <div key={field.key} className={SPAN_CLASS[field.span ?? "full"]}><FieldRenderer field={field} form={form} /></div>)}</div>;
+        return section.card === false ? <section key={section.key} {...(section.title ? { "aria-labelledby": `${section.key}-title` } : {})}>{section.title ? <h2 id={`${section.key}-title`} className="h5">{section.title}</h2> : null}{section.description ? <p className="text-secondary">{section.description}</p> : null}{content}</section> : <Card key={section.key} title={section.title} >{section.description ? <p className="text-secondary">{section.description}</p> : null}{content}</Card>;
+      })}
+      {(showSubmitButton || cancelVisible) ? <div className="d-flex justify-content-end gap-2 mt-3">{cancelVisible ? <Button variant="secondary" type="button" disabled={cancelDisabled || submitting} onClick={onCancel}>{cancelLabel}</Button> : null}{showSubmitButton ? <Button variant="primary" type="submit" busy={submitting} disabled={submitDisabled}>{submitLabel}</Button> : null}</div> : null}
+    </form>
+  </FormProvider>;
+}
+
+export type { CommonFormProps };
+export type {
+  FormField,
+  FormFieldConfig,
+  FormSection,
+  FormSectionConfig,
+  FormOption,
+  SemanticSpan,
+  FormFieldType,
+} from "../forms/formTypes.js";
+export default CommonForm;

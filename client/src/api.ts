@@ -1,8 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 // ponytail: per-request timeout, not a total budget — worst case is 2x this
 // across both calls. Share one AbortSignal if the total ever needs a cap.
-const TIMEOUT_MS = 8000;
+export const API_TIMEOUT_MS = 8000;
 
 export interface Category {
   id: number;
@@ -21,7 +21,7 @@ export interface SystemStatus {
 // Throwing on failure lets the UI show a single Offline/error state.
 export async function checkSystem(): Promise<SystemStatus> {
   const health = await fetch(`${API_URL}/api/health`, {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   }).catch(() => {
     throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
   });
@@ -30,7 +30,7 @@ export async function checkSystem(): Promise<SystemStatus> {
   }
 
   const response = await fetch(`${API_URL}/api/categories`, {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   }).catch(() => {
     throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
   });
@@ -89,7 +89,7 @@ export interface ApiRequestInit extends Omit<RequestInit, "headers"> {
    */
   onResponse?: (response: Response) => void;
   /*
-   * Overrides `TIMEOUT_MS` for the one class of request the default cannot fit:
+   * Overrides `API_TIMEOUT_MS` for the one class of request the default cannot fit:
    * an Attachment binary. The deadline covers the whole exchange, request body
    * included, so a 5,000,000-byte upload (BR-46) needs more than 5 Mbit/s of
    * sustained upstream to survive the default 8 seconds -- and an abort there
@@ -178,7 +178,7 @@ async function requestApi(
     headers["X-Requester-Id"] = String(requesterId);
   }
 
-  const timeout = AbortSignal.timeout(timeoutMs ?? TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(timeoutMs ?? API_TIMEOUT_MS);
 
   const response = await fetch(`${API_URL}${path}`, {
     ...requestInit,

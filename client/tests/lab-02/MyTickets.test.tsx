@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 
-import App from "../../src/App.js";
+import App from "../helpers/LegacyLab2App.js";
 import { PaginationMetadata } from "../../src/api.js";
 import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requesterStorage.js";
 import { SEARCH_DEBOUNCE_MS } from "../../src/tickets/ticketListQuery.js";

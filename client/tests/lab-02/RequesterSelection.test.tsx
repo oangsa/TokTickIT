@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 
-import App from "../../src/App.js";
+import App from "../helpers/LegacyLab2App.js";
 import { ApiRequestInit } from "../../src/api.js";
 import { REQUESTER_STORAGE_KEY } from "../../src/requester/requesterStorage.js";
 import { mswServer } from "../setup.js";

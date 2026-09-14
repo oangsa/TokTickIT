@@ -13,7 +13,7 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /*
- * The requester application shell (ui-spec Section 5). The mobile drawer is
+ * Authenticated application shell (ui-spec Section 5). The mobile drawer is
  * React state plus CSS; Bootstrap's JavaScript bundle is deliberately not used.
  */
 export function AppShell() {
@@ -151,7 +151,7 @@ export function AppShell() {
         <SidebarNav ref={sidebarRef} id={SIDEBAR_ID} open={open} onNavigate={close} />
         {/*
           The open drawer's backdrop hides the page visually but not from the
-          tab order, so Tab past Change Requester lands on controls behind the
+          tab order, so Tab past account actions lands on controls behind the
           dimmed overlay that cannot be seen or clicked. `inert` takes the whole
           main region out of focus and hit-testing for as long as the drawer is
           open (Section 5.2: the mobile navigation must not obscure required
@@ -169,9 +169,8 @@ export function AppShell() {
           {...(open ? { inert: "" } : {})}
         >
           {/*
-            No key is needed on the Outlet: RequesterGuard sits above this shell,
-            so clearing the context unmounts the whole subtree and no list,
-            detail, or draft state survives a Requester switch (Sections 5.3, 28).
+            No key is needed on the Outlet: role guards sit above this shell, so
+            clearing authenticated state unmounts the whole protected subtree.
           */}
           <div className="tt-main__inner">
             <Outlet />

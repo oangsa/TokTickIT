@@ -232,7 +232,7 @@ a {
  * and the accessibility tree without any JavaScript.
  *
  * Known ceiling: `visibility` is the ONLY thing keeping a closed drawer's links
- * and Change Requester out of the tab order, and the same node is the desktop
+ * and account actions out of the tab order, and the same node is the desktop
  * sidebar, so it cannot be made `inert` from React without a viewport check.
  * jsdom applies no stylesheets, so `ApplicationShell.test.tsx` cannot see a
  * regression here — Issue #25's responsive pass must assert closed-drawer tab
@@ -285,10 +285,10 @@ a {
   /*
    * The sidebar is persistent (Section 5.1), which the grid alone does not give:
    * items stretch, so a tall main column stretches the sidebar with it and
-   * `.tt-sidebar__footer`'s `margin-top: auto` lands Requester and Change
-   * Requester at the bottom of the document rather than the bottom of the
+   * `.tt-sidebar__footer`'s `margin-top: auto` lands identity and account
+   * actions at the bottom of the document rather than the bottom of the
    * sidebar. `sticky` plus a viewport-height box keeps the whole navigation —
-   * and the required Change Requester action — on screen at any list length
+   * and required account actions — on screen at any list length
    * (Section 34: no hidden required buttons).
    */
   .tt-sidebar {
@@ -1067,7 +1067,7 @@ a {
 }
 
 .tt-bootstrap__panel {
-  inline-size: min(34rem, 100%);
+  inline-size: min(32.5rem, 100%);
 }
 
 /* The toolbar's controls take the full row once they wrap below the search. */
