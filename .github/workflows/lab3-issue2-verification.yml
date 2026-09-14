@@ -200,13 +200,43 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: client/package-lock.json
+          cache-dependency-path: |
+            client/package-lock.json
+            package-lock.json
 
       - name: Install client dependencies
         run: npm ci
 
-      - name: Run full client regression suite from Lab 1 through Lab 2
+      - name: Run full client regression suite from Lab 1 through Lab 3
         run: npm test
 
       - name: Build client
         run: npm run build
+
+      - name: Install root E2E dependencies
+        run: npm ci
+        working-directory: .
+
+      - name: Install pinned Playwright Chromium
+        run: npx --no-install playwright install --with-deps chromium
+        working-directory: .
+
+      - name: Run current Lab 3 Playwright gate
+        env:
+          ISSUE_3_UI_ONLY: "1"
+        run: >-
+          npm run test:e2e --
+          --grep '@issue-3'
+          e2e/lab-03/authentication.spec.ts
+          e2e/lab-03/responsive-visual.spec.ts
+        working-directory: .
+
+      - name: Upload Lab 3 Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab3-playwright-report
+          path: |
+            artifacts/lab-03/playwright-report
+            artifacts/lab-03/playwright
+          if-no-files-found: ignore

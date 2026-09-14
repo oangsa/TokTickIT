@@ -70,5 +70,8 @@ Implemented on the current Issue 3 feature branch:
   shell checks at all three required viewports. The mocked Issue 3 browser
   command explicitly sets `ISSUE_3_UI_ONLY=1`; database-backed suites remain
   guarded by default.
+- The existing [Lab 3 verification workflow](../../.github/workflows/lab3-issue2-verification.yml)
+  runs the full server/client regression and this Playwright gate together; no
+  separate Issue 3 workflow is used.
 - Current-head counts are 28 focused UI tests and 324 full client tests; these
   supersede the older 27/323 counts in the PR description.
