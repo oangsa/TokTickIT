@@ -2,6 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 const apiBaseUrl = "http://127.0.0.1:3000";
 const clientBaseUrl = "http://127.0.0.1:5173";
+// Issue 3 browser specs mock every auth request, so they can run without a database.
+// Keep this opt-in: other suites need the guarded API web server by default.
+const issue3UiRun = process.env.ISSUE_3_UI_ONLY === "1";
 
 function databaseIdentity(value: string): string {
   let parsed: URL;
@@ -27,24 +30,22 @@ function databaseIdentity(value: string): string {
 
 function requireTestDatabaseUrl(): string {
   if (process.env.NODE_ENV !== "test") {
-    throw new Error("Lab 2 Playwright tests require NODE_ENV=test");
+    throw new Error("Lab Playwright tests require NODE_ENV=test");
   }
 
   const testUrl = process.env.TEST_DATABASE_URL?.trim();
 
   if (!testUrl) {
-    throw new Error("Lab 2 Playwright tests require TEST_DATABASE_URL");
+    throw new Error("Lab Playwright tests require TEST_DATABASE_URL");
   }
 
   const testIdentity = databaseIdentity(testUrl);
   const databaseName = testIdentity.slice(testIdentity.lastIndexOf("/") + 1);
 
-  if (
-    !/(^|[_-])lab2([_-]|$)/i.test(databaseName) ||
-    !/(^|[_-])test([_-]|$)/i.test(databaseName)
-  ) {
+  const isLabDatabase = /(^|[_-])lab(?:2|3)([_-]|$)/i.test(databaseName);
+  if (!isLabDatabase || !/(^|[_-])test([_-]|$)/i.test(databaseName)) {
     throw new Error(
-      "TEST_DATABASE_URL database name must identify the dedicated Lab 2 test database",
+      "TEST_DATABASE_URL database name must identify a dedicated Lab 2 or Lab 3 test database",
     );
   }
 
@@ -57,6 +58,11 @@ function requireTestDatabaseUrl(): string {
   }
 
   return testUrl;
+}
+
+function evidenceLab(testUrl: string): "lab-02" | "lab-03" {
+  const databaseName = databaseIdentity(testUrl).slice(databaseIdentity(testUrl).lastIndexOf("/") + 1);
+  return /(^|[_-])lab3([_-]|$)/i.test(databaseName) ? "lab-03" : "lab-02";
 }
 
 function testEnvironment(testUrl: string): NodeJS.ProcessEnv {
@@ -76,34 +82,46 @@ export default defineConfig({
   workers: 1,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  globalSetup: "./playwright.global-setup.ts",
-  outputDir: "artifacts/lab-02/playwright",
-  reporter: [["list"], ["html", { outputFolder: "artifacts/lab-02/playwright-report" }]],
+  globalSetup: issue3UiRun ? undefined : "./playwright.global-setup.ts",
+  outputDir: `artifacts/${evidenceLab(process.env.TEST_DATABASE_URL ?? "postgresql://localhost/lab3_test")}/playwright`,
+  reporter: [["list"], ["html", { outputFolder: `artifacts/${evidenceLab(process.env.TEST_DATABASE_URL ?? "postgresql://localhost/lab3_test")}/playwright-report` }]],
   use: {
     baseURL: clientBaseUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
   },
-  webServer: [
-    {
-      command: "npm run dev",
-      cwd: "server",
-      url: `${apiBaseUrl}/api/health`,
-      timeout: 120_000,
-      reuseExistingServer: false,
-      env: testEnvironment(requireTestDatabaseUrl()),
-    },
-    {
-      command: "npm run dev -- --host 127.0.0.1 --port 5173",
-      cwd: "client",
-      url: clientBaseUrl,
-      timeout: 120_000,
-      reuseExistingServer: false,
-      env: {
-        ...process.env,
-        VITE_API_URL: apiBaseUrl,
-      },
-    },
-  ],
+  webServer: issue3UiRun
+    ? {
+        command: "npm run dev -- --host 127.0.0.1 --port 5173",
+        cwd: "client",
+        url: clientBaseUrl,
+        timeout: 120_000,
+        reuseExistingServer: false,
+        env: {
+          ...process.env,
+          VITE_API_URL: apiBaseUrl,
+        },
+      }
+    : [
+        {
+          command: "npm run dev",
+          cwd: "server",
+          url: `${apiBaseUrl}/api/health`,
+          timeout: 120_000,
+          reuseExistingServer: false,
+          env: testEnvironment(requireTestDatabaseUrl()),
+        },
+        {
+          command: "npm run dev -- --host 127.0.0.1 --port 5173",
+          cwd: "client",
+          url: clientBaseUrl,
+          timeout: 120_000,
+          reuseExistingServer: false,
+          env: {
+            ...process.env,
+            VITE_API_URL: apiBaseUrl,
+          },
+        },
+      ],
 });

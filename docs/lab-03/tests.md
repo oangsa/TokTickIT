@@ -606,14 +606,14 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| UI-01 | UI | AC-18 | AuthProvider cold load/reload bootstrap. | Protected shell/content does not render before refresh + `/auth/me`; no Login or stale-role flash; final state routes correctly. | tests/lab-03/AuthProvider.test.tsx | Not Run |
-| UI-02 | UI | AC-01 | Login form normal/busy/success behavior. | Email/password/Remember Me render; valid submit sends correct body; busy prevents repeat; success follows `/auth/me` role routing. | tests/lab-03/Login.test.tsx | Not Run |
-| UI-03 | UI | AC-02, AC-12 | Login validation, generic failure and rate-limit feedback. | Unknown/inactive/wrong-password response renders same safe message; 429 shows safe retry guidance; typed values/secret handling remain appropriate. | tests/lab-03/Login.test.tsx | Not Run |
-| UI-04 | UI | AC-03, AC-04 | Mandatory Change Password UI. | Restricted User sees only New/Confirm fields and password guidance; invalid input blocks request; success clears auth and routes Login. | tests/lab-03/ChangePassword.test.tsx | Not Run |
-| UI-05 | UI | AC-05 | Normal Change Password UI. | Current/New/Confirm fields render; mismatch/current-error behavior is local; successful change ends current auth and returns Login. | tests/lab-03/ChangePassword.test.tsx | Not Run |
-| UI-06 | UI | AC-10, AC-11, AC-14 | Authenticated AppShell identity/role navigation and Logout controls. | Name/role shown; only permitted destinations render; Logout/Logout All state clears appropriately; role meaning has visible text. | tests/lab-03/ApplicationShellAuth.test.tsx | Not Run |
-| UI-07 | UI | AC-13, AC-14 | Anonymous and wrong-role route guards. | Protected content never renders before redirect/error; wrong role uses standalone safe 403. | tests/lab-03/ApplicationShellAuth.test.tsx | Not Run |
-| UI-08 | UI | AC-07, AC-09, AC-18 | Central API refresh handling and same-origin tab coordination using mocked `navigator.locks`/`BroadcastChannel`. | Concurrent expired-token calls use one refresh, retry originals once, broadcast updated/session-ended state, and never persist access token in Web Storage. | tests/lab-03/AuthProvider.test.tsx | Not Run |
+| UI-01 | UI | AC-18 | AuthProvider cold load/reload bootstrap. | Protected shell/content does not render before refresh + `/auth/me`; no Login or stale-role flash; final state routes correctly. | tests/lab-03/AuthProvider.test.tsx | Pass |
+| UI-02 | UI | AC-01 | Login form normal/busy/success behavior. | Email/password/Remember Me render; valid submit sends correct body; busy prevents repeat; success follows `/auth/me` role routing. | tests/lab-03/Login.test.tsx | Pass |
+| UI-03 | UI | AC-02, AC-12 | Login validation, generic failure and rate-limit feedback. | Unknown/inactive/wrong-password response renders same safe message; 429 shows safe retry guidance; typed values/secret handling remain appropriate. | tests/lab-03/Login.test.tsx | Pass |
+| UI-04 | UI | AC-03, AC-04 | Mandatory Change Password UI. | Restricted User sees only New/Confirm fields and password guidance; invalid input blocks request; success clears auth and routes Login. | tests/lab-03/ChangePassword.test.tsx | Pass |
+| UI-05 | UI | AC-05 | Normal Change Password UI. | Current/New/Confirm fields render; mismatch/current-error behavior is local; successful change ends current auth and returns Login. | tests/lab-03/ChangePassword.test.tsx | Pass |
+| UI-06 | UI | AC-10, AC-11, AC-14 | Authenticated AppShell identity/role navigation and Logout controls. | Name/role shown; only permitted destinations render; Logout/Logout All state clears appropriately; role meaning has visible text. | tests/lab-03/ApplicationShellAuth.test.tsx | Pass |
+| UI-07 | UI | AC-13, AC-14 | Anonymous and wrong-role route guards. | Protected content never renders before redirect/error; wrong role uses standalone safe 403. | tests/lab-03/ApplicationShellAuth.test.tsx | Pass |
+| UI-08 | UI | AC-07, AC-09, AC-18 | Central API refresh handling and same-origin tab coordination using mocked `navigator.locks`/`BroadcastChannel`. | Same-realm and independent-realm concurrent expired-token calls use one refresh, retry originals once, broadcast the ephemeral bearer/session-ended state, and never persist access token in Web Storage. | tests/lab-03/AuthProvider.test.tsx | Pass |
 | UI-09 | UI | AC-15, AC-17 | Requester Create Ticket regression after CommonForm/auth migration. | Authenticated Requester shown read-only; no Change Requester; Lab 2 fields/counters/Pending upload/idempotent submit/recovery/discard behavior remains. | tests/lab-03/RequesterRegression.test.tsx; tests/lab-02/CreateTicket.test.tsx | Not Run |
 | UI-10 | UI | AC-17 | Requester My Tickets regression. | Existing search/filter/sort/page/empty/no-results/skeleton behavior remains under auth and no stale Development Requester controls appear. | tests/lab-03/RequesterRegression.test.tsx; tests/lab-02/MyTickets.test.tsx | Not Run |
 | UI-11 | UI | AC-16, AC-17 | Requester Ticket Detail/Attachment regression and safe 404. | Owned data/Attachment behavior remains; cross-owner unavailable result uses safe standalone 404 without other-owner detail. | tests/lab-03/RequesterRegression.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx | Not Run |
@@ -637,24 +637,24 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-29 | UI | AC-53 | Set New Initial Password UI. | Confirmation states sign-out/must-change impact; success reveals password exactly once with Copy; later User fetch does not restore it. | tests/lab-03/UserManagement.test.tsx | Not Run |
 | UI-30 | UI | AC-54 | Non-Admin User Management route guard. | Requester/IT Staff never render User list/form before standalone 403; direct API denial remains separately covered. | tests/lab-03/ApplicationShellAuth.test.tsx | Not Run |
 | UI-31 | UI | AC-55 | Dirty Create/Edit User NavigationGuard. | Untouched form leaves directly; dirty Cancel/sidebar/back asks confirmation; Keep Editing preserves values; Discard clears and leaves. | tests/lab-03/UserForm.test.tsx | Not Run |
-| UI-32 | UI | AC-57 | CommonForm built-in field rendering and semantic span mapping. | All approved field discriminants render correct semantic controls; full/half/third/quarter map to approved Bootstrap responsive classes. | tests/lab-03/CommonForm.test.tsx | Not Run |
-| UI-33 | UI | AC-58 | React Hook Form + Zod validation integration. | Invalid submit makes no API callback, field errors associate correctly and first invalid control receives focus; valid normalized values submit. | tests/lab-03/CommonForm.test.tsx | Not Run |
-| UI-34 | UI | AC-59 | Generic centralized server-validation error mapping. | Known `details[].field` becomes RHF field error; unknown field/code remains form-level safe message without clobbering values. | tests/lab-03/CommonForm.test.tsx | Not Run |
+| UI-32 | UI | AC-57 | CommonForm built-in field rendering and semantic span mapping. | All approved field discriminants render correct semantic controls; full/half/third/quarter map to approved Bootstrap responsive classes. | tests/lab-03/CommonForm.test.tsx | Pass |
+| UI-33 | UI | AC-58 | React Hook Form + Zod validation integration. | Invalid submit makes no API callback, field errors associate correctly and first invalid control receives focus; valid normalized values submit. | tests/lab-03/CommonForm.test.tsx | Pass |
+| UI-34 | UI | AC-59 | Generic centralized server-validation error mapping. | Known `details[].field` becomes RHF field error; unknown field/code remains form-level safe message without clobbering values. | tests/lab-03/CommonForm.test.tsx | Pass |
 | UI-35 | UI | AC-60 | Ticket specialized AttachmentSection through CommonForm custom field. | Renderer hosts feature component without taking over Pending/Active/retry/cleanup/idempotency state; field layout remains valid. | tests/lab-03/CommonForm.test.tsx; tests/lab-03/RequesterRegression.test.tsx | Not Run |
-| UI-36 | UI | AC-62 | Keyboard/focus/icon-only accessibility across new components. | Role nav, password visibility, lookup, confirmations, queue rows/cards, comment Reply, pagination and Copy are keyboard operable with visible focus and names/tooltips. | tests/lab-03/Accessibility.test.tsx | Not Run |
+| UI-36 | UI | AC-62 | Issue 3-owned keyboard/focus/icon accessibility. | Auth labels, password visibility, role navigation, mobile menu, logout, and standalone error actions have accessible names, usable keyboard paths, and visible focus; queue/comment/pagination/Copy controls remain owned by Issues 4–6. | tests/lab-03/Accessibility.test.tsx; tests/lab-03/ApplicationShellAuth.test.tsx; tests/lab-03/ErrorPageAuth.test.tsx | Pass |
 | UI-37 | UI | AC-38, AC-64 | Safe rendering and secret/non-public-content UI boundaries. | Comment markup remains text; Internal Notes absent for Requester; password hash/token never render; one-time plaintext does not survive navigation/reload. | tests/lab-03/PublicComments.test.tsx; tests/lab-03/UserManagement.test.tsx; tests/lab-03/AuthProvider.test.tsx | Not Run |
-| UI-38 | UI | AC-14, AC-16, AC-64 | Standalone error variants and role-aware Back targets. | Safe 403/404/500 copy, no role sidebar, no arbitrary backend copy, deterministic role home Back. | tests/lab-03/ErrorPageAuth.test.tsx | Not Run |
+| UI-38 | UI | AC-14, AC-16, AC-64 | Standalone error variants and role-aware Back targets. | Safe 403/404/500 copy, no role sidebar, no arbitrary backend copy, deterministic role home Back. | tests/lab-03/ErrorPageAuth.test.tsx | Pass |
 
 ## 9. Planned Responsive Tests
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| RESP-01 | Responsive | AC-61–62 | Login and Change Password at 1440×900, 820×1180, 390×844. | Centered/constrained desktop/tablet and full-width mobile card; guidance/actions readable; keyboard focus/touch targets usable; no horizontal overflow. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
+| RESP-01 | Responsive | AC-61–62 | Login and Change Password at 1440×900, 820×1180, 390×844. | Centered/constrained desktop/tablet and full-width mobile card; guidance/actions readable; keyboard focus/touch targets usable; no horizontal overflow. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 | RESP-02 | Responsive | AC-61–62 | Requester Create/My Tickets/Ticket Detail regression at all required viewports. | Lab 2 responsive form/table/detail/Attachment behavior remains after CommonForm/auth migration with no selector remnants or clipping. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
 | RESP-03 | Responsive | AC-61–62 | IT Staff Queue at all required viewports. | Desktop six-column table; tablet/mobile stacked cards; search/filter/page actions usable; no mega-grid or page overflow. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
 | RESP-04 | Responsive | AC-61–63 | Staff/Admin Ticket Detail including comments/notes at all required viewports. | Cards/actions wrap safely; owner lookup works; depth-2 comments stay readable; Internal warning remains visible; no overflow. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
 | RESP-05 | Responsive | AC-61–62 | User Management list/Create/Edit at all required viewports. | Required User data/actions remain discoverable; forms collapse to single-column mobile; one-time password panel fits without clipping. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
-| RESP-06 | Responsive | AC-61–62 | Authenticated AppShell/drawer for all roles. | Desktop/sidebar and mobile drawer show correct role navigation; focus containment/restoration and Logout/password actions remain reachable. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
+| RESP-06 | Responsive | AC-61–62 | Authenticated AppShell/drawer for all roles. | Desktop/sidebar and mobile drawer show correct role navigation; focus containment/restoration and Logout/password actions remain reachable. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 
 ## 10. Planned Visual Evidence
 
@@ -695,8 +695,8 @@ Each major required screen should have desktop/tablet/mobile captures where the 
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| E2E-01 | E2E | AC-01–05, AC-10, AC-13, AC-18 | Authentication and first-login golden path. | Initial-password User signs in → restricted screen only → invalid/valid password change → forced fresh Login → role shell → Logout → protected direct access blocked; no auth flash on refresh restore. | e2e/lab-03/authentication.spec.ts | Not Run |
-| E2E-02 | E2E | AC-02, AC-12, AC-14 | Invalid/inactive Login, rate-limit-safe feedback and role navigation denial. | Unknown/wrong/inactive cases use safe copy; deterministic fixture can reach rate limit; wrong-role URL/API remains forbidden without protected data. | e2e/lab-03/authentication.spec.ts | Not Run |
+| E2E-01 | E2E | AC-01–05, AC-10, AC-13, AC-18 | Authentication and first-login golden path. | Initial-password User signs in → restricted screen only → invalid/valid password change → forced fresh Login → role shell → Logout → protected direct access blocked; no auth flash on refresh restore. | e2e/lab-03/authentication.spec.ts | Pass |
+| E2E-02 | E2E | AC-02, AC-12, AC-14 | Invalid/inactive Login, rate-limit-safe feedback and role navigation denial. | Unknown/wrong/inactive cases use safe copy; deterministic fixture can reach rate limit; wrong-role URL/API remains forbidden without protected data. | e2e/lab-03/authentication.spec.ts | Pass |
 | E2E-03 | E2E | AC-15–17, AC-31–32 | Authenticated Requester regression golden path. | Requester creates Ticket with Pending Attachment → Active binding → My Tickets/detail/Attachment operations → permitted Cancel or separate ownership-safe reopen fixture; another Requester cannot open resource. Public Comment/thread coverage belongs to E2E-06. | e2e/lab-03/requester-regression.spec.ts | Not Run |
 | E2E-04 | E2E | AC-19–27, AC-29–30, AC-33, AC-41–46 | IT Staff Queue and workflow golden path. | Queue search/filter/sort/page → unassigned Ticket → Claim/Open → Start → Request Information/Waiting transaction → explicit Resume fixture → Resolve → confirmed Close; terminal and permission boundaries remain correct. Public Comment thread/Note detail coverage belongs to E2E-06. | e2e/lab-03/staff-ticket-flow.spec.ts | Not Run |
 | E2E-05 | E2E | AC-47–56 | Administrator User Management golden path. | List/search/filter/page → Create User → copy one-time password → duplicate validation → Edit → role/activation safety → reset initial password → target forced change on next Login. | e2e/lab-03/user-administration.spec.ts | Not Run |
@@ -961,8 +961,27 @@ npm install
 npm test -- tests/lab-03/AuthProvider.test.tsx tests/lab-03/Login.test.tsx tests/lab-03/ChangePassword.test.tsx tests/lab-03/ApplicationShellAuth.test.tsx tests/lab-03/CommonForm.test.tsx tests/lab-03/Accessibility.test.tsx tests/lab-03/ErrorPageAuth.test.tsx -t '@issue-3'
 npm run build
 cd ..
-npm run test:e2e -- --grep '@issue-3' e2e/lab-03/authentication.spec.ts e2e/lab-03/responsive-visual.spec.ts
+ISSUE_3_UI_ONLY=1 npm run test:e2e -- --grep '@issue-3' e2e/lab-03/authentication.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
+
+The Issue 3 browser command sets `ISSUE_3_UI_ONLY=1`: its authentication and
+responsive specs mock all auth traffic and intentionally start only the client.
+All other browser suites keep the guarded API web server and require the
+dedicated Lab 3 test target and baseline variables.
+
+Issue 3 execution at the current head:
+
+- The exact focused client command passed: 7 files, 27 tests with `@issue-3`.
+- `npm run build` passed.
+- The exact browser command passed: 22 tests with `@issue-3`, including
+  unknown/inactive/incorrect-password safe feedback and Requester, IT Staff,
+  and Administrator shell checks at all three required viewports.
+- The full client regression passed: 17 files, 323 tests. The seven legacy Lab
+  2 imports use a test-only route harness; production `App` retains the Issue 3
+  authenticated route map.
+- The previously recorded guarded full server Lab 1–3 regression remains:
+  48 files, 721 tests, against the disposable `toktickit_lab3_test` target; it
+  was not rerun during this client-only fix.
 
 Issue 4:
 
@@ -1087,9 +1106,9 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
 | DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`. |
-| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Not Run |
+| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — prior guarded server regression: 48 files/721 tests; current client regression: 17 files/323 tests. |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Not Run |
-| DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Not Run |
+| DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Pass |
 | DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Tracked evidence exists under `docs/lab-03/evidence/screenshots/` and is readable and passes Section 12 checklist. | Not Run |
 | DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Not Run |
 | DATA-10 | Maintenance | AC-66 | Documented maintenance command and safe repeat-run evidence. | Command targets only eligible session/rate-limit technical state and can be repeated safely. | Pass |
@@ -1107,7 +1126,7 @@ The following items deserve explicit review because their absence is part of the
 | No Public Comment edit/delete | API-37 + UI-24 | Not Run |
 | No Internal Note edit/delete | API-39 + UI-25 | Not Run |
 | No Staff/Admin Attachment upload/removal | API-55 + route inventory | Not Run |
-| No access JWT in localStorage/sessionStorage | UI-08 + E2E auth storage inspection | Not Run |
+| No access JWT in localStorage/sessionStorage | UI-08 + E2E auth storage inspection | Pass — focused AuthProvider coverage and the 22-test browser gate observed empty `localStorage`/`sessionStorage`; bearer state remains in memory. |
 | No refresh plaintext in database | PG-04 | Not Run |
 | No password plaintext in database | PG-04 + DATA-04 | Not Run |
 | No one-time initial password in later User GET/history/Web Storage/logs | API-52 + UI-27/UI-29/UI-37 + DATA-04 | Not Run |

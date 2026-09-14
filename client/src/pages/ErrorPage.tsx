@@ -1,6 +1,7 @@
+import { useEffect, useRef } from "react";
 import { Link, useLocation, useNavigationType } from "react-router-dom";
 
-import { useRequester } from "../requester/RequesterProvider.js";
+import { roleHome, useAuth } from "../auth/AuthProvider.js";
 
 type ErrorStatus = 403 | 404 | 500;
 
@@ -44,7 +45,8 @@ function readStatus(state: unknown): ErrorStatus {
  */
 export default function ErrorPage() {
   const location = useLocation();
-  const { requester } = useRequester();
+  const { user } = useAuth();
+  const mainRef = useRef<HTMLElement>(null);
   /*
    * Section 27.1 discards the state after a reload or a direct navigation, and
    * the browser will not do that on its own: `location.state` is persisted in the
@@ -58,12 +60,16 @@ export default function ErrorPage() {
   const status = restoredEntry ? 500 : readStatus(location.state);
   const copy = ERROR_COPY[status];
 
+  useEffect(() => {
+    if (!restoredEntry) mainRef.current?.focus();
+  }, [location.key, restoredEntry]);
+
   // Back never uses browser history: history may return to the same failing
   // route (Section 27.4).
-  const backPath = requester === null ? "/requesters" : "/tickets";
+  const backPath = user === null ? "/login" : roleHome(user.role);
 
   return (
-    <main tabIndex={-1} className="tt-main__inner">
+    <main ref={mainRef} tabIndex={-1} className="tt-main__inner">
       <p className="tt-brand h5">TokTickIT</p>
 
       <div className="text-center py-5" role="alert">

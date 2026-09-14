@@ -265,6 +265,10 @@ LOGOUT
 
 No token is persisted to Web Storage.
 
+`ACCESS_UPDATED` may carry the current short-lived access token ephemerally so
+another same-origin tab can reuse a coordinated refresh result. The token is
+never written to Web Storage, URLs, or durable browser state.
+
 ### 3.6 Restricted session
 
 A correct initial-password login creates:

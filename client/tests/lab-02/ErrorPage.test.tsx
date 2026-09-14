@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { ComponentProps } from "react";
-import App from "../../src/App.js";
+import App from "../helpers/LegacyLab2App.js";
 import {
   REQUESTER_STORAGE_KEY,
   StoredRequester,
