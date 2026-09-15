@@ -123,7 +123,7 @@ describe("authenticated Requester regression", () => {
     const actionCalls: string[] = [];
     stubRequesterApi((url, init) => {
       if (init?.method === "POST" && url.endsWith(`/api/users/me/tickets/${PUBLIC_ID}/looks-resolved`)) {
-        actionCalls.push(url);
+        actionCalls.push(new URL(url, window.location.origin).pathname);
         return jsonResponse({ ...TICKET, requesterResolutionConfirmedAt: "2026-08-20T09:00:00.000Z" });
       }
       return undefined;

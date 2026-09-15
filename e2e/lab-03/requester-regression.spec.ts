@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -9,7 +10,7 @@ const SEED_CREDENTIALS_PATH = resolve(
   process.cwd(),
   "server/.local/lab3-seed-credentials.json",
 );
-const TEMPORARY_PASSWORD = "E2e-Requester-Reset-2026!";
+const TEMPORARY_PASSWORD = `E2e-${randomUUID()}!`;
 
 interface SeededSession {
   initialPassword: string;
