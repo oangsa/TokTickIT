@@ -7,8 +7,9 @@ import { RelatedSystemService } from "../services/relatedSystemService.js";
 export const referenceDataRouter = Router();
 
 /*
- * api-spec Sections 6.2 and 6.3. Both are requester-scoped: the guard mounted
- * ahead of this router already rejected a request without valid context.
+ * api-spec Sections 6.2 and 6.3. Both require a full authenticated session;
+ * the guard mounted ahead of this router already rejected an anonymous or
+ * restricted request.
  *
  * Prisma rows are returned as-is because the model fields and the DTO fields
  * are the same set; `res.json` renders the `Date` columns as the ISO-8601 UTC

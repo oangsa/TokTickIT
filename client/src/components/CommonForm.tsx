@@ -40,6 +40,8 @@ interface CommonFormProps<TValues extends FieldValues> {
   submitting?: boolean;
   submitDisabled?: boolean;
   cancelDisabled?: boolean;
+  /** Used by workflows with an explicitly offered, already-validated recovery retry. */
+  bypassValidation?: boolean;
   className?: string;
   ariaLabel?: string;
 }
@@ -144,7 +146,7 @@ function FieldRenderer<TValues extends FieldValues>({ field, form }: { field: Fo
   if (field.type === "select") {
     control = <select className={`form-select${error ? " is-invalid" : ""}`} {...common} {...registered}><option value="">{field.placeholder ?? `Select ${field.label}`}</option>{optionNodes(field.options)}</select>;
   } else if (field.type === "textarea") {
-    control = <textarea className={`form-control${error ? " is-invalid" : ""}`} rows={field.rows ?? 4} placeholder={field.placeholder} maxLength={field.maxLength} {...common} {...registered} />;
+    control = <textarea className={`form-control${error ? " is-invalid" : ""}`} rows={field.rows ?? 4} placeholder={field.placeholder} maxLength={field.enforceMaxLength === false ? undefined : field.maxLength} {...common} {...registered} />;
   } else if (field.type === "lookup") {
     const lookup = field as LookupFormField<TValues>;
     const lookupLabel = lookup.lookupLabel ?? `Lookup ${field.label}`;
@@ -155,7 +157,7 @@ function FieldRenderer<TValues extends FieldValues>({ field, form }: { field: Fo
     const textField = field as TextFormField<TValues>;
     const passwordToggle = field.type === "password" && field.passwordToggle === true;
     const type = passwordToggle ? (visible ? "text" : "password") : field.type;
-    const maxLength = field.type === "password" ? undefined : field.maxLength;
+    const maxLength = field.type === "password" || field.enforceMaxLength === false ? undefined : field.maxLength;
     const passwordLabel = visible ? "Hide password" : "Show password";
     control = passwordToggle ? <div className="input-group"><input className={`form-control${error ? " is-invalid" : ""}`} type={type} placeholder={textField.placeholder} maxLength={maxLength} min={textField.min} max={textField.max} step={textField.step} {...common} {...registered} /><IconButton className="btn-outline-secondary flex-shrink-0" label={passwordLabel} title={passwordLabel} onClick={() => setVisible((current) => !current)}>{visible ? <EyeOff size={16} aria-hidden="true" focusable="false" /> : <Eye size={16} aria-hidden="true" focusable="false" />}</IconButton></div> : <input className={`form-control${error ? " is-invalid" : ""}`} type={field.type} placeholder={textField.placeholder} maxLength={maxLength} min={textField.min} max={textField.max} step={textField.step} {...common} {...registered} />;
   }
@@ -175,11 +177,12 @@ export function CommonForm<TValues extends FieldValues>({
   submitting = false,
   submitDisabled = false,
   cancelDisabled = false,
+  bypassValidation = false,
   className,
   ariaLabel,
 }: CommonFormProps<TValues>) {
   const cancelVisible = showCancelButton ?? onCancel !== undefined;
-  const submit = form.handleSubmit(async (values) => {
+  const handleValues = async (values: TValues) => {
     form.setFormError(undefined);
     try {
       await onSubmit(values);
@@ -187,7 +190,10 @@ export function CommonForm<TValues extends FieldValues>({
       const knownFields = new Set(sections.flatMap((section) => section.fields.map((field) => String(field.name))));
       form.mapServerErrors(error, knownFields);
     }
-  });
+  };
+  const submit = bypassValidation
+    ? async () => handleValues(form.getValues())
+    : form.handleSubmit(handleValues);
 
   return <FormProvider {...form}>
     <form className={className} aria-label={ariaLabel} noValidate onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); form.setFormError(undefined); void submit(event); }}>
@@ -196,7 +202,7 @@ export function CommonForm<TValues extends FieldValues>({
         const content = <div className="row">{section.fields.map((field) => <div key={field.key} className={SPAN_CLASS[field.span ?? "full"]}><FieldRenderer field={field} form={form} /></div>)}</div>;
         return section.card === false ? <section key={section.key} {...(section.title ? { "aria-labelledby": `${section.key}-title` } : {})}>{section.title ? <h2 id={`${section.key}-title`} className="h5">{section.title}</h2> : null}{section.description ? <p className="text-secondary">{section.description}</p> : null}{content}</section> : <Card key={section.key} title={section.title} >{section.description ? <p className="text-secondary">{section.description}</p> : null}{content}</Card>;
       })}
-      {(showSubmitButton || cancelVisible) ? <div className="d-flex justify-content-end gap-2 mt-3">{cancelVisible ? <Button variant="secondary" type="button" disabled={cancelDisabled || submitting} onClick={onCancel}>{cancelLabel}</Button> : null}{showSubmitButton ? <Button variant="primary" type="submit" busy={submitting} disabled={submitDisabled}>{submitLabel}</Button> : null}</div> : null}
+      {(showSubmitButton || cancelVisible) ? <div className="d-flex justify-content-end gap-2 mt-3">{cancelVisible ? <Button variant="secondary" type="button" disabled={cancelDisabled} onClick={onCancel}>{cancelLabel}</Button> : null}{showSubmitButton ? <Button variant="primary" type="submit" busy={submitting} disabled={submitDisabled}>{submitLabel}</Button> : null}</div> : null}
     </form>
   </FormProvider>;
 }

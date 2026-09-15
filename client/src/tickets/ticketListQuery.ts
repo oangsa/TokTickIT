@@ -1,6 +1,6 @@
 /*
  * The My Tickets query, and its two translations: to and from the browser URL,
- * and out to the `GET /api/tickets` contract (api-spec Section 9).
+ * and out to the `GET /api/users/me/tickets` contract (api-spec Section 9).
  *
  * Every value stays a string. The four filter groups come out of
  * `<select multiple>` as strings, go into the URL as strings, and are converted
@@ -32,7 +32,16 @@ export const SORT_OPTIONS = [
 ] as const;
 
 export const PRIORITY_OPTIONS = ["LOW", "MEDIUM", "HIGH"] as const;
-export const STATUS_OPTIONS = ["NEW"] as const;
+export const STATUS_OPTIONS = [
+  "NEW",
+  "OPEN",
+  "IN_PROGRESS",
+  "WAITING_FOR_REQUESTER",
+  "RESOLVED",
+  "CLOSED",
+  "REOPENED",
+  "CANCELLED",
+] as const;
 
 /* The four filters ui-spec Section 14.2 exposes, keyed by their API field. */
 export interface FilterSelection {

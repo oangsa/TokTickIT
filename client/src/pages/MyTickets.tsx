@@ -4,12 +4,12 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 
 import {
   ApiResponseError,
-  InvalidRequesterContextError,
   MasterDataItem,
   PaginationMetadata,
   TicketListItem,
   readPaginationHeader,
 } from "../api.js";
+import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { Badge } from "../components/Badge.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
@@ -23,7 +23,6 @@ import { Pagination } from "../components/Pagination.js";
 import { Select } from "../components/Select.js";
 import { Skeleton } from "../components/Skeleton.js";
 import { TextInput } from "../components/TextInput.js";
-import { useRequesterApi } from "../requester/useRequesterApi.js";
 import { ticketDate } from "../tickets/ticketDate.js";
 import {
   EMPTY_FILTERS,
@@ -93,7 +92,7 @@ const SECONDARY_COLUMN = "d-none d-md-table-cell";
 export default function MyTickets() {
   const navigate = useNavigate();
   const location = useLocation();
-  const callApi = useRequesterApi();
+  const callApi = useAuthenticatedApi();
   const [params, setParams] = useSearchParams();
 
   const query = useMemo(() => readTicketQuery(params), [params]);
@@ -200,11 +199,11 @@ export default function MyTickets() {
   }, [searchInput, query, commitQuery]);
 
   /*
-   * AC-36. `callApi` changes identity with the Requester, so this is the one
+   * Clear held totals when authenticated transport changes, so this is the one
    * effect that fires on a scope change and not on an ordinary query change:
    * the previous Requester's count must be gone before anything of the new
-   * scope renders. `RequesterGuard` also unmounts this screen on a Requester
-   * change, which would drop the state anyway; the rule is stated here rather
+   * scope renders. AuthGuard also unmounts this screen on session change,
+   * which would drop the state anyway; the rule is stated here rather
    * than left resting on that, so a future change to the guard cannot quietly
    * turn a held total into a cross-scope leak.
    */
@@ -231,7 +230,7 @@ export default function MyTickets() {
       try {
         let metadata: PaginationMetadata | null = null;
 
-        const data = await callApi<TicketListItem[]>(`/api/tickets?${request}`, {
+        const data = await callApi<TicketListItem[]>(`/api/users/me/tickets?${request}`, {
           onResponse: (response) => {
             metadata = readPaginationHeader(response.headers.get("X-Pagination"));
           },
@@ -250,13 +249,9 @@ export default function MyTickets() {
         }
 
         /*
-         * `useRequesterApi` has already cleared the context and `RequesterGuard`
-         * is unmounting this subtree; navigating to the error page would race it.
+         * AuthGuard owns session invalidation; this page handles ordinary
+         * resource failures.
          */
-        if (error instanceof InvalidRequesterContextError) {
-          return;
-        }
-
         /*
          * A rejected query is the user's to correct, so it stays on the page
          * with the toolbar usable (ui-spec Section 35). Everything else is a
@@ -331,7 +326,7 @@ export default function MyTickets() {
 
   /*
    * One always-mounted live region (ui-spec 29.7), the same pattern
-   * `RequesterSelection` uses and for the same reason: a `role="status"` node
+   * for the same reason: a `role="status"` node
    * inserted into the DOM with its text already present is announced
    * inconsistently, because assistive technology reports mutations to a region
    * already in the accessibility tree. The region stays put and only its text

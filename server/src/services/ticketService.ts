@@ -27,6 +27,7 @@ export const PENDING_ATTACHMENT_TTL_HOURS = 24;
  */
 const TICKET_DTO_INCLUDE = {
   requester: true,
+  owner: { select: { publicId: true, name: true, role: true } },
   category: true,
   relatedSystem: true,
   attachments: { orderBy: { id: "asc" }, omit: { data: true } },
@@ -55,6 +56,7 @@ export interface TicketDTO {
   publicId: string;
   ticketNumber: string;
   requesterId: number;
+  requesterPublicId: string;
   requesterName: string;
   requesterEmail: string;
   categoryId: number;
@@ -64,7 +66,10 @@ export interface TicketDTO {
   summary: string;
   description: string;
   requestedPriority: "LOW" | "MEDIUM" | "HIGH";
+  itPriority: "LOW" | "MEDIUM" | "HIGH";
   currentStatus: "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
+  owner: { publicId: string; name: string; role: "IT_STAFF" | "ADMINISTRATOR" } | null;
+  requesterResolutionConfirmedAt: string | null;
   attachments: AttachmentDTO[];
   createdBy: string;
   createdAt: string;
@@ -102,6 +107,7 @@ export function toTicketDTO(ticket: TicketWithRelations): TicketDTO {
     publicId: ticket.publicId,
     ticketNumber: ticket.ticketNumber,
     requesterId: ticket.requesterId,
+    requesterPublicId: ticket.requester.publicId,
     requesterName: ticket.requester.name,
     requesterEmail: ticket.requester.email,
     categoryId: ticket.categoryId,
@@ -111,7 +117,18 @@ export function toTicketDTO(ticket: TicketWithRelations): TicketDTO {
     summary: ticket.summary,
     description: ticket.description,
     requestedPriority: ticket.requestedPriority,
+    itPriority: ticket.itPriority,
     currentStatus: ticket.currentStatus,
+    owner:
+      ticket.owner == null ||
+      (ticket.owner.role !== "IT_STAFF" && ticket.owner.role !== "ADMINISTRATOR")
+        ? null
+        : {
+            publicId: ticket.owner.publicId,
+            name: ticket.owner.name,
+            role: ticket.owner.role,
+          },
+    requesterResolutionConfirmedAt: ticket.requesterResolutionConfirmedAt?.toISOString() ?? null,
     attachments: ticket.attachments.map((row) => toAttachmentDTO(row, ticket.publicId)),
     createdBy: ticket.createdBy,
     createdAt: ticket.createdAt.toISOString(),
@@ -119,6 +136,65 @@ export function toTicketDTO(ticket: TicketWithRelations): TicketDTO {
     updatedAt: ticket.updatedAt.toISOString(),
     deleted: ticket.deleted,
   };
+}
+
+export type RequesterTicketAction = "cancel" | "looks-resolved" | "reopen";
+
+export async function applyRequesterTicketAction(
+  prisma: PrismaClient,
+  requesterId: number,
+  actor: string,
+  publicId: string,
+  action: RequesterTicketAction,
+): Promise<TicketDTO | null> {
+  if (!Number.isSafeInteger(requesterId) || requesterId <= 0 || !PUBLIC_ID_PATTERN.test(publicId)) {
+    return null;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const ticket = await tx.ticket.findFirst({
+      where: { publicId, requesterId, deleted: false },
+      select: { id: true, currentStatus: true, requesterResolutionConfirmedAt: true },
+    });
+
+    if (ticket === null) return null;
+
+    const allowed = action === "cancel"
+      ? ticket.currentStatus === "NEW" || ticket.currentStatus === "OPEN"
+      : action === "looks-resolved"
+        ? ticket.currentStatus === "RESOLVED"
+        : ticket.currentStatus === "RESOLVED" || ticket.currentStatus === "CLOSED";
+
+    if (!allowed) throw new ApiError("INVALID_STATUS_TRANSITION");
+
+    /* A repeated confirmation is an idempotent read: do not churn audit fields. */
+    if (action === "looks-resolved" && ticket.requesterResolutionConfirmedAt !== null) {
+      const current = await tx.ticket.findUnique({ where: { id: ticket.id }, include: TICKET_DTO_INCLUDE });
+      return current === null ? null : toTicketDTO(current);
+    }
+
+    const data = action === "cancel"
+      ? { currentStatus: "CANCELLED" as const, updatedBy: actor }
+      : action === "looks-resolved"
+        ? { requesterResolutionConfirmedAt: ticket.requesterResolutionConfirmedAt ?? new Date(), updatedBy: actor }
+        : { currentStatus: "REOPENED" as const, ownerUserId: null, requesterResolutionConfirmedAt: null, updatedBy: actor };
+
+    const result = await tx.ticket.updateMany({
+      where: {
+        id: ticket.id,
+        deleted: false,
+        ...(action === "cancel" ? { currentStatus: { in: ["NEW", "OPEN"] as const } } : {}),
+        ...(action === "looks-resolved" ? { currentStatus: "RESOLVED" as const } : {}),
+        ...(action === "reopen" ? { currentStatus: { in: ["RESOLVED", "CLOSED"] as const } } : {}),
+      },
+      data,
+    });
+
+    if (result.count !== 1) throw new ApiError("INVALID_STATUS_TRANSITION");
+
+    const updated = await tx.ticket.findUnique({ where: { id: ticket.id }, include: TICKET_DTO_INCLUDE });
+    return updated === null ? null : toTicketDTO(updated);
+  });
 }
 
 /*
@@ -146,12 +222,8 @@ export async function findTicketForRequester(
   publicId: string,
 ): Promise<TicketDTO | null> {
   /*
-   * The route reads `req.requesterId`, which is optional on the Express type
-   * and arrives here through an `as number` cast. Prisma reads `undefined` in a
-   * `where` as "predicate not supplied", so an unresolved Requester would drop
-   * the ownership predicate and answer 200 with another Requester's Ticket.
-   * authenticated middleware covers this route today; this makes a future gap
-   * in that cover a loud 500 instead of a scope leak.
+   * The route supplies the numeric User FK derived by authenticated middleware.
+   * A missing/invalid value fails closed before Prisma sees the predicate.
    */
   if (!Number.isSafeInteger(requesterId) || requesterId <= 0) {
     throw new Error("findTicketForRequester requires a resolved Requester.");

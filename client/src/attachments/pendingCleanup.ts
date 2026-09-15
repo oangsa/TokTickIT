@@ -1,6 +1,6 @@
-import { ApiRequestInit } from "../api.js";
+import type { AuthenticatedRequestInit } from "../auth/authTransport.js";
 
-type CallApi = <T>(path: string, init?: ApiRequestInit) => Promise<T>;
+type CallApi = <T>(path: string, init?: AuthenticatedRequestInit) => Promise<T>;
 
 /*
  * Best-effort release of prepared Pending Attachments through the unified
@@ -28,7 +28,7 @@ export async function releasePendingAttachments(
   }
 
   try {
-    await callApi("/api/attachments/collection", {
+    await callApi("/api/users/me/attachments/collection", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

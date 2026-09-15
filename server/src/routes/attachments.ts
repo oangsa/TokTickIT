@@ -147,8 +147,8 @@ attachmentsRouter.post(
       const service = new AttachmentService(getPrisma());
 
       const attachment = await service.createPending({
-        requesterId: req.requesterId as number,
-        actor: req.requesterEmail as string,
+        requesterId: req.auth!.userId,
+        actor: req.auth!.email,
         file: { filename: file.originalname, data: file.buffer },
       });
 
@@ -171,8 +171,8 @@ attachmentsRouter.delete(
       const service = new AttachmentService(getPrisma());
 
       await service.deleteCollection({
-        requesterId: req.requesterId as number,
-        actor: req.requesterEmail as string,
+        requesterId: req.auth!.userId,
+        actor: req.auth!.email,
         items,
       });
 
@@ -190,7 +190,7 @@ attachmentsRouter.get(
     try {
       const service = new AttachmentService(getPrisma());
       const attachment = await service.findMetadata(
-        req.requesterId as number,
+        req.auth!.userId,
         req.params.storageKey,
       );
 
@@ -209,7 +209,7 @@ function binaryRoute(kind: "inline" | "attachment") {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const service = new AttachmentService(getPrisma());
-      const binary = await service.findBinary(req.requesterId as number, req.params.storageKey);
+      const binary = await service.findBinary(req.auth!.userId, req.params.storageKey);
 
       /* A Removed Attachment raises `410` inside the service; `null` is the
        * missing/malformed/out-of-scope case and shares the one 404. */

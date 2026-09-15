@@ -40,7 +40,7 @@ function readStatus(state: unknown): ErrorStatus {
  * such state field is ignored rather than displayed.
  *
  * Section 27.1's `backPath` state field is ignored as well. Section 27.4 already
- * determines the target from the requester context, and honouring a caller-supplied
+ * determines target from authenticated role, and honouring a caller-supplied
  * path would turn navigation state into an open redirect.
  */
 export default function ErrorPage() {

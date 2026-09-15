@@ -57,7 +57,8 @@ describe("Issue 3 authenticated shell", () => {
   ] as const)("shows only the permitted %s navigation @issue-3", async (role, path, expectedLink, extraLinks) => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(response({ accessToken: "token", expiresIn: 600 }))
-      .mockResolvedValueOnce(response({ publicId: "u-1", name: "Role User", email: "role@example.com", role, isActive: true, mustChangePassword: false, sessionStage: "FULL" }));
+      .mockResolvedValueOnce(response({ publicId: "u-1", name: "Role User", email: "role@example.com", role, isActive: true, mustChangePassword: false, sessionStage: "FULL" }))
+      .mockImplementation(async () => response([]));
     vi.stubGlobal("fetch", fetchMock);
     render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
 

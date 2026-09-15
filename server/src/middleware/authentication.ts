@@ -10,8 +10,6 @@ declare global {
   namespace Express {
     interface Request {
       auth?: AuthContext;
-      requesterId?: number;
-      requesterEmail?: string;
     }
   }
 }
@@ -98,8 +96,6 @@ export function requireAuthentication(): RequestHandler {
       const claims = await new JwtService().verify(token);
       const context = await new AuthService(getPrisma()).context(claims.sid, claims.sub);
       req.auth = context;
-      req.requesterId = context.userId;
-      req.requesterEmail = context.email;
       next();
     } catch (error) {
       if (error instanceof AccessTokenExpiredError) {

@@ -209,7 +209,7 @@ export class AttachmentService {
 
   /*
    * api-spec Section 11.4. A Pending Attachment is owned by its uploader and
-   * bound to no Ticket. It is not Ticket evidence yet: `POST /api/tickets`
+   * bound to no Ticket. It is not Ticket evidence yet: `POST /api/users/me/tickets`
    * binding is what makes it Active, and an unbound row is cleanup-eligible
    * after 24 hours.
    */
