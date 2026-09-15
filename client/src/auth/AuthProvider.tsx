@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ApiResponseError } from "../api.js";
 import { AUTH_FORM_RULES } from "../constants/forms/auth.js";
 import type { ChangePasswordFormValues } from "../constants/forms/auth.js";
+import { clearRecovery } from "../tickets/createTicketDraft.js";
 import {
   authenticatedRequest,
   authenticatedBlobRequest,
@@ -96,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const finishAnonymous = useCallback(() => {
     authEpoch.current += 1;
     clearAccessToken(false);
+    clearRecovery();
     setUser(null);
     setStatus(AuthStatus.ANONYMOUS);
   }, []);

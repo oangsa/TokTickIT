@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import App from "../../src/App.js";
 import { clearAccessToken } from "../../src/auth/authTransport.js";
+import { RECOVERY_STORAGE_KEY } from "../../src/tickets/createTicketDraft.js";
 
 const USER = {
   publicId: "70000000-0000-4000-8000-000000000001",
@@ -82,7 +83,7 @@ afterEach(() => {
 });
 
 describe("authenticated Requester regression", () => {
-  it("uses AuthProvider identity and new Ticket routes without legacy selector/header state @issue-4", async () => {
+  it("UI-10 @issue-4 uses AuthProvider identity and new Ticket routes without legacy selector/header state", async () => {
     const { calls } = stubRequesterApi();
     render(<MemoryRouter initialEntries={["/tickets"]}><App /></MemoryRouter>);
 
@@ -96,7 +97,37 @@ describe("authenticated Requester regression", () => {
     }
   });
 
-  it("keeps generated Ticket fields out of authenticated create payload @issue-4", async () => {
+  it("UI-09 @issue-4 clears ambiguous recovery when the authenticated session ends", async () => {
+    sessionStorage.setItem(
+      RECOVERY_STORAGE_KEY,
+      JSON.stringify({
+        idempotencyKey: "abc00000-0000-4000-8000-000000000000",
+        keyCreatedAt: Date.now(),
+        payload: {
+          categoryId: 4,
+          relatedSystemId: 5,
+          summary: "Cannot connect to campus VPN",
+          requestedPriority: "HIGH",
+          description: "The VPN client fails after entering my credentials.",
+          attachmentIds: [],
+        },
+      }),
+    );
+    stubRequesterApi((url) => {
+      if (url.endsWith("/api/auth/logout")) return new Response(null, { status: 204 });
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/tickets"]}><App /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "My Tickets" });
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+
+    await screen.findByRole("heading", { name: "Sign in" });
+    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
+  });
+
+  it("UI-09 @issue-4 keeps generated Ticket fields out of authenticated create payload", async () => {
     const { calls } = stubRequesterApi();
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/tickets/new"]}><App /></MemoryRouter>);
@@ -119,7 +150,7 @@ describe("authenticated Requester regression", () => {
     expect(new Headers(create?.init?.headers).get("Authorization")).toBe("Bearer memory-token");
   });
 
-  it("posts Looks Resolved through authenticated requester action and shows confirmation @issue-4", async () => {
+  it("UI-12 @issue-4 posts Looks Resolved through authenticated requester action and shows confirmation", async () => {
     const actionCalls: string[] = [];
     stubRequesterApi((url, init) => {
       if (init?.method === "POST" && url.endsWith(`/api/users/me/tickets/${PUBLIC_ID}/looks-resolved`)) {
@@ -138,7 +169,7 @@ describe("authenticated Requester regression", () => {
     expect(await screen.findByText("You confirmed that the problem appears resolved.", { exact: true })).toBeInTheDocument();
   });
 
-  it("shows local reload recovery when a requester action conflicts @issue-4", async () => {
+  it("UI-12 @issue-4 shows local reload recovery when a requester action conflicts", async () => {
     let detailCalls = 0;
     stubRequesterApi((url, init) => {
       if (url.endsWith(`/api/users/me/tickets/${PUBLIC_ID}`) && init?.method !== "POST") {

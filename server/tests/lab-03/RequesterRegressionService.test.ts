@@ -59,7 +59,7 @@ describe("Requester Ticket action state machine", () => {
     ["RESOLVED", "looks-resolved"],
     ["RESOLVED", "reopen"],
     ["CLOSED", "reopen"],
-  ])("@issue-4 allows %s/%s only through authenticated ownership", async (status, action) => {
+  ])("UNIT-18 @issue-4 allows %s/%s only through authenticated ownership", async (status, action) => {
     tx.ticket.findFirst.mockResolvedValue(ticketRow({ currentStatus: status }));
 
     await expect(applyRequesterTicketAction(prisma as never, 3, "alice@example.test", PUBLIC_ID, action as never)).resolves.toBeDefined();
@@ -71,7 +71,7 @@ describe("Requester Ticket action state machine", () => {
     ["OPEN", "looks-resolved"],
     ["NEW", "reopen"],
     ["CANCELLED", "reopen"],
-  ])("@issue-4 rejects invalid %s/%s transition", async (status, action) => {
+  ])("UNIT-18 @issue-4 rejects invalid %s/%s transition", async (status, action) => {
     tx.ticket.findFirst.mockResolvedValue(ticketRow({ currentStatus: status }));
 
     await expect(applyRequesterTicketAction(prisma as never, 3, "alice@example.test", PUBLIC_ID, action as never)).rejects.toBeInstanceOf(ApiError);
@@ -79,7 +79,7 @@ describe("Requester Ticket action state machine", () => {
     expect(tx.ticket.updateMany).not.toHaveBeenCalled();
   });
 
-  it("@issue-4 cancels only NEW/OPEN and writes no client-owned fields", async () => {
+  it("UNIT-18 @issue-4 cancels only NEW/OPEN and writes no client-owned fields", async () => {
     tx.ticket.findFirst.mockResolvedValue(ticketRow({ currentStatus: "OPEN" }));
 
     await applyRequesterTicketAction(prisma as never, 3, "alice@example.test", PUBLIC_ID, "cancel");
@@ -90,7 +90,7 @@ describe("Requester Ticket action state machine", () => {
     });
   });
 
-  it("@issue-4 records Looks Resolved without changing status", async () => {
+  it("UNIT-18 @issue-4 records Looks Resolved without changing status", async () => {
     tx.ticket.findFirst.mockResolvedValue(ticketRow({ currentStatus: "RESOLVED" }));
 
     await applyRequesterTicketAction(prisma as never, 3, "alice@example.test", PUBLIC_ID, "looks-resolved");
@@ -101,7 +101,7 @@ describe("Requester Ticket action state machine", () => {
     expect(call.data.requesterResolutionConfirmedAt).toBeInstanceOf(Date);
   });
 
-  it("@issue-4 reopens atomically, clears owner/confirmation, and preserves priority", async () => {
+  it("UNIT-18 @issue-4 reopens atomically, clears owner/confirmation, and preserves priority", async () => {
     tx.ticket.findFirst.mockResolvedValue(ticketRow({ currentStatus: "CLOSED", requesterResolutionConfirmedAt: NOW }));
     tx.ticket.findUnique.mockResolvedValue(ticketRow({ currentStatus: "REOPENED", owner: null, ownerUserId: null, requesterResolutionConfirmedAt: null, itPriority: "HIGH" }));
 
@@ -117,7 +117,7 @@ describe("Requester Ticket action state machine", () => {
     expect(result?.requesterResolutionConfirmedAt).toBeNull();
   });
 
-  it("@issue-4 makes repeated Looks Resolved idempotent without another write", async () => {
+  it("UNIT-18 @issue-4 makes repeated Looks Resolved idempotent without another write", async () => {
     tx.ticket.findFirst.mockResolvedValue(ticketRow({ currentStatus: "RESOLVED", requesterResolutionConfirmedAt: NOW }));
     tx.ticket.findUnique.mockResolvedValue(ticketRow({ currentStatus: "RESOLVED", requesterResolutionConfirmedAt: NOW }));
 

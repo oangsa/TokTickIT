@@ -39,7 +39,7 @@ describe("authenticated Requester resource boundary", () => {
 
   beforeEach(() => vi.clearAllMocks());
 
-  it("@issue-4 uses authenticated numeric User FK in ownership predicate and never a supplied scope", async () => {
+  it("UNIT-07 @issue-4 uses authenticated numeric User FK in ownership predicate and never a supplied scope", async () => {
     prisma.ticket.findFirst.mockResolvedValue(ticketRow());
 
     const result = await findTicketForRequester(prisma as never, 3, PUBLIC_ID);
@@ -50,7 +50,7 @@ describe("authenticated Requester resource boundary", () => {
     }));
   });
 
-  it("@issue-4 returns same null scope result for malformed or missing public IDs", async () => {
+  it("UNIT-07 @issue-4 returns same null scope result for malformed or missing public IDs", async () => {
     prisma.ticket.findFirst.mockResolvedValue(null);
 
     await expect(findTicketForRequester(prisma as never, 3, "not-a-uuid")).resolves.toBeNull();
@@ -58,7 +58,7 @@ describe("authenticated Requester resource boundary", () => {
     expect(prisma.ticket.findFirst).toHaveBeenCalledTimes(1);
   });
 
-  it("@issue-4 fails closed before Prisma when authenticated User FK is unresolved", async () => {
+  it("UNIT-07 @issue-4 fails closed before Prisma when authenticated User FK is unresolved", async () => {
     await expect(findTicketForRequester(prisma as never, 0, PUBLIC_ID)).rejects.toThrow();
     expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
   });

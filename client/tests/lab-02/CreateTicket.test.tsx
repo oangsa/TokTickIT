@@ -566,9 +566,9 @@ describe("Create Ticket failure behaviour", () => {
 
     const stored = JSON.parse(sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? "{}");
     expect(Object.keys(stored).sort()).toEqual(
-      ["idempotencyKey", "keyCreatedAt", "payload", "userPublicId"].sort(),
+      ["idempotencyKey", "keyCreatedAt", "payload"].sort(),
     );
-    expect(stored.userPublicId).toBe("70000000-0000-4000-8000-000000000001");
+    expect(stored).not.toHaveProperty("userPublicId");
     expect(stored.payload.attachmentIds).toEqual([]);
   });
 
@@ -617,7 +617,6 @@ describe("Create Ticket failure behaviour", () => {
 
   it("never submits a stored recovery record automatically on load", async () => {
     const record: RecoveryRecord = {
-      userPublicId: "70000000-0000-4000-8000-000000000001",
       idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
       keyCreatedAt: Date.now(),
       payload: {
@@ -640,7 +639,6 @@ describe("Create Ticket failure behaviour", () => {
   it("retries the unchanged request under the original key when Retry Again is chosen", async () => {
     const user = userEvent.setup();
     const record: RecoveryRecord = {
-      userPublicId: "70000000-0000-4000-8000-000000000001",
       idempotencyKey: "abc00000-0000-4000-8000-000000000000",
       keyCreatedAt: Date.now(),
       payload: {
@@ -664,7 +662,7 @@ describe("Create Ticket failure behaviour", () => {
     await waitFor(() => expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull());
   });
 
-  it("discards a recovery record belonging to another authenticated User", async () => {
+  it("discards legacy recovery records containing requester identity", async () => {
     sessionStorage.setItem(
       RECOVERY_STORAGE_KEY,
       JSON.stringify({
@@ -693,7 +691,6 @@ describe("Create Ticket failure behaviour", () => {
     sessionStorage.setItem(
       RECOVERY_STORAGE_KEY,
       JSON.stringify({
-        userPublicId: "70000000-0000-4000-8000-000000000001",
         idempotencyKey: "abc00000-0000-4000-8000-000000000000",
         keyCreatedAt: Date.now() - 24 * 60 * 60 * 1000,
         payload: {
@@ -805,7 +802,6 @@ describe("Cancel and discard", () => {
     sessionStorage.setItem(
       RECOVERY_STORAGE_KEY,
       JSON.stringify({
-        userPublicId: "70000000-0000-4000-8000-000000000001",
         idempotencyKey: "abc00000-0000-4000-8000-000000000000",
         keyCreatedAt: Date.now(),
         payload: {

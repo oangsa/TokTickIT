@@ -136,6 +136,7 @@ export default function CreateTicket() {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null);
   const pendingNavigationRef = useRef<NavigationAction | null>(null);
+  const recoveryIdentityRef = useRef<string | null>(user?.publicId ?? null);
   /*
    * AC-16: an intended file that is still Uploading, or that Failed or was
    * Invalid, blocks Submit until it is retried successfully or explicitly
@@ -249,12 +250,20 @@ export default function CreateTicket() {
    * auto-submitted on load.
    */
   useEffect(() => {
-    if (user === null) {
-      return;
+    const currentIdentity = user?.publicId ?? null;
+
+    if (
+      currentIdentity === null ||
+      (recoveryIdentityRef.current !== null && recoveryIdentityRef.current !== currentIdentity)
+    ) {
+      clearRecovery();
+      setRecovery(null);
+    } else {
+      setRecovery(readRecovery(Date.now()));
     }
 
-    setRecovery(readRecovery(user.publicId, Date.now()));
-  }, [user]);
+    recoveryIdentityRef.current = currentIdentity;
+  }, [user?.publicId]);
 
   const handlePendingIdsChange = useCallback(
     (attachmentIds: string[]) => {
@@ -438,7 +447,6 @@ export default function CreateTicket() {
        */
       if (user !== null) {
         const record: RecoveryRecord = {
-          userPublicId: user.publicId,
           idempotencyKey: key,
           keyCreatedAt: keyCreatedAtRef.current,
           payload,
