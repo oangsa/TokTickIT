@@ -190,7 +190,11 @@ for (const viewport of VIEWPORTS) {
   for (const shellRole of SHELL_ROLES) {
     test(`RESP-06 ${shellRole.user.role} shell stays usable at ${viewport.width}x${viewport.height} @issue-3`, async ({ page }) => {
       await page.setViewportSize(viewport);
-      await stubAuth(page, shellRole.user);
+      if (shellRole.user.role === "REQUESTER") {
+        await stubRequesterPages(page);
+      } else {
+        await stubAuth(page, shellRole.user);
+      }
       await page.goto(shellRole.path);
       await assertNoHorizontalOverflow(page);
 
