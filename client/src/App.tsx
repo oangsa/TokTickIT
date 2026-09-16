@@ -12,6 +12,8 @@ import UnavailablePage from "./pages/UnavailablePage.js";
 import CreateTicket from "./pages/CreateTicket.js";
 import MyTickets from "./pages/MyTickets.js";
 import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
+import StaffTicketQueue from "./pages/StaffTicketQueue.js";
+import StaffTicketDetail from "./pages/StaffTicketDetail.js";
 
 /* `/` resolves against the authenticated role after bootstrap. */
 function RootRedirect() {
@@ -59,15 +61,15 @@ export default function App({ enableHistoryBlocking = false }: { enableHistoryBl
         <Route path="/tickets/:publicId" element={<RequesterTicketDetail />} />
       </Route></Route>
       <Route element={<RoleGuard roles={["IT_STAFF"]} />}><Route element={<AppShell />}>
-        <Route path="/staff/tickets" element={<UnavailablePage title="Ticket Queue" />} />
-        <Route path="/staff/tickets/:publicId" element={<UnavailablePage title="Ticket Detail" />} />
+        <Route path="/staff/tickets" element={<StaffTicketQueue />} />
+        <Route path="/staff/tickets/:publicId" element={<StaffTicketDetail />} />
       </Route></Route>
       <Route element={<RoleGuard roles={["ADMINISTRATOR"]} />}><Route element={<AppShell />}>
         <Route path="/admin/users" element={<UnavailablePage title="User Management" />} />
         <Route path="/admin/users/new" element={<UnavailablePage title="Create User" />} />
         <Route path="/admin/users/:publicId/edit" element={<UnavailablePage title="Edit User" />} />
-        <Route path="/admin/tickets" element={<UnavailablePage title="Tickets" />} />
-        <Route path="/admin/tickets/:publicId" element={<UnavailablePage title="Ticket Detail" />} />
+        <Route path="/admin/tickets" element={<StaffTicketQueue />} />
+        <Route path="/admin/tickets/:publicId" element={<StaffTicketDetail />} />
       </Route></Route>
     </Route>
     <Route path="*" element={<Navigate to="/error" replace state={{ status: 404 }} />} />

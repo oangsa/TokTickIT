@@ -15,6 +15,15 @@ export interface TicketFormValues {
   description: string;
 }
 
+export interface RequestInformationValues { content: string }
+export const REQUEST_INFORMATION_SECTIONS: FormSection<RequestInformationValues>[] = [{
+  key: "message", title: "Public message", fields: [{
+    key: "content", name: "content", label: "Message", type: "textarea", rows: 5,
+    required: true, maxLength: TICKET_FORM_RULES.publicComment.maxLength,
+    enforceMaxLength: false, showCount: true, helpText: "Message will be public.", span: "full",
+  }],
+}];
+
 export const TICKET_FORM_SECTIONS: FormSection<TicketFormValues>[] = [
   {
     key: "ticket",
