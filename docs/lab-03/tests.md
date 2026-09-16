@@ -506,16 +506,16 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | UNIT-05 | Unit | BR-09–10, AC-12 | Login rate limiter: `(normalizedEmail, IP)` and global-IP windows, exact thresholds, block duration, successful-login pair reset. | 5th/6th pair boundary and 30th/31st IP boundary behave exactly as specified without revealing account existence. | tests/lab-03/LoginRateLimitService.test.ts | Pass |
 | UNIT-06 | Unit | FR-01–12, BR-01–10, BR-24–29, AC-01–05 | Auth service orchestration: valid Login, dummy verify for unknown email, inactive/deleted/wrong-password equivalence, restricted-session creation, password change, session revocation. | Auth workflow produces the correct safe domain result and calls persistence/crypto/session collaborators in the approved order. | tests/lab-03/AuthService.test.ts | Pass |
 | UNIT-07 | Unit | FR-13–FR-16, FR-18, AC-15–16 | Authenticated Requester authorization policy. | Requester scope comes from auth context; foreign requester input cannot expand scope; unavailable/cross-owner resources resolve to the safe 404 policy. | tests/lab-03/AuthorizationService.test.ts | Pass |
-| UNIT-08 | Unit | BR-49–55, AC-19–24 | Ticket ownership service: Claim, eligible target validation, expected-owner compare, reassignment/unassignment, Admin-owner rules. | Unassigned Claim/assign and owner changes produce the correct domain mutations/conflicts; inactive/Requester owner targets fail. | tests/lab-03/TicketOwnershipService.test.ts | Not Run |
-| UNIT-09 | Unit | BR-57–58, BR-60, BR-64–67, AC-26, AC-29–30, AC-33 | Staff Ticket workflow transition matrix and confirmation preconditions independent of HTTP. | Every Staff-owned allowed state/action pair resolves to the approved next state; every disallowed pair yields `INVALID_STATUS_TRANSITION`; Cancelled is terminal. | tests/lab-03/TicketWorkflowService.test.ts | Not Run |
-| UNIT-10 | Unit | BR-65–66, AC-27 | Request Information orchestration. | Required Public Comment and status mutation are requested as one transaction; induced failure cannot report partial success. | tests/lab-03/TicketWorkflowService.test.ts | Not Run |
+| UNIT-08 | Unit | BR-49–55, AC-19–24 | Ticket ownership service: Claim, eligible target validation, expected-owner compare, reassignment/unassignment, Admin-owner rules. | Unassigned Claim/assign and owner changes produce the correct domain mutations/conflicts; inactive/Requester owner targets fail. | tests/lab-03/TicketOwnershipService.test.ts | Pass |
+| UNIT-09 | Unit | BR-57–58, BR-60, BR-64–67, AC-26, AC-29–30, AC-33 | Staff Ticket workflow transition matrix and confirmation preconditions independent of HTTP. | Every Staff-owned allowed state/action pair resolves to the approved next state; every disallowed pair yields `INVALID_STATUS_TRANSITION`; Cancelled is terminal. | tests/lab-03/TicketWorkflowService.test.ts | Pass |
+| UNIT-10 | Unit | BR-65–66, AC-27 | Request Information orchestration. | Required Public Comment and status mutation are requested as one transaction; induced failure cannot report partial success. | tests/lab-03/TicketWorkflowService.test.ts | Pass |
 | UNIT-11 | Unit | BR-68, BR-70–75, AC-34–38 | Public Comment validation, root/reply projection, bounded depth, depth-2 flattening, exact reply-target metadata, ordering and preview calculation. | Comments remain escaped/plain-text data; roots/replies order correctly; replies never exceed visual depth 2; no edit/delete behavior exists. | tests/lab-03/PublicCommentService.test.ts | Not Run |
 | UNIT-12 | Unit | BR-69–71, BR-76–77, AC-39–40 | Internal Note validation/projection and authorization-aware create/read service behavior. | Flat append-only notes respect 1–4000 trimmed length; Requester never receives note content; Admin non-owner cannot create. | tests/lab-03/InternalNoteService.test.ts | Not Run |
-| UNIT-13 | Unit | BR-78–86, AC-41–46 | Staff Queue query validator: searchable/filterable/sortable whitelist, typed conversion, Created Date range, defaults, terminal-filter semantics. | Only approved queue fields/operators/types reach QueryBuilder; operational default ordering is constructed correctly. | tests/lab-03/StaffQueueQueryValidator.test.ts | Not Run |
+| UNIT-13 | Unit | BR-78–86, AC-41–46 | Staff Queue query validator: searchable/filterable/sortable whitelist, typed conversion, Created Date range, defaults, terminal-filter semantics. | Only approved queue fields/operators/types reach QueryBuilder; operational default ordering is constructed correctly. | tests/lab-03/StaffQueueQueryValidator.test.ts | Pass |
 | UNIT-14 | Unit | BR-78–82, AC-47 | Administrator User-list query validator: name/email search, `role` EQUAL filter, approved sort fields, and page defaults. | Only the exact User collection query surface is accepted; invalid fields/conditions/cardinality fail before data access and default name ordering is deterministic. | tests/lab-03/UserQueryValidator.test.ts | Not Run |
 | UNIT-15 | Unit | BR-32–46, AC-48–53 | Administrator User service: create/edit/reset, duplicate email mapping, self-safety, last-admin safety requests, session revocation and owner-unassignment orchestration. | Valid changes produce the planned transactional work; unsafe self/last-admin operations fail before success is reported. | tests/lab-03/UserService.test.ts | Not Run |
 | UNIT-16 | Unit | FR-66, AC-66 | Maintenance service: expired/revoked session and expired rate-limit selection, bounded repeat-until-empty cleanup, safe rerun. | Only eligible technical rows are selected; live sessions are never targeted; repeated run is idempotent. | tests/lab-03/MaintenanceService.test.ts | Pass |
-| UNIT-17 | Unit | FR-64, BR-78–80, AC-41–46 | Existing reusable QueryBuilder regression plus new Queue validated inputs. | Generic builder constructs approved search/filter/order expressions from already typed input without learning Ticket authorization rules. | tests/lab-02/QueryBuilder.test.ts; tests/lab-03/QueryBuilderRegression.test.ts | Not Run |
+| UNIT-17 | Unit | FR-64, BR-78–80, AC-41–46 | Existing reusable QueryBuilder regression plus new Queue validated inputs. | Generic builder constructs approved search/filter/order expressions from already typed input without learning Ticket authorization rules. | tests/lab-02/QueryBuilder.test.ts; tests/lab-03/QueryBuilderRegression.test.ts | Pass |
 | UNIT-18 | Unit | FR-14–FR-16, FR-18, AC-15, AC-17 | Authenticated Requester service boundary: identity-scoped Ticket operations and preservation of Lab 2 idempotency/Attachment orchestration. | Requester identity is derived from auth context; no supplied requester ID changes scope; existing create/list/detail/Attachment behavior remains callable. | tests/lab-03/RequesterRegressionService.test.ts | Pass |
 
 ## 7. Planned API / Integration Tests
@@ -539,21 +539,21 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | API-15 | API | AC-16 | Requester direct-open of another Requester's Ticket/Attachment and malformed/missing public IDs. | All unavailable/cross-owner cases use the same safe `404 NOT_FOUND` without owner/existence leakage. | tests/lab-03/authorization.api.test.ts | Pass |
 | API-16 | API | AC-17 | Authenticated Requester Create Ticket/list/detail/idempotent replay regression. | Lab 2 Ticket request validation, canonical idempotency, direct DTO behavior, search/filter/sort/page, and current-state replay continue under auth. | tests/lab-03/requester-regression.api.test.ts | Pass |
 | API-17 | API | AC-17 | Authenticated Requester Attachment regression. | Pending pre-upload, existing-Ticket Active upload, metadata, preview/download, max-five limit, removal, Removed binary behavior, and collection atomicity remain. | tests/lab-03/requester-attachments.api.test.ts | Pass |
-| API-18 | API | AC-19 | Claim unassigned NEW Ticket. | Owner becomes caller and NEW becomes OPEN in one application transaction; already-owned Ticket conflicts. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-19 | API | AC-20 | Expected-owner compare on Claim/reassign race. | One current-state mutation succeeds; stale expected owner returns `409 OWNERSHIP_CONFLICT` and current state is not overwritten. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-20 | API | AC-21 | Assign/reassign owner eligibility. | Only active IT Staff/Admin targets accepted; inactive/Requester/missing targets rejected safely. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-21 | API | AC-22 | Unassign a non-NEW owned Ticket. | Owner becomes null while current status remains unchanged. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-22 | API | AC-23 | Non-owner IT Staff attempts Start Work, Request Information, Resume, Resolve, Close. | Each owner-only operation is rejected without mutation while read/comment/reassignment permissions remain separately testable. | tests/lab-03/authorization.api.test.ts; tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-23 | API | AC-24 | Administrator Ticket operation matrix before and after explicit assignment as owner. | Admin non-owner is read/comment/note-read only; assigned Admin gains approved owner operations but Claim remains forbidden. | tests/lab-03/authorization.api.test.ts | Not Run |
-| API-24 | API | AC-25 | Change IT Priority as authorized actor. | IT Priority changes; Requested Priority remains exactly unchanged; invalid enum/unauthorized actor rejected. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-25 | API | AC-26 | Parameterized semantic status-transition matrix. | Every BR-58 allowed action succeeds only from the approved states; all invalid state/action pairs return `409 INVALID_STATUS_TRANSITION`. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-26 | API | AC-27 | Request Information with required message and mocked transaction callback. | Comment insert and `WAITING_FOR_REQUESTER` transition are orchestrated together; failure causes no partial success at application boundary. | tests/lab-03/staff-ticket-detail.api.test.ts; tests/lab-03/comments-notes.api.test.ts | Not Run |
+| API-18 | API | AC-19 | Claim unassigned NEW Ticket. | Owner becomes caller and NEW becomes OPEN in one application transaction; already-owned Ticket conflicts. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-19 | API | AC-20 | Expected-owner compare on Claim/reassign race. | One current-state mutation succeeds; stale expected owner returns `409 OWNERSHIP_CONFLICT` and current state is not overwritten. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-20 | API | AC-21 | Assign/reassign owner eligibility. | Only active IT Staff/Admin targets accepted; inactive/Requester/missing targets rejected safely. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-21 | API | AC-22 | Unassign a non-NEW owned Ticket. | Owner becomes null while current status remains unchanged. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-22 | API | AC-23 | Non-owner IT Staff attempts Start Work, Request Information, Resume, Resolve, Close. | Each owner-only operation is rejected without mutation while read/comment/reassignment permissions remain separately testable. | tests/lab-03/authorization.api.test.ts; tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-23 | API | AC-24 | Administrator Ticket operation matrix before and after explicit assignment as owner. | Admin non-owner is read/comment/note-read only; assigned Admin gains approved owner operations but Claim remains forbidden. | tests/lab-03/authorization.api.test.ts | Pass |
+| API-24 | API | AC-25 | Change IT Priority as authorized actor. | IT Priority changes; Requested Priority remains exactly unchanged; invalid enum/unauthorized actor rejected. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-25 | API | AC-26 | Parameterized semantic status-transition matrix. | Every BR-58 allowed action succeeds only from the approved states; all invalid state/action pairs return `409 INVALID_STATUS_TRANSITION`. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-26 | API | AC-27 | Request Information with required message and mocked transaction callback. | Comment insert and `WAITING_FOR_REQUESTER` transition are orchestrated together; failure causes no partial success at application boundary. | tests/lab-03/staff-ticket-detail.api.test.ts; tests/lab-03/comments-notes.api.test.ts | Pass |
 | API-27 | API | AC-28 | Requester posts Public Comment while Ticket is Waiting. | Comment is appended and status remains `WAITING_FOR_REQUESTER`; no automatic Resume occurs. | tests/lab-03/comments-notes.api.test.ts | Not Run |
-| API-28 | API | AC-29 | Owner Mark Resolved. | Approved state moves to `RESOLVED` and previous Requester resolution-confirmation value is cleared. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
-| API-29 | API | AC-30 | Close before and after Requester confirmation. | Close without confirmation returns transition conflict; confirmed RESOLVED Ticket may close by current owner. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
+| API-28 | API | AC-29 | Owner Mark Resolved. | Approved state moves to `RESOLVED` and previous Requester resolution-confirmation value is cleared. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-29 | API | AC-30 | Close before and after Requester confirmation. | Close without confirmation returns transition conflict; confirmed RESOLVED Ticket may close by current owner. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 | API-30 | API | AC-31 | Requester Problem Still Exists from RESOLVED and CLOSED. | Both produce `REOPENED`, owner null, confirmation null, priorities unchanged. | tests/lab-03/staff-ticket-detail.api.test.ts; tests/lab-03/requester-regression.api.test.ts | Not Run |
 | API-31 | API | AC-32 | Requester Cancel boundary. | Own NEW/OPEN may cancel; all other statuses and other Requester's Ticket are rejected appropriately. | tests/lab-03/requester-regression.api.test.ts | Not Run |
-| API-32 | API | AC-33 | Attempt every lifecycle action from CANCELLED. | Every mutation is rejected; Ticket remains CANCELLED. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
+| API-32 | API | AC-33 | Attempt every lifecycle action from CANCELLED. | Every mutation is rejected; Ticket remains CANCELLED. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 | API-33 | API | AC-34 | Create root Public Comment validation and backend author/time. | 1 and 2000 trimmed chars accepted; empty/whitespace/2001 rejected; client author/time fields cannot override backend. | tests/lab-03/comments-notes.api.test.ts | Not Run |
 | API-34 | API | AC-35 | Retrieve root Public Comments. | Defaults to 10 newest-first roots; each root reports total replyCount and at most three oldest-first preview replies. | tests/lab-03/comments-notes.api.test.ts | Not Run |
 | API-35 | API | AC-36 | Retrieve additional replies. | Default page size 5, oldest-first, correct `X-Pagination`, valid beyond-final page returns empty array. | tests/lab-03/comments-notes.api.test.ts | Not Run |
@@ -561,12 +561,12 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | API-37 | API | AC-38 | Append-only Public Comment contract and unsafe content serialization. | No edit/delete route is exposed; HTML/Markdown-like content returns as ordinary text data rather than server-rendered markup. | tests/lab-03/comments-notes.api.test.ts | Not Run |
 | API-38 | API | AC-39 | Internal Note read authorization. | IT Staff/Admin read permitted; Requester receives `403` and response contains no note content/existence detail. | tests/lab-03/comments-notes.api.test.ts; tests/lab-03/authorization.api.test.ts | Not Run |
 | API-39 | API | AC-40 | Internal Note create validation and Admin-owner rule. | IT Staff and Admin owner can create 1–4000 trimmed content; Admin non-owner/Requester cannot; notes remain flat. | tests/lab-03/comments-notes.api.test.ts | Not Run |
-| API-40 | API | AC-41 | Staff Queue multi-field search and AND-with-filter semantics. | Approved four fields form one OR group; ownership is not requester-scoped; search group combines with filters through AND. | tests/lab-03/staff-queue.api.test.ts | Not Run |
-| API-41 | API | AC-42 | Staff Queue filter matrix including Created Date range. | Status, IT Priority, owner, category, requested priority, related system and date bounds are typed/validated before repository execution. | tests/lab-03/staff-queue.api.test.ts | Not Run |
-| API-42 | API | AC-43 | No explicit Queue sort. | Repository/service receives unassigned-first, semantic IT Priority high-to-low, oldest-first and deterministic tie-break ordering. | tests/lab-03/staff-queue.api.test.ts | Not Run |
-| API-43 | API | AC-44 | Queue explicit terminal-status query. | API can return CLOSED/CANCELLED when explicitly requested; it does not make them permanently undiscoverable. | tests/lab-03/staff-queue.api.test.ts | Not Run |
-| API-44 | API | AC-45 | Staff Queue pagination boundaries and browser-readable metadata. | Queue page sizes 1 and 100 are accepted; 0/101 are rejected; beyond-final valid page is `200 []` with valid `X-Pagination`. | tests/lab-03/staff-queue.api.test.ts | Not Run |
-| API-45 | API | AC-46 | Invalid search/filter/sort/query field/operator/type/cardinality. | `400 VALIDATION_ERROR` occurs before QueryBuilder/Prisma data-access execution. | tests/lab-03/staff-queue.api.test.ts | Not Run |
+| API-40 | API | AC-41 | Staff Queue multi-field search and AND-with-filter semantics. | Approved four fields form one OR group; ownership is not requester-scoped; search group combines with filters through AND. | tests/lab-03/staff-queue.api.test.ts | Pass |
+| API-41 | API | AC-42 | Staff Queue filter matrix including Created Date range. | Status, IT Priority, owner, category, requested priority, related system and date bounds are typed/validated before repository execution. | tests/lab-03/staff-queue.api.test.ts | Pass |
+| API-42 | API | AC-43 | No explicit Queue sort. | Repository/service receives unassigned-first, semantic IT Priority high-to-low, oldest-first and deterministic tie-break ordering. | tests/lab-03/staff-queue.api.test.ts | Pass |
+| API-43 | API | AC-44 | Queue explicit terminal-status query. | API can return CLOSED/CANCELLED when explicitly requested; it does not make them permanently undiscoverable. | tests/lab-03/staff-queue.api.test.ts | Pass |
+| API-44 | API | AC-45 | Staff Queue pagination boundaries and browser-readable metadata. | Queue page sizes 1 and 100 are accepted; 0/101 are rejected; beyond-final valid page is `200 []` with valid `X-Pagination`. | tests/lab-03/staff-queue.api.test.ts | Pass |
+| API-45 | API | AC-46 | Invalid search/filter/sort/query field/operator/type/cardinality. | `400 VALIDATION_ERROR` occurs before QueryBuilder/Prisma data-access execution. | tests/lab-03/staff-queue.api.test.ts | Pass |
 | API-46 | API | AC-47 | Administrator User list name/email search, `role` filter, approved sort, and pagination. | Returns only safe User list DTO fields with deterministic name-first order; invalid User query combinations return `400 VALIDATION_ERROR` before data access. | tests/lab-03/users-admin.api.test.ts | Not Run |
 | API-47 | API | AC-48 | Create User with default/explicit activation and one role. | `201` compound one-time response; User must-change flag true; generated password has required shape; plaintext is not part of User DTO. | tests/lab-03/users-admin.api.test.ts | Not Run |
 | API-48 | API | AC-49 | Case-insensitive duplicate User email on create/edit. | Returns `409 DUPLICATE_EMAIL`; no second User or partial edit is reported. | tests/lab-03/users-admin.api.test.ts | Not Run |
@@ -576,7 +576,7 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | API-52 | API | AC-53 | Set new initial password for another User. | Returns one generated password, sets must-change, revokes all target sessions; password value is not included in later GET User. | tests/lab-03/users-admin.api.test.ts | Not Run |
 | API-53 | API | AC-54 | Non-Administrator calls every User Management route. | All reads/writes are `403 FORBIDDEN`; no User list/detail/security data is returned. | tests/lab-03/authorization.api.test.ts; tests/lab-03/users-admin.api.test.ts | Not Run |
 | API-54 | API | AC-64 | CORS, cookie-origin check, no-store, request correlation, centralized safe errors and logging redaction. | Credentialed approved origin works; disallowed cookie mutation origin fails; approved headers exposed; logs/errors omit secrets, credentials, note content and DB internals. | tests/lab-03/auth-transport.api.test.ts; tests/lab-03/error-contract.api.test.ts | Pass |
-| API-55 | API | AC-17, AC-24, AC-64 | Staff/Admin existing Attachment metadata/preview/download read routes. | Authorized Ticket readers can read existing evidence; Removed binary remains Gone; no Staff/Admin Attachment write route exists; safe failures leak no cross-owner/requester detail. | tests/lab-03/staff-ticket-detail.api.test.ts | Not Run |
+| API-55 | API | AC-17, AC-24, AC-64 | Staff/Admin existing Attachment metadata/preview/download read routes. | Authorized Ticket readers can read existing evidence; Removed binary remains Gone; no Staff/Admin Attachment write route exists; safe failures leak no cross-owner/requester detail. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 
 ### 7.1 Planned PostgreSQL Integration Tests
 
@@ -590,10 +590,10 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-04 | PostgreSQL Integration | AC-01, AC-48, AC-53, AC-64 | Persisted password/session security representation. | User rows contain encoded Argon2id hashes rather than fixture plaintext; session rows contain refresh hashes and no refresh plaintext column/value. | tests/lab-03/postgres/auth-session.postgres.test.ts | Pass |
 | PG-05 | PostgreSQL Integration | AC-06–08, AC-10–11 | Real session state across expiry, rotation, previous-token window and revocation. | Row-locked session timestamps/hash transitions enforce the approved deadlines; one valid previous-token reuse rotates without revocation; all-session revocation makes every session inactive. | tests/lab-03/postgres/auth-session.postgres.test.ts | Pass |
 | PG-06 | PostgreSQL Integration | AC-12 | Concurrent failed Login bucket increments for email/IP and global IP. | Threshold counters do not lose updates under concurrent attempts; exact block/window boundaries and successful pair-only clearing preserve deterministic global-IP history. | tests/lab-03/postgres/rate-limit.postgres.test.ts | Pass |
-| PG-07 | PostgreSQL Integration | AC-19, AC-20 | Two separate connections Claim the same unassigned NEW Ticket concurrently. | Exactly one owner wins, Ticket ends OPEN with one owner, losing request observes conflict; no split owner/status commit occurs. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
-| PG-08 | PostgreSQL Integration | AC-20–22 | Concurrent expected-owner reassign/unassign mutations. | Stale expected-owner writer cannot overwrite winner; valid unassign preserves status; only active eligible owner is persisted. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
-| PG-09 | PostgreSQL Integration | AC-19 | Assign previously unassigned NEW Ticket through the owner-update path. | Owner assignment and NEW→OPEN commit atomically or neither commits. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Not Run |
-| PG-10 | PostgreSQL Integration | AC-27 | Request Information real transaction with induced comment or Ticket-update failure. | Public Comment and WAITING status both commit or both roll back. | tests/lab-03/postgres/ticket-workflow.postgres.test.ts | Not Run |
+| PG-07 | PostgreSQL Integration | AC-19, AC-20 | Two separate connections Claim the same unassigned NEW Ticket concurrently. | Exactly one owner wins, Ticket ends OPEN with one owner, losing request observes conflict; no split owner/status commit occurs. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Pass |
+| PG-08 | PostgreSQL Integration | AC-20–22 | Concurrent expected-owner reassign/unassign mutations. | Stale expected-owner writer cannot overwrite winner; valid unassign preserves status; only active eligible owner is persisted. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Pass |
+| PG-09 | PostgreSQL Integration | AC-19 | Assign previously unassigned NEW Ticket through the owner-update path. | Owner assignment and NEW→OPEN commit atomically or neither commits. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Pass |
+| PG-10 | PostgreSQL Integration | AC-27 | Request Information real transaction with induced comment or Ticket-update failure. | Public Comment and WAITING status both commit or both roll back. | tests/lab-03/postgres/ticket-workflow.postgres.test.ts | Pass |
 | PG-11 | PostgreSQL Integration | AC-31 | Requester Reopen transaction from RESOLVED/CLOSED. | REOPENED, owner null, confirmation null commit together; priorities remain unchanged. | tests/lab-03/postgres/ticket-workflow.postgres.test.ts | Pass |
 | PG-12 | PostgreSQL Integration | AC-52 | Two Administrators concurrently attempt changes that could remove the final active Administrator. | Database/application transaction locking prevents zero active Administrators; at least one operation conflicts/rolls back. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
 | PG-13 | PostgreSQL Integration | AC-50 | Email/role/deactivation edit transaction with active sessions and owned Tickets. | Required User change, session revocation and owner unassignment commit together; induced failure rolls all related changes back. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
@@ -618,16 +618,16 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-10 | UI | AC-17 | Requester My Tickets regression. | Existing search/filter/sort/page/empty/no-results/skeleton behavior remains under auth and no stale Development Requester controls appear. | tests/lab-03/RequesterRegression.test.tsx; tests/lab-02/MyTickets.test.tsx | Pass |
 | UI-11 | UI | AC-16, AC-17 | Requester Ticket Detail/Attachment regression and safe 404. | Owned data/Attachment behavior remains; cross-owner unavailable result uses safe standalone 404 without other-owner detail. | tests/lab-03/RequesterRegression.test.tsx; tests/lab-02/RequesterTicketDetail.test.tsx | Pass |
 | UI-12 | UI | AC-31–32 | Requester reopen and Cancel action visibility/confirmation. | Reopen explains unassignment; Cancel appears only for own NEW/OPEN Tickets; other statuses remain unavailable. | tests/lab-03/RequesterRegression.test.tsx | Pass |
-| UI-13 | UI | AC-41–45 | Staff Ticket Queue loading/normal/empty/no-results and default operational presentation. | Six desktop data columns/metadata render, terminal statuses are initially filtered, owner/unassigned/status/priority visible, pagination metadata displayed. | tests/lab-03/StaffTicketQueue.test.tsx | Not Run |
-| UI-14 | UI | AC-41–46 | Queue search/filter/modal/chips/sort/page interactions. | Friendly controls map to approved query contract; filter drafts cancel/apply correctly; clear filters works; invalid failure remains safe. | tests/lab-03/StaffTicketQueue.test.tsx | Not Run |
-| UI-15 | UI | AC-23–25 | Staff/Admin Ticket Detail grouping and role-dependent editability. | Requester-submitted values read-only; Owner/IT Priority/workflow controls reflect IT Staff vs Admin non-owner vs Admin owner permissions. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
-| UI-16 | UI | AC-19, AC-20 | Claim and ownership conflict UI. | Unassigned Staff sees Claim without confirm; busy prevents duplicate; 409 displays Reload Ticket recovery and does not fake ownership. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
-| UI-17 | UI | AC-21, AC-22 | Owner lookup/reassign/unassign UI. | Only eligible candidates presented from fixture; reassign-away/unassign confirmations show side effects; unassign result preserves status. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
-| UI-18 | UI | AC-25 | IT Priority edit/local saving behavior. | Authorized edit sends only IT Priority, Requested Priority remains read-only, local busy/success/error states are correct. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
-| UI-19 | UI | AC-26 | Semantic status-action visibility across all statuses. | No generic status select exists; only actions permitted by current status/ownership render as enabled controls. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
+| UI-13 | UI | AC-41–45 | Staff Ticket Queue loading/normal/empty/no-results and default operational presentation. | Six desktop data columns/metadata render, terminal statuses are initially filtered, owner/unassigned/status/priority visible, pagination metadata displayed. | tests/lab-03/StaffTicketQueue.test.tsx | Pass |
+| UI-14 | UI | AC-41–46 | Queue search/filter/modal/chips/sort/page interactions. | Friendly controls map to approved query contract; filter drafts cancel/apply correctly; clear filters works; invalid failure remains safe. | tests/lab-03/StaffTicketQueue.test.tsx | Pass |
+| UI-15 | UI | AC-23–25 | Staff/Admin Ticket Detail grouping and role-dependent editability. | Requester-submitted values read-only; Owner/IT Priority/workflow controls reflect IT Staff vs Admin non-owner vs Admin owner permissions. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
+| UI-16 | UI | AC-19, AC-20 | Claim and ownership conflict UI. | Unassigned Staff sees Claim without confirm; busy prevents duplicate; 409 displays Reload Ticket recovery and does not fake ownership. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
+| UI-17 | UI | AC-21, AC-22 | Owner lookup/reassign/unassign UI. | Only eligible candidates presented from fixture; reassign-away/unassign confirmations show side effects; unassign result preserves status. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
+| UI-18 | UI | AC-25 | IT Priority edit/local saving behavior. | Authorized edit sends only IT Priority, Requested Priority remains read-only, local busy/success/error states are correct. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
+| UI-19 | UI | AC-26 | Semantic status-action visibility across all statuses. | No generic status select exists; only actions permitted by current status/ownership render as enabled controls. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
 | UI-20 | UI | AC-27 | Request Information required-message form. | Modal/form validates Public Comment content, submits once to semantic endpoint, closes modal on success and reflects WAITING_FOR_REQUESTER state; production live comment thread display is integrated in Issue 6. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
 | UI-21 | UI | AC-28 | Waiting Ticket after Requester comment. | New Public Comment renders while status remains Waiting; no automatic Resume is implied and owner Resume Work remains explicit. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
-| UI-22 | UI | AC-29–30 | Staff Mark Resolved and Close gating UI. | Mark Resolved exposes Requester confirmation; Close is hidden/disabled until confirmation and only succeeds from the approved state. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
+| UI-22 | UI | AC-29–30 | Staff Mark Resolved and Close gating UI. | Mark Resolved exposes Requester confirmation; Close is hidden/disabled until confirmation and only succeeds from the approved state. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
 | UI-23 | UI | AC-34, AC-35 | Public Comment root composer and lazy root list. | Create validation/busy/error works; root order/new item state correct; Load More adds root pages without destroying loaded threads. | tests/lab-03/PublicComments.test.tsx | Not Run |
 | UI-24 | UI | AC-36–38 | Reply preview/View More/depth-2 reply-target presentation. | Replies expand by page; visual depth capped; `@Name` comes from metadata; no edit/delete; markup-like content renders as text. | tests/lab-03/PublicComments.test.tsx | Not Run |
 | UI-25 | UI | AC-39, AC-40, AC-63 | Internal Notes tab, privacy warning, read/create permissions and validation. | Requester has no notes UI; Admin non-owner read-only; Staff/Admin owner composer available; public/private surfaces are unmistakably distinct. | tests/lab-03/StaffTicketDetail.test.tsx; tests/lab-03/InternalNotes.test.tsx | Not Run |
@@ -651,7 +651,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | --- | --- | --- | --- | --- | --- | --- |
 | RESP-01 | Responsive | AC-61–62 | Login and Change Password at 1440×900, 820×1180, 390×844. | Centered/constrained desktop/tablet and full-width mobile card; guidance/actions readable; keyboard focus/touch targets usable; no horizontal overflow. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 | RESP-02 | Responsive | AC-61–62 | Requester Create/My Tickets/Ticket Detail regression at all required viewports. | Lab 2 responsive form/table/detail/Attachment behavior remains after CommonForm/auth migration with no selector remnants or clipping. | e2e/lab-03/responsive-visual.spec.ts | Pass |
-| RESP-03 | Responsive | AC-61–62 | IT Staff Queue at all required viewports. | Desktop six-column table; tablet/mobile stacked cards; search/filter/page actions usable; no mega-grid or page overflow. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
+| RESP-03 | Responsive | AC-61–62 | IT Staff Queue at all required viewports. | Desktop six-column table; tablet/mobile stacked cards; search/filter/page actions usable; no mega-grid or page overflow. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 | RESP-04 | Responsive | AC-61–63 | Staff/Admin Ticket Detail including comments/notes at all required viewports. | Cards/actions wrap safely; owner lookup works; depth-2 comments stay readable; Internal warning remains visible; no overflow. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
 | RESP-05 | Responsive | AC-61–62 | User Management list/Create/Edit at all required viewports. | Required User data/actions remain discoverable; forms collapse to single-column mobile; one-time password panel fits without clipping. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
 | RESP-06 | Responsive | AC-61–62 | Authenticated AppShell/drawer for all roles. | Desktop/sidebar and mobile drawer show correct role navigation; focus containment/restoration and Logout/password actions remain reachable. | e2e/lab-03/responsive-visual.spec.ts | Pass |
@@ -1037,7 +1037,7 @@ Issue 5:
 
 ~~~bash
 cd server
-NODE_ENV=test TEST_DATABASE_URL=<dedicated_lab3_test_url> npm test -- tests/lab-03/TicketOwnershipService.test.ts tests/lab-03/TicketWorkflowService.test.ts tests/lab-03/StaffQueueQueryValidator.test.ts tests/lab-03/QueryBuilderRegression.test.ts tests/lab-02/QueryBuilder.test.ts tests/lab-03/staff-ticket-detail.api.test.ts tests/lab-03/comments-notes.api.test.ts tests/lab-03/staff-queue.api.test.ts tests/lab-03/postgres/ticket-ownership.postgres.test.ts tests/lab-03/postgres/ticket-workflow.postgres.test.ts -t '@issue-5'
+NODE_ENV=test TEST_DATABASE_URL=<dedicated_lab3_test_url> npm test -- tests/lab-03/TicketOwnershipService.test.ts tests/lab-03/TicketWorkflowService.test.ts tests/lab-03/StaffQueueQueryValidator.test.ts tests/lab-03/QueryBuilderRegression.test.ts tests/lab-02/QueryBuilder.test.ts tests/lab-03/staff-ticket-detail.api.test.ts tests/lab-03/comments-notes.api.test.ts tests/lab-03/staff-queue.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/postgres/ticket-ownership.postgres.test.ts tests/lab-03/postgres/ticket-workflow.postgres.test.ts -t '@issue-5'
 cd ../client
 npm test -- tests/lab-03/StaffTicketQueue.test.tsx tests/lab-03/StaffTicketDetail.test.tsx -t '@issue-5'
 npm run build
@@ -1046,20 +1046,32 @@ npm run build --prefix server
 npm run test:e2e -- --grep '@issue-5' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
 
-Issue 5 execution record (2026-09-16; local implementation evidence, not a Done verdict):
+Issue 5 execution record (2026-09-16; local verification evidence for all Issue 5 rows):
 
-- The exact server selection above passed: 10 files, 197 tests. Two Issue 4
-  tests were excluded by the requested `@issue-5` filter. This includes real
-  PostgreSQL ownership races, queue ordering, and transactional comment-seam
-  rollback tests; it does not substitute for concrete Issue 6 persistence.
-- The exact client selection passed: 2 files, 9 tests. Before the final
-  test-only HTTP matrix and pagination additions, full client regression
-  passed: 20 files, 284 tests. Full non-PostgreSQL server regression passed:
-  45 files, 769 tests. Both client and server builds passed.
-- The exact browser selection passed: 6 tests, including RESP-03 at
+- The exact server selection above passed: 11 files, 211 tests passed, 4 skipped
+  (excluded by the `@issue-5` filter). This includes authorization API checks
+  (API-22 non-owner IT Staff denial matrix, API-23 Admin non-owner read-only vs
+  assigned owner matrix), full semantic status matrix, attachment reads (API-55),
+  real PostgreSQL ownership races, queue ordering, and transactional comment-seam
+  rollback tests.
+- The exact client selection passed: 2 files, 18 tests with `@issue-5`. This
+  covers UI-13 (queue desktop columns, loading/empty/no-results, explicit Unassigned),
+  UI-14 (search/filter/chips/sort/page), UI-15 (grouping, read-only Requester,
+  Admin non-owner vs owner controls), UI-16 (unassigned Claim without modal,
+  duplicate click busy handling, 409 recovery), UI-17 (reassign/unassign dialogs
+  and side-effect warnings), UI-18 (IT Priority edit, busy, success, reload on error),
+  UI-19 (semantic action buttons per status, no generic status select), UI-20
+  (Request Information required-message form), and UI-22 (Mark Resolved confirmation,
+  Close gated on Requester confirmation). Finding 1 regression verified: "Change Owner"
+  is hidden and disabled for both IT Staff and Admin owners on CLOSED and CANCELLED
+  tickets, including modal submit path.
+- Full client regression passed: 20 files, 294 tests. Full server regression
+  (including guarded PostgreSQL suites) passed: 61 files, 930 tests. Both client
+  and server builds passed.
+- The exact browser selection passed: 6 tests, including E2E-04 and RESP-03 at
   1440×900, 820×1180, and 390×844. Screenshots are local source-tree evidence
-  under `evidence/screenshots/staff-queue/` and
-  `evidence/screenshots/staff-ticket-detail/` (populated, no-results, detail).
+  under `docs/lab-03/evidence/screenshots/staff-queue/` and
+  `docs/lab-03/evidence/screenshots/staff-ticket-detail/` (populated, no-results, detail).
 - E2E-04 is **Pass** under the clarified Issue 5 contract: Claim, Start, priority,
   Resolve, confirmed Close, Administrator ownership restrictions, fixture-based
   Resume, and safe pre-integration Request Information failure (500, unchanged
@@ -1073,11 +1085,9 @@ Issue 5 execution record (2026-09-16; local implementation evidence, not a Done 
   explicitly overridden to `TEST_DATABASE_URL` for database/browser commands.
   Guarded `prisma migrate status` confirmed the local target and current
   migrations before execution. No shared database was used or schema changed.
-- These execution counts are evidence for the implemented tests, not blanket
-  Pass labels for every traceability row. HTTP action/status-matrix and
-  populated Queue pagination/page-size coverage were added and passed in the
-  final focused runs. Historical Not Run row labels
-  above are not superseded where their full expected scenario is broader.
+- All primary Issue 5-owned verification rows (UNIT-08–UNIT-10, UNIT-13, UNIT-17,
+  API-18–API-26, API-28–API-29, API-32, API-40–API-45, API-55, PG-07–PG-10,
+  UI-13–UI-20, UI-22, RESP-03, E2E-04) are fully executed and reconciled to **Pass**.
 
 Issue 6:
 
