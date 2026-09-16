@@ -1318,6 +1318,11 @@ Only active eligible IT Staff/Administrator users appear as valid selections.
 
 The display includes enough context to distinguish Users, at minimum name and role.
 
+The picker loads `GET /api/users/assignable`, including eligible Users with zero
+assigned Tickets, ordered by name then public UUID. The endpoint returns only
+`publicId`, `name`, and `role`; assignment still requires the owner mutation's
+authorization and expected-owner check.
+
 ## 15.3 Reassign
 
 Replacing another owner requires confirmation:

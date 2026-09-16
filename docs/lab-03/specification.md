@@ -321,7 +321,7 @@ The implementation must not reintroduce or silently change any of the following:
 - **BR-61** Requester `Problem Still Exists` is permitted from `RESOLVED` or `CLOSED`; it changes status to `REOPENED`, clears `requesterResolutionConfirmedAt`, and sets owner to null.
 - **BR-62** Reopening does not reset Requested Priority or IT Priority.
 - **BR-63** A Requester may cancel only their own Ticket in `NEW` or `OPEN`.
-- **BR-64** Authorized IT Staff/Administrator owners may cancel according to the matrix. Cancel, Close, Unassign, Reassign-away, Problem Still Exists, and Mark Resolved require UI confirmation.
+- **BR-64** Any authenticated IT Staff User may cancel from the matrix's approved source states, including unassigned `NEW`; an Administrator must be the current Ticket owner. Assignment lookup access alone grants no operational permission. Cancel, Close, Unassign, Reassign-away, Problem Still Exists, and Mark Resolved require UI confirmation.
 - **BR-65** Request Information requires a trimmed Public Comment message and commits comment creation plus the status transition in one transaction.
 - **BR-66** A Requester posting a Public Comment while status is `WAITING_FOR_REQUESTER` does not automatically change status; the current owner decides when to Resume Work.
 - **BR-67** Invalid lifecycle actions return `409 INVALID_STATUS_TRANSITION`.

@@ -1046,6 +1046,40 @@ npm run build --prefix server
 npm run test:e2e -- --grep '@issue-5' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
 
+Issue 5 execution record (2026-09-16; local implementation evidence, not a Done verdict):
+
+- The exact server selection above passed: 10 files, 197 tests. Two Issue 4
+  tests were excluded by the requested `@issue-5` filter. This includes real
+  PostgreSQL ownership races, queue ordering, and transactional comment-seam
+  rollback tests; it does not substitute for concrete Issue 6 persistence.
+- The exact client selection passed: 2 files, 9 tests. Before the final
+  test-only HTTP matrix and pagination additions, full client regression
+  passed: 20 files, 284 tests. Full non-PostgreSQL server regression passed:
+  45 files, 769 tests. Both client and server builds passed.
+- The exact browser selection passed: 6 tests, including RESP-03 at
+  1440×900, 820×1180, and 390×844. Screenshots are local source-tree evidence
+  under `evidence/screenshots/staff-queue/` and
+  `evidence/screenshots/staff-ticket-detail/` (populated, no-results, detail).
+- E2E-04 remains **Partial**: Claim, Start, priority, Resolve, confirmed Close,
+  Administrator ownership restrictions, and fixture-based Resume pass.
+  Request Information currently verifies a safe failure with unchanged status
+  and no comment. The production router intentionally has no Issue 6 writer;
+  a successful Request Information browser flow remains required after wiring
+  `PublicCommentWriter`. Its injected API/PostgreSQL transaction tests pass.
+- Dedicated disposable PostgreSQL: `toktickit_lab3_test` on
+  `127.0.0.1:55433`, isolated tmpfs Docker container. Original database
+  identities were captured privately as `LAB3_BASELINE_DATABASE_URL` and
+  `LAB3_BASELINE_DIRECT_URL`; both `DATABASE_URL` and `DIRECT_URL` were
+  explicitly overridden to `TEST_DATABASE_URL` for database/browser commands.
+  Guarded `prisma migrate status` confirmed the local target and current
+  migrations before execution. No shared database was used or schema changed.
+- These execution counts are evidence for the implemented tests, not blanket
+  Pass labels for every traceability row. HTTP action/status-matrix and
+  populated Queue pagination/page-size coverage were added and passed in the
+  final focused runs. The complete E2E-04 happy path remains close-gate
+  follow-up. Historical Not Run row labels
+  above are not superseded where their full expected scenario is broader.
+
 Issue 6:
 
 ~~~bash
