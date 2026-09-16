@@ -9,7 +9,7 @@ export interface AuthTestUser {
   publicId: string;
   name: string;
   email: string;
-  role: "REQUESTER";
+  role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
   passwordHash: string;
   mustChangePassword: false;
   isActive: true;

@@ -19,7 +19,7 @@ import {
  * into the shared QueryBuilder, it could not satisfy a resource it has never
  * heard of, and these tests would fail instead of quietly passing (BR-31).
  */
-describe("QueryBuilder generic condition construction (UNIT-07)", () => {
+describe("QueryBuilder generic condition construction (UNIT-07) @issue-5", () => {
   const cases: Array<[QueryCondition, unknown, Record<string, unknown>]> = [
     ["CONTAINS", "vpn", { contains: "vpn" }],
     ["STARTWITH", "vpn", { startsWith: "vpn" }],
@@ -187,7 +187,7 @@ describe("QueryBuilder generic condition construction (UNIT-07)", () => {
   });
 });
 
-describe("QueryBuilder multi-field search construction (UNIT-08)", () => {
+describe("QueryBuilder multi-field search construction (UNIT-08) @issue-5", () => {
   it("ORs one term across every supplied field", () => {
     expect(
       buildSearchGroup({ fields: ["title", "body"], term: "vpn", caseInsensitive: true }),
@@ -248,7 +248,7 @@ describe("QueryBuilder multi-field search construction (UNIT-08)", () => {
   });
 });
 
-describe("QueryBuilder generic order construction (UNIT-09)", () => {
+describe("QueryBuilder generic order construction (UNIT-09) @issue-5", () => {
   it("maps each sort to one asc/desc entry in order", () => {
     expect(
       buildOrderBy([
