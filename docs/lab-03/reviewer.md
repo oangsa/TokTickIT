@@ -3,20 +3,6 @@
 **Author:** 67070503477 — GitHub: @oangsa
 **Peer reviewer:** 67070503405 — GitHub: @kittipichcha
 
-## Issue 5 implementation self-check — 2026-09-16
-
-Branch: `feature/63-staff-queue-ticket-workflow`. No peer verdict claimed.
-Queue, assignable User lookup, Staff Detail/attachment reads, ownership and
-semantic workflow changes have local test/build evidence recorded in
-`tests.md` Section 14.2. No Prisma schema/migration change. The lookup does
-not grant assignment rights; authoritative owner checks remain transactional.
-
-Issue 6 must inject its Public Comment writer before Request Information can
-succeed in production. Current behavior fails safely without changing status.
-E2E-04 and all primary Issue 5-owned verification rows are fully executed and
-reconciled to Pass under the clarified contract in tests.md Section 14.2.
-Independent peer review remains pending upon pull request submission.
-
 ## Pull Requests I authored (reviewed by my partner)
 
 | PR | Branch | Reviewer verdict |
