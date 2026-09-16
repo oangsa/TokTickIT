@@ -12,7 +12,7 @@ afterEach(() => { clearAccessToken(false); vi.unstubAllGlobals(); act(() => setV
 
 describe("Issue 3 authenticated shell", () => {
   it("UI-06 shows identity, role-aware navigation, password action, and logout @issue-3", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(response({ accessToken: "token", expiresIn: 600 })).mockResolvedValueOnce(response({ publicId: "u-1", name: "Bob", email: "bob@example.com", role: "IT_STAFF", isActive: true, mustChangePassword: false, sessionStage: "FULL" })).mockResolvedValueOnce(response(undefined, 204));
+    const fetchMock = vi.fn().mockResolvedValueOnce(response({ accessToken: "token", expiresIn: 600 })).mockResolvedValueOnce(response({ publicId: "u-1", name: "Bob", email: "bob@example.com", role: "IT_STAFF", isActive: true, mustChangePassword: false, sessionStage: "FULL" })).mockImplementation(async (input: RequestInfo | URL) => String(input).endsWith("/api/auth/logout") ? response(undefined, 204) : response([]));
     vi.stubGlobal("fetch", fetchMock);
     render(<MemoryRouter initialEntries={["/staff/tickets"]}><App /></MemoryRouter>);
     expect(await screen.findByText("Bob")).toBeInTheDocument();
@@ -38,7 +38,7 @@ describe("Issue 3 authenticated shell", () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(response({ accessToken: "token", expiresIn: 600 }))
       .mockResolvedValueOnce(response({ publicId: "u-1", name: "Bob", email: "bob@example.com", role: "IT_STAFF", isActive: true, mustChangePassword: false, sessionStage: "FULL" }))
-      .mockRejectedValueOnce(new Error("network unavailable"));
+      .mockImplementation(async (input: RequestInfo | URL) => { if (String(input).endsWith("/api/auth/logout")) throw new Error("network unavailable"); return response([]); });
     vi.stubGlobal("fetch", fetchMock);
     render(<MemoryRouter initialEntries={["/staff/tickets"]}><App /></MemoryRouter>);
 
@@ -73,7 +73,7 @@ describe("Issue 3 authenticated shell", () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(response({ accessToken: "token", expiresIn: 600 }))
       .mockResolvedValueOnce(response({ publicId: "u-1", name: "Bob", email: "bob@example.com", role: "IT_STAFF", isActive: true, mustChangePassword: false, sessionStage: "FULL" }))
-      .mockRejectedValueOnce(new Error("network unavailable"));
+      .mockImplementation(async (input: RequestInfo | URL) => { if (String(input).endsWith("/api/auth/logout")) throw new Error("network unavailable"); return response([]); });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/staff/tickets"]}><App /></MemoryRouter>);

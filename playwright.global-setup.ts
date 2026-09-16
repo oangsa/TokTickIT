@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
+import { assertLab3TargetEnvironment } from "./server/src/databaseTargetGuard.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -56,6 +57,10 @@ function requireTestDatabaseUrl(): string {
     throw new Error(
       "TEST_DATABASE_URL database name must identify a dedicated Lab 2 or Lab 3 test database",
     );
+  }
+
+  if (process.env.DATABASE_URL === testUrl && process.env.DIRECT_URL === testUrl) {
+    return assertLab3TargetEnvironment();
   }
 
   for (const variableName of ["DATABASE_URL", "DIRECT_URL"] as const) {

@@ -1,10 +1,37 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createStaffFixture, loginStaffFixture } from "./staff-fixture.js";
 
 const VIEWPORTS = [
   { width: 1440, height: 900 },
   { width: 820, height: 1180 },
   { width: 390, height: 844 },
 ] as const;
+
+for (const viewport of VIEWPORTS) {
+  test(`RESP-03 Queue table/cards and filter controls ${viewport.width} @issue-5`, async ({ page }) => {
+    const fixture = await createStaffFixture(12);
+    try {
+      await page.setViewportSize(viewport);
+      await loginStaffFixture(page, fixture);
+      await expect(page.getByText("Loading Tickets", { exact: true })).toHaveCount(0);
+      await page.getByRole("button", { name: "Filters (2)" }).click();
+      await page.getByLabel("Category", { exact: true }).selectOption(String(fixture.category.id));
+      await page.getByRole("button", { name: "Apply", exact: true }).click();
+      if (viewport.width === 1440) await expect(page.getByRole("table", { name: "Ticket Queue" })).toBeVisible();
+      else { await expect(page.getByRole("table", { name: "Ticket Queue" })).toBeHidden(); await expect(page.getByRole("link", { name: /^Open Ticket/ }).first()).toBeVisible(); }
+      await assertNoHorizontalOverflow(page);
+      await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/queue-${viewport.width}.png`, fullPage: true });
+      await page.getByLabel("Search Tickets").fill("No matching synthetic Ticket");
+      await expect(page.getByText(/No Tickets match your search/)).toBeVisible();
+      await assertNoHorizontalOverflow(page);
+      await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/no-results-${viewport.width}.png`, fullPage: true });
+      await page.goto(`/staff/tickets/${fixture.tickets[0].publicId}`);
+      await expect(page.getByRole("button", { name: "Claim Ticket" })).toBeVisible();
+      await assertNoHorizontalOverflow(page);
+      await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/unassigned-${viewport.width}.png`, fullPage: true });
+    } finally { await fixture.dispose(); }
+  });
+}
 
 const STAFF_USER = {
   publicId: "e2e-staff",
@@ -79,6 +106,9 @@ async function fulfillAuth(route: import("@playwright/test").Route, status: numb
 }
 
 async function stubAuth(page: Page, user = STAFF_USER): Promise<void> {
+  for (const resource of ["tickets", "users/assignable", "categories", "related-systems"]) {
+    await page.route(`**/api/${resource}{,?*}`, async (route) => { await fulfillAuth(route, 200, []); });
+  }
   await page.route("**/api/auth/refresh", async (route) => {
     await fulfillAuth(route, 200, { accessToken: "e2e-memory-token", expiresIn: 600 });
   });
