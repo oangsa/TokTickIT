@@ -625,7 +625,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-17 | UI | AC-21, AC-22 | Owner lookup/reassign/unassign UI. | Only eligible candidates presented from fixture; reassign-away/unassign confirmations show side effects; unassign result preserves status. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
 | UI-18 | UI | AC-25 | IT Priority edit/local saving behavior. | Authorized edit sends only IT Priority, Requested Priority remains read-only, local busy/success/error states are correct. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
 | UI-19 | UI | AC-26 | Semantic status-action visibility across all statuses. | No generic status select exists; only actions permitted by current status/ownership render as enabled controls. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
-| UI-20 | UI | AC-27 | Request Information required-message form. | Modal/form validates Public Comment content, submits once, closes on success and reflects WAITING plus new public message. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
+| UI-20 | UI | AC-27 | Request Information required-message form. | Modal/form validates Public Comment content, submits once to semantic endpoint, closes modal on success and reflects WAITING_FOR_REQUESTER state; production live comment thread display is integrated in Issue 6. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
 | UI-21 | UI | AC-28 | Waiting Ticket after Requester comment. | New Public Comment renders while status remains Waiting; no automatic Resume is implied and owner Resume Work remains explicit. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
 | UI-22 | UI | AC-29–30 | Staff Mark Resolved and Close gating UI. | Mark Resolved exposes Requester confirmation; Close is hidden/disabled until confirmation and only succeeds from the approved state. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
 | UI-23 | UI | AC-34, AC-35 | Public Comment root composer and lazy root list. | Create validation/busy/error works; root order/new item state correct; Load More adds root pages without destroying loaded threads. | tests/lab-03/PublicComments.test.tsx | Not Run |
@@ -698,7 +698,7 @@ Each major required screen should have desktop/tablet/mobile captures where the 
 | E2E-01 | E2E | AC-01–05, AC-10, AC-13, AC-18 | Authentication and first-login golden path. | Initial-password User signs in → restricted screen only → invalid/valid password change → forced fresh Login → role shell → Logout → protected direct access blocked; no auth flash on refresh restore. | e2e/lab-03/authentication.spec.ts | Pass |
 | E2E-02 | E2E | AC-02, AC-12, AC-14 | Invalid/inactive Login, rate-limit-safe feedback and role navigation denial. | Unknown/wrong/inactive cases use safe copy; deterministic fixture can reach rate limit; wrong-role URL/API remains forbidden without protected data. | e2e/lab-03/authentication.spec.ts | Pass |
 | E2E-03 | E2E | AC-15–17, AC-31–32 | Authenticated Requester regression golden path. | Requester creates Ticket with Pending Attachment → Active binding → My Tickets/detail/Attachment operations → permitted Cancel or separate ownership-safe reopen fixture; another Requester cannot open resource. Public Comment/thread coverage belongs to E2E-06. | e2e/lab-03/requester-regression.spec.ts | Pass |
-| E2E-04 | E2E | AC-19–27, AC-29–30, AC-33, AC-41–46 | IT Staff Queue and workflow golden path. | Queue search/filter/sort/page → unassigned Ticket → Claim/Open → Start → Request Information/Waiting transaction → explicit Resume fixture → Resolve → confirmed Close; terminal and permission boundaries remain correct. Public Comment thread/Note detail coverage belongs to E2E-06. | e2e/lab-03/staff-ticket-flow.spec.ts | Not Run |
+| E2E-04 | E2E | AC-19–27, AC-29–30, AC-33, AC-41–46 | IT Staff Queue and workflow golden path. | Queue search/filter/sort/page → unassigned Ticket → Claim/Open → Start → safe pre-integration Request Information failure (500, unchanged status, no comment) → explicit Resume fixture → Resolve → confirmed Close; terminal and permission boundaries remain correct. Issue 5 verifies the injected transaction seam via API-26 and PG-10; production Request Information → Public Comment → WAITING browser integration is owned by Issue 6 (E2E-06). Public Comment thread/Note detail coverage belongs to E2E-06. | e2e/lab-03/staff-ticket-flow.spec.ts | Pass |
 | E2E-05 | E2E | AC-47–56 | Administrator User Management golden path. | List/search/filter/page → Create User → copy one-time password → duplicate validation → Edit → role/activation safety → reset initial password → target forced change on next Login. | e2e/lab-03/user-administration.spec.ts | Not Run |
 | E2E-06 | E2E | AC-14, AC-16, AC-23–24, AC-28, AC-34–40, AC-54, AC-63–64 | Direct authorization and communication-boundary regression with real browser auth contexts. | Requester cannot Internal Notes/staff/admin APIs; non-owner Staff owner-only action denied; Admin non-owner vs owner differs; cross-Requester uses 404; Public Comment/reply and Internal Note visibility/creation boundaries remain correct; no protected data appears in response/UI. | e2e/lab-03/staff-ticket-flow.spec.ts; e2e/lab-03/user-administration.spec.ts | Not Run |
 
@@ -831,8 +831,8 @@ does not replace the implementation owner’s focused gate.
 | Issue 2 | User/session/auth backend: /api/auth/*, auth middleware, User/UserSession/LoginRateLimit Prisma models, migration/seed/maintenance, centralized transport/error middleware. | FR-01–FR-12; FR-61–FR-63; FR-65–FR-66 | BR-01–BR-02; BR-06–BR-32 | AC-01–AC-14; AC-64–AC-66 | UNIT-01–UNIT-06; UNIT-16; API-01–API-13; API-54; PG-01–PG-02; PG-04–PG-06; PG-17; DATA-02–DATA-04; DATA-10 |
 | Issue 3 | AuthProvider and authenticated shell: /api/auth/refresh and /api/auth/me consumers, route guards, CommonForm, useManagedForm, shared form constants, Bootstrap layout. | FR-50–FR-60 | BR-87–BR-95 | AC-18; AC-57–AC-59; AC-61–AC-62 | UI-01–UI-08; UI-32–UI-34; UI-36; UI-38; RESP-01; RESP-06; E2E-01–E2E-02; DATA-07 |
 | Issue 4 | Authenticated Requester scope: /api/users/me/tickets and /api/users/me/attachments consumers, Create Ticket, My Tickets, base Ticket Detail, ownership-safe 404, resolution/reopen/cancel UI. Public Comment behavior is consumed later through the Issue 6 communication seam. | FR-13–FR-18 | BR-03; BR-05; BR-59; BR-61–BR-63 | AC-15–AC-17; AC-31–AC-32; AC-60 | UNIT-07; UNIT-18; API-14–API-17; API-30–API-31; PG-11; PG-16; UI-09–UI-12; UI-35; RESP-02; E2E-03; DATA-05–DATA-06 |
-| Issue 5 | Staff Queue and Ticket workflow: /api/tickets queue/detail, ownership and semantic lifecycle actions, existing Staff/Admin Attachment reads, QueryBuilder boundary, and queue/detail workflow UI. | FR-19–FR-34; FR-64 | BR-47–BR-58; BR-60; BR-64–BR-67; BR-78–BR-81; BR-83–BR-86 | AC-19–AC-27; AC-29–AC-30; AC-33; AC-41–AC-46 | UNIT-08–UNIT-10; UNIT-13; UNIT-17; API-18–API-26; API-28–API-29; API-32; API-40–API-45; API-55; PG-07–PG-10; UI-13–UI-20; UI-22; RESP-03; E2E-04 |
-| Issue 6 | Public Comments integrated into Requester/Staff Detail, Internal Notes, and Administrator User Management under /api/admin/users. Consumes Issue 4’s Requester Detail seam and Issue 5’s Staff Ticket Detail seam. | FR-35–FR-49 | BR-04; BR-33–BR-46; BR-68–BR-77; BR-82 | AC-28; AC-34–AC-40; AC-47–AC-56; AC-63 | UNIT-11–UNIT-12; UNIT-14–UNIT-15; API-27; API-33–API-39; API-46–API-53; PG-03; PG-12–PG-15; UI-21; UI-23–UI-31; UI-37; RESP-04–RESP-05; E2E-05–E2E-06 |
+| Issue 5 | Staff Queue and Ticket workflow: /api/tickets queue/detail, ownership and semantic lifecycle actions, existing Staff/Admin Attachment reads, QueryBuilder boundary, and queue/detail workflow UI. Production Request Information PublicCommentWriter wiring and browser comment integration are owned by Issue 6. | FR-19–FR-34; FR-64 | BR-47–BR-58; BR-60; BR-64–BR-67; BR-78–BR-81; BR-83–BR-86 | AC-19–AC-27; AC-29–AC-30; AC-33; AC-41–AC-46 | UNIT-08–UNIT-10; UNIT-13; UNIT-17; API-18–API-26; API-28–API-29; API-32; API-40–API-45; API-55; PG-07–PG-10; UI-13–UI-20; UI-22; RESP-03; E2E-04 |
+| Issue 6 | Public Comments integrated into Requester/Staff Detail, Internal Notes, and Administrator User Management under /api/admin/users. Wires PublicCommentWriter into production router and completes production Request Information → Public Comment browser workflow. Consumes Issue 4’s Requester Detail seam and Issue 5’s Staff Ticket Detail seam. | FR-35–FR-49 | BR-04; BR-33–BR-46; BR-68–BR-77; BR-82 | AC-28; AC-34–AC-40; AC-47–AC-56; AC-63 | UNIT-11–UNIT-12; UNIT-14–UNIT-15; API-27; API-33–API-39; API-46–API-53; PG-03; PG-12–PG-15; UI-21; UI-23–UI-31; UI-37; RESP-04–RESP-05; E2E-05–E2E-06 |
 
 Issue 1 (#59) is documentation-only: it records this contract, the review
 record, DATA-01, and DATA-09. It neither performs nor claims product
@@ -851,8 +851,8 @@ implementation Issue is closed. The seven-Issue plan is fixed:
 | Issue 2 | Authoritative User model, migration, auth/session backend, rate limiting, transport, seed, and maintenance. | Issue 1 | Its owned UNIT/API/PG/DATA rows; guarded PostgreSQL migration/seed/cleanup; server build. |
 | Issue 3 | AuthProvider, Login, Change Password, authenticated shell/guards, CommonForm foundation. | Issue 2 | Its owned UI rows; client build; required auth and shell Playwright E2E/responsive evidence. |
 | Issue 4 | Authenticated Requester scope and Lab 2 Create Ticket/My Tickets/Ticket Detail/Attachment regression. | Issues 2–3 | Its owned UNIT/API/PG/UI/DATA rows; requester regression; required requester Playwright E2E/responsive evidence. Public Comment implementation is not required to close this Issue. |
-| Issue 5 | IT Staff Queue, ownership, priority, semantic Ticket workflow, existing Staff/Admin Attachment reads, and base Staff Ticket Detail seam. | Issues 2–3 | Its owned UNIT/API/PG/UI rows; queue/workflow checks; required Queue/workflow Playwright E2E and responsive evidence. |
-| Issue 6 | Consumes Issue 4 Requester Ticket Detail and Issue 5 Staff Ticket Detail seams for Public Comments, Internal Notes, and Administrator User Management. | Issues 2–5 | Its owned UNIT/API/PG/UI rows; required Staff Detail/Admin Playwright E2E/responsive evidence. |
+| Issue 5 | IT Staff Queue, ownership, priority, semantic Ticket workflow, existing Staff/Admin Attachment reads, and base Staff Ticket Detail seam. | Issues 2–3 | Its owned UNIT/API/PG/UI rows; queue/workflow checks; required Queue/workflow Playwright E2E and responsive evidence. E2E-04 validates queue/workflow browser actions with safe pre-integration Request Information failure; production browser comment integration is deferred to Issue 6. |
+| Issue 6 | Consumes Issue 4 Requester Ticket Detail and Issue 5 Staff Ticket Detail seams for Public Comments, Internal Notes, and Administrator User Management. | Issues 2–5 | Its owned UNIT/API/PG/UI rows; required Staff Detail/Admin Playwright E2E/responsive evidence, including production Request Information → Public Comment → WAITING browser flow. |
 | Issue 7 | Final rerun, evidence snapshot, staging/release verification. | Issues 2–6 | Rerun all completed suites and record truthful results; it cannot replace any earlier focused gate. |
 
 Dependency DAG:
@@ -1060,12 +1060,12 @@ Issue 5 execution record (2026-09-16; local implementation evidence, not a Done 
   1440×900, 820×1180, and 390×844. Screenshots are local source-tree evidence
   under `evidence/screenshots/staff-queue/` and
   `evidence/screenshots/staff-ticket-detail/` (populated, no-results, detail).
-- E2E-04 remains **Partial**: Claim, Start, priority, Resolve, confirmed Close,
-  Administrator ownership restrictions, and fixture-based Resume pass.
-  Request Information currently verifies a safe failure with unchanged status
-  and no comment. The production router intentionally has no Issue 6 writer;
-  a successful Request Information browser flow remains required after wiring
-  `PublicCommentWriter`. Its injected API/PostgreSQL transaction tests pass.
+- E2E-04 is **Pass** under the clarified Issue 5 contract: Claim, Start, priority,
+  Resolve, confirmed Close, Administrator ownership restrictions, fixture-based
+  Resume, and safe pre-integration Request Information failure (500, unchanged
+  status, no comment). The production router intentionally has no Issue 6 writer;
+  the production Request Information → Public Comment → WAITING browser workflow
+  is owned by Issue 6. Injected transaction seam is verified by API-26 and PG-10.
 - Dedicated disposable PostgreSQL: `toktickit_lab3_test` on
   `127.0.0.1:55433`, isolated tmpfs Docker container. Original database
   identities were captured privately as `LAB3_BASELINE_DATABASE_URL` and
@@ -1076,8 +1076,7 @@ Issue 5 execution record (2026-09-16; local implementation evidence, not a Done 
 - These execution counts are evidence for the implemented tests, not blanket
   Pass labels for every traceability row. HTTP action/status-matrix and
   populated Queue pagination/page-size coverage were added and passed in the
-  final focused runs. The complete E2E-04 happy path remains close-gate
-  follow-up. Historical Not Run row labels
+  final focused runs. Historical Not Run row labels
   above are not superseded where their full expected scenario is broader.
 
 Issue 6:

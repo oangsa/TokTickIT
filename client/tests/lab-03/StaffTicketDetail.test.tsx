@@ -43,7 +43,11 @@ describe("UI-16–20/22 Staff Detail @issue-5", () => {
     await userEvent.click(screen.getByRole("button", { name: "Reload Ticket" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Start Work" })).toBeEnabled());
   });
-  it("Request Information requires public message and uses semantic endpoint", async () => {
+  it("Request Information validates message, submits to endpoint, and updates state", async () => {
+    callApi.mockImplementation(async (path: string) => {
+      if (path.endsWith("/request-information")) return { ...ticket, currentStatus: "WAITING_FOR_REQUESTER" };
+      return ticket;
+    });
     renderDetail(); await screen.findByRole("heading", { name: ticket.ticketNumber });
     await userEvent.click(screen.getByRole("button", { name: "Request Information" }));
     const dialog = screen.getByRole("dialog");
@@ -51,6 +55,9 @@ describe("UI-16–20/22 Staff Detail @issue-5", () => {
     await userEvent.type(screen.getByLabelText("Message *"), "Need details");
     await userEvent.click(within(dialog).getByRole("button", { name: "Request Information" }));
     expect(callApi).toHaveBeenCalledWith("/api/tickets/ticket/request-information", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "Need details" }) });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText("WAITING FOR REQUESTER")).toBeInTheDocument();
+    expect(screen.getByText("Ticket updated.")).toBeInTheDocument();
   });
   it("Close needs confirmation; Cancelled has no lifecycle actions", () => {
     expect(availableStaffActions({ ...ticket, currentStatus: "RESOLVED" }, auth.user)).not.toContain("close");

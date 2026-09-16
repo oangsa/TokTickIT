@@ -1234,6 +1234,8 @@ Precondition: owner null.
 
 If current status is `NEW`, owner assignment and `NEW -> OPEN` commit together.
 
+Terminal/closed statuses: `CLOSED` and `CANCELLED` cannot be claimed; returns `409 INVALID_STATUS_TRANSITION`.
+
 Race: `409 OWNERSHIP_CONFLICT`.
 
 ### 13.3 Assign / Reassign / Unassign
@@ -1257,6 +1259,8 @@ IT Staff may assign/reassign/unassign.
 Admin non-owner cannot mutate owner.
 
 Admin current owner may reassign/unassign their Ticket.
+
+Closed and terminal Tickets (`CLOSED`, `CANCELLED`) cannot be assigned, reassigned, or unassigned; returns `409 INVALID_STATUS_TRANSITION`.
 
 Expected-owner mismatch => `409 OWNERSHIP_CONFLICT`.
 
