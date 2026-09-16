@@ -1,37 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createStaffFixture, loginStaffFixture } from "./staff-fixture.js";
 
 const VIEWPORTS = [
   { width: 1440, height: 900 },
   { width: 820, height: 1180 },
   { width: 390, height: 844 },
 ] as const;
-
-for (const viewport of VIEWPORTS) {
-  test(`RESP-03 Queue table/cards and filter controls ${viewport.width} @issue-5`, async ({ page }) => {
-    const fixture = await createStaffFixture(12);
-    try {
-      await page.setViewportSize(viewport);
-      await loginStaffFixture(page, fixture);
-      await expect(page.getByText("Loading Tickets", { exact: true })).toHaveCount(0);
-      await page.getByRole("button", { name: "Filters (2)" }).click();
-      await page.getByLabel("Category", { exact: true }).selectOption(String(fixture.category.id));
-      await page.getByRole("button", { name: "Apply", exact: true }).click();
-      if (viewport.width === 1440) await expect(page.getByRole("table", { name: "Ticket Queue" })).toBeVisible();
-      else { await expect(page.getByRole("table", { name: "Ticket Queue" })).toBeHidden(); await expect(page.getByRole("link", { name: /^Open Ticket/ }).first()).toBeVisible(); }
-      await assertNoHorizontalOverflow(page);
-      await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/queue-${viewport.width}.png`, fullPage: true });
-      await page.getByLabel("Search Tickets").fill("No matching synthetic Ticket");
-      await expect(page.getByText(/No Tickets match your search/)).toBeVisible();
-      await assertNoHorizontalOverflow(page);
-      await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/no-results-${viewport.width}.png`, fullPage: true });
-      await page.goto(`/staff/tickets/${fixture.tickets[0].publicId}`);
-      await expect(page.getByRole("button", { name: "Claim Ticket" })).toBeVisible();
-      await assertNoHorizontalOverflow(page);
-      await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/unassigned-${viewport.width}.png`, fullPage: true });
-    } finally { await fixture.dispose(); }
-  });
-}
 
 const STAFF_USER = {
   publicId: "e2e-staff",
@@ -95,14 +68,25 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Credentials": "true",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Expose-Headers": "X-Pagination",
 };
 
-async function fulfillAuth(route: import("@playwright/test").Route, status: number, body: unknown): Promise<void> {
+async function fulfillAuth(
+  route: import("@playwright/test").Route,
+  status: number,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<void> {
   if (route.request().method() === "OPTIONS") {
-    await route.fulfill({ status: 204, headers: CORS_HEADERS });
+    await route.fulfill({ status: 204, headers: { ...CORS_HEADERS, ...extraHeaders } });
     return;
   }
-  await route.fulfill({ status, contentType: "application/json", headers: CORS_HEADERS, body: JSON.stringify(body) });
+  await route.fulfill({
+    status,
+    contentType: "application/json",
+    headers: { ...CORS_HEADERS, ...extraHeaders },
+    body: JSON.stringify(body),
+  });
 }
 
 async function stubAuth(page: Page, user = STAFF_USER): Promise<void> {
@@ -171,6 +155,131 @@ async function stubRequesterPages(page: Page): Promise<void> {
     }
 
     await fulfillAuth(route, 404, { code: "NOT_FOUND" });
+  });
+}
+
+const STAFF_CATEGORY = { id: 4, name: "Network" };
+
+const STAFF_TICKETS = Array.from({ length: 12 }, (_, index) => ({
+  publicId: `synthetic-ticket-${index + 1}`,
+  ticketNumber: `TKT-20260916-${String(index + 1).padStart(12, "0")}`,
+  requesterName: "Workflow Requester",
+  categoryId: STAFF_CATEGORY.id,
+  categoryName: STAFF_CATEGORY.name,
+  relatedSystemId: 5,
+  relatedSystemName: "VPN",
+  summary: index === 0 ? "VPN disconnects after login" : `Support request ${index + 1}`,
+  requestedPriority: "MEDIUM" as const,
+  itPriority: index % 2 ? ("MEDIUM" as const) : ("HIGH" as const),
+  currentStatus: "NEW" as const,
+  owner: null,
+  createdAt: "2026-09-16T00:00:00.000Z",
+  updatedAt: "2026-09-16T00:00:00.000Z",
+}));
+
+const STAFF_TICKET_DETAIL = {
+  ...STAFF_TICKETS[0],
+  description: "Synthetic workflow fixture for Staff Queue verification.",
+  requesterEmail: "requester@example.test",
+  requesterResolutionConfirmedAt: null,
+  createdBy: "issue5-e2e",
+  updatedBy: "issue5-e2e",
+  deleted: false,
+  attachments: [],
+};
+
+async function stubStaffQueuePages(page: Page): Promise<void> {
+  await stubAuth(page, STAFF_USER);
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: CORS_HEADERS });
+      return;
+    }
+
+    const url = new URL(request.url());
+    if (url.pathname === "/api/auth/refresh") {
+      await fulfillAuth(route, 200, { accessToken: "e2e-memory-token", expiresIn: 600 });
+      return;
+    }
+    if (url.pathname === "/api/auth/me") {
+      await fulfillAuth(route, 200, STAFF_USER);
+      return;
+    }
+    if (url.pathname === "/api/categories") {
+      await fulfillAuth(route, 200, [STAFF_CATEGORY]);
+      return;
+    }
+    if (url.pathname === "/api/related-systems") {
+      await fulfillAuth(route, 200, [{ id: 5, name: "VPN" }]);
+      return;
+    }
+    if (url.pathname === "/api/users/assignable") {
+      await fulfillAuth(route, 200, [{ publicId: STAFF_USER.publicId, name: STAFF_USER.name, role: STAFF_USER.role }]);
+      return;
+    }
+    if (url.pathname === "/api/tickets" && request.method() === "GET") {
+      const search = url.searchParams.get("search");
+      if (search && search.includes("No matching")) {
+        await fulfillAuth(route, 200, [], {
+          "X-Pagination": JSON.stringify({
+            totalItems: 0,
+            pageNumber: 1,
+            pageSize: 10,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          }),
+        });
+        return;
+      }
+      await fulfillAuth(route, 200, STAFF_TICKETS, {
+        "X-Pagination": JSON.stringify({
+          totalItems: STAFF_TICKETS.length,
+          pageNumber: 1,
+          pageSize: 10,
+          totalPages: Math.ceil(STAFF_TICKETS.length / 10),
+          hasNextPage: STAFF_TICKETS.length > 10,
+          hasPreviousPage: false,
+        }),
+      });
+      return;
+    }
+    if (url.pathname === `/api/tickets/${STAFF_TICKETS[0].publicId}`) {
+      await fulfillAuth(route, 200, STAFF_TICKET_DETAIL);
+      return;
+    }
+
+    await fulfillAuth(route, 404, { code: "NOT_FOUND" });
+  });
+}
+
+for (const viewport of VIEWPORTS) {
+  test(`RESP-03 Queue table/cards and filter controls ${viewport.width} @issue-5`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await stubStaffQueuePages(page);
+    await page.goto("/staff/tickets");
+    await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
+    await expect(page.getByText("Loading Tickets", { exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Filters (2)" }).click();
+    await page.getByLabel("Category", { exact: true }).selectOption(String(STAFF_CATEGORY.id));
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    if (viewport.width === 1440) {
+      await expect(page.getByRole("table", { name: "Ticket Queue" })).toBeVisible();
+    } else {
+      await expect(page.getByRole("table", { name: "Ticket Queue" })).toBeHidden();
+      await expect(page.getByRole("link", { name: /^Open Ticket/ }).first()).toBeVisible();
+    }
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/queue-${viewport.width}.png`, fullPage: true });
+    await page.getByLabel("Search Tickets").fill("No matching synthetic Ticket");
+    await expect(page.getByText(/No Tickets match your search/)).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/no-results-${viewport.width}.png`, fullPage: true });
+    await page.goto(`/staff/tickets/${STAFF_TICKETS[0].publicId}`);
+    await expect(page.getByRole("button", { name: "Claim Ticket" })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/unassigned-${viewport.width}.png`, fullPage: true });
   });
 }
 
