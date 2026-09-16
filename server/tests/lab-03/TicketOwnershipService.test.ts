@@ -32,4 +32,13 @@ describe("UNIT-08 ownership @issue-5", () => {
     mock.$transaction.mockRejectedValue({ code: "P2034" });
     await expect(mutateStaffTicket(prisma, actor(), TICKET_ID, "claim", {})).rejects.toMatchObject({ code: "OWNERSHIP_CONFLICT" });
   });
+  it("rejects Claim and owner mutation on CANCELLED and CLOSED Tickets", async () => {
+    const { prisma, mock } = staffPrismaMock();
+    for (const currentStatus of ["CANCELLED", "CLOSED"] as const) {
+      mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus, ownerUserId: null, owner: null }));
+      await expect(mutateStaffTicket(prisma, actor(), TICKET_ID, "claim", {})).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+      await expect(mutateStaffTicket(prisma, actor(), TICKET_ID, "owner", { ownerPublicId: STAFF.publicId, expectedOwnerPublicId: null })).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+    }
+    expect(mock.ticket.updateMany).not.toHaveBeenCalled();
+  });
 });

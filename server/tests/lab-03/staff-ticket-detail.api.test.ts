@@ -55,6 +55,17 @@ describe("API-18–29/32/55 Staff detail and actions @issue-5", () => {
     const stale = await request(app).patch(`${path}/owner`).set("Authorization", bearerToken(tokens, STAFF.id)).send({ ownerPublicId: null, expectedOwnerPublicId: STAFF.publicId });
     expect(stale.status).toBe(409); expect(stale.body.code).toBe("OWNERSHIP_CONFLICT");
   });
+  it("rejects Claim and owner mutation on CANCELLED and CLOSED Tickets with 409 INVALID_STATUS_TRANSITION", async () => {
+    for (const currentStatus of ["CANCELLED", "CLOSED"] as const) {
+      mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus, ownerUserId: null, owner: null }));
+      const claimRes = await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, STAFF.id));
+      expect(claimRes.status).toBe(409);
+      expect(claimRes.body.code).toBe("INVALID_STATUS_TRANSITION");
+      const ownerRes = await request(app).patch(`${path}/owner`).set("Authorization", bearerToken(tokens, STAFF.id)).send({ ownerPublicId: STAFF.publicId, expectedOwnerPublicId: null });
+      expect(ownerRes.status).toBe(409);
+      expect(ownerRes.body.code).toBe("INVALID_STATUS_TRANSITION");
+    }
+  });
   it("lookup access does not grant non-owner Administrators assignment permission", async () => {
     mock.user.findMany.mockResolvedValue([]);
     expect((await request(app).get("/api/users/assignable").set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(200);

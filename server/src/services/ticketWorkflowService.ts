@@ -70,6 +70,7 @@ export async function mutateStaffTicket(
       if (!ownership && action !== "it-priority" && action !== "cancel" && !isOwner) throw new ApiError("FORBIDDEN");
       const data: Prisma.TicketUncheckedUpdateManyInput = { updatedBy: actor.email };
       if (ownership) {
+        if (["CANCELLED", "CLOSED"].includes(ticket.currentStatus)) throw new ApiError("INVALID_STATUS_TRANSITION");
         if (action === "claim" && ticket.ownerUserId !== null) throw new ApiError("OWNERSHIP_CONFLICT");
         if (action === "owner" && (ticket.owner?.publicId ?? null) !== input.expectedOwnerPublicId) throw new ApiError("OWNERSHIP_CONFLICT");
         const target = action === "claim" ? actor.userPublicId : input.ownerPublicId;

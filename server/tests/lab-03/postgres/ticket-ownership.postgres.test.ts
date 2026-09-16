@@ -54,6 +54,15 @@ describe.sequential("PG-07–09 real ownership concurrency and Queue @issue-5", 
       if (status === "REOPENED") expect((await mutateStaffTicket(first, admin, row.publicId, "start-work", {})).currentStatus).toBe("IN_PROGRESS");
     }
   });
+  it("rejects Claim on unassigned CANCELLED and CLOSED Tickets and leaves state untouched", async () => {
+    for (const status of ["CANCELLED", "CLOSED"] as const) {
+      const row = await ticket(status);
+      await expect(mutateStaffTicket(first, staff, row.publicId, "claim", {})).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+      const after = await first.ticket.findUniqueOrThrow({ where: { id: row.id } });
+      expect(after.ownerUserId).toBeNull();
+      expect(after.currentStatus).toBe(status);
+    }
+  });
   it("assignable lookup includes zero-Ticket eligible Users and excludes inactive/deleted/Requester", async () => {
     const createUser = (extra: object) => first.user.create({ data: { name: "Same Name", email: `${randomUUID()}@example.test`, role: "IT_STAFF", passwordHash: "unusable-test-fixture", createdBy: "test", updatedBy: "test", ...extra } });
     const zero = await createUser({});
