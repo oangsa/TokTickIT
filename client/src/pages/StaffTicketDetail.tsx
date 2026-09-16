@@ -64,8 +64,10 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     return () => { generation.current++; };
   }, [basePath, reloadCount, callApi, navigate, resetMessage]);
   const operational = user?.role === "IT_STAFF" || (user?.role === "ADMINISTRATOR" && ticket?.owner?.publicId === user.publicId);
+  const terminal = ticket?.currentStatus === "CLOSED" || ticket?.currentStatus === "CANCELLED";
   function reload() { setReloadCount((count) => count + 1); }
   async function openLookup() {
+    if (terminal) return;
     setLookupOpen(true); setLookupError(false); setOwnerPublicId(ticket?.owner?.publicId ?? "");
     const current = generation.current;
     try {
@@ -99,7 +101,8 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
   }
   function saveOwner() {
     setLookupOpen(false);
-    if (ticket?.owner) setPendingAction("owner");
+    if (!ticket || terminal) return;
+    if (ticket.owner) setPendingAction("owner");
     else void mutate("owner", { ownerPublicId: ownerPublicId || null, expectedOwnerPublicId: null });
   }
   const errorView = error && <div className="alert alert-danger" role="alert"><p>{error}</p>{conflict && <Button onClick={reload}>Reload Ticket</Button>}</div>;
@@ -116,7 +119,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
       <div className="col-12 col-xl-5"><Card title="Assignment & Workflow">
         <p>Current Status: <Badge>{statusLabel(ticket.currentStatus)}</Badge></p>
         <p>Owner: <Badge>{ticket.owner?.name ?? "Unassigned"}</Badge></p>
-        {operational && <Button disabled={busy || conflict} onClick={() => void openLookup()}>Change Owner</Button>}
+        {operational && !terminal && <Button disabled={busy || conflict} onClick={() => void openLookup()}>Change Owner</Button>}
         <div className="my-3">{operational ? <><label className="form-label" htmlFor="staff-it-priority">IT Priority</label><select id="staff-it-priority" className="form-select" disabled={busy || conflict} value={ticket.itPriority} onChange={(event) => void mutate("it-priority", { itPriority: event.target.value })}>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></> : <><span className="form-label d-block">IT Priority</span><div><Badge>{ticket.itPriority}</Badge></div></>}</div>
         <p>Requester confirmation: {ticket.requesterResolutionConfirmedAt ? `Received ${ticketDateTime(ticket.requesterResolutionConfirmedAt)}` : "Not received"}</p>
         {!operational && <p className="text-secondary">Ticket operations are read-only unless you are the assigned owner.</p>}
@@ -126,7 +129,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
       <div className="col-12"><Card title="Communication">{communicationSlot?.(ticket, reload)}</Card></div>
     </div>
     <AttachmentPreviewModal target={preview} onClose={() => setPreview(null)} basePath={`${basePath}/attachments`} />
-    <Modal open={lookupOpen} title="Choose Ticket Owner" onClose={() => !busy && setLookupOpen(false)} footer={<><Button onClick={() => setLookupOpen(false)}>Cancel</Button><Button variant="primary" disabled={lookupError || busy || ownerPublicId === (ticket.owner?.publicId ?? "")} onClick={saveOwner}>Apply Owner</Button></>}>
+    <Modal open={lookupOpen} title="Choose Ticket Owner" onClose={() => !busy && setLookupOpen(false)} footer={<><Button onClick={() => setLookupOpen(false)}>Cancel</Button><Button variant="primary" disabled={lookupError || busy || terminal || ownerPublicId === (ticket.owner?.publicId ?? "")} onClick={saveOwner}>Apply Owner</Button></>}>
       {lookupError && <p role="alert">Assignable Users could not be loaded. Close and retry.</p>}
       <label className="form-label" htmlFor="staff-owner">Ticket Owner</label><select id="staff-owner" className="form-select" value={ownerPublicId} onChange={(event) => setOwnerPublicId(event.target.value)}><option value="">Unassigned</option>{owners.map((owner) => <option key={owner.publicId} value={owner.publicId}>{owner.name} ({statusLabel(owner.role)})</option>)}</select>
     </Modal>
