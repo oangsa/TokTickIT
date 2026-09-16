@@ -123,7 +123,7 @@ function contentDisposition(kind: "inline" | "attachment", originalName: string)
  * by CORS/transport. Neither is re-set
  * here: doing so would overwrite the merged CORS value rather than add to it.
  */
-function sendBinary(
+export function sendBinary(
   res: Response,
   kind: "inline" | "attachment",
   binary: { data: Buffer; mimeType: string; originalName: string },
