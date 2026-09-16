@@ -13,7 +13,8 @@ not grant assignment rights; authoritative owner checks remain transactional.
 
 Issue 6 must inject its Public Comment writer before Request Information can
 succeed in production. Current behavior fails safely without changing status.
-Full E2E-04 and remaining traceability coverage must be completed before Done.
+E2E-04 and all primary Issue 5-owned verification rows are fully executed and
+reconciled to Pass under the clarified contract in tests.md Section 14.2.
 Independent peer review remains pending upon pull request submission.
 
 ## Pull Requests I authored (reviewed by my partner)
