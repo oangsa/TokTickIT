@@ -9,7 +9,7 @@ import { runCreateTicket } from "../services/createTicketFlow.js";
 import { parseCreateTicketRequest, parseIdempotencyKey } from "../services/ticketCreateRequest.js";
 import { listTicketsForRequester } from "../services/ticketListService.js";
 import { parseTicketListQuery } from "../services/ticketQueryValidator.js";
-import { findTicketForRequester } from "../services/ticketService.js";
+import { applyRequesterTicketAction, findTicketForRequester } from "../services/ticketService.js";
 
 export const ticketsRouter = Router();
 
@@ -25,7 +25,7 @@ ticketsRouter.get("/tickets", async (req: Request, res: Response, next: NextFunc
 
     const { items, pagination } = await listTicketsForRequester(
       getPrisma(),
-      req.requesterId as number,
+      req.auth!.userId,
       query,
     );
 
@@ -44,8 +44,8 @@ ticketsRouter.post("/tickets", async (req: Request, res: Response, next: NextFun
 
     /* Steps 5-8 live in the flow so the PostgreSQL suites exercise the same path. */
     const { status, ticket } = await runCreateTicket(getPrisma(), {
-      requesterId: req.requesterId as number,
-      actor: req.requesterEmail as string,
+      requesterId: req.auth!.userId,
+      actor: req.auth!.email,
       key,
       payload,
     });
@@ -58,7 +58,7 @@ ticketsRouter.post("/tickets", async (req: Request, res: Response, next: NextFun
 
 /*
  * Direct upload to an existing owned Ticket (api-spec Section 11.5). Distinct
- * from `POST /api/attachments`: this one persists an Active Attachment bound to
+ * from `POST /api/users/me/attachments`: this one persists an Active Attachment bound to
  * a Ticket that already exists, where that one creates an unbound Pending row
  * for a Ticket that does not exist yet. The five-Active limit and the insert
  * share one `Serializable` transaction inside the service.
@@ -72,8 +72,8 @@ ticketsRouter.post(
       const service = new AttachmentService(getPrisma());
 
       const attachment = await service.createForTicket({
-        requesterId: req.requesterId as number,
-        actor: req.requesterEmail as string,
+        requesterId: req.auth!.userId,
+        actor: req.auth!.email,
         publicId: req.params.publicId,
         file: { filename: file.originalname, data: file.buffer },
       });
@@ -97,7 +97,7 @@ ticketsRouter.get("/tickets/:publicId", async (req: Request, res: Response, next
   try {
     const ticket = await findTicketForRequester(
       getPrisma(),
-      req.requesterId as number,
+      req.auth!.userId,
       req.params.publicId,
     );
 
@@ -109,4 +109,41 @@ ticketsRouter.get("/tickets/:publicId", async (req: Request, res: Response, next
   } catch (error) {
     next(error);
   }
+});
+
+async function requesterAction(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  action: "cancel" | "looks-resolved" | "reopen",
+): Promise<void> {
+  try {
+    const ticket = await applyRequesterTicketAction(
+      getPrisma(),
+      req.auth!.userId,
+      req.auth!.email,
+      req.params.publicId,
+      action,
+    );
+
+    if (ticket === null) {
+      throw new ApiError("NOT_FOUND");
+    }
+
+    res.json(ticket);
+  } catch (error) {
+    next(error);
+  }
+}
+
+ticketsRouter.post("/tickets/:publicId/cancel", (req, res, next) => {
+  void requesterAction(req, res, next, "cancel");
+});
+
+ticketsRouter.post("/tickets/:publicId/looks-resolved", (req, res, next) => {
+  void requesterAction(req, res, next, "looks-resolved");
+});
+
+ticketsRouter.post("/tickets/:publicId/reopen", (req, res, next) => {
+  void requesterAction(req, res, next, "reopen");
 });

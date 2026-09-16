@@ -9,6 +9,9 @@ import ChangePassword from "./pages/ChangePassword.js";
 import ErrorPage from "./pages/ErrorPage.js";
 import Login from "./pages/Login.js";
 import UnavailablePage from "./pages/UnavailablePage.js";
+import CreateTicket from "./pages/CreateTicket.js";
+import MyTickets from "./pages/MyTickets.js";
+import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
 
 /* `/` resolves against the authenticated role after bootstrap. */
 function RootRedirect() {
@@ -51,9 +54,9 @@ export default function App({ enableHistoryBlocking = false }: { enableHistoryBl
     <Route path="/error" element={<ErrorPage />} />
     <Route element={<AuthGuard />}>
       <Route element={<RoleGuard roles={["REQUESTER"]} />}><Route element={<AppShell />}>
-        <Route path="/tickets" element={<UnavailablePage title="My Tickets" />} />
-        <Route path="/tickets/new" element={<UnavailablePage title="Create Ticket" />} />
-        <Route path="/tickets/:publicId" element={<UnavailablePage title="Ticket Detail" />} />
+        <Route path="/tickets" element={<MyTickets />} />
+        <Route path="/tickets/new" element={<CreateTicket />} />
+        <Route path="/tickets/:publicId" element={<RequesterTicketDetail />} />
       </Route></Route>
       <Route element={<RoleGuard roles={["IT_STAFF"]} />}><Route element={<AppShell />}>
         <Route path="/staff/tickets" element={<UnavailablePage title="Ticket Queue" />} />

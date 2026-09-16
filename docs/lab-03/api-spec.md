@@ -966,6 +966,9 @@ owner = null
 requesterResolutionConfirmedAt = null
 ```
 
+As in Lab 2, extra client-supplied backend-managed fields are ignored; they do
+not participate in the canonical payload or change authenticated ownership.
+
 Lab 2 idempotency/canonical Attachment-ID behavior remains.
 
 Success:

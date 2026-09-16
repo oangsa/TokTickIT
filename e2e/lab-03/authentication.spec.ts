@@ -55,6 +55,18 @@ async function stubRefreshAndIdentity(
   });
 }
 
+async function stubRequesterList(page: Page): Promise<void> {
+  await page.route("**/api/categories", async (route) => {
+    await fulfillAuth(route, 200, []);
+  });
+  await page.route("**/api/related-systems", async (route) => {
+    await fulfillAuth(route, 200, []);
+  });
+  await page.route("**/api/users/me/tickets**", async (route) => {
+    await fulfillAuth(route, 200, []);
+  });
+}
+
 test("E2E-01 initial-password login requires a fresh login and protects routes @issue-3", async ({ page }) => {
   type AuthPhase = "restricted" | "full" | "anonymous";
   let phase: AuthPhase = "anonymous";
@@ -86,6 +98,7 @@ test("E2E-01 initial-password login requires a fresh login and protects routes @
     phase = "anonymous";
     await fulfillNoContent(route);
   });
+  await stubRequesterList(page);
 
   await page.goto("/login");
   await page.getByLabel("Email *", { exact: true }).fill(FULL_USER.email);

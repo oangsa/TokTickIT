@@ -3,8 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import App from "../helpers/LegacyLab2App.js";
-import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requesterStorage.js";
+import App from "../helpers/AuthenticatedRequesterApp.js";
 import {
   ATTACHMENT_RULES_TEXT,
   ATTACHMENT_TIMEOUT_MS,
@@ -23,7 +22,7 @@ import {
  * never draws an outcome the backend did not commit.
  */
 
-const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
+const ALICE = { id: 1, name: "Alice Example" };
 const PUBLIC_ID = "0f0e8a9f-6d9e-4a1a-9f0e-1b2c3d4e5f60";
 const PENDING_ID = "eb87467e-b209-4a18-bbc6-c8c5a4dccf95";
 const DIRECT_ID = "33333333-3333-4333-8333-333333333333";
@@ -94,7 +93,7 @@ interface StubbedCall {
   url: string;
   method: string;
   body: unknown;
-  headers: Record<string, string>;
+  headers: Headers;
 }
 
 interface StubOptions {
@@ -102,10 +101,10 @@ interface StubOptions {
   upload?: () => { ok?: boolean; status?: number; body?: unknown };
   /* Non-2xx status for the collection endpoint; omitted means 204. */
   collectionStatus?: number;
-  /* Non-2xx status for POST /api/tickets; omitted means a created Ticket. */
+  /* Non-2xx status for POST /api/users/me/tickets; omitted means a created Ticket. */
   createStatus?: number;
   binaryOk?: boolean;
-  /* Held pre-uploads: every POST /api/attachments waits on this before it answers. */
+  /* Held pre-uploads: every POST /api/users/me/attachments waits on this before it answers. */
   uploadGate?: Promise<void>;
   /* Held binaries: every preview and download waits on this before it answers. */
   binaryGate?: Promise<void>;
@@ -125,9 +124,9 @@ function stubApi(options: StubOptions = {}) {
   let uploadCount = 0;
 
   const fetchMock = vi.fn(
-    async (url: string, init?: { method?: string; body?: unknown; headers?: Record<string, string> }) => {
+    async (url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
-      calls.push({ url, method, body: init?.body, headers: init?.headers ?? {} });
+      calls.push({ url, method, body: init?.body, headers: new Headers(init?.headers) });
 
       const ok = (body: unknown, status = 200) => ({
         ok: true,
@@ -156,11 +155,11 @@ function stubApi(options: StubOptions = {}) {
         return ok(MASTER_DATA);
       }
 
-      if (url.includes("/api/requesters") || url.includes("/api/tickets?")) {
+      if (url.includes("/api/users/me/tickets?")) {
         return ok([]);
       }
 
-      if (url.includes("/api/attachments/collection")) {
+      if (url.includes("/api/users/me/attachments/collection")) {
         return options.collectionStatus === undefined
           ? { ok: true, status: 204, headers: new Headers(), json: async () => ({}) }
           : failure(
@@ -203,25 +202,25 @@ function stubApi(options: StubOptions = {}) {
           result.body ??
           attachment({
               attachmentId:
-                url.includes("/api/tickets/")
+              url.includes("/api/users/me/tickets/")
                   ? DIRECT_ID
                   : uploadCount === 1
                   ? PENDING_ID
                   : `0000000${uploadCount}-0000-4000-8000-00000000000${uploadCount}`,
-              ticketPublicId: url.includes("/api/tickets/") ? PUBLIC_ID : null,
+              ticketPublicId: url.includes("/api/users/me/tickets/") ? PUBLIC_ID : null,
               originalName,
               sizeBytes,
               extension: originalName.split(".").pop() ?? "png",
             });
 
-        if (url.includes("/api/tickets/")) {
+        if (url.includes("/api/users/me/tickets/")) {
           directAttachments.push(responseAttachment);
         }
 
         return ok(responseAttachment, 201);
       }
 
-      if (method === "POST" && url.includes("/api/tickets")) {
+      if (method === "POST" && url.includes("/api/users/me/tickets")) {
         return options.createStatus === undefined
           ? ok(ticket(), 201)
           : failure(options.createStatus, "INTERNAL_SERVER_ERROR");
@@ -244,8 +243,6 @@ function pngFile(name = "vpn-error.png", size = 12): File {
 }
 
 function renderAt(path: string) {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
-
   return render(
     <MemoryRouter initialEntries={[path]}>
       <App />
@@ -317,7 +314,7 @@ describe("UI-25 per-file Attachment lifecycle on Create Ticket", () => {
     await waitFor(() => expect(within(row).getByText(state)).toBeInTheDocument());
 
     /* An Invalid file never leaves the browser. */
-    const uploads = calls.filter((call) => call.method === "POST" && call.url.endsWith("/api/attachments"));
+    const uploads = calls.filter((call) => call.method === "POST" && call.url.endsWith("/api/users/me/attachments"));
     expect(uploads).toHaveLength(state === "Invalid" ? 0 : 1);
   });
 
@@ -397,7 +394,7 @@ describe("UI-25 per-file Attachment lifecycle on Create Ticket", () => {
     await userEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
 
     await waitFor(() => {
-      const create = calls.find((call) => call.method === "POST" && call.url.endsWith("/api/tickets"));
+      const create = calls.find((call) => call.method === "POST" && call.url.endsWith("/api/users/me/tickets"));
       expect(JSON.parse(String(create?.body)).attachmentIds).toEqual([PENDING_ID]);
     });
   });
@@ -408,9 +405,9 @@ describe("UI-10 Pending rows survive a Ticket-create 4xx", () => {
     const { calls } = stubApi();
     /* The create call is the only one that fails; the pre-upload still works. */
     const realFetch = globalThis.fetch as unknown as (...args: unknown[]) => Promise<unknown>;
-    vi.stubGlobal("fetch", async (url: string, init?: { method?: string }) => {
-      if (init?.method === "POST" && String(url).endsWith("/api/tickets")) {
-        calls.push({ url: String(url), method: "POST", body: undefined, headers: {} });
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST" && String(url).endsWith("/api/users/me/tickets")) {
+        calls.push({ url: String(url), method: "POST", body: undefined, headers: new Headers(init.headers) });
         return {
           ok: false,
           status: 400,
@@ -444,7 +441,7 @@ describe("UI-10 Pending rows survive a Ticket-create 4xx", () => {
     await userEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
 
     await waitFor(() =>
-      expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/api/tickets"))).toBe(
+      expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/api/users/me/tickets"))).toBe(
         true,
       ),
     );
@@ -457,7 +454,7 @@ describe("UI-10 Pending rows survive a Ticket-create 4xx", () => {
     expect(screen.getByRole("heading", { name: "Attachments 1/5" })).toBeInTheDocument();
     expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(0);
     expect(
-      calls.filter((call) => call.method === "POST" && call.url.endsWith("/api/attachments")),
+      calls.filter((call) => call.method === "POST" && call.url.endsWith("/api/users/me/attachments")),
     ).toHaveLength(1);
   });
 });
@@ -588,7 +585,7 @@ describe("UI-26 the x/5 count and the Add control", () => {
     await waitFor(() => {
       expect(
         calls.some(
-          (call) => call.method === "POST" && call.url.endsWith(`/api/tickets/${PUBLIC_ID}/attachments`),
+          (call) => call.method === "POST" && call.url.endsWith(`/api/users/me/tickets/${PUBLIC_ID}/attachments`),
         ),
       ).toBe(true);
     });
@@ -596,7 +593,7 @@ describe("UI-26 the x/5 count and the Add control", () => {
     /* Two detail reads: the initial load and the re-read after the upload. */
     await waitFor(() => {
       const detailReads = calls.filter(
-        (call) => call.method === "GET" && call.url.endsWith(`/api/tickets/${PUBLIC_ID}`),
+        (call) => call.method === "GET" && call.url.endsWith(`/api/users/me/tickets/${PUBLIC_ID}`),
       );
       expect(detailReads.length).toBeGreaterThanOrEqual(2);
     });
@@ -679,9 +676,10 @@ describe("UI-27 and UI-34 preview, download, and the Blob URL lifecycle", () => 
     expect(within(dialog).getByRole("button", { name: "Download" })).toBeInTheDocument();
 
     const preview = calls.find((call) => call.url.includes("/preview"));
-    expect(preview?.headers["X-Requester-Id"]).toBe(String(ALICE.id));
+    expect(preview?.headers.get("Authorization")).toBe("Bearer test-access-token");
+    expect(preview?.headers.get("X-Requester-Id")).toBeNull();
     /* Never a direct navigation to the protected URL. */
-    expect(document.querySelector(`a[href*="/api/attachments"]`)).toBeNull();
+    expect(document.querySelector(`a[href*="/api/users/me/attachments"]`)).toBeNull();
   });
 
   it("revokes the Blob URL when the preview closes, and returns focus", async () => {
@@ -728,7 +726,8 @@ describe("UI-27 and UI-34 preview, download, and the Blob URL lifecycle", () => 
       await waitFor(() => expect(revokedUrls).toContain(createdUrls[0]));
 
       const download = calls.find((call) => call.url.includes("/download"));
-      expect(download?.headers["X-Requester-Id"]).toBe(String(ALICE.id));
+      expect(download?.headers.get("Authorization")).toBe("Bearer test-access-token");
+      expect(download?.headers.get("X-Requester-Id")).toBeNull();
     } finally {
       HTMLAnchorElement.prototype.click = realClick;
     }
@@ -996,7 +995,7 @@ describe("UI-26 the x/5 bound holds while uploads are in flight", () => {
     );
 
     const uploads = calls.filter(
-      (call) => call.method === "POST" && call.url.endsWith("/api/attachments"),
+      (call) => call.method === "POST" && call.url.endsWith("/api/users/me/attachments"),
     );
     expect(uploads).toHaveLength(5);
     expect(screen.getByRole("heading", { name: "Attachments 5/5" })).toBeInTheDocument();

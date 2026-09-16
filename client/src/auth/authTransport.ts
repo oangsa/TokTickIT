@@ -255,6 +255,16 @@ function authSignal(signal?: AbortSignal | null): AbortSignal {
   return signal ? mergeSignals(timeout, signal) : timeout;
 }
 
+export interface AuthenticatedRequestInit extends RequestInit {
+  timeoutMs?: number;
+  onResponse?: (response: Response) => void;
+}
+
+function requestSignal(signal?: AbortSignal | null, timeoutMs = API_TIMEOUT_MS): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? mergeSignals(timeout, signal) : timeout;
+}
+
 async function refreshRequest(): Promise<{ accessToken: string; expiresIn?: number }> {
   const response = await fetch(`${API_URL}/api/auth/refresh`, {
     method: "POST",
@@ -363,17 +373,18 @@ export async function publicAuthRequest<T>(path: string, init: RequestInit = {})
   return (await response.json().catch(() => { throw new Error("Could not read the API response."); })) as T;
 }
 
-async function requestWithToken(path: string, init: RequestInit, token: string | null): Promise<Response> {
-  const headers = new Headers(init.headers);
+async function requestWithToken(path: string, init: AuthenticatedRequestInit, token: string | null): Promise<Response> {
+  const { timeoutMs, onResponse: _onResponse, ...requestInit } = init;
+  const headers = new Headers(requestInit.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   else headers.delete("Authorization");
   headers.set("Accept", "application/json");
-  return fetch(`${API_URL}${path}`, { ...init, credentials: "include", headers, signal: authSignal(init.signal) }).catch(() => {
+  return fetch(`${API_URL}${path}`, { ...requestInit, credentials: "include", headers, signal: requestSignal(requestInit.signal, timeoutMs) }).catch(() => {
     throw new Error(`Cannot reach the TokTickIT API at ${API_URL}.`);
   });
 }
 
-export async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function authenticatedRequest<T>(path: string, init: AuthenticatedRequestInit = {}): Promise<T> {
   const originalToken = accessToken;
   const originalSessionId = getAuthSessionId();
   let retriedAfterRefresh = false;
@@ -399,8 +410,43 @@ export async function authenticatedRequest<T>(path: string, init: RequestInit = 
     }
     throw errorFromResponse(response, envelope);
   }
+  init.onResponse?.(response);
   if (response.status === 204) return undefined as T;
   return (await response.json().catch(() => { throw new Error("Could not read the API response."); })) as T;
+}
+
+export async function authenticatedBlobRequest(path: string, init: AuthenticatedRequestInit = {}): Promise<Blob> {
+  const originalToken = accessToken;
+  const originalSessionId = getAuthSessionId();
+  let retriedAfterRefresh = false;
+  let retryToken: string | null = null;
+  let response = await requestWithToken(path, init, originalToken);
+  let envelope = response.ok ? null : await readEnvelope(response);
+
+  if (!response.ok && response.status === 401 && envelope?.code === "ACCESS_TOKEN_EXPIRED") {
+    retriedAfterRefresh = true;
+    const refreshed = originalSessionId === null
+      ? await refreshAccessToken(originalToken)
+      : await refreshAccessToken(originalToken, originalSessionId);
+    if (refreshed === null) throw errorFromResponse(response, envelope);
+    retryToken = refreshed;
+    response = await requestWithToken(path, init, refreshed);
+    envelope = response.ok ? null : await readEnvelope(response);
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 && (retriedAfterRefresh || envelope?.code === "SESSION_INVALID" || envelope?.code === "UNAUTHENTICATED")) {
+      const failedToken = retriedAfterRefresh ? retryToken : originalToken;
+      if (isCurrentSession(originalSessionId) && (failedToken === null || accessToken === failedToken)) clearAccessToken();
+    }
+    throw errorFromResponse(response, envelope);
+  }
+
+  init.onResponse?.(response);
+
+  return await response.blob().catch(() => {
+    throw new Error("Could not read the API response.");
+  });
 }
 
 export function broadcastLogout(): void {

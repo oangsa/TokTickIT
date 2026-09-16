@@ -43,6 +43,8 @@ interface BaseField<TValues extends FieldValues> {
   description?: string;
   helpText?: string;
   maxLength?: number;
+  /** Keep counters/schema limits without imposing UTF-16 `maxlength` truncation. */
+  enforceMaxLength?: boolean;
   showCount?: boolean;
   disabled?: boolean;
   autoComplete?: string;

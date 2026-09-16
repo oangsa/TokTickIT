@@ -1,14 +1,18 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
 
-import { ApiResponseError, InvalidRequesterContextError, Ticket } from "../api.js";
+import { ApiResponseError, Ticket } from "../api.js";
+import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { AttachmentSection } from "../attachments/AttachmentSection.js";
 import { Card } from "../components/Card.js";
+import { Button } from "../components/Button.js";
+import { Badge } from "../components/Badge.js";
+import { FormField } from "../components/FormField.js";
+import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { ReadOnlyField } from "../components/ReadOnlyField.js";
 import { Skeleton } from "../components/Skeleton.js";
 import { SuccessMessage } from "../components/SuccessMessage.js";
-import { useRequesterApi } from "../requester/useRequesterApi.js";
 import { ticketDate, ticketDateTime } from "../tickets/ticketDate.js";
 
 /*
@@ -30,22 +34,51 @@ function readCreatedTicketNumber(state: unknown): string | null {
   return null;
 }
 
+interface RequesterActionErrorProps {
+  message: string;
+  canReload: boolean;
+  onReload: () => void;
+}
+
+function RequesterActionError({ message, canReload, onReload }: RequesterActionErrorProps) {
+  return (
+    <div className="alert alert-danger" role="alert">
+      <p className="mb-2">{message}</p>
+      {canReload ? (
+        <Button variant="secondary" onClick={onReload}>
+          Reload Ticket
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 /*
  * Requester-owned Ticket Detail (ui-spec Section 20, api-spec Section 8.6).
  *
- * Read-only in Lab 2 (FR-22): no comments, internal notes, actions taken,
- * assignment, priority reassignment, status transition, or deletion controls
- * exist on this page. Ownership is enforced by the endpoint, never here -- a
- * client-side check would only decide what to draw, not what to serve.
+ * Ticket information and attachments remain read-only. Issue 6 inserts its
+ * Public Comment surface through `communicationSlot`; Internal Notes never
+ * enter this Requester page. Ownership is enforced by the endpoint, never here.
  */
-export default function RequesterTicketDetail() {
+export interface RequesterTicketDetailProps {
+  communicationSlot?: (ticket: Ticket, reload: () => void) => ReactNode;
+}
+
+type RequesterAction = "cancel" | "looks-resolved" | "reopen";
+
+export default function RequesterTicketDetail({ communicationSlot }: RequesterTicketDetailProps = {}) {
   const { publicId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const callApi = useRequesterApi();
+  const callApi = useAuthenticatedApi();
   const [ticket, setTicket] = useState<Ticket | null>(null);
   /* Bumped after an Attachment add or removal, to re-read committed state. */
   const [reloadCount, setReloadCount] = useState(0);
+  const [confirmAction, setConfirmAction] = useState<"cancel" | "reopen" | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionConflict, setActionConflict] = useState(false);
+  const [confirmationMessage, setConfirmationMessage] = useState<string | null>(null);
   /*
    * `location.state` is persisted in the history entry, so a reload or a Back
    * into this entry hands the creation state straight back. The confirmation
@@ -66,7 +99,7 @@ export default function RequesterTicketDetail() {
 
     async function load() {
       try {
-        const loaded = await callApi<Ticket>(`/api/tickets/${encodeURIComponent(publicId ?? "")}`);
+        const loaded = await callApi<Ticket>(`/api/users/me/tickets/${encodeURIComponent(publicId ?? "")}`);
 
         if (!ignore) {
           setTicket(loaded);
@@ -77,13 +110,9 @@ export default function RequesterTicketDetail() {
         }
 
         /*
-         * `useRequesterApi` has already cleared the context and `RequesterGuard`
-         * is unmounting this subtree; navigating to the error page would race it.
+         * AuthGuard owns session invalidation; this page handles only ordinary
+         * resource failures.
          */
-        if (error instanceof InvalidRequesterContextError) {
-          return;
-        }
-
         /*
          * Every page-level failure is the standalone `/error` experience
          * (ui-spec Section 19.4). Only the status crosses over: `ErrorPage`
@@ -110,6 +139,61 @@ export default function RequesterTicketDetail() {
       ignore = true;
     };
   }, [callApi, navigate, publicId, reloadCount]);
+
+  function openConfirmation(action: "cancel" | "reopen"): void {
+    setActionError(null);
+    setActionConflict(false);
+    setConfirmAction(action);
+  }
+
+  function closeConfirmation(): void {
+    if (actionBusy) return;
+    setConfirmAction(null);
+    setActionError(null);
+    setActionConflict(false);
+  }
+
+  function reloadTicket(): void {
+    setConfirmAction(null);
+    setActionError(null);
+    setActionConflict(false);
+    setReloadCount((count) => count + 1);
+  }
+
+  async function runAction(action: RequesterAction): Promise<void> {
+    if (publicId === undefined || actionBusy) return;
+    setActionBusy(true);
+    setActionError(null);
+    setActionConflict(false);
+    setConfirmationMessage(null);
+    try {
+      const updated = await callApi<Ticket>(
+        `/api/users/me/tickets/${encodeURIComponent(publicId)}/${action}`,
+        { method: "POST" },
+      );
+      setTicket(updated);
+      setConfirmAction(null);
+      setConfirmationMessage(
+        action === "cancel"
+          ? "This Ticket was cancelled."
+          : action === "looks-resolved"
+            ? "You confirmed that the problem appears resolved."
+            : "This Ticket was reopened and returned to the IT queue.",
+      );
+    } catch (error) {
+      const conflict = error instanceof ApiResponseError && error.status === 409;
+      setActionConflict(conflict);
+      setActionError(
+        conflict && error instanceof ApiResponseError && error.code === "OWNERSHIP_CONFLICT"
+          ? "Ticket ownership changed while you were viewing it. Reload the current Ticket before trying again."
+          : conflict
+            ? "Ticket changed while you were viewing it. Reload the current Ticket before trying again."
+          : "The Ticket action could not be completed.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   /* Section 20.1: the Ticket Number is the strongest ticket-specific identifier. */
   const heading = ticket?.ticketNumber ?? createdTicketNumber;
@@ -158,7 +242,13 @@ export default function RequesterTicketDetail() {
               </div>
               <div className="col-12 col-md-6">
                 {/* Spelled out, never a colour alone (ui-spec Section 29.9). */}
-                <ReadOnlyField label="Current Status" value={ticket.currentStatus} />
+                <FormField label="Current Status">
+                  {({ id, describedBy }) => (
+                    <output id={id} role="group" className="form-control-plaintext" aria-describedby={describedBy}>
+                      <Badge variant="pale">{ticket.currentStatus}</Badge>
+                    </output>
+                  )}
+                </FormField>
               </div>
               <div className="col-12 col-md-6">
                 <ReadOnlyField label="Requested Priority" value={ticket.requestedPriority} />
@@ -193,8 +283,52 @@ export default function RequesterTicketDetail() {
             </div>
           </Card>
 
+          <Card title="Assignment & Workflow">
+            <div className="row g-3">
+              <div className="col-12 col-md-6">
+                <ReadOnlyField label="IT Priority" value={ticket.itPriority ?? ticket.requestedPriority} />
+              </div>
+              <div className="col-12 col-md-6">
+                <ReadOnlyField label="Ticket Owner" value={ticket.owner?.name ?? "Unassigned"} />
+              </div>
+            </div>
+          </Card>
+
+          {actionError && confirmAction === null ? (
+            <RequesterActionError
+              message={actionError}
+              canReload={actionConflict}
+              onReload={reloadTicket}
+            />
+          ) : null}
+          {confirmationMessage ? <SuccessMessage>{confirmationMessage}</SuccessMessage> : null}
+
+          {ticket.currentStatus === "NEW" || ticket.currentStatus === "OPEN" || ticket.currentStatus === "RESOLVED" || ticket.currentStatus === "CLOSED" ? (
+            <Card title="Ticket Actions">
+              <div className="d-flex flex-wrap gap-2">
+                {ticket.currentStatus === "NEW" || ticket.currentStatus === "OPEN" ? (
+                  <Button variant="destructive" disabled={actionBusy} onClick={() => openConfirmation("cancel")}>
+                    Cancel Ticket
+                  </Button>
+                ) : null}
+                {ticket.currentStatus === "RESOLVED" ? (
+                  <Button variant="secondary" disabled={actionBusy || ticket.requesterResolutionConfirmedAt != null} onClick={() => void runAction("looks-resolved")}>
+                    {ticket.requesterResolutionConfirmedAt == null ? "Problem appears resolved" : "Resolution confirmed"}
+                  </Button>
+                ) : null}
+                {ticket.currentStatus === "RESOLVED" || ticket.currentStatus === "CLOSED" ? (
+                  <Button variant="secondary" disabled={actionBusy} onClick={() => openConfirmation("reopen")}>
+                    Problem Still Exists
+                  </Button>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
+
+          {communicationSlot?.(ticket, () => setReloadCount((count) => count + 1))}
+
           {/*
-            Issue 24 owns Attachment behavior; the card is shared with Create
+            Attachment behavior is shared with Create
             Ticket. A successful add or removal re-reads the Ticket rather than
             patching the list in place, so what is drawn is what committed.
           */}
@@ -206,6 +340,39 @@ export default function RequesterTicketDetail() {
           />
         </div>
       )}
+
+      <Modal
+        open={confirmAction !== null}
+        title={confirmAction === "cancel" ? "Cancel this Ticket?" : "Reopen this Ticket?"}
+        onClose={closeConfirmation}
+        footer={
+          <>
+            <Button variant="secondary" disabled={actionBusy} onClick={closeConfirmation}>
+              {confirmAction === "cancel" ? "Keep Ticket" : "Cancel"}
+            </Button>
+            <Button
+              variant={confirmAction === "cancel" ? "destructive" : "primary"}
+              busy={actionBusy}
+              onClick={() => confirmAction && void runAction(confirmAction)}
+            >
+              {confirmAction === "cancel" ? "Cancel Ticket" : "Reopen Ticket"}
+            </Button>
+          </>
+        }
+      >
+        {actionError ? (
+          <RequesterActionError
+            message={actionError}
+            canReload={actionConflict}
+            onReload={reloadTicket}
+          />
+        ) : null}
+        <p className="mb-0">
+          {confirmAction === "cancel"
+            ? "This action will stop further work on it."
+            : "It will return to the IT queue as unassigned."}
+        </p>
+      </Modal>
     </>
   );
 }

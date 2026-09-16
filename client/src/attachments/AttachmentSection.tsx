@@ -2,12 +2,12 @@ import { ChangeEvent, MutableRefObject, useEffect, useId, useMemo, useRef, useSt
 import { Eye, X } from "lucide-react";
 
 import { ApiResponseError, Attachment } from "../api.js";
+import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { AttachmentState, AttachmentStateName } from "../components/AttachmentState.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { IconButton } from "../components/IconButton.js";
 import { Modal } from "../components/Modal.js";
-import { useRequesterApi } from "../requester/useRequesterApi.js";
 import { ticketDateTime } from "../tickets/ticketDate.js";
 import { AttachmentDownloadButton, AttachmentPreviewModal, PreviewTarget } from "./AttachmentPreviewModal.js";
 import {
@@ -129,13 +129,13 @@ function localKey(): string {
  *
  * One component, two modes, because the table, the `x/5` header, the preview,
  * and the accessible-name rules are identical on both screens; only where a file
- * goes differs. Create Ticket pre-uploads to `POST /api/attachments` and holds
+ * goes differs. Create Ticket pre-uploads to `POST /api/users/me/attachments` and holds
  * Pending rows the Ticket-create call will bind. Ticket Detail uploads straight
- * to `POST /api/tickets/:publicId/attachments`, where the row is Active on
+ * to `POST /api/users/me/tickets/:publicId/attachments`, where the row is Active on
  * arrival.
  */
 export function AttachmentSection(props: AttachmentSectionProps) {
-  const callApi = useRequesterApi();
+  const callApi = useAuthenticatedApi();
   const inputId = useId();
   const rulesId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -225,7 +225,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     body.append("file", file, file.name);
 
     try {
-      const attachment = await callApi<Attachment>("/api/attachments", {
+      const attachment = await callApi<Attachment>("/api/users/me/attachments", {
         method: "POST",
         body,
         timeoutMs: ATTACHMENT_TIMEOUT_MS,
@@ -252,7 +252,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
 
     try {
       const attachment = await callApi<Attachment>(
-        `/api/tickets/${encodeURIComponent(ticketPublicId)}/attachments`,
+        `/api/users/me/tickets/${encodeURIComponent(ticketPublicId)}/attachments`,
         { method: "POST", body, timeoutMs: ATTACHMENT_TIMEOUT_MS },
       );
       updateEntry(key, { state: "Active", attachment, message: null });
@@ -501,7 +501,7 @@ export function AttachmentSection(props: AttachmentSectionProps) {
     setFailure(null);
 
     try {
-      await callApi("/api/attachments/collection", {
+      await callApi("/api/users/me/attachments/collection", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

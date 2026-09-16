@@ -3,21 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { ComponentProps } from "react";
-import App from "../helpers/LegacyLab2App.js";
-import {
-  REQUESTER_STORAGE_KEY,
-  StoredRequester,
-} from "../../src/requester/requesterStorage.js";
-
-const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
+import App from "../helpers/AuthenticatedRequesterApp.js";
 
 type Entry = NonNullable<ComponentProps<typeof MemoryRouter>["initialEntries"]>[number];
 
-function renderAt(entry: Entry, requester?: StoredRequester) {
-  if (requester) {
-    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
-  }
-
+function renderAt(entry: Entry) {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <App />
@@ -34,7 +24,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  sessionStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -49,13 +38,9 @@ function ErrorNavigationButton({ state }: { state: unknown }) {
   return <button onClick={() => navigate("/error", { state })}>Go to error</button>;
 }
 
-async function renderErrorVia(state: unknown, requester?: StoredRequester) {
-  if (requester) {
-    sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
-  }
-
+async function renderErrorVia(state: unknown) {
   render(
-    <MemoryRouter initialEntries={["/requesters"]}>
+    <MemoryRouter initialEntries={["/tickets"]}>
       <ErrorNavigationButton state={state} />
       <App />
     </MemoryRouter>,
@@ -66,7 +51,7 @@ async function renderErrorVia(state: unknown, requester?: StoredRequester) {
 
 describe("UI-31 and UI-35 global error page", () => {
   it("renders the safe generic error and ignores backend-supplied text", async () => {
-    await renderErrorVia({ title: "DB timeout at 10.0.0.4" }, ALICE);
+    await renderErrorVia({ title: "DB timeout at 10.0.0.4" });
 
     expect(screen.getByText("500")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
@@ -75,7 +60,7 @@ describe("UI-31 and UI-35 global error page", () => {
   });
 
   it("moves focus to the standalone error page after client-side navigation", async () => {
-    await renderErrorVia({ status: 500 }, ALICE);
+    await renderErrorVia({ status: 500 });
 
     expect(screen.getByRole("main")).toHaveFocus();
   });
@@ -88,7 +73,7 @@ describe("UI-31 and UI-35 global error page", () => {
   it.each([403, 404, 500])(
     "falls back to the generic variant when a %s entry is restored rather than navigated to",
     (status) => {
-      renderAt({ pathname: "/error", state: { status } }, ALICE);
+      renderAt({ pathname: "/error", state: { status } });
 
       expect(screen.getByText("500")).toBeInTheDocument();
       expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
@@ -102,7 +87,7 @@ describe("UI-31 and UI-35 global error page", () => {
     [404, "Page not found.", "The requested resource could not be found."],
     [500, "Something went wrong.", "Please try again later."],
   ])("renders the safe %s variant copy", async (status, title, message) => {
-    await renderErrorVia({ status }, ALICE);
+    await renderErrorVia({ status });
 
     expect(screen.getByText(String(status))).toBeInTheDocument();
     expect(screen.getByText(title)).toBeInTheDocument();
@@ -112,27 +97,21 @@ describe("UI-31 and UI-35 global error page", () => {
   it.each([401, 418, "404", null, "nope"])(
     "falls back to the generic 500 variant for the unrecognised status %s",
     async (status) => {
-      await renderErrorVia({ status }, ALICE);
+      await renderErrorVia({ status });
 
       expect(screen.getByText("500")).toBeInTheDocument();
       expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
     },
   );
 
-  it("sends Back to /tickets when a valid Requester context exists", async () => {
-    await renderErrorVia({ status: 404 }, ALICE);
+  it("sends Back to the authenticated role home", async () => {
+    await renderErrorVia({ status: 404 });
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
   });
 
-  it("sends Back to /requesters when no Requester context exists", async () => {
-    await renderErrorVia({ status: 404 });
-
-    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/requesters");
-  });
-
   it("ignores a caller-supplied backPath rather than following it", async () => {
-    await renderErrorVia({ status: 404, backPath: "https://evil.example/" }, ALICE);
+    await renderErrorVia({ status: 404, backPath: "https://evil.example/" });
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
   });

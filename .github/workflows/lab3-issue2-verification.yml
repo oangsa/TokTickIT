@@ -132,6 +132,40 @@ jobs:
           npm run maintenance:cleanup
           npm run maintenance:cleanup
 
+      - name: Install client dependencies for requester browser gate
+        run: npm ci
+        working-directory: client
+
+      - name: Install root E2E dependencies for requester browser gate
+        run: npm ci
+        working-directory: .
+
+      - name: Install pinned Playwright Chromium for requester browser gate
+        run: npx --no-install playwright install --with-deps chromium
+        working-directory: .
+
+      - name: Run focused Issue 4 PostgreSQL-backed Playwright gate
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          JWT_SECRET: lab3-ci-browser-test-secret-only-2026
+        run: >-
+          npm run test:e2e --
+          --grep '@issue-4'
+          e2e/lab-03/requester-regression.spec.ts
+          e2e/lab-03/responsive-visual.spec.ts
+        working-directory: .
+
+      - name: Upload Issue 4 Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab3-issue4-playwright-report
+          path: |
+            artifacts/lab-03/playwright-report
+            artifacts/lab-03/playwright
+          if-no-files-found: ignore
+
       - name: Run focused Issue 2 unit and API gate
         env:
           NODE_ENV: test
