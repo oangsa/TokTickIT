@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ApiResponseError } from "../../src/api.js";
@@ -15,7 +15,49 @@ beforeEach(() => {
   });
 });
 const queueCalls = () => callApi.mock.calls.filter(([path]) => path.startsWith("/api/tickets?"));
-describe("UI-13–15 Queue controls @issue-5", () => {
+describe("UI-13–14 Queue controls @issue-5", () => {
+  it("UI-13 renders desktop table columns, loading state, explicit unassigned, and empty vs no-results", async () => {
+    let resolveCall: ((items: unknown[]) => void) | undefined;
+    callApi.mockImplementation(async (path: string, options?: { onResponse?: (response: Response) => void }) => {
+      if (!path.startsWith("/api/tickets?")) return [];
+      options?.onResponse?.(new Response(null, { headers: { "X-Pagination": JSON.stringify({ totalItems: 1, pageNumber: 1, pageSize: 10, totalPages: 1, hasNextPage: false, hasPreviousPage: false }) } }));
+      return new Promise((res) => { resolveCall = res; });
+    });
+    const { unmount } = render(<MemoryRouter><StaffTicketQueue /></MemoryRouter>);
+    expect(screen.getByRole("status", { name: "Loading Tickets" })).toBeInTheDocument();
+    resolveCall!([{
+      publicId: "20000000-0000-4000-8000-000000000011",
+      ticketNumber: "TK-20260916-0001",
+      requesterName: "Test Requester",
+      categoryId: 1,
+      categoryName: "Support",
+      summary: "VPN Outage",
+      requestedPriority: "MEDIUM",
+      itPriority: "HIGH",
+      currentStatus: "OPEN",
+      owner: null,
+      createdAt: "2026-09-16T00:00:00Z",
+      updatedAt: "2026-09-16T00:00:00Z",
+    }]);
+    await screen.findAllByText("TK-20260916-0001");
+    const table = screen.getByRole("table");
+    for (const heading of ["Ticket Number", "Summary / Category", "IT Priority", "Status", "Owner", "Created"]) {
+      expect(within(table).getByRole("columnheader", { name: heading })).toBeInTheDocument();
+    }
+    expect(within(table).getByText("Unassigned")).toBeInTheDocument();
+    expect(within(table).getByText("HIGH")).toBeInTheDocument();
+    expect(within(table).getByText("OPEN")).toBeInTheDocument();
+    unmount();
+
+    // No-results state when filters applied
+    callApi.mockImplementation(async (path: string, options?: { onResponse?: (response: Response) => void }) => {
+      options?.onResponse?.(new Response(null, { headers: { "X-Pagination": JSON.stringify({ totalItems: 0, pageNumber: 1, pageSize: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false }) } }));
+      return [];
+    });
+    const filteredRender = render(<MemoryRouter><StaffTicketQueue /></MemoryRouter>);
+    expect(await screen.findByText(/No Tickets match your search or filters/)).toBeInTheDocument();
+    filteredRender.unmount();
+  });
   it("pages populated results and resets paging when page size changes", async () => {
     callApi.mockImplementation(async (path: string, options?: { onResponse?: (response: Response) => void }) => {
       if (!path.startsWith("/api/tickets?")) return [];

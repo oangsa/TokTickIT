@@ -34,8 +34,8 @@ export function staffPrismaMock() {
   return { mock, prisma: mock as unknown as PrismaClient };
 }
 
-export function staffListRow() {
-  const row = staffTicketRow();
+export function staffListRow(overrides: Record<string, unknown> = {}) {
+  const row = staffTicketRow(overrides);
   return { publicId: row.publicId, ticketNumber: row.ticketNumber, requester: row.requester,
     categoryId: row.categoryId, category: row.category, summary: row.summary,
     requestedPriority: row.requestedPriority, itPriority: row.itPriority, currentStatus: row.currentStatus,

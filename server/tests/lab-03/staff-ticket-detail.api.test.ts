@@ -83,6 +83,36 @@ describe("API-18–29/32/55 Staff detail and actions @issue-5", () => {
     const response = await request(app).post(`${path}/${action}`).set("Authorization", bearerToken(tokens, STAFF.id));
     expect(response.status).toBe(409); expect(response.body.code).toBe("INVALID_STATUS_TRANSITION");
   });
+  it("API-22 rejects owner-only actions for non-owner IT Staff with 403 without mutation", async () => {
+    mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus: "OPEN", ownerUserId: ADMIN.id, owner: ADMIN }));
+    for (const action of ["start-work", "request-information", "resume-work", "mark-resolved", "close"] as const) {
+      const res = await request(app).post(`${path}/${action}`).set("Authorization", bearerToken(tokens, STAFF.id)).send({ content: "Need details" });
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe("FORBIDDEN");
+    }
+    expect(mock.ticket.updateMany).not.toHaveBeenCalled();
+  });
+  it("API-20/21 checks owner assignment eligibility and permits unassignment preserving status", async () => {
+    mock.user.findFirst.mockResolvedValue(null);
+    const badTarget = await request(app).patch(`${path}/owner`).set("Authorization", bearerToken(tokens, STAFF.id)).send({ ownerPublicId: REQUESTER.publicId, expectedOwnerPublicId: null });
+    expect(badTarget.status).toBe(400);
+    expect(badTarget.body.code).toBe("VALIDATION_ERROR");
+
+    mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus: "IN_PROGRESS", ownerUserId: STAFF.id, owner: STAFF }));
+    const unassign = await request(app).patch(`${path}/owner`).set("Authorization", bearerToken(tokens, STAFF.id)).send({ ownerPublicId: null, expectedOwnerPublicId: STAFF.publicId });
+    expect(unassign.status).toBe(200);
+    expect(mock.ticket.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ ownerUserId: null }) }));
+  });
+  it("API-29 requires requester confirmation before Close from RESOLVED", async () => {
+    mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus: "RESOLVED", ownerUserId: STAFF.id, owner: STAFF, requesterResolutionConfirmedAt: null }));
+    const unconfirmed = await request(app).post(`${path}/close`).set("Authorization", bearerToken(tokens, STAFF.id));
+    expect(unconfirmed.status).toBe(409);
+    expect(unconfirmed.body.code).toBe("INVALID_STATUS_TRANSITION");
+
+    mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus: "RESOLVED", ownerUserId: STAFF.id, owner: STAFF, requesterResolutionConfirmedAt: new Date() }));
+    const confirmed = await request(app).post(`${path}/close`).set("Authorization", bearerToken(tokens, STAFF.id));
+    expect(confirmed.status).toBe(200);
+  });
   it("API-55 lists metadata and serves protected preview/download with association guard", async () => {
     const storageKey = "20000000-0000-4000-8000-000000000011";
     expect((await request(app).get(`${path}/attachments`).set("Authorization", bearerToken(tokens, ADMIN.id))).body).toEqual([]);
