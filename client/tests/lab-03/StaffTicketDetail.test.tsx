@@ -22,8 +22,13 @@ const ticket: StaffTicket = {
 
 beforeEach(() => {
   auth.user = { publicId: "staff", role: "IT_STAFF" };
-  callApi.mockReset();
-  callApi.mockImplementation(async (path: string) => path === "/api/users/assignable" ? [{ publicId: "other", name: "Other Staff", role: "IT_STAFF" }] : ticket);
+  callApi.mockImplementation(async (path: string) => {
+    if (path === "/api/users/assignable") return [{ publicId: "other", name: "Other Staff", role: "IT_STAFF" }];
+    if (path.includes("/comments") || path.includes("/internal-notes")) {
+      return { items: [], pagination: { pageNumber: 1, pageSize: 10, totalPages: 1, totalItems: 0 } };
+    }
+    return ticket;
+  });
 });
 
 function renderDetail() {
@@ -250,5 +255,46 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     expect(availableStaffActions({ ...ticket, currentStatus: "RESOLVED", requesterResolutionConfirmedAt: "2026-09-16T00:00:00Z" }, auth.user)).toContain("close");
     expect(availableStaffActions({ ...ticket, currentStatus: "CANCELLED" }, auth.user)).toEqual([]);
     expect(availableStaffActions({ ...ticket, currentStatus: "CLOSED" }, auth.user)).toEqual([]);
+  });
+});
+
+describe("UI-21 Waiting Ticket after Requester comment @issue-6", () => {
+  it("renders new Public Comment while status remains Waiting without automatic Resume", async () => {
+    const waitingTicket = {
+      ...ticket,
+      currentStatus: "WAITING_FOR_REQUESTER" as const,
+    };
+    callApi.mockImplementation(async (path: string) => {
+      if (path === "/api/users/assignable") return [];
+      if (path.includes("/comments")) {
+        return [
+          {
+            publicId: "c-1",
+            content: "Here are the requested logs.",
+            author: { publicId: "req-1", name: "Requester", role: "REQUESTER" },
+            parentCommentPublicId: null,
+            replyTo: null,
+            depth: 0,
+            replyCount: 0,
+            replies: [],
+            createdAt: "2026-09-17T10:00:00Z",
+          },
+        ];
+      }
+      return waitingTicket;
+    });
+
+    renderDetail();
+    await screen.findByRole("heading", { name: ticket.ticketNumber });
+    expect(screen.getByText("WAITING FOR REQUESTER")).toBeInTheDocument();
+    expect(await screen.findByText("Here are the requested logs.")).toBeInTheDocument();
+
+    // Verify status remains WAITING FOR REQUESTER and Resume Work button is explicitly available
+    expect(screen.getByText("WAITING FOR REQUESTER")).toBeInTheDocument();
+    const resumeBtn = screen.getByRole("button", { name: "Resume Work" });
+    expect(resumeBtn).toBeInTheDocument();
+    expect(resumeBtn).toBeEnabled();
+    // No automatic call to /resume occurred
+    expect(callApi).not.toHaveBeenCalledWith(expect.stringContaining("/resume"), expect.anything());
   });
 });

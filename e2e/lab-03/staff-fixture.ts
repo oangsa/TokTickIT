@@ -25,7 +25,9 @@ export async function createStaffFixture(count = 1) {
     prisma, staff, requester, admin, password, tickets, category,
     async dispose() {
       const ids = tickets.map((ticket) => ticket.id);
+      await prisma.publicComment.deleteMany({ where: { ticketId: { in: ids }, parentCommentId: { not: null } } });
       await prisma.publicComment.deleteMany({ where: { ticketId: { in: ids } } });
+      await prisma.internalNote.deleteMany({ where: { ticketId: { in: ids } } });
       await prisma.attachment.deleteMany({ where: { ticketId: { in: ids } } });
       await prisma.ticket.deleteMany({ where: { id: { in: ids } } });
       await prisma.userSession.deleteMany({ where: { userId: { in: users.map((user) => user.id) } } });
