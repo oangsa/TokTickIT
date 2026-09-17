@@ -33,9 +33,6 @@ describe("API-18–29/32/55 Staff detail and actions @issue-5", () => {
         expect(response.status).toBe(409);
         expect(response.body.code).toBe("INVALID_STATUS_TRANSITION");
         expect(mock.ticket.updateMany).not.toHaveBeenCalled();
-      } else if (action === "request-information") {
-        expect(response.status).toBe(500); // Production remains fail-closed until Issue 6 composition.
-        expect(mock.ticket.updateMany).not.toHaveBeenCalled();
       } else {
         expect(response.status).toBe(200);
         expect(mock.ticket.updateMany).toHaveBeenCalledOnce();
