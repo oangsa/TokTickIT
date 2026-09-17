@@ -10,6 +10,7 @@
 | [#67](https://github.com/oangsa/TokTickIT/pull/67) | feature/60-lab3-data-auth-backend | _Record my partner's verdict_ |
 | _Pending_ | feature/61-commonform-auth-frontend | _Record my partner's verdict_ |
 | [#70](https://github.com/oangsa/TokTickIT/pull/70) | feature/63-staff-queue-ticket-workflow | Request Changes |
+| _Pending_ | feature/64-communication-admin-users | _Pending review_ |
 
 Reviewer comments I received (@kittipichcha):
 
