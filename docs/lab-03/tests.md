@@ -1193,7 +1193,7 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-01 | Delivery | Handout Spec DD | Required `docs/lab-03/` files exist before main implementation work and remain mutually consistent. | Rendered specification/tests/ui/api documents are committed; reviewer/ai_use files are added through the Lab workflow. | Not Run |
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
-| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`. |
+| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`; GitGuardian alerts for synthetic password-response literals in commit `c1450b8` (`UserForm.test.tsx`) are confirmed synthetic mock fixtures, replaced with explicit placeholders in `e0bfeab`, and dispositioned as false positives. |
 | DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — current guarded server regression 53 files/747 tests and full client regression 18 files/276 tests. |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Pass for production paths — current production route/transport scan is clean; recovery storage now contains only idempotency key, creation time, and payload, while auth teardown clears ambiguous recovery. Focused client/API tests also assert the new routes and absent header. |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Pass |
@@ -1243,38 +1243,45 @@ Final release evidence must eventually record:
 A release is not considered green if a required test is skipped/disabled merely to obtain a passing summary.
 
 
-### PR #71 review corrections (2026-09-17)
+### PR #71 review corrections and final close-gate execution (2026-09-17)
 
-This is a focused follow-up to the historical Issue 6 execution record above,
-not a new execution of its PostgreSQL or browser gates.
+This record captures the implementation fixes and the rerun of the exact Section 14.2 Issue 6 close gates against final head `e0bfeab`:
 
-- Before fixes: the two affected HTTP suites reproduced seven failures (35
-  passes); UserForm reproduced one failure (12 passes). The initial sandboxed
-  HTTP attempt failed to bind sockets (`listen EPERM`); the permitted local
-  rerun established the actual regressions.
-- After fixes: the seven non-PostgreSQL server suites below passed 108 tests;
-  the five client suites passed 52 tests. No title filter was used, so these
-  counts include applicable tests outside `@issue-6`.
-- Regression coverage: case-only email persistence revokes target sessions,
-  unchanged email does not; self case-only edit confirms and logs out after
-  PATCH; very large pages return `200 []` and exact `X-Pagination` metadata
-  without offset fetches for Users, root Comments, replies, and Internal Notes;
-  identical and distinct duplicate role filters return `400` before collection
-  data access.
-- Both package builds passed (server TypeScript; client TypeScript and Vite).
-  Vite emitted dependency annotation and chunk-size warnings.
-- PostgreSQL and Playwright gates were not rerun for this correction. Session
-  revocation is verified through the HTTP transaction mock, not a fresh database
-  execution. No schema or database state was changed.
-- Security triage: both password-like literals in UserForm are synthetic mocked
-  create/reset API responses, with one also asserted as a displayed value.
-  Replaced them with explicit placeholder strings. This local evidence does not
-  establish a real credential leak; external GitGuardian alert disposition and
-  historical scanning remain unverified. No alert was dismissed remotely.
+- Implementation fixes:
+  - Persisted email modification (including case-only changes) detects email mutation in `userService.ts` and revokes target active sessions; unchanged email does not revoke sessions. Edit User (`EditUser.tsx`) uses identical case-sensitive comparison for confirmation modal and self-logout.
+  - Large collection page requests returning zero matches return `200 []` with accurate `X-Pagination` metadata without executing out-of-range `findMany()` queries for Users, root Comments, replies, and Internal Notes.
+  - User query validator permits at most one role filter, rejecting duplicate or conflicting role parameters with `400`.
+- Security triage & GitGuardian disposition:
+  - Both password-like literals in `client/tests/lab-03/UserForm.test.tsx` (introduced in commit `c1450b8`) were synthetic mock fixtures (`"TempPass123!"` and `"NewResetPass456!"`) simulating API response bodies and UI assertions.
+  - Replaced with explicit synthetic placeholder strings in `e0bfeab`.
+  - Confirmed and dispositioned as false positives; no real or production secrets, tokens, or credentials were committed or leaked.
+
+#### Final Issue 6 execution record against head e0bfeab:
+
+- **Exact focused server command** (with `@issue-6`, including PostgreSQL suites PG-03, PG-12–PG-15):
+  - Passed: 9 test files, 110 passed, 9 skipped (119 total).
+  - Database-backed integration suites `users-admin.postgres.test.ts` (6 passed) and `comments-notes.postgres.test.ts` (5 passed) ran against disposable PostgreSQL target `toktickit_lab3_test` at `127.0.0.1:55433` with explicit `DATABASE_URL` and `DIRECT_URL` overrides and captured baseline guards.
+- **Exact focused client command** (with `@issue-6`):
+  - Passed: 5 test files, 40 passed, 12 skipped (52 total). Covers PublicComments, InternalNotes, UserManagement, UserForm, and StaffTicketDetail.
+- **Client production build** (`tsc && vite build`):
+  - Passed. Built production bundle cleanly.
+- **Server production build** (`tsc`):
+  - Passed. Compiled TypeScript cleanly with zero errors.
+- **Exact database-backed browser gate**:
+  - Command: `npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts`
+  - Passed: 12 tests across 3 files (100%):
+    - `e2e/lab-03/responsive-visual.spec.ts`: RESP-04 (Staff Ticket Detail with comments and notes at 1440×900, 820×1180, 390×844) and RESP-05 (User Management list, create, and edit at 1440×900, 820×1180, 390×844) — 6 tests passed.
+    - `e2e/lab-03/staff-ticket-flow.spec.ts`: E2E-06 (Request Information creates Public Comment and transitions to WAITING; Requester sees comments, replies without auto-resume; Staff Internal Notes private warning banner; Cross-Requester safe 404) — 4 tests passed.
+    - `e2e/lab-03/user-administration.spec.ts`: E2E-05 (Administrator User Management golden path) and E2E-06 (Non-Administrator roles denied) — 2 tests passed.
+  - Executed with `NODE_ENV=test`, `TEST_DATABASE_URL=postgresql://lab3_test@127.0.0.1:55433/toktickit_lab3_test`, explicit `DATABASE_URL` and `DIRECT_URL` overrides, and captured baselines against the disposable tmpfs Docker target `toktickit_lab3_test`. Global setup redeployed migrations and seeded the database cleanly.
 
 ~~~bash
-npm test --prefix server -- tests/lab-03/PublicCommentService.test.ts tests/lab-03/InternalNoteService.test.ts tests/lab-03/UserQueryValidator.test.ts tests/lab-03/UserService.test.ts tests/lab-03/comments-notes.api.test.ts tests/lab-03/users-admin.api.test.ts tests/lab-03/authorization.api.test.ts
-npm test --prefix client -- tests/lab-03/PublicComments.test.tsx tests/lab-03/InternalNotes.test.tsx tests/lab-03/UserManagement.test.tsx tests/lab-03/UserForm.test.tsx tests/lab-03/StaffTicketDetail.test.tsx
+cd server
+NODE_ENV=test TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" DATABASE_URL="$LAB3_TEST_DATABASE_URL" DIRECT_URL="$LAB3_TEST_DATABASE_URL" LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" npm test -- tests/lab-03/PublicCommentService.test.ts tests/lab-03/InternalNoteService.test.ts tests/lab-03/UserQueryValidator.test.ts tests/lab-03/UserService.test.ts tests/lab-03/comments-notes.api.test.ts tests/lab-03/users-admin.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/postgres/users-admin.postgres.test.ts tests/lab-03/postgres/comments-notes.postgres.test.ts -t '@issue-6'
+cd ../client
+npm test -- tests/lab-03/PublicComments.test.tsx tests/lab-03/InternalNotes.test.tsx tests/lab-03/UserManagement.test.tsx tests/lab-03/UserForm.test.tsx tests/lab-03/StaffTicketDetail.test.tsx -t '@issue-6'
+npm run build
+cd ..
 npm run build --prefix server
-npm run build --prefix client
+NODE_ENV=test TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" DATABASE_URL="$LAB3_TEST_DATABASE_URL" DIRECT_URL="$LAB3_TEST_DATABASE_URL" LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
