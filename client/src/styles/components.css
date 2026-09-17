@@ -276,6 +276,12 @@ a {
   }
 }
 
+.tt-staff-page { min-width: 0; overflow-wrap: anywhere; }
+.tt-staff-table { table-layout: fixed; width: 100%; }
+.tt-staff-table th, .tt-staff-table td { overflow-wrap: anywhere; vertical-align: middle; }
+.tt-staff-table th:nth-child(2) { width: 25%; }
+.tt-staff-page .badge { white-space: normal; }
+
 @media (min-width: 992px) {
   .tt-shell {
     grid-template-columns: var(--tt-sidebar-width) 1fr;

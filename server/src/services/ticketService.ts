@@ -25,7 +25,7 @@ export const PENDING_ATTACHMENT_TTL_HOURS = 24;
  * Without this, every create, replay, and detail read pulls up to five
  * 5,000,000-byte blobs (MAX_ATTACHMENT_BYTES) into memory only to discard them.
  */
-const TICKET_DTO_INCLUDE = {
+export const TICKET_DTO_INCLUDE = {
   requester: true,
   owner: { select: { publicId: true, name: true, role: true } },
   category: true,

@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { assertLab3TargetEnvironment } from "./server/src/databaseTargetGuard.js";
 
 const apiBaseUrl = "http://127.0.0.1:3000";
 const clientBaseUrl = "http://127.0.0.1:5173";
@@ -49,6 +50,11 @@ function requireTestDatabaseUrl(): string {
     );
   }
 
+  // Explicit Lab 3 overrides are safe only with captured, distinct baselines.
+  if (process.env.DATABASE_URL === testUrl && process.env.DIRECT_URL === testUrl) {
+    return assertLab3TargetEnvironment();
+  }
+
   for (const variableName of ["DATABASE_URL", "DIRECT_URL"] as const) {
     const comparisonUrl = process.env[variableName]?.trim();
 
@@ -73,6 +79,7 @@ function testEnvironment(testUrl: string): NodeJS.ProcessEnv {
     DATABASE_URL: testUrl,
     DIRECT_URL: testUrl,
     CORS_ALLOWED_ORIGINS: clientBaseUrl,
+    JWT_SECRET: process.env.JWT_SECRET || "synthetic-test-jwt-secret-at-least-32-chars-long",
   };
 }
 

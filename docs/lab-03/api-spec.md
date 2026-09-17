@@ -98,6 +98,7 @@ DELETE /api/users/me/attachments/collection
 POST   /api/users/me/tickets/:publicId/attachments
 
 STAFF / ADMIN TICKET RESOURCE
+GET   /api/users/assignable
 GET   /api/tickets
 GET   /api/tickets/:publicId
 POST  /api/tickets/:publicId/claim
@@ -1189,6 +1190,30 @@ Initial Staff UI commits filters that exclude `CLOSED` and `CANCELLED`.
 
 ## 13. Staff/Admin Ticket Detail and Actions
 
+### 13.0 Assignable Users
+
+```http
+GET /api/users/assignable
+Authorization: Bearer <FULL-session IT Staff or Administrator jwt>
+```
+
+Returns a direct `TicketOwnerDTO[]` with only `publicId`, `name`, and `role`.
+Includes Users with zero assigned Tickets. Every returned User must be active,
+non-deleted, and have role `IT_STAFF` or `ADMINISTRATOR`. Order is `name ASC`,
+then `publicId ASC`. This picker lookup is unpaginated and has no Ticket-specific
+eligibility predicate. Anonymous requests receive `401 UNAUTHENTICATED`;
+Requesters receive the safe `403 FORBIDDEN` contract. Restricted sessions remain
+subject to the common `PASSWORD_CHANGE_REQUIRED` guard.
+
+Lookup access does not authorize assignment. `PATCH /api/tickets/:publicId/owner`
+revalidates target eligibility, actor authority, and expected current owner
+inside its transaction. An Administrator who is not the Ticket owner can use
+the lookup but cannot mutate ownership.
+
+No `/api/tickets/me` or `/api/tickets/:publicId/assignable` route is added.
+Tickets assigned to the authenticated User use the existing Queue with an
+`ownerPublicId EQUAL <current-user-publicId>` filter.
+
 ### 13.1 Retrieve
 
 ```http
@@ -1208,6 +1233,8 @@ IT Staff only.
 Precondition: owner null.
 
 If current status is `NEW`, owner assignment and `NEW -> OPEN` commit together.
+
+Terminal/closed statuses: `CLOSED` and `CANCELLED` cannot be claimed; returns `409 INVALID_STATUS_TRANSITION`.
 
 Race: `409 OWNERSHIP_CONFLICT`.
 
@@ -1232,6 +1259,8 @@ IT Staff may assign/reassign/unassign.
 Admin non-owner cannot mutate owner.
 
 Admin current owner may reassign/unassign their Ticket.
+
+Closed and terminal Tickets (`CLOSED`, `CANCELLED`) cannot be assigned, reassigned, or unassigned; returns `409 INVALID_STATUS_TRANSITION`.
 
 Expected-owner mismatch => `409 OWNERSHIP_CONFLICT`.
 
@@ -1287,6 +1316,15 @@ Allowed from `OPEN`, `IN_PROGRESS`, `REOPENED`.
 
 One transaction creates Public Comment and moves to `WAITING_FOR_REQUESTER`.
 
+Issue 5 exposes `PublicCommentWriter(tx, { ticketId, authorUserId, content })`
+and injects it through `createStaffTicketsRouter`. Issue 6 owns its concrete
+implementation and application wiring. Until supplied, valid Request Information
+requests fail with the existing safe `500 INTERNAL_SERVER_ERROR` before any
+Ticket mutation; no comment or successful transition is fabricated. This is an
+explicit integration blocker, not a completed production workflow. Test-only
+writers exercise successful transactions and rollback without supplying a
+production persistence implementation.
+
 ### 13.7 Resume Work
 
 ```http
@@ -1327,7 +1365,9 @@ Requires `RESOLVED` and Requester resolution confirmation.
 POST /api/tickets/:publicId/cancel
 ```
 
-Authorized operational actor only.
+Any authenticated IT Staff User, or the currently assigned Administrator owner.
+IT Staff need not own the Ticket, including when cancelling an unassigned `NEW`
+Ticket. Administrator non-owners are forbidden.
 
 Allowed from `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `REOPENED`.
 
@@ -1712,6 +1752,7 @@ serialized through `X-Pagination`.
 | Requester My Tickets/Create | own role only | no | no | no |
 | Ticket read | own | yes | yes | yes |
 | Staff/Admin Queue | no | yes | yes | yes |
+| Assignable User lookup | no | yes | yes | yes |
 | Public Comment read | own | yes | yes | yes |
 | Public Comment post | own | yes | yes | yes |
 | Internal Note read | no | yes | yes | yes |
@@ -1722,7 +1763,7 @@ serialized through `X-Pagination`.
 | Start/Request Info/Resume/Resolve/Close | no | owner only | no | owner only |
 | Looks Resolved/Reopen | own | no | no | no |
 | Requester Cancel | own NEW/OPEN | no | no | no |
-| Staff/Admin Cancel | no | authorized flow | no | owner |
+| Staff/Admin Cancel | no | any IT Staff, approved source states | no | owner |
 | Existing Attachment read | own | yes | yes | yes |
 | Requester Attachment mutate | own | no | no | no |
 | User Management | no | no | yes | yes |

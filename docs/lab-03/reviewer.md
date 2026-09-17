@@ -9,14 +9,17 @@
 |----|--------|------------------|
 | [#67](https://github.com/oangsa/TokTickIT/pull/67) | feature/60-lab3-data-auth-backend | _Record my partner's verdict_ |
 | _Pending_ | feature/61-commonform-auth-frontend | _Record my partner's verdict_ |
+| [#70](https://github.com/oangsa/TokTickIT/pull/70) | feature/63-staff-queue-ticket-workflow | Request Changes |
 
 Reviewer comments I received (@kittipichcha):
 
-- _Add the comments from my partner's GitHub review here._
+- [P1] A cancelled Ticket can still be claimed through the API: Claim on CANCELLED (and CLOSED) must be rejected with 409 INVALID_STATUS_TRANSITION before mutating ownership or status.
+- [P1] Issue 5 close gate inconsistency: Clarify cross-issue boundary between Issue 5 and Issue 6 for Request Information. Issue 5 verifies safe pre-integration failure and injected transaction seam; production browser integration belongs to Issue 6.
 
 How I responded:
 
-- _Record the changes or replies made for each review comment here._
+- Enforced rejection of Claim and owner mutation on CANCELLED and CLOSED tickets with 409 `INVALID_STATUS_TRANSITION` in `ticketWorkflowService.ts` before ownership updates. Added unit, API, and PostgreSQL regression tests verifying owner and status remain unchanged.
+- Clarified cross-issue contract in `specification.md`, `api-spec.md`, and `tests.md`: Issue 5 E2E-04 covers workflow actions with safe pre-integration 500 failure; production Request Information browser comment persistence is assigned to Issue 6 (E2E-06). Updated UI-20 test and description to verify form validation, submission, modal close, and state update to WAITING_FOR_REQUESTER.
 
 ## Pull Requests I reviewed for my partner
 

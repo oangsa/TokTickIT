@@ -16,6 +16,7 @@ export interface PreviewTarget {
 interface AttachmentPreviewModalProps {
   target: PreviewTarget | null;
   onClose: () => void;
+  basePath?: string;
 }
 
 /*
@@ -32,7 +33,7 @@ interface AttachmentPreviewModalProps {
  *
  * `Modal` already owns the focus trap, Escape, and focus return.
  */
-export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewModalProps) {
+export function AttachmentPreviewModal({ target, onClose, basePath = "/api/users/me/attachments" }: AttachmentPreviewModalProps) {
   const fetchBlob = useAuthenticatedBlob();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -47,7 +48,7 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
 
     setFailed(false);
 
-    void fetchBlob(`/api/users/me/attachments/${encodeURIComponent(target.attachmentId)}/preview`, {
+    void fetchBlob(`${basePath}/${encodeURIComponent(target.attachmentId)}/preview`, {
       timeoutMs: ATTACHMENT_TIMEOUT_MS,
     })
       .then((blob) => {
@@ -72,7 +73,7 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
         URL.revokeObjectURL(url);
       }
     };
-  }, [target, fetchBlob]);
+  }, [target, fetchBlob, basePath]);
 
   if (target === null) {
     return null;
@@ -120,6 +121,7 @@ export function AttachmentPreviewModal({ target, onClose }: AttachmentPreviewMod
         <AttachmentDownloadButton
           attachmentId={target.attachmentId}
           originalName={target.originalName}
+          basePath={basePath}
         />
       </div>
     </Modal>
@@ -137,9 +139,11 @@ export function AttachmentDownloadButton({
   attachmentId,
   originalName,
   variant = "secondary",
+  basePath = "/api/users/me/attachments",
 }: {
   attachmentId: string;
   originalName: string;
+  basePath?: string;
   /*
    * `icon` is the table-row presentation: the same action as a control sized to
    * a row, naming the file it downloads. ui-spec Section 29.8 allows an
@@ -164,7 +168,7 @@ export function AttachmentDownloadButton({
     setFailed(false);
 
     try {
-      const blob = await fetchBlob(`/api/users/me/attachments/${encodeURIComponent(attachmentId)}/download`, {
+      const blob = await fetchBlob(`${basePath}/${encodeURIComponent(attachmentId)}/download`, {
         timeoutMs: ATTACHMENT_TIMEOUT_MS,
       });
       const url = URL.createObjectURL(blob);

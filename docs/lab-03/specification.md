@@ -283,9 +283,9 @@ The implementation must not reintroduce or silently change any of the following:
 - **BR-47** Requested Priority is immutable after Requester submission.
 - **BR-48** IT Priority uses `LOW | MEDIUM | HIGH`, is initialized from Requested Priority, and may later be changed only by IT Staff or an explicitly assigned Administrator owner.
 - **BR-49** A Ticket may have zero or one primary owner. An owner must be an active IT Staff or Administrator User.
-- **BR-50** Claim applies only to an unassigned Ticket and assigns the current IT Staff User.
+- **BR-50** Claim applies only to an unassigned Ticket and assigns the current IT Staff User. Claim is rejected with `409 INVALID_STATUS_TRANSITION` on `CANCELLED` and `CLOSED` Tickets.
 - **BR-51** Claim/assignment of an unassigned `NEW` Ticket atomically sets the owner and changes status to `OPEN`.
-- **BR-52** Assignment/reassignment/unassignment uses optimistic concurrency by supplying the expected current owner. A mismatch returns `409 OWNERSHIP_CONFLICT`.
+- **BR-52** Assignment/reassignment/unassignment uses optimistic concurrency by supplying the expected current owner. A mismatch returns `409 OWNERSHIP_CONFLICT`. Closed and terminal Tickets (`CLOSED`, `CANCELLED`) cannot be assigned, reassigned, or unassigned (`409 INVALID_STATUS_TRANSITION`).
 - **BR-53** Unassignment does not otherwise change status. For example, `IN_PROGRESS` may become unassigned while remaining `IN_PROGRESS`.
 - **BR-54** IT Staff may assign/reassign a Ticket to an eligible active IT Staff or Administrator owner. Replacing an existing owner requires confirmation in the UI.
 - **BR-55** Administrators cannot Claim. A normal Administrator is read-only for Ticket operations; Ticket read, Public Comment read/post, and Internal Note read remain non-operational permissions. An Administrator explicitly assigned as owner receives the same owner-only Ticket operational permissions defined by the authorization matrix.
@@ -321,7 +321,7 @@ The implementation must not reintroduce or silently change any of the following:
 - **BR-61** Requester `Problem Still Exists` is permitted from `RESOLVED` or `CLOSED`; it changes status to `REOPENED`, clears `requesterResolutionConfirmedAt`, and sets owner to null.
 - **BR-62** Reopening does not reset Requested Priority or IT Priority.
 - **BR-63** A Requester may cancel only their own Ticket in `NEW` or `OPEN`.
-- **BR-64** Authorized IT Staff/Administrator owners may cancel according to the matrix. Cancel, Close, Unassign, Reassign-away, Problem Still Exists, and Mark Resolved require UI confirmation.
+- **BR-64** Any authenticated IT Staff User may cancel from the matrix's approved source states, including unassigned `NEW`; an Administrator must be the current Ticket owner. Assignment lookup access alone grants no operational permission. Cancel, Close, Unassign, Reassign-away, Problem Still Exists, and Mark Resolved require UI confirmation.
 - **BR-65** Request Information requires a trimmed Public Comment message and commits comment creation plus the status transition in one transaction.
 - **BR-66** A Requester posting a Public Comment while status is `WAITING_FOR_REQUESTER` does not automatically change status; the current owner decides when to Resume Work.
 - **BR-67** Invalid lifecycle actions return `409 INVALID_STATUS_TRANSITION`.
@@ -746,7 +746,7 @@ Queryable collection endpoints follow the shared Ticket-style contract and retur
 - **AC-24** Admin non-owner cannot perform IT operations; Admin owner gains approved owner-only operations.
 - **AC-25** IT Priority change never changes Requested Priority.
 - **AC-26** Only BR-58 lifecycle transitions succeed; invalid transitions return `409 INVALID_STATUS_TRANSITION`.
-- **AC-27** Request Information commits Public Comment + Waiting status together or neither.
+- **AC-27** Request Information commits Public Comment + Waiting status together or neither. Issue 5 verifies the transactional seam via injected API and PostgreSQL tests, and preserves safe pre-integration failure; production PublicCommentWriter wiring and end-to-end browser comment integration are completed in Issue 6.
 - **AC-28** Requester comment while Waiting does not auto-resume.
 - **AC-29** Mark Resolved moves to `RESOLVED` and exposes Requester confirmation.
 - **AC-30** Close is blocked until Requester resolution confirmation exists.

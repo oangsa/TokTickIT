@@ -9,6 +9,7 @@ import { authRouter } from "./routes/auth.js";
 import { attachmentsRouter } from "./routes/attachments.js";
 import { referenceDataRouter } from "./routes/referenceData.js";
 import { ticketsRouter } from "./routes/tickets.js";
+import { createStaffTicketsRouter } from "./routes/staffTickets.js";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -40,6 +41,7 @@ app.use("/api", requireFullSession());
 // Reference data and authenticated Lab 2 requester routes.
 // ---------------------------------------------------------------------------
 app.use("/api", referenceDataRouter);
+app.use("/api", createStaffTicketsRouter());
 
 // ---------------------------------------------------------------------------
 // Issue 21 — Ticket creation
