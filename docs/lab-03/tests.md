@@ -1285,3 +1285,47 @@ cd ..
 npm run build --prefix server
 NODE_ENV=test TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" DATABASE_URL="$LAB3_TEST_DATABASE_URL" DIRECT_URL="$LAB3_TEST_DATABASE_URL" LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
+
+
+### Issue #64 / PR #71 current-head verification (2026-09-17)
+
+Verified commit `3b4be4c0ccc1b6728443976bf717712bb1a4fbfe` on
+`feature/64-communication-admin-users`, starting with a clean working tree.
+Executed the exact Section 14.2 Issue 6 file selections and `@issue-6` filters
+shown above; no application or test source was changed.
+
+| Gate | Actual result |
+| --- | --- |
+| Server focused Vitest/Supertest/PostgreSQL selection | 9 files passed; 110 tests passed, 9 excluded by the name filter; exit 0 |
+| PostgreSQL suites within that selection | users-admin: 6 passed; comments-notes: 5 passed; no database tests skipped |
+| Client focused Vitest selection | 5 files passed; 40 tests passed, 12 excluded by the name filter; exit 0 |
+| `npm run build --prefix client` | TypeScript and Vite passed; exit 0 |
+| `npm run build --prefix server` | TypeScript passed; exit 0 |
+| Exact Issue 6 Playwright selection | 12 passed, none skipped; exit 0 (25.8 seconds) |
+
+Playwright covered RESP-04 and RESP-05 at 1440×900, 820×1180, and 390×844
+(six mocked responsive checks), plus six live API/database browser checks for
+E2E-05 and E2E-06. The latter verified Administrator User Management, production
+Request Information/comment persistence, Requester replies without automatic
+resume, private Internal Notes, cross-Requester 404, and non-Administrator denial.
+Responsive screenshots were regenerated in the existing staff-ticket-detail and
+user-management evidence directories using synthetic fixtures.
+
+Database isolation: created a fresh disposable PostgreSQL 17 container named
+`toktickit-issue64-verification`, database `toktickit_lab3_test` at
+`127.0.0.1:55434`. Captured the existing DATABASE_URL and DIRECT_URL privately as
+the two LAB3 baseline variables, then explicitly set DATABASE_URL, DIRECT_URL,
+and TEST_DATABASE_URL to the disposable target. Read-only Prisma migrate status
+confirmed that target and four pending migrations before the guarded suites
+applied them. Initial sandbox network access failed with P1001; rerunning with
+local network access reached the intended target. Tests reset only this fresh
+disposable database. No shared database was modified; no schema source changed.
+The container was removed after verification.
+
+Non-fatal output: client test emitted a missing `/login` route warning; Vite
+reported dependency annotation and bundle-size warnings; PostgreSQL client
+reported a concurrent-query deprecation warning. None failed a gate. Full
+regression suites and remote CI were not rerun in this evidence-only task.
+GitGuardian alert disposition and peer approval were not changed or reverified.
+This record establishes the requested local current-head acceptance evidence;
+it does not claim a new GitHub review decision. No commit or push was requested.

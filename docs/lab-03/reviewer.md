@@ -43,3 +43,14 @@ _Add my review findings and approval/request-changes decision here._
 Partner's response:
 
 _Add my partner's response here._
+
+
+## Issue #64 acceptance-evidence follow-up (2026-09-17)
+
+The supplied review requested exact `@issue-6` verification on `3b4be4c`.
+Those Section 14.2 gates were executed locally: server 110 passed (including all
+11 PostgreSQL tests), client 40 passed, browser 12 passed, and both builds passed.
+Nine server and twelve client tests were excluded by the requested name filter.
+See the current-head execution record in tests.md for isolation and limitations.
+This is verification evidence, not a new independent code review or peer approval;
+no GitHub review or GitGuardian disposition was performed in this session.

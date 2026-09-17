@@ -58,3 +58,11 @@ prompt history is unavailable.
 
 | PR #71 re-review against Issue #64: case-only email revocation, oversized pagination, duplicate role filters, and password-fixture triage. | Reproduced seven server and one client regression failures; fixed persisted email-change detection and self-logout, guarded User/Comment/reply/Note page fetches, and limited role filters to one. Added HTTP/UI regressions, clarified API contracts, and replaced synthetic password-response literals with explicit placeholders. Verification and remaining limits are recorded in tests.md. No GitHub review, alert disposition, commit, or push was performed. |
 | PR #71 re-review verification request: run exact Issue 6 commands against e0bfeab including database-backed browser gate, append results to execution record, and provide GitGuardian false-positive disposition. | Executed exact Section 14.2 Issue 6 close-gate commands against head `e0bfeab`: server focused suite with PostgreSQL (9 files, 110 passed, 9 skipped), client focused suite (5 files, 40 passed, 12 skipped), client build (`tsc && vite build`), server build (`tsc`), and database-backed Playwright browser gate (3 files, 12 passed: RESP-04, RESP-05, E2E-05, E2E-06 against disposable Docker PostgreSQL target `toktickit_lab3_test`). Confirmed GitGuardian findings in `UserForm.test.tsx` are synthetic mock fixtures and dispositioned as false positives. Appended full execution evidence to `tests.md` and updated `reviewer.md`. |
+
+
+## Current-head verification follow-up (2026-09-17)
+
+| Prompt | Use of result |
+| --- | --- |
+| Supplied PR #71 review identifying missing Issue #64 current-head `@issue-6` acceptance evidence. | Ran exact Section 14.2 focused server, client, and browser selections against `3b4be4c`: 110 server and 40 client tests passed, plus 12 browser tests; filter exclusions were 9 and 12 respectively. Both builds passed. Used a fresh isolated local PostgreSQL container, updated tests.md and reviewer.md, and regenerated synthetic responsive screenshots. No implementation changes, commit, push, or GitHub review action. |
+| commit and push | Staged and committed Issue #64 verification documentation and responsive screenshot updates, and pushed `feature/64-communication-admin-users` to `origin`. |
