@@ -763,6 +763,8 @@ Visible requirements communicate:
 - spaces are allowed but do not count as the required symbol;
 - the new password must differ from the current password.
 
+Show all password requirements as a live checklist. Keep satisfied rules visible with green text and a checkmark; unmet rules use neutral text and an open-circle icon. Include accessible met/not-met text. Recompute on each edit, including deletion. In restricted sessions, label the different-password rule as checked on submission because the current password is not available to the client.
+
 Do not trim, normalize, or silently rewrite password content.
 
 ## 9.4 Confirmation field

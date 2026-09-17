@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -10,6 +10,51 @@ function response(body: unknown, status = 200): Response { return new Response(b
 afterEach(() => { clearAccessToken(false); vi.unstubAllGlobals(); });
 
 describe("Issue 3 Change Password", () => {
+  it.each([true, false])("updates every requirement while typing and deleting (restricted=%s)", async (restricted) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response({ accessToken: "test-session", expiresIn: 600 }))
+      .mockResolvedValueOnce(response({ publicId: "u-1", name: "Alice", email: "alice@example.com", role: "REQUESTER", isActive: true, mustChangePassword: restricted, sessionStage: restricted ? "PASSWORD_CHANGE_REQUIRED" : "FULL" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/change-password"]}><App /></MemoryRouter>);
+    const input = await screen.findByLabelText("New Password *");
+    const checklist = within(screen.getByRole("region", { name: "Password requirements" }));
+    const items = checklist.getAllByRole("listitem");
+    expect(items).toHaveLength(7);
+    items.forEach((item) => expect(item).not.toHaveClass("text-success"));
+    if (!restricted) await user.type(screen.getByLabelText("Current Password *"), "OldPass1!");
+    await user.type(input, "abcdefgh");
+    expect(items[0]).toHaveClass("text-success");
+    expect(items[3]).toHaveClass("text-success");
+    expect(items[2]).not.toHaveClass("text-success");
+    expect(items[4]).not.toHaveClass("text-success");
+    expect(items[5]).not.toHaveClass("text-success");
+    await user.type(input, "A١ ");
+    expect(items[2]).toHaveClass("text-success");
+    expect(items[4]).toHaveClass("text-success");
+    expect(items[5]).not.toHaveClass("text-success");
+    await user.type(input, "😀");
+    items.slice(0, 6).forEach((item) => expect(item).toHaveClass("text-success"));
+    if (restricted) {
+      expect(items[6]).not.toHaveClass("text-success");
+      expect(items[6]).toHaveTextContent("checked when you submit");
+    } else {
+      expect(items[6]).toHaveClass("text-success");
+      await user.clear(screen.getByLabelText("Current Password *"));
+      await user.type(screen.getByLabelText("Current Password *"), "abcdefghA١ 😀");
+      expect(items[6]).not.toHaveClass("text-success");
+    }
+    await user.clear(input);
+    await user.click(input);
+    await user.paste("Aa1!" + "😀".repeat(124));
+    expect(items[1]).toHaveClass("text-success");
+    await user.type(input, "x");
+    expect(items[1]).not.toHaveClass("text-success");
+    await user.clear(input);
+    items.forEach((item) => expect(item).not.toHaveClass("text-success"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("UI-04 shows restricted fields, validates confirmation, and requires fresh login @issue-3", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(response({ accessToken: "restricted", expiresIn: 600 }))

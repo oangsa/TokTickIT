@@ -66,3 +66,11 @@ prompt history is unavailable.
 | --- | --- |
 | Supplied PR #71 review identifying missing Issue #64 current-head `@issue-6` acceptance evidence. | Ran exact Section 14.2 focused server, client, and browser selections against `3b4be4c`: 110 server and 40 client tests passed, plus 12 browser tests; filter exclusions were 9 and 12 respectively. Both builds passed. Used a fresh isolated local PostgreSQL container, updated tests.md and reviewer.md, and regenerated synthetic responsive screenshots. No implementation changes, commit, push, or GitHub review action. |
 | commit and push | Staged and committed Issue #64 verification documentation and responsive screenshot updates, and pushed `feature/64-communication-admin-users` to `origin`. |
+
+
+## Password checklist UX (2026-09-17)
+
+| Prompt | Use of result |
+| --- | --- |
+| Change password UX to show all security requirements and turn satisfied rules green, using project-inventory-management as reference. | Inspected reference ResetPassForm and existing Lab 3 rules. Added live accessible checklist using existing validation predicates, retained server validation, and added typing/deletion/Unicode coverage for full and restricted sessions. |
+| Merge checklist into feature/64-communication-admin-users, commit, and push. | Authorized committing the four checklist files and integrating them into the requested branch; unrelated server edits remain uncommitted. Verification before integration: 336 client tests passed; client and server builds passed. Browser visual checks were not run. |
