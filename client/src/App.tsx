@@ -14,6 +14,9 @@ import MyTickets from "./pages/MyTickets.js";
 import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
 import StaffTicketQueue from "./pages/StaffTicketQueue.js";
 import StaffTicketDetail from "./pages/StaffTicketDetail.js";
+import UserManagement from "./pages/UserManagement.js";
+import CreateUser from "./pages/CreateUser.js";
+import EditUser from "./pages/EditUser.js";
 
 /* `/` resolves against the authenticated role after bootstrap. */
 function RootRedirect() {
@@ -65,9 +68,9 @@ export default function App({ enableHistoryBlocking = false }: { enableHistoryBl
         <Route path="/staff/tickets/:publicId" element={<StaffTicketDetail />} />
       </Route></Route>
       <Route element={<RoleGuard roles={["ADMINISTRATOR"]} />}><Route element={<AppShell />}>
-        <Route path="/admin/users" element={<UnavailablePage title="User Management" />} />
-        <Route path="/admin/users/new" element={<UnavailablePage title="Create User" />} />
-        <Route path="/admin/users/:publicId/edit" element={<UnavailablePage title="Edit User" />} />
+        <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/users/new" element={<CreateUser />} />
+        <Route path="/admin/users/:publicId/edit" element={<EditUser />} />
         <Route path="/admin/tickets" element={<StaffTicketQueue />} />
         <Route path="/admin/tickets/:publicId" element={<StaffTicketDetail />} />
       </Route></Route>

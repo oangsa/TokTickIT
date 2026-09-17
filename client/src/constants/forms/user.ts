@@ -2,7 +2,7 @@ import type { FormSection } from "../../forms/formTypes.js";
 import type { UserRole } from "../../auth/authTypes.js";
 
 export const USER_FORM_RULES = {
-  name: { minLength: 1, maxLength: 120 },
+  name: { minLength: 1, maxLength: 100 },
   email: { maxLength: 254 },
 } as const;
 

@@ -13,6 +13,8 @@ import { useManagedForm } from "../forms/useManagedForm.js";
 import { REQUEST_INFORMATION_SECTIONS, TICKET_FORM_RULES, type RequestInformationValues } from "../constants/forms/ticket.js";
 import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
+import { PublicComments } from "../components/PublicComments.js";
+import { InternalNotes } from "../components/InternalNotes.js";
 import { ticketDateTime } from "../tickets/ticketDate.js";
 import { ACTION_LABELS, availableStaffActions, PRIORITIES, statusLabel, type StaffAction, type StaffTicket, type TicketOwnerDTO } from "../tickets/staffTickets.js";
 
@@ -43,6 +45,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [reloadCount, setReloadCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<"comments" | "notes">("comments");
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const generation = useRef(0);
   const basePath = `/api/tickets/${encodeURIComponent(publicId ?? "")}`;
@@ -126,7 +129,52 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
         <div className="d-flex flex-wrap gap-2">{user && availableStaffActions(ticket, user).map((action) => <Button key={action} disabled={busy || conflict} busy={busy} variant={action === "cancel" ? "destructive" : "secondary"} onClick={() => selectAction(action)}>{ACTION_LABELS[action]}</Button>)}</div>
       </Card></div>
       <div className="col-12"><Card title="Attachments">{ticket.attachments.length === 0 ? <p>No Attachments.</p> : <ul className="list-unstyled mb-0">{ticket.attachments.map((attachment) => <li className="d-flex flex-wrap align-items-center gap-2 border-bottom py-3" key={attachment.attachmentId}><span className="text-break me-auto">{attachment.originalName}</span>{attachment.deleted ? <span>Removed — {attachment.removalReason}</span> : <><Button onClick={() => setPreview(attachment)}>Preview {attachment.originalName}</Button><AttachmentDownloadButton attachmentId={attachment.attachmentId} originalName={attachment.originalName} basePath={`${basePath}/attachments`} /></>}</li>)}</ul>}</Card></div>
-      <div className="col-12"><Card title="Communication">{communicationSlot?.(ticket, reload)}</Card></div>
+      <div className="col-12"><Card title="Communication">
+        {communicationSlot ? (
+          communicationSlot(ticket, reload)
+        ) : (
+          <div>
+            <ul className="nav nav-tabs mb-3" role="tablist">
+              <li className="nav-item" role="presentation">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "comments"}
+                  className={`nav-link ${activeTab === "comments" ? "active" : ""}`}
+                  onClick={() => setActiveTab("comments")}
+                >
+                  Public Comments
+                </button>
+              </li>
+              <li className="nav-item" role="presentation">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "notes"}
+                  className={`nav-link ${activeTab === "notes" ? "active" : ""}`}
+                  onClick={() => setActiveTab("notes")}
+                >
+                  Internal Notes
+                </button>
+              </li>
+            </ul>
+            {activeTab === "comments" ? (
+              <PublicComments
+                key={`${ticket.publicId}-${ticket.updatedAt}-${ticket.currentStatus}`}
+                ticketPublicId={ticket.publicId}
+                onCommentAdded={reload}
+              />
+            ) : (
+              <InternalNotes
+                key={`${ticket.publicId}-${ticket.updatedAt}-${ticket.currentStatus}`}
+                ticketPublicId={ticket.publicId}
+                ticketOwnerPublicId={ticket.owner?.publicId}
+                onNoteAdded={reload}
+              />
+            )}
+          </div>
+        )}
+      </Card></div>
     </div>
     <AttachmentPreviewModal target={preview} onClose={() => setPreview(null)} basePath={`${basePath}/attachments`} />
     <Modal open={lookupOpen} title="Choose Ticket Owner" onClose={() => !busy && setLookupOpen(false)} footer={<><Button onClick={() => setLookupOpen(false)}>Cancel</Button><Button variant="primary" disabled={lookupError || busy || terminal || ownerPublicId === (ticket.owner?.publicId ?? "")} onClick={saveOwner}>Apply Owner</Button></>}>
