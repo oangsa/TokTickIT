@@ -251,6 +251,13 @@ export async function getRootComments(
     where: { ticketId: ticket.id, parentCommentId: null },
   });
 
+  if ((pageNumber - 1) * pageSize >= totalItems) {
+    return {
+      items: [],
+      pagination: buildPaginationMetadata(pageNumber, pageSize, totalItems),
+    };
+  }
+
   const roots = await prisma.publicComment.findMany({
     where: { ticketId: ticket.id, parentCommentId: null },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -397,6 +404,13 @@ export async function getCommentReplies(
       : { OR: [{ parentCommentId: root.id }, { parentCommentId: { in: d1Ids } }] };
 
   const totalItems = await prisma.publicComment.count({ where: replyWhere });
+
+  if ((pageNumber - 1) * pageSize >= totalItems) {
+    return {
+      items: [],
+      pagination: buildPaginationMetadata(pageNumber, pageSize, totalItems),
+    };
+  }
 
   const replies = await prisma.publicComment.findMany({
     where: replyWhere,

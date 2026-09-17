@@ -131,6 +131,27 @@ const ROOT_COMMENT_ID = "c1000000-0000-4000-8000-000000000001";
 const DEPTH1_COMMENT_ID = "c2000000-0000-4000-8000-000000000002";
 const DEPTH2_COMMENT_ID = "c3000000-0000-4000-8000-000000000003";
 
+  it.each(["comments", `comments/${ROOT_COMMENT_ID}/replies`, "internal-notes"])(
+    "returns empty large pages for %s without oversized Prisma queries", async (path) => {
+      mock.publicComment.findFirst.mockResolvedValue({ id: 10 });
+      mock.publicComment.count.mockResolvedValue(1);
+      mock.publicComment.findMany.mockResolvedValue([]);
+      mock.internalNote.count.mockResolvedValue(1);
+      mock.internalNote.findMany.mockResolvedValue([]);
+      const response = await request(app).get(`/api/tickets/${TICKET_ID}/${path}`)
+        .query({ pageNumber: Number.MAX_SAFE_INTEGER, pageSize: 10 })
+        .set("Authorization", bearerToken(tokens, STAFF.id));
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
+      expect(JSON.parse(response.headers["x-pagination"])).toEqual({
+        pageNumber: Number.MAX_SAFE_INTEGER, pageSize: 10, totalItems: 1,
+        totalPages: 1, hasPreviousPage: true, hasNextPage: false,
+      });
+      expect(mock.publicComment.findMany).not.toHaveBeenCalledWith(expect.objectContaining({ skip: expect.any(Number) }));
+      expect(mock.internalNote.findMany).not.toHaveBeenCalled();
+    },
+  );
+
   describe("API-34 Retrieve root Public Comments @issue-6", () => {
     it("defaults to 10 newest-first roots with total replyCount and up to 3 preview replies", async () => {
       mock.publicComment.count.mockImplementation(async (args: any) =>

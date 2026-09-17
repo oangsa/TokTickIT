@@ -1241,3 +1241,40 @@ Final release evidence must eventually record:
 - any blocked/skipped test and why.
 
 A release is not considered green if a required test is skipped/disabled merely to obtain a passing summary.
+
+
+### PR #71 review corrections (2026-09-17)
+
+This is a focused follow-up to the historical Issue 6 execution record above,
+not a new execution of its PostgreSQL or browser gates.
+
+- Before fixes: the two affected HTTP suites reproduced seven failures (35
+  passes); UserForm reproduced one failure (12 passes). The initial sandboxed
+  HTTP attempt failed to bind sockets (`listen EPERM`); the permitted local
+  rerun established the actual regressions.
+- After fixes: the seven non-PostgreSQL server suites below passed 108 tests;
+  the five client suites passed 52 tests. No title filter was used, so these
+  counts include applicable tests outside `@issue-6`.
+- Regression coverage: case-only email persistence revokes target sessions,
+  unchanged email does not; self case-only edit confirms and logs out after
+  PATCH; very large pages return `200 []` and exact `X-Pagination` metadata
+  without offset fetches for Users, root Comments, replies, and Internal Notes;
+  identical and distinct duplicate role filters return `400` before collection
+  data access.
+- Both package builds passed (server TypeScript; client TypeScript and Vite).
+  Vite emitted dependency annotation and chunk-size warnings.
+- PostgreSQL and Playwright gates were not rerun for this correction. Session
+  revocation is verified through the HTTP transaction mock, not a fresh database
+  execution. No schema or database state was changed.
+- Security triage: both password-like literals in UserForm are synthetic mocked
+  create/reset API responses, with one also asserted as a displayed value.
+  Replaced them with explicit placeholder strings. This local evidence does not
+  establish a real credential leak; external GitGuardian alert disposition and
+  historical scanning remain unverified. No alert was dismissed remotely.
+
+~~~bash
+npm test --prefix server -- tests/lab-03/PublicCommentService.test.ts tests/lab-03/InternalNoteService.test.ts tests/lab-03/UserQueryValidator.test.ts tests/lab-03/UserService.test.ts tests/lab-03/comments-notes.api.test.ts tests/lab-03/users-admin.api.test.ts tests/lab-03/authorization.api.test.ts
+npm test --prefix client -- tests/lab-03/PublicComments.test.tsx tests/lab-03/InternalNotes.test.tsx tests/lab-03/UserManagement.test.tsx tests/lab-03/UserForm.test.tsx tests/lab-03/StaffTicketDetail.test.tsx
+npm run build --prefix server
+npm run build --prefix client
+~~~

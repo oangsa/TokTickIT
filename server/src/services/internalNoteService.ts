@@ -77,6 +77,13 @@ export async function getInternalNotes(
     where: { ticketId: ticket.id },
   });
 
+  if ((pageNumber - 1) * pageSize >= totalItems) {
+    return {
+      items: [],
+      pagination: buildPaginationMetadata(pageNumber, pageSize, totalItems),
+    };
+  }
+
   const notes = await prisma.internalNote.findMany({
     where: { ticketId: ticket.id },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

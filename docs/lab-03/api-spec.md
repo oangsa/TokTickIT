@@ -1540,6 +1540,8 @@ Non-blank `search` requires at least one approved search field and is trimmed
 to 200 characters. Malformed filters, unknown fields/conditions, duplicate
 search fields, invalid role values, unsupported sort fields, and invalid page
 values return `400 VALIDATION_ERROR` before QueryBuilder or Prisma execution.
+At most one role-filter expression is accepted; multiple expressions return `400 VALIDATION_ERROR`, including repeated identical expressions.
+
 An empty filter array is equivalent to no filters. `IN` is not accepted for the
 User `role` filter. Omitted `sort` means `name ASC`, then `publicId ASC`.
 
@@ -1622,7 +1624,7 @@ Unknown fields rejected.
 
 Security side effects:
 
-- email change -> revoke target sessions;
+- email change (including a persisted case-only change) -> revoke target sessions;
 - role change -> revoke target sessions;
 - deactivation -> revoke sessions and unassign owner-ineligible Tickets;
 - owner-capable -> Requester role change -> unassign owned Tickets;

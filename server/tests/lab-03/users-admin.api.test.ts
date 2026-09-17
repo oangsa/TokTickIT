@@ -67,6 +67,32 @@ describe("API-46–API-53 Administrator User APIs @issue-6", () => {
       expect(item.createdAt).toBeUndefined();
     });
 
+    it("returns empty large pages without an oversized Prisma query", async () => {
+      const response = await request(app).get("/api/admin/users")
+        .query({ pageNumber: Number.MAX_SAFE_INTEGER })
+        .set("Authorization", bearerToken(tokens, ADMIN.id));
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
+      expect(JSON.parse(response.headers["x-pagination"])).toEqual({
+        pageNumber: Number.MAX_SAFE_INTEGER, pageSize: 10, totalItems: 1,
+        totalPages: 1, hasPreviousPage: true, hasNextPage: false,
+      });
+      expect(mock.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it.each(["IT_STAFF", "ADMINISTRATOR"])("rejects duplicate role filters including %s", async (role) => {
+      const response = await request(app).get("/api/admin/users")
+        .query({ filters: JSON.stringify([
+          { field: "role", condition: "EQUAL", value: "IT_STAFF" },
+          { field: "role", condition: "EQUAL", value: role },
+        ]) })
+        .set("Authorization", bearerToken(tokens, ADMIN.id));
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe("VALIDATION_ERROR");
+      expect(mock.user.count).not.toHaveBeenCalled();
+      expect(mock.user.findMany).not.toHaveBeenCalled();
+    });
+
     it("rejects invalid search/filter/sort queries with 400 VALIDATION_ERROR before data access", async () => {
       // Unknown filter field
       const res1 = await request(app)
@@ -188,6 +214,26 @@ describe("API-46–API-53 Administrator User APIs @issue-6", () => {
         where: { userId: STAFF.id, revokedAt: null },
         data: expect.objectContaining({ revokeReason: "EMAIL_CHANGED" }),
       });
+    });
+
+    it.each([true, false])("case-only email edit revokes sessions; changed=%s", async (changed) => {
+      const email = changed ? STAFF.email.toUpperCase() : STAFF.email;
+      mock.user.update.mockResolvedValue({ ...STAFF, email });
+      const response = await request(app).patch(`/api/admin/users/${STAFF.publicId}`)
+        .set("Authorization", bearerToken(tokens, ADMIN.id)).send({ email });
+      expect(response.status).toBe(200);
+      expect(mock.user.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ email }),
+      }));
+      if (changed) {
+        expect(mock.userSession.updateMany).toHaveBeenCalledWith({
+          where: { userId: STAFF.id, revokedAt: null },
+          data: expect.objectContaining({ revokeReason: "EMAIL_CHANGED" }),
+        });
+      } else {
+        expect(mock.userSession.updateMany).not.toHaveBeenCalled();
+      }
+      expect(mock.ticket.updateMany).not.toHaveBeenCalled();
     });
 
     it("role change to REQUESTER revokes sessions and unassigns tickets", async () => {

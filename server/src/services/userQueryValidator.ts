@@ -100,7 +100,7 @@ export function parseUserListQuery(input: unknown): UserListQuery {
     }
   }
 
-  if (!Array.isArray(rawFilters) || rawFilters.length > 20) {
+  if (!Array.isArray(rawFilters) || rawFilters.length > 1) {
     invalidField("filters");
   }
 

@@ -58,7 +58,7 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
         if (path === "/api/admin/users" && init?.method === "POST") {
           return {
             user: { publicId: "user-new", name: "New Colleague", email: "new@example.test", role: "IT_STAFF", isActive: true },
-            initialPassword: "TempPassword123!",
+            initialPassword: "<INITIAL_PASSWORD>",
           };
         }
         return {};
@@ -87,7 +87,7 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
       // Successful creation displays initial password panel
       expect(await screen.findByRole("heading", { name: "User Created Successfully" })).toBeInTheDocument();
       const passwordInput = screen.getByLabelText("One-time initial password");
-      expect(passwordInput).toHaveValue("TempPassword123!");
+      expect(passwordInput).toHaveValue("<INITIAL_PASSWORD>");
 
       // Copy button
       const copyBtn = screen.getByRole("button", { name: /copy/i });
@@ -121,6 +121,28 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
   });
 
   describe("UI-28 Edit User fields, self-safety, and session confirmations", () => {
+    it("confirms case-only self email change and logs out after saving", async () => {
+      callApi.mockImplementation(async (_path: string, init?: RequestInit) => ({
+        publicId: "admin-1", name: "Admin Lead",
+        email: init?.method === "PATCH" ? "Admin@example.test" : "admin@example.test",
+        role: "ADMINISTRATOR", isActive: true,
+      }));
+      renderEditUser("admin-1");
+      await screen.findByRole("heading", { name: "Edit Admin Lead" });
+      const email = screen.getByLabelText(/^Email/i);
+      await userEvent.clear(email);
+      await userEvent.type(email, "Admin@example.test");
+      await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+      const modal = await screen.findByRole("dialog");
+      expect(modal).toHaveTextContent("Change user email?");
+      expect(logout).not.toHaveBeenCalled();
+      await userEvent.click(within(modal).getByRole("button", { name: "Confirm" }));
+      await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+      expect(callApi).toHaveBeenCalledWith("/api/admin/users/admin-1", expect.objectContaining({
+        method: "PATCH", body: JSON.stringify({ name: "Admin Lead", email: "Admin@example.test", role: "ADMINISTRATOR", isActive: true }),
+      }));
+    });
+
     it("loads and displays target user details", async () => {
       callApi.mockImplementation(async (path: string) => {
         if (path === "/api/admin/users/user-2") {
@@ -365,7 +387,7 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
         }
         if (path === "/api/admin/users/user-2/initial-password" && init?.method === "POST") {
           return {
-            initialPassword: "NewResetPass456!",
+            initialPassword: "<RESET_INITIAL_PASSWORD>",
           };
         }
         return {};
@@ -390,7 +412,7 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
 
       // Displays one-time reset password panel
       expect(await screen.findByTestId("reset-initial-password-panel")).toBeInTheDocument();
-      expect(screen.getByLabelText("One-time initial password")).toHaveValue("NewResetPass456!");
+      expect(screen.getByLabelText("One-time initial password")).toHaveValue("<RESET_INITIAL_PASSWORD>");
 
       // Done button dismisses panel
       await userEvent.click(screen.getByRole("button", { name: "Done" }));
@@ -448,7 +470,7 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
           };
         }
         if (path === "/api/admin/users/user-2/initial-password" && init?.method === "POST") {
-          return { initialPassword: "NewResetPass456!" };
+          return { initialPassword: "<RESET_INITIAL_PASSWORD>" };
         }
         return {};
       });

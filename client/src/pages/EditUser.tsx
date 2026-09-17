@@ -154,7 +154,7 @@ export default function EditUser() {
     form.setFormError(undefined);
     setSuccessMessage(null);
 
-    const emailChanged = values.email.trim().toLowerCase() !== targetUser.email.toLowerCase();
+    const emailChanged = values.email.trim() !== targetUser.email;
 
     try {
       const updated = await callApi<UserDetailDTO>(
@@ -205,7 +205,7 @@ export default function EditUser() {
   const handleFormSubmit = async (values: UserFormValues) => {
     if (!targetUser) return;
 
-    const emailChanged = values.email.trim().toLowerCase() !== targetUser.email.toLowerCase();
+    const emailChanged = values.email.trim() !== targetUser.email;
     const roleChanged = values.role !== targetUser.role;
     const deactivated = targetUser.isActive && !values.isActive;
 

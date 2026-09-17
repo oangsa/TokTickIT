@@ -124,6 +124,13 @@ export async function listUsers(
 
   const totalItems = await prisma.user.count({ where });
 
+  if ((query.pageNumber - 1) * query.pageSize >= totalItems) {
+    return {
+      items: [],
+      pagination: buildPaginationMetadata(query.pageNumber, query.pageSize, totalItems),
+    };
+  }
+
   const users = await prisma.user.findMany({
     where,
     orderBy,
@@ -314,7 +321,7 @@ export async function updateUser(
         });
 
         // Coupled security side effects
-        const emailChanged = email !== undefined && email.toLowerCase() !== target.email.toLowerCase();
+        const emailChanged = email !== undefined && email !== target.email;
         const roleChanged = role !== undefined && role !== target.role;
         const deactivated = isActive === false && target.isActive === true;
 
