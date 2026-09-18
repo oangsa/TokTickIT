@@ -1375,3 +1375,58 @@ Prisma migration status confirmed the target before applying existing migrations
 The disposable container was removed after verification. No schema, migration,
 or REST response contract changed. Pre-existing working-tree changes were
 preserved. No commit, push, or peer approval was made.
+
+### PR #71 bound-preview fix — 2026-09-18
+
+Verified the working tree on `feature/64-communication-admin-users` on top of
+baseline `32179e79f2a4c1ee4013f724cc2c7028761cfe55`. The change bounds
+`getRootComments` preview retrieval: a single `Prisma.sql` ranking query
+(`ROW_NUMBER() OVER (PARTITION BY root ORDER BY created_at ASC, id ASC)`)
+selects the three oldest replies per root, and only those preview ids are
+hydrated by `findMany({ where: { id: { in: previewIds } } })`. `replyCount`
+remains the exact `COUNT(*)` per root; the `::int` cast keeps the number-typed
+DTO field honest against PostgreSQL's bigint `COUNT(*)`. No schema, migration,
+or REST response contract changed.
+
+| Gate | Actual result |
+| --- | --- |
+| Section 14.2 focused server selection, `@issue-6` | 9 files passed; 118 passed, 9 excluded by the name filter; exit 0 |
+| PostgreSQL suites within that selection | comments-notes: 6 passed (incl. the new 20-reply mixed-depth bounded-hydration test); users-admin: 6 passed |
+| Section 14.2 focused client selection, `@issue-6` | 5 files passed; 45 passed, 12 excluded by the name filter; exit 0 |
+| `npm run build --prefix client` | TypeScript and Vite passed; exit 0 |
+| `npm run build --prefix server` | TypeScript passed; exit 0 |
+| Exact Issue 6 Playwright selection (default ports) | 12 passed, none skipped; exit 0 |
+| Full server suite | 1048 passed across 68 files; exit 0 |
+| Full client suite | 357 passed across 26 files; exit 0 |
+| `git diff --check` | clean |
+
+The exact default-port browser command
+`npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts
+e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts`
+ran with ports 3000 and 5173 free and the Playwright configuration unchanged
+(Option A). It covered E2E-05 (Administrator User Management golden path) and
+E2E-06 (Request Information comment persistence, Requester replies without
+automatic resume, private Internal Notes, cross-Requester 404, and
+non-Administrator denial), plus RESP-04 and RESP-05 at 1440×900, 820×1180, and
+390×844. Responsive screenshots were regenerated in the existing
+staff-ticket-detail and user-management evidence directories using synthetic
+fixtures.
+
+The new bounded-hydration PostgreSQL test proves the bound against parameterized
+SQL: Prisma's pg adapter logs `$N` placeholders, not literal ids, so the test
+counts the placeholders in the single `public_comment` `id IN (...)` fetch that
+carries an `ORDER BY` and asserts that count is ≤ 3 × roots-on-page and strictly
+less than the total replies on the page (24). Unit and API tests independently
+assert the hydrated `where.id.in` equals exactly the three oldest preview ids
+per root.
+
+Database isolation: a fresh disposable PostgreSQL 16 container named
+`toktickit-lab3-verify`, database `toktickit_lab3_test` at `127.0.0.1:55434`,
+with a synthetic test-only password. Explicit DATABASE_URL, DIRECT_URL, and
+TEST_DATABASE_URL overrides plus distinct LAB3 baseline variables isolated it
+from the shared database; the guarded suites applied the existing migrations.
+No shared, staging, or production database was used. The container remains
+available for the current session and is disposable. Non-fatal output: the
+PostgreSQL client reported a concurrent-query deprecation warning and Vite
+reported bundle-size warnings; none failed a gate. No credentials were written
+to logs, commits, or this record.

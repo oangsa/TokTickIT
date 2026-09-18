@@ -47,6 +47,7 @@ describe("API-27, API-33–API-39 Public Comments and Internal Notes @issue-6", 
       findMany: vi.fn(),
       count: vi.fn(),
     };
+    mock.$queryRaw = vi.fn().mockResolvedValue([]);
     mock.internalNote = {
       create: vi.fn(),
       findMany: vi.fn(),
@@ -167,8 +168,7 @@ const DEPTH2_COMMENT_ID = "c3000000-0000-4000-8000-000000000003";
             author: REQUESTER,
           },
         ]) // roots
-        .mockResolvedValueOnce([]) // depth-1 comments
-        .mockResolvedValueOnce([]); // previews
+        .mockResolvedValueOnce([]); // previews (only ranked preview ids)
 
       const response = await request(app)
         .get(`/api/tickets/${TICKET_ID}/comments`)
@@ -179,6 +179,76 @@ const DEPTH2_COMMENT_ID = "c3000000-0000-4000-8000-000000000003";
       expect(response.body).toHaveLength(1);
       expect(response.body[0].replyCount).toBe(0);
       expect(response.body[0].replies).toEqual([]);
+    });
+
+    it("hydrates only the three oldest preview replies per root, never every reply", async () => {
+      mock.publicComment.count.mockImplementation(async (args: any) =>
+        args?.where?.parentCommentId === null ? 2 : 0,
+      );
+      const rootA = {
+        id: 10,
+        publicId: ROOT_COMMENT_ID,
+        content: "Root A",
+        createdAt: new Date("2026-09-17T12:00:00Z"),
+        author: REQUESTER,
+      };
+      const rootB = {
+        id: 11,
+        publicId: DEPTH1_COMMENT_ID,
+        content: "Root B",
+        createdAt: new Date("2026-09-17T11:00:00Z"),
+        author: STAFF,
+      };
+
+      // Root A: 5 replies (ids 21-25), Root B: 2 replies (ids 31-32).
+      // The database ranking returns counts plus only ranks 1-3 per root.
+      mock.$queryRaw.mockResolvedValueOnce([
+        { root_id: 10, reply_id: 21, reply_rank: 1, reply_count: 5 },
+        { root_id: 10, reply_id: 22, reply_rank: 2, reply_count: 5 },
+        { root_id: 10, reply_id: 23, reply_rank: 3, reply_count: 5 },
+        { root_id: 11, reply_id: 31, reply_rank: 1, reply_count: 2 },
+        { root_id: 11, reply_id: 32, reply_rank: 2, reply_count: 2 },
+      ]);
+
+      const replyRows = [
+        { id: 21, publicId: "r21", content: "A1", parentCommentId: 10, createdAt: new Date("2026-09-17T12:01:00Z"), author: STAFF, parent: { id: 10, publicId: ROOT_COMMENT_ID, parentCommentId: null }, replyTo: { publicId: ROOT_COMMENT_ID, author: REQUESTER } },
+        { id: 22, publicId: "r22", content: "A2", parentCommentId: 10, createdAt: new Date("2026-09-17T12:02:00Z"), author: STAFF, parent: { id: 10, publicId: ROOT_COMMENT_ID, parentCommentId: null }, replyTo: { publicId: ROOT_COMMENT_ID, author: REQUESTER } },
+        { id: 23, publicId: "r23", content: "A3", parentCommentId: 21, createdAt: new Date("2026-09-17T12:03:00Z"), author: REQUESTER, parent: { id: 21, publicId: "r21", parentCommentId: 10 }, replyTo: { publicId: "r21", author: STAFF } },
+        { id: 31, publicId: "r31", content: "B1", parentCommentId: 11, createdAt: new Date("2026-09-17T11:01:00Z"), author: REQUESTER, parent: { id: 11, publicId: DEPTH1_COMMENT_ID, parentCommentId: null }, replyTo: { publicId: DEPTH1_COMMENT_ID, author: STAFF } },
+        { id: 32, publicId: "r32", content: "B2", parentCommentId: 11, createdAt: new Date("2026-09-17T11:02:00Z"), author: STAFF, parent: { id: 11, publicId: DEPTH1_COMMENT_ID, parentCommentId: null }, replyTo: { publicId: DEPTH1_COMMENT_ID, author: STAFF } },
+      ];
+      mock.publicComment.findMany
+        .mockResolvedValueOnce([rootA, rootB]) // roots, newest first
+        .mockImplementation(async (args: any) =>
+          replyRows.filter((row) => (args?.where?.id?.in ?? []).includes(row.id)),
+        ); // previews: only the ranked ids the service selects
+
+      const response = await request(app)
+        .get(`/api/tickets/${TICKET_ID}/comments`)
+        .set("Authorization", bearerToken(tokens, REQUESTER.id));
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(2);
+
+      // Root A: full count 5, exactly the three oldest previews, oldest first.
+      expect(response.body[0].replyCount).toBe(5);
+      expect(response.body[0].replies.map((r: any) => r.publicId)).toEqual(["r21", "r22", "r23"]);
+      // Depth-2 preview keeps its depth-1 structural parent and exact replyTo.
+      expect(response.body[0].replies[2].depth).toBe(2);
+      expect(response.body[0].replies[2].parentCommentPublicId).toBe("r21");
+      expect(response.body[0].replies[2].replyTo?.commentPublicId).toBe("r21");
+
+      // Root B: independent count 2, no cross-root leakage.
+      expect(response.body[1].replyCount).toBe(2);
+      expect(response.body[1].replies.map((r: any) => r.publicId)).toEqual(["r31", "r32"]);
+
+      // Bounded hydration: the detail fetch receives only the five ranked
+      // preview ids, never the full reply population (ids 24 and 25 excluded).
+      const previewCalls = mock.publicComment.findMany.mock.calls.filter(
+        (call: any[]) => call[0]?.where?.id?.in !== undefined,
+      );
+      expect(previewCalls).toHaveLength(1);
+      expect(previewCalls[0][0].where.id.in.sort((a: number, b: number) => a - b)).toEqual([21, 22, 23, 31, 32]);
     });
   });
 

@@ -1,4 +1,5 @@
-import type { Prisma, PrismaClient, UserRole } from "../generated/prisma/client.js";
+import { Prisma } from "../generated/prisma/client.js";
+import type { PrismaClient, UserRole } from "../generated/prisma/client.js";
 import { ApiError } from "../http/errors.js";
 import { buildPaginationMetadata, type PaginationMetadata } from "../http/pagination.js";
 import { PUBLIC_ID_PATTERN } from "./staffQueueQueryValidator.js";
@@ -277,53 +278,58 @@ export async function getRootComments(
 
   const rootIds = roots.map((r) => r.id);
 
-  // Depth-1 comments under these roots
-  const depth1Comments = await prisma.publicComment.findMany({
-    where: { parentCommentId: { in: rootIds } },
-    select: { id: true, parentCommentId: true },
-  });
+  // Exact per-root reply counts and oldest-first preview ranks are computed in
+  // the database. Depth-1 replies belong to their parent root; depth-2 replies
+  // belong to their depth-1 parent's root. Only ranks 1-3 are hydrated below,
+  // so a root with many replies transfers at most three complete records.
+  const rankingRows = await prisma.$queryRaw<Array<{ root_id: number; reply_id: number; reply_rank: number; reply_count: number }>>`
+    SELECT
+      r.root_id,
+      r.reply_id,
+      r.reply_rank,
+      r.reply_count
+    FROM (
+      SELECT
+        reply.id AS reply_id,
+        -- d1 is the reply's parent. A depth-1 reply's parent is the root
+        -- (d1.parent_comment_id is null, so COALESCE falls back to the reply's
+        -- own parent); a depth-2 reply's root is its depth-1 parent's parent.
+        COALESCE(d1.parent_comment_id, reply.parent_comment_id) AS root_id,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(d1.parent_comment_id, reply.parent_comment_id)
+          ORDER BY reply.created_at ASC, reply.id ASC
+        ) AS reply_rank,
+        -- COUNT(*) is a bigint in PostgreSQL; cast to int so the row matches
+        -- the number-typed replyCount DTO field (pg returns bigint as BigInt).
+        COUNT(*) OVER (
+          PARTITION BY COALESCE(d1.parent_comment_id, reply.parent_comment_id)
+        )::int AS reply_count
+      FROM public_comment reply
+      LEFT JOIN public_comment d1
+        ON d1.id = reply.parent_comment_id
+       AND d1.parent_comment_id IS NOT NULL
+      WHERE
+        (reply.parent_comment_id IN (${Prisma.join(rootIds)}))
+        OR (d1.id = reply.parent_comment_id AND d1.parent_comment_id IN (${Prisma.join(rootIds)}))
+    ) r
+    WHERE r.reply_rank <= 3
+    ORDER BY r.root_id, r.reply_rank
+  `;
 
-  const depth1IdsByRoot = new Map<number, number[]>();
-  const d1IdToRootId = new Map<number, number>();
   const replyCountByRoot = new Map<number, number>();
-
-  for (const c of depth1Comments) {
-    if (c.parentCommentId !== null) {
-      const list = depth1IdsByRoot.get(c.parentCommentId) ?? [];
-      list.push(c.id);
-      depth1IdsByRoot.set(c.parentCommentId, list);
-      d1IdToRootId.set(c.id, c.parentCommentId);
-      replyCountByRoot.set(
-        c.parentCommentId,
-        (replyCountByRoot.get(c.parentCommentId) ?? 0) + 1,
-      );
-    }
+  const previewIdsByRoot = new Map<number, number[]>();
+  for (const row of rankingRows) {
+    replyCountByRoot.set(row.root_id, row.reply_count);
+    const list = previewIdsByRoot.get(row.root_id) ?? [];
+    list.push(row.reply_id);
+    previewIdsByRoot.set(row.root_id, list);
   }
 
-  const allD1Ids = depth1Comments.map((c) => c.id);
-  if (allD1Ids.length > 0) {
-    const depth2Comments = await prisma.publicComment.findMany({
-      where: { parentCommentId: { in: allD1Ids } },
-      select: { id: true, parentCommentId: true },
-    });
-    for (const c of depth2Comments) {
-      if (c.parentCommentId !== null) {
-        const rootId = d1IdToRootId.get(c.parentCommentId);
-        if (rootId !== undefined) {
-          replyCountByRoot.set(rootId, (replyCountByRoot.get(rootId) ?? 0) + 1);
-        }
-      }
-    }
-  }
+  const previewIds = [...previewIdsByRoot.values()].flat();
 
-  // Batch-fetch all replies across all roots in one query, then partition in-memory.
-  // This replaces N per-root queries (up to pageSize) with a single round trip.
-  const allChildIds = rootIds.flatMap((rootId) => depth1IdsByRoot.get(rootId) ?? []);
-  const allReplyParentIds = [...rootIds, ...allChildIds];
-
-  const allReplies = allReplyParentIds.length > 0
+  const previewReplies = previewIds.length > 0
     ? await prisma.publicComment.findMany({
-        where: { parentCommentId: { in: allReplyParentIds } },
+        where: { id: { in: previewIds } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         include: {
           author: { select: { publicId: true, name: true, role: true } },
@@ -338,23 +344,12 @@ export async function getRootComments(
       })
     : [];
 
-  // Partition replies by root: depth-1 replies map directly via rootIds,
-  // depth-2 replies resolve through d1IdToRootId.
-  const rootIdSet = new Set(rootIds);
-  const repliesByRoot = new Map<number, typeof allReplies>();
-  for (const reply of allReplies) {
-    const parentId = reply.parentCommentId!;
-    const rootId = rootIdSet.has(parentId) ? parentId : d1IdToRootId.get(parentId);
-    if (rootId === undefined) continue;
-    const list = repliesByRoot.get(rootId) ?? [];
-    list.push(reply);
-    repliesByRoot.set(rootId, list);
-  }
+  const replyById = new Map(previewReplies.map((r) => [r.id, r]));
 
   const items: RootPublicCommentDTO[] = roots.map((root) => {
-    const replyCount = replyCountByRoot.get(root.id) ?? 0;
-    // Already sorted oldest-first by the query; take first 3 as previews.
-    const previews = (repliesByRoot.get(root.id) ?? []).slice(0, 3);
+    const previews = (previewIdsByRoot.get(root.id) ?? [])
+      .map((id) => replyById.get(id))
+      .filter((reply): reply is NonNullable<typeof reply> => reply !== undefined);
     const mappedPreviews = previews.map((p) =>
       toPublicCommentDTO(p, p.parentCommentId === root.id ? 1 : 2),
     );
@@ -362,7 +357,7 @@ export async function getRootComments(
     return {
       ...toPublicCommentDTO({ ...root, parent: null, replyTo: null }, 0),
       depth: 0 as const,
-      replyCount,
+      replyCount: replyCountByRoot.get(root.id) ?? 0,
       replies: mappedPreviews,
     };
   });

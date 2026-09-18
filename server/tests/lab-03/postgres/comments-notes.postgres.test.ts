@@ -202,6 +202,70 @@ describe.sequential("PostgreSQL Comments and Notes Integration PG-14, PG-15 @iss
       expect(page2.items[1].publicId).toBe(rep4.publicId);
     });
 
+    it("bounds preview hydration to the three oldest replies on a 20-reply mixed-depth thread", async () => {
+      const root = await createRootComment(prisma, requesterActor, ticketPublicId, "Bounded preview root");
+
+      // Interleaved depth-1/depth-2 creation: d1a, d2a (under d1a), d1b, d1c,
+      // d2b (under d1b), then 15 more depth-1 replies.
+      const d1a = await createReplyComment(prisma, staffActor, ticketPublicId, root.publicId, "d1a");
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      const d2a = await createReplyComment(prisma, requesterActor, ticketPublicId, d1a.publicId, "d2a under d1a");
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      const d1b = await createReplyComment(prisma, staffActor, ticketPublicId, root.publicId, "d1b");
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      const d1c = await createReplyComment(prisma, requesterActor, ticketPublicId, root.publicId, "d1c");
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      const d2b = await createReplyComment(prisma, staffActor, ticketPublicId, d1b.publicId, "d2b under d1b");
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      for (let i = 1; i <= 15; i += 1) {
+        const tail = await createReplyComment(prisma, i % 2 === 0 ? staffActor : requesterActor, ticketPublicId, root.publicId, `tail d1 ${i}`);
+        await new Promise((resolve) => setTimeout(resolve, 15));
+      }
+
+      const loggedSql: string[] = [];
+      const loggingPrisma = createTestPrisma(target, (sql) => loggedSql.push(sql));
+      let list: Awaited<ReturnType<typeof getRootComments>>;
+      try {
+        list = await getRootComments(loggingPrisma, staffActor, ticketPublicId, {
+          pageNumber: 1,
+          pageSize: 100,
+        });
+
+        const foundRoot = list.items.find((i) => i.publicId === root.publicId);
+        expect(foundRoot).toBeDefined();
+        expect(foundRoot?.replyCount).toBe(20);
+        expect(foundRoot?.replies).toHaveLength(3);
+        expect(foundRoot?.replies.map((r) => r.publicId)).toEqual([d1a.publicId, d2a.publicId, d1b.publicId]);
+
+        // Depth-2 preview keeps its depth-1 structural parent and exact replyTo.
+        expect(foundRoot?.replies[1].depth).toBe(2);
+        expect(foundRoot?.replies[1].parentCommentPublicId).toBe(d1a.publicId);
+        expect(foundRoot?.replies[1].replyTo?.commentPublicId).toBe(d1a.publicId);
+      } finally {
+        await loggingPrisma.$disconnect();
+      }
+
+      // Bounded hydration: the complete-record fetch selects at most three
+      // preview ids per root, never the full reply set. Prisma's pg adapter
+      // logs parameterized SQL, so the bound is proven by the placeholder count
+      // in the main preview fetch's `id IN (...)` clause, not by literal ids.
+      // The main preview fetch is the only public_comment `id IN` query that
+      // carries an ORDER BY (the include-relation fetches have none).
+      const mainPreviewFetches = loggedSql.filter(
+        (sql) => /FROM "public"."public_comment"/.test(sql) && /"id" IN \(/i.test(sql) && /ORDER BY/i.test(sql),
+      );
+      expect(mainPreviewFetches).toHaveLength(1);
+      const inClause = mainPreviewFetches[0].match(/"id" IN \(([^)]*)\)/i)?.[1] ?? "";
+      const previewPlaceholderCount = (inClause.match(/\$\d+/g) ?? []).length;
+
+      const rootsOnPage = list.items;
+      const totalRepliesOnPage = rootsOnPage.reduce((sum, r) => sum + r.replyCount, 0);
+      // Each root hydrates at most 3 previews; the page holds 24 replies total,
+      // so a bounded fetch is strictly smaller than hydrating every reply.
+      expect(previewPlaceholderCount).toBeLessThanOrEqual(3 * rootsOnPage.length);
+      expect(previewPlaceholderCount).toBeLessThan(totalRepliesOnPage);
+    });
+
     it("enforces depth bounds and flattens depth-2 replies preserving reply target", async () => {
       const root = await createRootComment(prisma, requesterActor, ticketPublicId, "Root for depth testing");
 

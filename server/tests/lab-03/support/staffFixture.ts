@@ -23,6 +23,7 @@ export function staffPrismaMock() {
     publicComment: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     internalNote: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
   };
   mock.$transaction.mockImplementation(async (callback: (tx: Prisma.TransactionClient) => Promise<unknown>) => callback(mock as unknown as Prisma.TransactionClient));
   mock.ticket.findFirst.mockResolvedValue(staffTicketRow());

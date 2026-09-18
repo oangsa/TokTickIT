@@ -276,6 +276,163 @@ describe("UNIT-11 PublicCommentService @issue-6", () => {
     });
   });
 
+  describe("getRootComments bounded preview retrieval", () => {
+    const rootRow = (id: number, publicId: string, createdAt: string) => ({
+      id,
+      publicId,
+      content: `Root ${id}`,
+      createdAt: new Date(createdAt),
+      parentCommentId: null,
+      replyToCommentId: null,
+      author: { publicId: STAFF.publicId, name: STAFF.name, role: STAFF.role },
+    });
+
+    const replyRow = (
+      id: number,
+      publicId: string,
+      parentCommentId: number,
+      createdAt: string,
+      parent: { id: number; publicId: string; parentCommentId: number | null },
+      replyTo: { publicId: string; author: { publicId: string; name: string } },
+    ) => ({
+      id,
+      publicId,
+      content: `Reply ${id}`,
+      parentCommentId,
+      createdAt: new Date(createdAt),
+      author: { publicId: REQUESTER.publicId, name: REQUESTER.name, role: REQUESTER.role },
+      parent,
+      replyTo,
+    });
+
+    beforeEach(() => {
+      mockPrisma.ticket.findFirst.mockResolvedValue({
+        id: 31,
+        publicId: TICKET_ID,
+        requesterId: REQUESTER.id,
+        currentStatus: "OPEN",
+      });
+      mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
+    });
+
+    it("returns replyCount 0 and empty previews for roots without replies", async () => {
+      mockPrisma.publicComment.count.mockResolvedValue(1);
+      mockPrisma.publicComment.findMany.mockResolvedValueOnce([
+        rootRow(10, "root-10", "2026-09-17T10:00:00Z"),
+      ]);
+
+      const res = await getRootComments(mockPrisma, actor(REQUESTER), TICKET_ID, {});
+
+      expect(res.items).toHaveLength(1);
+      expect(res.items[0].replyCount).toBe(0);
+      expect(res.items[0].replies).toEqual([]);
+      // No preview hydration needed when the ranking returns no rows.
+      expect(mockPrisma.publicComment.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("hydrates only the three oldest previews while reporting the full reply count", async () => {
+      // Root 10 has 20 replies; the database ranking reports the exact count
+      // and only ranks 1-3 (ids 101, 102, 103) for hydration.
+      mockPrisma.publicComment.count.mockResolvedValue(1);
+      mockPrisma.$queryRaw.mockResolvedValueOnce([
+        { root_id: 10, reply_id: 101, reply_rank: 1, reply_count: 20 },
+        { root_id: 10, reply_id: 102, reply_rank: 2, reply_count: 20 },
+        { root_id: 10, reply_id: 103, reply_rank: 3, reply_count: 20 },
+      ]);
+
+      const parent = { id: 10, publicId: "root-10", parentCommentId: null };
+      const previewRows = [
+        replyRow(101, "r101", 10, "2026-09-17T10:01:00Z", parent, { publicId: "root-10", author: STAFF }),
+        replyRow(102, "r102", 10, "2026-09-17T10:02:00Z", parent, { publicId: "root-10", author: STAFF }),
+        replyRow(103, "r103", 102, "2026-09-17T10:03:00Z", { id: 102, publicId: "r102", parentCommentId: 10 }, { publicId: "r102", author: REQUESTER }),
+      ];
+      mockPrisma.publicComment.findMany
+        .mockResolvedValueOnce([rootRow(10, "root-10", "2026-09-17T10:00:00Z")])
+        .mockImplementation(async (args: any) =>
+          previewRows.filter((row) => (args?.where?.id?.in ?? []).includes(row.id)),
+        );
+
+      const res = await getRootComments(mockPrisma, actor(REQUESTER), TICKET_ID, {});
+
+      expect(res.items[0].replyCount).toBe(20);
+      expect(res.items[0].replies.map((r) => r.publicId)).toEqual(["r101", "r102", "r103"]);
+      expect(res.items[0].replies[2].depth).toBe(2);
+      expect(res.items[0].replies[2].parentCommentPublicId).toBe("r102");
+      expect(res.items[0].replies[2].replyTo?.commentPublicId).toBe("r102");
+
+      // Bounded hydration: the detail fetch receives exactly the ranked ids.
+      const previewCalls = mockPrisma.publicComment.findMany.mock.calls.filter(
+        (call: any[]) => call[0]?.where?.id?.in !== undefined,
+      );
+      expect(previewCalls).toHaveLength(1);
+      expect(previewCalls[0][0].where.id.in).toEqual([101, 102, 103]);
+    });
+
+    it("keeps counts and previews independent across roots on one page", async () => {
+      mockPrisma.publicComment.count.mockResolvedValue(2);
+      mockPrisma.$queryRaw.mockResolvedValueOnce([
+        { root_id: 10, reply_id: 21, reply_rank: 1, reply_count: 4 },
+        { root_id: 10, reply_id: 22, reply_rank: 2, reply_count: 4 },
+        { root_id: 10, reply_id: 23, reply_rank: 3, reply_count: 4 },
+        { root_id: 11, reply_id: 31, reply_rank: 1, reply_count: 1 },
+      ]);
+
+      const parentA = { id: 10, publicId: "root-10", parentCommentId: null };
+      const parentB = { id: 11, publicId: "root-11", parentCommentId: null };
+      const previewRows = [
+        replyRow(21, "r21", 10, "2026-09-17T12:01:00Z", parentA, { publicId: "root-10", author: REQUESTER }),
+        replyRow(22, "r22", 10, "2026-09-17T12:02:00Z", parentA, { publicId: "root-10", author: REQUESTER }),
+        replyRow(23, "r23", 21, "2026-09-17T12:03:00Z", { id: 21, publicId: "r21", parentCommentId: 10 }, { publicId: "r21", author: STAFF }),
+        replyRow(31, "r31", 11, "2026-09-17T11:01:00Z", parentB, { publicId: "root-11", author: STAFF }),
+      ];
+      mockPrisma.publicComment.findMany
+        .mockResolvedValueOnce([
+          rootRow(10, "root-10", "2026-09-17T12:00:00Z"),
+          rootRow(11, "root-11", "2026-09-17T11:00:00Z"),
+        ])
+        .mockImplementation(async (args: any) =>
+          previewRows.filter((row) => (args?.where?.id?.in ?? []).includes(row.id)),
+        );
+
+      const res = await getRootComments(mockPrisma, actor(REQUESTER), TICKET_ID, {});
+
+      expect(res.items).toHaveLength(2);
+      expect(res.items[0].replyCount).toBe(4);
+      expect(res.items[0].replies.map((r) => r.publicId)).toEqual(["r21", "r22", "r23"]);
+      expect(res.items[1].replyCount).toBe(1);
+      expect(res.items[1].replies.map((r) => r.publicId)).toEqual(["r31"]);
+    });
+
+    it("preserves the database ranking order, including equal-timestamp ties by internal id", async () => {
+      mockPrisma.publicComment.count.mockResolvedValue(1);
+      // Equal created_at: the database ranks by id ASC, so 41 < 42 < 43.
+      mockPrisma.$queryRaw.mockResolvedValueOnce([
+        { root_id: 10, reply_id: 41, reply_rank: 1, reply_count: 3 },
+        { root_id: 10, reply_id: 42, reply_rank: 2, reply_count: 3 },
+        { root_id: 10, reply_id: 43, reply_rank: 3, reply_count: 3 },
+      ]);
+
+      const parent = { id: 10, publicId: "root-10", parentCommentId: null };
+      const sameTime = "2026-09-17T10:00:00.000Z";
+      const previewRows = [
+        replyRow(41, "r41", 10, sameTime, parent, { publicId: "root-10", author: STAFF }),
+        replyRow(42, "r42", 41, sameTime, { id: 41, publicId: "r41", parentCommentId: 10 }, { publicId: "r41", author: REQUESTER }),
+        replyRow(43, "r43", 10, sameTime, parent, { publicId: "root-10", author: STAFF }),
+      ];
+      mockPrisma.publicComment.findMany
+        .mockResolvedValueOnce([rootRow(10, "root-10", "2026-09-17T09:00:00Z")])
+        .mockImplementation(async (args: any) =>
+          previewRows.filter((row) => (args?.where?.id?.in ?? []).includes(row.id)),
+        );
+
+      const res = await getRootComments(mockPrisma, actor(REQUESTER), TICKET_ID, {});
+
+      expect(res.items[0].replies.map((r) => r.publicId)).toEqual(["r41", "r42", "r43"]);
+      expect(res.items[0].replies[1].depth).toBe(2);
+      expect(res.items[0].replies[1].parentCommentPublicId).toBe("r41");
+    });
+  });
+
   describe("writePublicCommentForWorkflow transaction seam", () => {
     it("writes trimmed comment inside provided transaction client", async () => {
       const txMock = {
