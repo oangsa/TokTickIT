@@ -155,6 +155,10 @@ body {
   min-height: 2.75rem;
 }
 
+.form-select-sm {
+  border-radius: var(--tt-radius-control);
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

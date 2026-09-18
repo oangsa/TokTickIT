@@ -94,6 +94,31 @@ describe("DataTable Component @issue-6", () => {
     const editLinks = screen.getAllByRole("link", { name: "Edit" });
     expect(editLinks.length).toBe(3);
     expect(editLinks[0]).toHaveAttribute("href", "/assets/item-1/edit");
+    expect(editLinks[0]).toHaveClass("tt-row-action");
+    expect(editLinks[0].querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("keeps create opt-in so list pages without a create route render no create link", async () => {
+    const fetchData = vi.fn().mockResolvedValue({
+      data: mockData,
+      total: 3,
+      totalPages: 1,
+    } as IFetchResult<TestItem>);
+
+    render(
+      <MemoryRouter>
+        <DataTable<TestItem>
+          title="Ticket Queue"
+          fetchData={fetchData}
+          columns={COLUMNS}
+          itemName="tickets"
+          basePath="/admin/tickets"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Alpha")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Create" })).not.toBeInTheDocument();
   });
 
   it("handles column sorting when clicking sortable header", async () => {

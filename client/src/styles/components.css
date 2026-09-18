@@ -383,6 +383,32 @@ a {
   color: var(--tt-text);
 }
 
+.tt-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  border: 0;
+  border-radius: var(--tt-radius-control);
+  background: transparent;
+  color: var(--tt-text);
+  line-height: 1;
+  text-decoration: none;
+}
+
+.tt-row-action:hover,
+.tt-row-action:focus-visible {
+  background: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+}
+
+.tt-row-action--danger:hover,
+.tt-row-action--danger:focus-visible {
+  color: var(--bs-danger);
+}
+
 /* Busy buttons keep their width and center their original action text (Section 10.6). */
 .tt-btn--busy {
   display: inline-grid;
@@ -1251,15 +1277,6 @@ a {
   padding-block-start: 0;
 }
 
-.tt-ticket-list .pagination {
-  gap: 0.25rem;
-}
-
-.tt-ticket-list .page-link {
-  margin-inline-start: 0;
-  border-radius: var(--tt-radius-control);
-}
-
 @media (max-width: 991.98px) {
   .tt-ticket-list .tt-toolbar {
     grid-template-columns: auto minmax(0, 1fr);
@@ -1350,6 +1367,15 @@ a {
   font-size: 0.8125rem;
   line-height: 1;
   border-radius: var(--tt-radius-control);
+}
+
+/* Keep page numbers as discrete controls with the same rhythm as the arrows. */
+.tt-pagination__actions .pagination {
+  gap: 0.25rem;
+}
+
+.tt-pagination__actions .page-item + .page-item .page-link {
+  margin-inline-start: 0;
 }
 
 .tt-pagination__actions .tt-tip-host {

@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
 
 import { ApiResponseError, Ticket } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
@@ -205,14 +205,7 @@ export default function RequesterTicketDetail({ communicationSlot }: RequesterTi
         title={heading ?? "Ticket Detail"}
         titleClassName="tt-ticket-no"
         {...(heading === null ? {} : { eyebrow: "Ticket Detail" })}
-        actions={
-          <Link
-            className="btn btn-outline-secondary"
-            to={{ pathname: "/tickets", search: location.search }}
-          >
-            Back to My Tickets
-          </Link>
-        }
+        backAction={{ to: `/tickets${location.search}`, label: "Back to My Tickets" }}
       />
 
       {/* Skeletons are decorative, so the screen owns the announcement. */}

@@ -21,6 +21,7 @@ export interface IColumn<T = Record<string, unknown>> {
   align?: "left" | "right" | "center";
   sortable?: boolean;
   render?: (value: unknown, row: T) => React.ReactNode;
+  className?: string;
   style?: React.CSSProperties;
 }
 
@@ -73,6 +74,8 @@ export interface IDataTableProps<T extends object = Record<string, unknown>> {
   showCreateButton?: boolean;
   createButtonLabel?: string;
   createButtonTo?: string;
+  createButtonAriaLabel?: string;
+  cardClassName?: string;
 
   // Fetch / Controlled Data
   fetchData?: (params: IFetchParams) => Promise<IFetchResult<T>>;
@@ -108,6 +111,8 @@ export interface IDataTableProps<T extends object = Record<string, unknown>> {
   searchLabel?: string;
   searchPlaceholder?: string;
   searchAriaLabel?: string;
+  searchLabelHidden?: boolean;
+  searchMaxLength?: number;
   searchValue?: string;
   searchId?: string;
   onSearchChange?: (search: string) => void;
@@ -147,6 +152,11 @@ export interface IDataTableProps<T extends object = Record<string, unknown>> {
   itemName?: string;
   emptyMessage?: string;
   noMatchMessage?: string;
+  renderEmptyState?: (context: { hasQuery: boolean }) => React.ReactNode;
+  renderLoading?: () => React.ReactNode;
+  linkFirstColumnLabel?: (item: T) => string;
+  tableTopContent?: React.ReactNode;
+  statusMessage?: React.ReactNode;
   emptyTestId?: string;
   refreshTrigger?: number;
 }
@@ -211,9 +221,11 @@ export function DataTable<T extends object>({
   subtitle,
   eyebrow,
   headerActions,
-  showCreateButton = true,
+  showCreateButton = false,
   createButtonLabel = "Create",
   createButtonTo,
+  createButtonAriaLabel,
+  cardClassName,
 
   fetchData,
   data: externalData,
@@ -246,6 +258,8 @@ export function DataTable<T extends object>({
   searchLabel,
   searchPlaceholder = "Search…",
   searchAriaLabel,
+  searchLabelHidden = false,
+  searchMaxLength,
   searchValue,
   searchId: externalSearchId,
   onSearchChange,
@@ -279,6 +293,11 @@ export function DataTable<T extends object>({
   itemName = "items",
   emptyMessage,
   noMatchMessage,
+  renderEmptyState,
+  renderLoading,
+  linkFirstColumnLabel,
+  tableTopContent,
+  statusMessage,
   emptyTestId = "empty-users",
   refreshTrigger = 0,
 }: IDataTableProps<T>) {
@@ -402,9 +421,9 @@ export function DataTable<T extends object>({
     (nextSize: number) => {
       if (externalOnPageSizeChange) {
         externalOnPageSizeChange(nextSize);
-      } else {
-        setInternalPageSize(nextSize);
+        return;
       }
+      setInternalPageSize(nextSize);
       setResolvedCurrentPage(1);
     },
     [externalOnPageSizeChange, setResolvedCurrentPage],
@@ -708,6 +727,7 @@ export function DataTable<T extends object>({
               <Link
                 to={defaultCreateLink}
                 className="btn btn-primary d-inline-flex align-items-center gap-1"
+                aria-label={createButtonAriaLabel}
               >
                 <Plus size={16} aria-hidden="true" focusable="false" />
                 <span>{createButtonLabel.replace(/^\+\s*/, "")}</span>
@@ -717,7 +737,7 @@ export function DataTable<T extends object>({
         />
       ) : null}
 
-      <Card>
+      <Card className={cardClassName}>
         {/* Unified Toolbar matching Tickets layout: row g-3 mb-3 align-items-end */}
         <div className="row g-3 mb-3 align-items-end">
           <div className="col-12 col-lg">
@@ -727,13 +747,16 @@ export function DataTable<T extends object>({
                 handleSearchSubmit();
               }}
             >
-              <label htmlFor={searchId} className="form-label">
+              <label htmlFor={searchId} className={`form-label${searchLabelHidden ? " visually-hidden" : ""}`}>
                 {resolvedSearchLabel}
               </label>
               <input
                 id={searchId}
                 type="search"
                 className="form-control"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={searchMaxLength}
                 placeholder={searchPlaceholder}
                 aria-label={searchAriaLabel || resolvedSearchLabel}
                 value={searchInput}
@@ -750,7 +773,10 @@ export function DataTable<T extends object>({
 
           {hasFilterControls && (
             <div className="col-auto">
-              <Button onClick={handleFilterDialogOpen}>
+              <Button
+                className={activeFilterCount > 0 ? "tt-filters--applied" : undefined}
+                onClick={handleFilterDialogOpen}
+              >
                 Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
               </Button>
             </div>
@@ -759,12 +785,12 @@ export function DataTable<T extends object>({
           {sortOptions && sortOptions.length > 0 && (
             <div className="col-12 col-sm-auto">
               <label htmlFor={sortId} className="form-label">
-                Sort
+                Sort by
               </label>
               <select
                 id={sortId}
                 className="form-select"
-                aria-label="Sort"
+                aria-label="Sort by"
                 value={currentSort}
                 onChange={(e) => handleSortChange(e.target.value)}
               >
@@ -796,6 +822,11 @@ export function DataTable<T extends object>({
           </div>
         )}
 
+        {tableTopContent}
+        {statusMessage !== undefined ? (
+          <p role="status" className="visually-hidden">{statusMessage}</p>
+        ) : null}
+
         {/* Invalid Search State (e.g. 400 validation error) */}
         {invalidState ? (
           <ErrorState
@@ -806,15 +837,17 @@ export function DataTable<T extends object>({
           />
         ) : loading ? (
           /* Placeholder glow loading state matching Ticket Queue */
-          <div
-            role="status"
-            aria-label={`Loading ${itemName || title || "items"}`}
-            className="placeholder-glow"
-          >
-            <div className="placeholder col-12 mb-3" />
-            <div className="placeholder col-12 mb-3" />
-            <div className="placeholder col-12" />
-          </div>
+          renderLoading ? renderLoading() : (
+            <div
+              role="status"
+              aria-label={`Loading ${itemName || title || "items"}`}
+              className="placeholder-glow"
+            >
+              <div className="placeholder col-12 mb-3" />
+              <div className="placeholder col-12 mb-3" />
+              <div className="placeholder col-12" />
+            </div>
+          )
         ) : error ? (
           /* Error State with Retry button */
           <div className="alert alert-danger" role="alert">
@@ -825,11 +858,13 @@ export function DataTable<T extends object>({
           </div>
         ) : data.length === 0 ? (
           /* Empty / No-results State */
-          <p role="status" className="text-secondary py-4 text-center" data-testid={emptyTestId}>
-            {isSearchActive || activeFilterCount > 0
-              ? noMatchMessage || `No ${itemName || title || "items"} match your search or filters. Try changing the current query.`
-              : emptyMessage || `No ${itemName || title || "items"} are currently available.`}
-          </p>
+          renderEmptyState ? renderEmptyState({ hasQuery: isSearchActive || activeFilterCount > 0 }) : (
+            <p role="status" className="text-secondary py-4 text-center" data-testid={emptyTestId}>
+              {isSearchActive || activeFilterCount > 0
+                ? noMatchMessage || `No ${itemName || title || "items"} match your search or filters. Try changing the current query.`
+                : emptyMessage || `No ${itemName || title || "items"} are currently available.`}
+            </p>
+          )
         ) : (
           /* Table View & Responsive Card Grid */
           <>
@@ -856,13 +891,9 @@ export function DataTable<T extends object>({
                             key={col.key}
                             scope="col"
                             role="columnheader"
-                            className={
-                              col.align === "right"
-                                ? "text-end"
-                                : col.align === "center"
-                                ? "text-center"
-                                : ""
-                            }
+                            className={[col.className, col.align === "right" ? "text-end" : col.align === "center" ? "text-center" : ""]
+                              .filter(Boolean)
+                              .join(" ")}
                             style={{
                               cursor: isSortable ? "pointer" : "default",
                               userSelect: "none",
@@ -942,19 +973,14 @@ export function DataTable<T extends object>({
                           {columns.map((col, idx) => (
                             <td
                               key={col.key}
-                              className={
-                                col.align === "right"
-                                  ? "text-end"
-                                  : col.align === "center"
-                                  ? "text-center"
-                                  : ""
-                              }
+                              className={[col.className, col.align === "right" ? "text-end" : col.align === "center" ? "text-center" : ""].filter(Boolean).join(" ")}
                               style={col.style}
                             >
                               {idx === 0 && linkFirstColumn && shouldShowDetailLinks ? (
                                 <Link
-                                  to={`${basePath}/${pathSegment}`}
+                                  to={getRowTarget(item, keyVal) ?? `${basePath}/${pathSegment}`}
                                   className="fw-medium text-decoration-none"
+                                  aria-label={linkFirstColumnLabel?.(item)}
                                 >
                                   {col.render
                                     ? col.render((item as Record<string, unknown>)[col.key], item)
@@ -976,7 +1002,7 @@ export function DataTable<T extends object>({
                                   {shouldShowViewRowAction && (
                                     <Link
                                       to={viewButtonTo ? viewButtonTo(item) : `${basePath}/${pathSegment}`}
-                                      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+                                      className="tt-row-action"
                                       title="View"
                                       aria-label="View"
                                       onClick={onView ? () => onView(item) : undefined}
@@ -987,7 +1013,7 @@ export function DataTable<T extends object>({
                                   {shouldShowEditRowAction && (
                                     <Link
                                       to={`${basePath}/${pathSegment}/edit`}
-                                      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+                                      className="tt-row-action"
                                       title="Edit"
                                       aria-label="Edit"
                                     >
@@ -997,7 +1023,7 @@ export function DataTable<T extends object>({
                                   {shouldShowDeleteRowAction && (
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                                      className="tt-row-action tt-row-action--danger"
                                       title="Delete"
                                       aria-label="Delete"
                                       onClick={() => handleDelete(item)}
@@ -1045,13 +1071,9 @@ export function DataTable<T extends object>({
                             key={col.key}
                             scope="col"
                             role="columnheader"
-                            className={
-                              col.align === "right"
-                                ? "text-end"
-                                : col.align === "center"
-                                ? "text-center"
-                                : ""
-                            }
+                            className={[col.className, col.align === "right" ? "text-end" : col.align === "center" ? "text-center" : ""]
+                              .filter(Boolean)
+                              .join(" ")}
                             style={{
                               cursor: isSortable ? "pointer" : "default",
                               userSelect: "none",
@@ -1131,19 +1153,14 @@ export function DataTable<T extends object>({
                           {columns.map((col, idx) => (
                             <td
                               key={col.key}
-                              className={
-                                col.align === "right"
-                                  ? "text-end"
-                                  : col.align === "center"
-                                  ? "text-center"
-                                  : ""
-                              }
+                              className={[col.className, col.align === "right" ? "text-end" : col.align === "center" ? "text-center" : ""].filter(Boolean).join(" ")}
                               style={col.style}
                             >
                               {idx === 0 && linkFirstColumn && shouldShowDetailLinks ? (
                                 <Link
-                                  to={`${basePath}/${pathSegment}`}
+                                  to={getRowTarget(item, keyVal) ?? `${basePath}/${pathSegment}`}
                                   className="fw-medium text-decoration-none"
+                                  aria-label={linkFirstColumnLabel?.(item)}
                                 >
                                   {col.render
                                     ? col.render((item as Record<string, unknown>)[col.key], item)
@@ -1165,7 +1182,7 @@ export function DataTable<T extends object>({
                                   {shouldShowViewRowAction && (
                                     <Link
                                       to={viewButtonTo ? viewButtonTo(item) : `${basePath}/${pathSegment}`}
-                                      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+                                      className="tt-row-action"
                                       title="View"
                                       aria-label="View"
                                       onClick={onView ? () => onView(item) : undefined}
@@ -1176,7 +1193,7 @@ export function DataTable<T extends object>({
                                   {shouldShowEditRowAction && (
                                     <Link
                                       to={`${basePath}/${pathSegment}/edit`}
-                                      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+                                      className="tt-row-action"
                                       title="Edit"
                                       aria-label="Edit"
                                     >
@@ -1186,7 +1203,7 @@ export function DataTable<T extends object>({
                                   {shouldShowDeleteRowAction && (
                                     <button
                                       type="button"
-                                      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                                      className="tt-row-action tt-row-action--danger"
                                       title="Delete"
                                       aria-label="Delete"
                                       onClick={() => handleDelete(item)}

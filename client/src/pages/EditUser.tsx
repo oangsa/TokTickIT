@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { ApiResponseError } from "../api.js";
 import { useAuth } from "../auth/AuthProvider.js";
@@ -278,7 +278,7 @@ export default function EditUser() {
   if (loading) {
     return (
       <div className="tt-edit-user">
-        <PageHeader title="Edit User" eyebrow="User Management" actions={<Link to="/admin/users">Back to Users</Link>} />
+        <PageHeader title="Edit User" eyebrow="User Management" backAction={{ to: "/admin/users", label: "Back to Users" }} />
         <p role="status" className="text-secondary py-3">
           Loading user details…
         </p>
@@ -289,7 +289,7 @@ export default function EditUser() {
   if (loadError || !targetUser) {
     return (
       <div className="tt-edit-user">
-        <PageHeader title="Edit User" eyebrow="User Management" actions={<Link to="/admin/users">Back to Users</Link>} />
+        <PageHeader title="Edit User" eyebrow="User Management" backAction={{ to: "/admin/users", label: "Back to Users" }} />
         <div className="alert alert-danger" role="alert">
           <p className="mb-2">{loadError || "User not found."}</p>
           <Button variant="secondary" onClick={() => void loadUser()}>
@@ -305,7 +305,7 @@ export default function EditUser() {
       <PageHeader
         title={`Edit ${targetUser.name}`}
         eyebrow="User Management"
-        actions={<Link to="/admin/users">Back to Users</Link>}
+        backAction={{ to: "/admin/users", label: "Back to Users" }}
       />
 
       {successMessage ? (

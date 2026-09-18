@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { ApiResponseError } from "../api.js";
 import { useAuth } from "../auth/AuthProvider.js";
@@ -18,7 +18,7 @@ import { InternalNotes } from "../components/InternalNotes.js";
 import { TicketInformationForm } from "../components/TicketInformationForm.js";
 import { ticketDateTime } from "../tickets/ticketDate.js";
 import { ACTION_LABELS, availableStaffActions, PRIORITIES, statusLabel, type StaffAction, type StaffTicket, type TicketOwnerDTO } from "../tickets/staffTickets.js";
-import { ArrowLeft, CheckCircle2, CheckCheck, Eye, HelpCircle, Play, UserCheck, XCircle } from "lucide-react";
+import { CheckCircle2, CheckCheck, Eye, HelpCircle, Play, UserCheck, XCircle } from "lucide-react";
 
 export interface StaffTicketDetailProps {
   communicationSlot?: (ticket: StaffTicket, reload: () => void) => ReactNode;
@@ -137,12 +137,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     <PageHeader
       title={ticket.ticketNumber}
       eyebrow="Ticket Detail"
-      actions={
-        <Link to={queuePath} className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center">
-          <ArrowLeft size={16} className="me-1" aria-hidden="true" focusable="false" />
-          Back to Ticket Queue
-        </Link>
-      }
+      backAction={{ to: queuePath, label: "Back to Ticket Queue" }}
     />
     {success && <p role="status" className="alert alert-success">{success}</p>}
     {!pendingAction && errorView}

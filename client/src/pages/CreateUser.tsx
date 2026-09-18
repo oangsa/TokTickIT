@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { ApiResponseError } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
@@ -141,7 +141,7 @@ export default function CreateUser() {
       <PageHeader
         title="Create User"
         eyebrow="User Management"
-        actions={<Link to="/admin/users">Back to Users</Link>}
+        backAction={{ to: "/admin/users", label: "Back to Users" }}
       />
 
       {createdPassword ? (

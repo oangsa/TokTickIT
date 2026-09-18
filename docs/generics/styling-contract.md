@@ -32,7 +32,7 @@ Use Bootstrap spacing/grid utilities first. Desktop page/card padding is about 2
 
 Use [AppShell](../../client/src/components/AppShell.tsx) and [SidebarNav](../../client/src/components/SidebarNav.tsx) for authenticated navigation. Pages rendered inside the shell do not add another sidebar or main landmark. Login and the global error page use their specified standalone layouts. Preserve route focus and drawer focus restoration.
 
-Use [PageHeader](../../client/src/components/PageHeader.tsx) with `title`, optional `subtitle`/`eyebrow`, and `actions`. It owns title sizing and responsive action placement. Use a real Link for navigation and a Button for mutation. Entity identifiers may use `titleClassName` for wrapping. Do not repeat a page title as an unnecessary card title.
+Use [PageHeader](../../client/src/components/PageHeader.tsx) with `title`, optional `subtitle`/`eyebrow`, `backAction`, and `actions`. It owns title sizing, the consistent outlined back link, and responsive action placement. Use a real Link for navigation and a Button for mutation. Entity identifiers may use `titleClassName` for wrapping. Do not repeat a page title as an unnecessary card title.
 
 Ticket Queue and User Management use title-only list headings, with available actions on the right and search/filter controls below. Neither supplies an eyebrow or subtitle. Actions wrap below at narrow widths. This applies to both Administrator and IT Staff uses of StaffTicketQueue; it does not remove subtitles from other page families.
 
@@ -110,13 +110,15 @@ Use [NavigationGuard](../../client/src/navigation/NavigationGuard.tsx) for dirty
 
 ## Lists, filters, and row actions
 
-Use DataTable for the existing User Management and Staff/Admin Ticket Queue patterns. UserManagement demonstrates `fetchData` with `IFetchParams`/`IFetchResult`; StaffTicketQueue demonstrates controlled data and query props. Choose one ownership mode and do not duplicate fetching in both page and component. Preserve pagination metadata and API field mappings.
+Use DataTable for User Management, My Tickets, and the Staff/Admin Ticket Queue. UserManagement demonstrates `fetchData` with `IFetchParams`/`IFetchResult`; MyTickets and StaffTicketQueue demonstrate controlled data and query props. Choose one ownership mode and do not duplicate fetching in both page and component. Preserve pagination metadata and API field mappings.
 
-`IColumn<T>` defines `key`, `label`, optional `align`, `sortable`, `render`, and `style`. Mark unsupported sorts false and map supported keys to the resource contract. Shared CSS vertically centers all DataTable column headers. Ticket Queue retains fixed widths, a 25% second column, and wrapping; shared alignment does not mean equal column widths.
+`IColumn<T>` defines `key`, `label`, optional `align`, `sortable`, `render`, `className`, and `style`. Mark unsupported sorts false and map supported keys to the resource contract. Shared CSS vertically centers all DataTable column headers. Ticket Queue retains fixed widths, a 25% second column, and wrapping; shared alignment does not mean equal column widths. Automatic row actions are icon-only controls with an accessible name and tooltip; use `renderActions` when a resource needs a different action set.
+
+Pagination uses one spacing rhythm for arrows and numbered links. Keep page numbers as separate controls with the shared 4px gap; reset Bootstrap's joined-link offset when adding a pagination variant.
 
 Supply `basePath` and `itemKey` for navigable rows. Preserve real view links, keyboard activation, hover/focus treatment, and safe handling of interactive children so clicking an action does not also activate the row. Configure view/edit/delete/create visibility explicitly; visual reuse does not authorize those operations. Create labels contain text only; DataTable adds its Plus icon.
 
-Keep draft filter changes separate from applied filters: Cancel discards drafts, Apply commits and resets pagination. Search/filter reset and empty-state actions must follow the page contract; avoid duplicate Clear Filters controls. Distinguish true empty data from no matching results. My Tickets retains its existing specialized responsive table; this contract does not claim it already uses DataTable or authorize replacing it.
+Keep draft filter changes separate from applied filters: Cancel discards drafts, Apply commits and resets pagination. Search/filter reset and empty-state actions must follow the page contract; avoid duplicate Clear Filters controls. Distinguish true empty data from no matching results. My Tickets and Staff/Admin Ticket Queue use the shared DataTable with controlled resource queries; preserve each page's API query semantics, responsive projection, and empty/loading states when extending the shared component.
 
 ## Buttons, icons, badges, and dialogs
 

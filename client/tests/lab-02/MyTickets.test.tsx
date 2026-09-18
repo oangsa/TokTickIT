@@ -700,6 +700,22 @@ describe("UI-21 My Tickets sort options", () => {
     expect(screen.getByLabelText("Sort by")).toHaveValue(sort);
     expect(label).toBeTruthy();
   });
+
+  it("does not make display-only name columns issue unsupported sort requests", async () => {
+    const { calls } = stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const initialRequestCount = listCalls(calls).length;
+    for (const label of ["Category", "Related System"]) {
+      const header = screen.getByRole("columnheader", { name: label });
+      expect(header).not.toHaveAttribute("tabindex");
+      expect(header).not.toHaveAttribute("aria-sort");
+      fireEvent.click(header);
+    }
+
+    expect(listCalls(calls)).toHaveLength(initialRequestCount);
+  });
 });
 
 describe("UI-22 My Tickets pagination and list projection", () => {
@@ -1082,6 +1098,7 @@ describe("UI-19 and UI-20 the toolbar states its applied filters", () => {
     /* A ticket number is not prose, and no password manager belongs here. */
     expect(search).toHaveAttribute("autocomplete", "off");
     expect(search).toHaveAttribute("spellcheck", "false");
+    expect(search).toHaveAttribute("maxlength", "200");
   });
 });
 

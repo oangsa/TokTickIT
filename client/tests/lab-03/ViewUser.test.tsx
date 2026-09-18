@@ -58,6 +58,7 @@ describe("ViewUser page @issue-6", () => {
     // Check action links
     const backLink = screen.getByRole("link", { name: "Back to Users" });
     expect(backLink).toHaveAttribute("href", "/admin/users");
+    expect(backLink).toHaveClass("btn", "btn-outline-secondary");
 
     const editLink = screen.getByRole("link", { name: "Edit User" });
     expect(editLink).toHaveAttribute("href", "/admin/users/user-2/edit");
