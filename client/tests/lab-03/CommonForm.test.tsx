@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { z } from "zod";
 
-import { CommonForm } from "../../src/components/CommonForm.js";
+import { CommonForm } from "../../src/components/Common/Form/CommonForm.js";
 import { useManagedForm } from "../../src/forms/useManagedForm.js";
 import type { FormSection } from "../../src/forms/formTypes.js";
 import { ApiResponseError } from "../../src/api.js";

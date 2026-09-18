@@ -1747,7 +1747,7 @@ Manage access to TokTickIT.
 └─────────────────────────────────────────────────────────┘
 ```
 
-The page is powered by the reusable `DataTable` component (`client/src/components/DataTable.tsx`).
+The page is powered by the reusable `DataTable` component (`client/src/components/Maintain/DataTable.tsx`).
 
 ## 21.2 Columns
 
@@ -2419,7 +2419,7 @@ Do not build a generic CRUD-page generator.
 
 ### 29.1 DataTable Component
 
-`client/src/components/DataTable.tsx` provides a reusable, accessible tabular data management container inspired by the reference architecture in `oangsa/maintenance-tracking-system` and strictly adapted to TokTickIT constraints (Bootstrap 5, `lucide-react`, TokTickIT `Pagination`, no Tailwind, no Radix).
+`client/src/components/Maintain/DataTable.tsx` provides a reusable, accessible tabular data management container inspired by the reference architecture in `oangsa/maintenance-tracking-system` and strictly adapted to TokTickIT constraints (Bootstrap 5, `lucide-react`, TokTickIT `Pagination`, no Tailwind, no Radix).
 
 #### Capabilities & Contracts
 1. **Configurable Columns (`IColumn<T>`)**:

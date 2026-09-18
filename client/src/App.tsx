@@ -4,20 +4,20 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthProvider, AuthStatus, roleHome, useAuth } from "./auth/AuthProvider.js";
 import { AuthGuard, RoleGuard } from "./auth/guards.js";
 import { NavigationGuardProvider } from "./navigation/NavigationGuard.js";
-import { AppShell } from "./components/AppShell.js";
-import ChangePassword from "./pages/ChangePassword.js";
-import ErrorPage from "./pages/ErrorPage.js";
-import Login from "./pages/Login.js";
-import UnavailablePage from "./pages/UnavailablePage.js";
-import CreateTicket from "./pages/CreateTicket.js";
-import MyTickets from "./pages/MyTickets.js";
-import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
-import StaffTicketQueue from "./pages/StaffTicketQueue.js";
-import StaffTicketDetail from "./pages/StaffTicketDetail.js";
-import UserManagement from "./pages/UserManagement.js";
-import CreateUser from "./pages/CreateUser.js";
-import EditUser from "./pages/EditUser.js";
-import ViewUser from "./pages/ViewUser.js";
+import { AppShell } from "./layouts/AppShell.js";
+import ChangePassword from "./modules/Auth/ChangePassword.js";
+import ErrorPage from "./modules/System/ErrorPage.js";
+import Login from "./modules/Auth/Login.js";
+import UnavailablePage from "./modules/System/UnavailablePage.js";
+import CreateTicket from "./modules/Tickets/Requester/CreateTicket.js";
+import MyTickets from "./modules/Tickets/Requester/MyTickets.js";
+import RequesterTicketDetail from "./modules/Tickets/Requester/RequesterTicketDetail.js";
+import StaffTicketQueue from "./modules/Tickets/Staff/StaffTicketQueue.js";
+import StaffTicketDetail from "./modules/Tickets/Staff/StaffTicketDetail.js";
+import UserManagement from "./modules/Users/UserManagement.js";
+import CreateUser from "./modules/Users/CreateUser.js";
+import EditUser from "./modules/Users/EditUser.js";
+import ViewUser from "./modules/Users/ViewUser.js";
 
 /* `/` resolves against the authenticated role after bootstrap. */
 function RootRedirect() {

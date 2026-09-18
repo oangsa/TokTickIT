@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import StaffTicketDetail from "../../src/pages/StaffTicketDetail.js";
+import StaffTicketDetail from "../../src/modules/Tickets/Staff/StaffTicketDetail.js";
 import { ApiResponseError } from "../../src/api.js";
-import { availableStaffActions, type StaffTicket } from "../../src/tickets/staffTickets.js";
+import { availableStaffActions, type StaffTicket } from "../../src/modules/Tickets/staffTickets.js";
 
 const { callApi, auth } = vi.hoisted(() => ({ callApi: vi.fn(), auth: { user: { publicId: "staff", role: "IT_STAFF" } } }));
 vi.mock("../../src/auth/useAuthenticatedApi.js", () => ({ useAuthenticatedApi: () => callApi, useAuthenticatedBlob: () => vi.fn() }));

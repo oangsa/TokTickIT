@@ -1,0 +1,542 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+
+import {
+  ApiResponseError,
+  MasterDataItem,
+  PaginationMetadata,
+  TicketListItem,
+  readPaginationHeader,
+} from "../../../api.js";
+import { useAuthenticatedApi } from "../../../auth/useAuthenticatedApi.js";
+import { Button } from "../../../components/Common/Button.js";
+import { PriorityChip, type PriorityValue } from "../components/PriorityChip.js";
+import { StatusChip, type StatusValue } from "../components/StatusChip.js";
+import { DataTable, type IActiveFilterChip, type IColumn } from "../../../components/Maintain/DataTable.js";
+import { EmptyState } from "../../../components/Common/Feedback/EmptyState.js";
+import { Modal } from "../../../components/Common/Modal.js";
+import { MultiSelect } from "../../../components/Common/Form/MultiSelect.js";
+import { Skeleton } from "../../../components/Common/Feedback/Skeleton.js";
+import { ticketDate } from "../ticketDate.js";
+import {
+  EMPTY_FILTERS,
+  FILTER_FIELDS,
+  FilterSelection,
+  INITIAL_QUERY,
+  PRIORITY_OPTIONS,
+  SEARCH_DEBOUNCE_MS,
+  SORT_OPTIONS,
+  STATUS_OPTIONS,
+  TicketQuery,
+  buildTicketListSearch,
+  filterCount,
+  hasActiveQuery,
+  readTicketQuery,
+  selectedFilters,
+  writeTicketQuery,
+} from "../ticketListQuery.js";
+
+/*
+ * My Tickets (ui-spec Sections 13-19, 30.3, 32).
+ *
+ * The committed query lives in the URL, so a reload, the Back button, and a
+ * shared address all restore the same list. `searchInput` is the only
+ * uncommitted state: it becomes part of the query after
+ * SEARCH_DEBOUNCE_MS of inactivity.
+ */
+
+type LoadState = "loading" | "loaded" | "invalid";
+
+/*
+ * The pagination metadata, tagged with the request it answered.
+ *
+ * The tag is what lets the total be held across a fetch without ever being
+ * mistaken for a fresh one. It cannot be replaced by the `loading` flag: that
+ * flag is set in this screen's own effect, and a child's effects flush before
+ * its parent's, so `Pagination` would run one clamp against the previous
+ * query's total before the flag arrived.
+ */
+interface LoadedPagination {
+  request: string;
+  metadata: PaginationMetadata;
+}
+
+const SKELETON_ROWS = 5;
+
+/*
+ * The three columns ui-spec Section 16.3 hides below 768px. Bootstrap's `md`
+ * breakpoint is exactly that cut -- deliberately not the `lg` (992px) the
+ * shell uses elsewhere.
+ */
+const SECONDARY_COLUMN = "d-none d-md-table-cell";
+
+export default function MyTickets() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const callApi = useAuthenticatedApi();
+  const [params, setParams] = useSearchParams();
+
+  const query = useMemo(() => readTicketQuery(params), [params]);
+  /*
+   * The query as the API receives it. It is both what the effect sends and the
+   * tag the held pagination carries, so "which request does this total describe"
+   * is answered by one value rather than by two that could drift apart.
+   */
+  const request = useMemo(() => buildTicketListSearch(query), [query]);
+
+  const [searchInput, setSearchInput] = useState(query.search);
+  const [items, setItems] = useState<TicketListItem[]>([]);
+  const [pagination, setPagination] = useState<LoadedPagination | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  /* Non-null means the filter modal is open, and is also the draft itself. */
+  const [filterDraft, setFilterDraft] = useState<FilterSelection | null>(null);
+  const [categories, setCategories] = useState<MasterDataItem[]>([]);
+  const [relatedSystems, setRelatedSystems] = useState<MasterDataItem[]>([]);
+  const [referenceDataFailed, setReferenceDataFailed] = useState(false);
+  const [referenceDataRetryCount, setReferenceDataRetryCount] = useState(0);
+
+  /*
+   * The only writer of the committed query, so no caller can forget the page
+   * reset ui-spec Section 13.3 requires. The debounced search replaces its
+   * entry once a search is already committed: pushing one per typing pause
+   * would make Back walk the search letter by letter. The first commit still
+   * pushes, or the entry it replaced would be the unsearched list itself and
+   * Back would leave the screen rather than clear the search.
+   */
+  const commitQuery = useCallback(
+    (next: TicketQuery, replace = false) => {
+      setParams(writeTicketQuery(next), { replace });
+    },
+    [setParams],
+  );
+
+  /* Filter option names, and the labels the applied chips use. */
+  useEffect(() => {
+    let ignore = false;
+
+    async function load(): Promise<void> {
+      setReferenceDataFailed(false);
+
+      try {
+        const [loadedCategories, loadedSystems] = await Promise.all([
+          callApi<MasterDataItem[]>("/api/categories"),
+          callApi<MasterDataItem[]>("/api/related-systems"),
+        ]);
+
+        if (!ignore) {
+          setCategories(loadedCategories);
+          setRelatedSystems(loadedSystems);
+        }
+      } catch {
+        /*
+         * Reference data only names the filter choices. Losing it must not take
+         * the Ticket list down with it, so the filter options stay empty and
+         * the list keeps its own state.
+         */
+        if (!ignore) {
+          setCategories([]);
+          setRelatedSystems([]);
+          setReferenceDataFailed(true);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      ignore = true;
+    };
+  }, [callApi, referenceDataRetryCount]);
+
+  /*
+   * What the debounce below last sent. The committed query can also change
+   * underneath the box -- Back, Forward, or a pasted address -- and the box has
+   * to follow it, or the debounce would read the restored search as a stale
+   * value and immediately commit the empty box over it. Comparing against this
+   * rather than against `query.search` keeps that resync from rewriting the box
+   * mid-keystroke when the change is the debounce's own commit landing.
+   */
+  const committedSearch = useRef(query.search);
+
+  useEffect(() => {
+    if (query.search !== committedSearch.current) {
+      committedSearch.current = query.search;
+      setSearchInput(query.search);
+    }
+  }, [query.search]);
+
+  useEffect(() => {
+    /* Already committed, and the guard also stops a commit/re-run loop. */
+    if (searchInput.trim() === query.search) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      committedSearch.current = searchInput.trim();
+      commitQuery({ ...query, search: searchInput.trim(), pageNumber: 1 }, query.search !== "");
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, query, commitQuery]);
+
+  /*
+   * Clear held totals when authenticated transport changes, so this is the one
+   * effect that fires on a scope change and not on an ordinary query change:
+   * the previous Requester's count must be gone before anything of the new
+   * scope renders. AuthGuard also unmounts this screen on session change,
+   * which would drop the state anyway; the rule is stated here rather
+   * than left resting on that, so a future change to the guard cannot quietly
+   * turn a held total into a cross-scope leak.
+   */
+  useEffect(() => {
+    setPagination(null);
+  }, [callApi]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    /*
+     * Rows are cleared before the request rather than after it: stale rows
+     * under a new query are visibly wrong, and the skeleton belongs in their
+     * place. `pagination` is deliberately kept, tagged with the request it
+     * answered. Dropping it collapsed the page list from "1 2 3 … 40" to a
+     * single "1" and back on every fetch -- the layout jump ui-spec 19.1 asks
+     * the mounted controls to avoid -- while the tag keeps the held total from
+     * being stated as a range or acted on as a clamp.
+     */
+    setItems([]);
+    setLoadState("loading");
+
+    async function load(): Promise<void> {
+      try {
+        let metadata: PaginationMetadata | null = null;
+
+        const data = await callApi<TicketListItem[]>(`/api/users/me/tickets?${request}`, {
+          onResponse: (response) => {
+            metadata = readPaginationHeader(response.headers.get("X-Pagination"));
+          },
+        });
+
+        if (ignore) {
+          return;
+        }
+
+        setItems(data);
+        setPagination(metadata === null ? null : { request, metadata });
+        setLoadState("loaded");
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+
+        /*
+         * AuthGuard owns session invalidation; this page handles ordinary
+         * resource failures.
+         */
+        /*
+         * A rejected query is the user's to correct, so it stays on the page
+         * with the toolbar usable (ui-spec Section 35). Everything else is a
+         * page-level failure and goes to the global error experience
+         * (Section 19.4).
+         */
+        if (error instanceof ApiResponseError && error.status === 400) {
+          setLoadState("invalid");
+          return;
+        }
+
+        navigate("/error", { state: { status: 500 } });
+      }
+    }
+
+    void load();
+
+    return () => {
+      ignore = true;
+    };
+    /*
+     * `query` is deliberately absent: the effect reads only `request`, which is
+     * derived from it. Depending on both refetched whenever an address changed
+     * without changing the API request -- `/tickets` and `/tickets?pageNumber=1`
+     * build the same one.
+     */
+  }, [callApi, request, navigate]);
+
+  const loading = loadState === "loading";
+  const appliedCount = filterCount(query);
+  const queryActive = hasActiveQuery(query);
+  /*
+   * True while the held total belongs to a request other than the one on
+   * screen -- across a fetch, and before the first one answers. Derived at
+   * render time, never from `loadState`: `Pagination`'s clamp is a child effect
+   * and would run once against the previous query's total before an
+   * effect-assigned flag could reach it.
+   */
+  const stale = pagination === null || pagination.request !== request;
+  /* Held across a fetch so the page list keeps its shape; see `stale`. */
+  const totalItems = pagination?.metadata.totalItems ?? 0;
+  /*
+   * No total arrived at all -- a proxy dropped or mangled `X-Pagination`, and
+   * `readPaginationHeader` answered null. The rows are then the only evidence
+   * on screen, and they have to answer the two questions the total would have.
+   * Reading the derived zero as a real count answered both wrong: a Requester
+   * with no Tickets was told "No tickets found. Try changing your search or
+   * filters" over an empty query, and a full page of rows lost every pagination
+   * control because the mount guard below saw a total of zero.
+   */
+  const countless = loadState === "loaded" && pagination === null;
+  /*
+   * "No tickets yet" is a claim about the Requester, not about this page of
+   * this query, so it needs the total as well as an inactive query: page 5 of
+   * three unfiltered Tickets is empty without the Requester being.
+   */
+  const trulyEmpty =
+    !queryActive && (countless ? items.length === 0 : !stale && totalItems === 0);
+  /*
+   * A page past the last one answers 200 with an empty array (BR-38), so this
+   * page is being corrected rather than displayed: `Pagination` reports its
+   * clamp back through `onPageChange` on the next effect. The guard mirrors the
+   * one the control itself uses -- a genuinely empty result set has
+   * `totalItems: 0` and every page of it is equally empty, so it is not a
+   * correction and must keep its own empty state.
+   */
+  const correctingPage =
+    !stale &&
+    pagination !== null &&
+    pagination.metadata.totalItems > 0 &&
+    query.pageNumber > pagination.metadata.totalPages;
+
+  /*
+   * One always-mounted live region (ui-spec 29.7), the same pattern
+   * for the same reason: a `role="status"` node
+   * inserted into the DOM with its text already present is announced
+   * inconsistently, because assistive technology reports mutations to a region
+   * already in the accessibility tree. The region stays put and only its text
+   * changes.
+   *
+   * It also owns the result announcement now that `Pagination` is no longer a
+   * live region of its own. The rejected-query state is left to `ErrorState`'s
+   * `role="alert"`; announcing it here too would announce it twice.
+   */
+  /*
+   * The header, not the row count, is the authority on how many Tickets the
+   * query found -- one page of ten out of forty-seven announces forty-seven.
+   * `readPaginationHeader` still returns null for a header a proxy dropped or
+   * mangled, and announcing "0 tickets" over rendered rows would contradict
+   * the screen, so the rows answer for themselves in that one case.
+   */
+  const announcedCount = !stale && pagination !== null ? pagination.metadata.totalItems : items.length;
+  const announcement =
+    loadState === "loading"
+      ? "Loading tickets…"
+      : loadState === "loaded"
+        ? `${announcedCount} ticket${announcedCount === 1 ? "" : "s"}`
+        : "";
+
+  const filterLabels = useMemo(() => {
+    const byId = (rows: MasterDataItem[]) =>
+      new Map(rows.map((row) => [String(row.id), row.name] as const));
+
+    return {
+      categoryId: byId(categories),
+      relatedSystemId: byId(relatedSystems),
+    };
+  }, [categories, relatedSystems]);
+
+  function chipLabel(field: (typeof FILTER_FIELDS)[number], value: string): string {
+    if (field === "categoryId" || field === "relatedSystemId") {
+      return filterLabels[field].get(value) ?? value;
+    }
+
+    return value;
+  }
+
+  function removeFilterValue(field: (typeof FILTER_FIELDS)[number], value: string): void {
+    commitQuery({
+      ...query,
+      [field]: query[field].filter((entry) => entry !== value),
+      pageNumber: 1,
+    });
+  }
+
+  function clearFilters(): void {
+    setSearchInput("");
+    /* Sort survives: ui-spec Section 14.5 clears the query, not the ordering. */
+    commitQuery({ ...query, ...EMPTY_FILTERS, search: "", pageNumber: 1 });
+  }
+
+  /*
+   * Recovery from a rejected query, which `clearFilters` cannot provide. The
+   * parameter at fault may be one the toolbar cannot reach -- `pageSize`,
+   * `pageNumber`, or an unknown `sort` from a hand-edited or shared address --
+   * and the pagination control that would correct it is not rendered while the
+   * error is showing. Clearing only the search and filters would then rebuild
+   * the identical address, so nothing would refetch and the button would do
+   * nothing at all. Every parameter goes back to its default instead.
+   */
+  function resetQuery(): void {
+    setSearchInput("");
+    commitQuery(INITIAL_QUERY);
+  }
+
+  function applyFilters(): void {
+    if (filterDraft === null) {
+      return;
+    }
+
+    commitQuery({ ...query, ...filterDraft, pageNumber: 1 });
+    setFilterDraft(null);
+  }
+
+  const sharedColumns: IColumn<TicketListItem>[] = [
+    {
+      key: "ticketNumber",
+      label: "Ticket Number",
+      render: (value) => <span className="tt-row-link tt-ticket-no">{String(value ?? "")}</span>,
+    },
+    { key: "summary", label: "Summary" },
+    { key: "categoryName", label: "Category", sortable: false, className: SECONDARY_COLUMN },
+    { key: "relatedSystemName", label: "Related System", sortable: false, className: SECONDARY_COLUMN },
+    {
+      key: "requestedPriority",
+      label: "Priority",
+      render: (value) => {
+        const priority = String(value) as PriorityValue;
+        return <PriorityChip value={priority} />;
+      },
+    },
+    {
+      key: "currentStatus",
+      label: "Status",
+      render: (value) => <StatusChip value={String(value ?? "") as StatusValue} />,
+    },
+    {
+      key: "createdAt",
+      label: "Created At",
+      className: SECONDARY_COLUMN,
+      render: (value) => ticketDate(String(value ?? "")),
+    },
+  ];
+
+  const sharedFilterModal = (
+    <Modal
+      open={filterDraft !== null}
+      title="Filters"
+      onClose={() => setFilterDraft(null)}
+      footer={
+        <div className="d-flex justify-content-between w-100">
+          <Button variant="tertiary" onClick={() => setFilterDraft(EMPTY_FILTERS)}>
+            Reset
+          </Button>
+          <div className="d-flex gap-2">
+            <Button variant="secondary" onClick={() => setFilterDraft(null)}>Cancel</Button>
+            <Button variant="primary" onClick={applyFilters}>Apply</Button>
+          </div>
+        </div>
+      }
+    >
+      <MultiSelect
+        label="Category"
+        placeholder="Any Category…"
+        options={categories.map((category) => ({ value: String(category.id), label: category.name }))}
+        selected={filterDraft?.categoryId ?? []}
+        onChange={(categoryId) => setFilterDraft((draft) => draft === null ? draft : { ...draft, categoryId })}
+      />
+      <MultiSelect
+        label="Related System"
+        placeholder="Any Related System…"
+        options={relatedSystems.map((system) => ({ value: String(system.id), label: system.name }))}
+        selected={filterDraft?.relatedSystemId ?? []}
+        onChange={(relatedSystemId) => setFilterDraft((draft) => draft === null ? draft : { ...draft, relatedSystemId })}
+      />
+      <MultiSelect
+        label="Requested Priority"
+        placeholder="Any Requested Priority…"
+        options={PRIORITY_OPTIONS.map((priority) => ({ value: priority, label: priority }))}
+        selected={filterDraft?.requestedPriority ?? []}
+        onChange={(requestedPriority) => setFilterDraft((draft) => draft === null ? draft : { ...draft, requestedPriority })}
+      />
+      <MultiSelect
+        label="Status"
+        placeholder="Any Status…"
+        options={STATUS_OPTIONS.map((status) => ({ value: status, label: status }))}
+        selected={filterDraft?.currentStatus ?? []}
+        onChange={(currentStatus) => setFilterDraft((draft) => draft === null ? draft : { ...draft, currentStatus })}
+      />
+    </Modal>
+  );
+
+  const tableLoading = loading || (pagination !== null && stale);
+
+  return (
+    <DataTable<TicketListItem>
+      title="My Tickets"
+      subtitle="View and manage your support requests."
+      itemName="Tickets"
+      data={items}
+      total={totalItems}
+      loading={tableLoading}
+      invalidState={loadState === "invalid"}
+      onResetQuery={resetQuery}
+      columns={sharedColumns}
+      tableClassName="tt-table tt-table--tickets"
+      tableCaption="My Tickets"
+      tableTestId="ticket-table"
+      rowTestIdPrefix="ticket-row"
+      basePath="/tickets"
+      itemKey="publicId"
+      linkFirstColumn
+      linkFirstColumnLabel={(item) => `Open ticket ${item.ticketNumber}`}
+      rowLink={(item) => `/tickets/${encodeURIComponent(item.publicId)}${location.search}`}
+      createButtonLabel="Create Ticket"
+      createButtonTo="/tickets/new"
+      createButtonAriaLabel="Create Ticket (new support ticket)"
+      showCreateButton
+      showEditAction={false}
+      searchLabel="Search Tickets"
+      searchPlaceholder="Search by ticket number, summary, or description…"
+      searchMaxLength={200}
+      searchValue={searchInput}
+      onSearchInputChange={setSearchInput}
+      sortOptions={SORT_OPTIONS.map((option) => [option.id, option.label])}
+      selectedSort={query.sort}
+      onSortChange={(sort) => commitQuery({ ...query, sort, pageNumber: 1 })}
+      filterCount={appliedCount}
+      onOpenFilterDialog={() => setFilterDraft(selectedFilters(query))}
+      activeChips={FILTER_FIELDS.flatMap((field): IActiveFilterChip[] => query[field].map((value) => ({
+        key: `${field}:${value}`,
+        label: chipLabel(field, value),
+        onRemove: () => removeFilterValue(field, value),
+      })))}
+      onClearFilters={clearFilters}
+      customFilterModal={sharedFilterModal}
+      statusMessage={tableLoading ? "Loading tickets…" : announcement}
+      tableTopContent={referenceDataFailed ? (
+        <div role="alert" className="alert alert-warning d-flex align-items-center justify-content-between gap-3">
+          <span>Filter options could not be loaded.</span>
+          <Button variant="secondary" onClick={() => setReferenceDataRetryCount((count) => count + 1)}>Retry filters</Button>
+        </div>
+      ) : null}
+      pageNumber={query.pageNumber}
+      pageSize={query.pageSize}
+      showPagination={loading || totalItems > 0 || items.length > 0}
+      onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber }, correctingPage)}
+      onPageSizeChange={(pageSize) => commitQuery({ ...query, pageSize, pageNumber: 1 })}
+      renderLoading={() => (
+        <>
+          <table className="table tt-table tt-table--tickets align-middle mb-0" data-testid="ticket-table">
+            <thead><tr>{sharedColumns.map((column) => <th key={column.key} scope="col" className={column.className}>{column.label}</th>)}</tr></thead>
+            <tbody>{Array.from({ length: SKELETON_ROWS }, (_unused, row) => <tr key={`skeleton-${row}`}>{sharedColumns.map((column) => <td key={column.key} className={column.className}><Skeleton height="1.25rem" /></td>)}</tr>)}</tbody>
+          </table>
+        </>
+      )}
+      renderEmptyState={() => {
+        if (correctingPage) return null;
+        return trulyEmpty ? (
+          <EmptyState title="No tickets yet." description="Create your first support ticket." action={<Link className="btn btn-primary" to="/tickets/new" aria-label="Create Ticket for this Requester">Create Ticket</Link>} />
+        ) : (
+          <EmptyState title="No tickets found." description="Try changing your search or filters." />
+        );
+      }}
+    />
+  );
+}

@@ -8,7 +8,7 @@ import {
   type IDataTableFilterField,
   type IFetchParams,
   type IFetchResult,
-} from "../../src/components/DataTable.js";
+} from "../../src/components/Maintain/DataTable.js";
 
 interface TestItem {
   id: string;

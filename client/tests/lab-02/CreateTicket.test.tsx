@@ -8,7 +8,7 @@ import {
   RECOVERY_STORAGE_KEY,
   RecoveryRecord,
   payloadSignature,
-} from "../../src/tickets/createTicketDraft.js";
+} from "../../src/modules/Tickets/createTicketDraft.js";
 
 const ALICE = { id: 3, name: "Alice Johnson" };
 

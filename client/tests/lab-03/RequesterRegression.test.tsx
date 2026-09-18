@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import App from "../../src/App.js";
 import { clearAccessToken } from "../../src/auth/authTransport.js";
-import { RECOVERY_STORAGE_KEY } from "../../src/tickets/createTicketDraft.js";
+import { RECOVERY_STORAGE_KEY } from "../../src/modules/Tickets/createTicketDraft.js";
 
 const USER = {
   publicId: "70000000-0000-4000-8000-000000000001",

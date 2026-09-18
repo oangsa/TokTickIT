@@ -3,21 +3,21 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
-import { AttachmentState, AttachmentStateName } from "../../src/components/AttachmentState.js";
-import { Button } from "../../src/components/Button.js";
-import { Chip, type ChipVariant } from "../../src/components/Chip.js";
-import { FilterChip } from "../../src/components/FilterChip.js";
-import { Form } from "../../src/components/Form.js";
-import { Modal } from "../../src/components/Modal.js";
-import { MultiSelect } from "../../src/components/MultiSelect.js";
-import { Pagination } from "../../src/components/Pagination.js";
-import { PriorityChip } from "../../src/components/PriorityChip.js";
-import { ReadOnlyField } from "../../src/components/ReadOnlyField.js";
-import { Select } from "../../src/components/Select.js";
-import { StatusChip } from "../../src/components/StatusChip.js";
-import { SuccessMessage } from "../../src/components/SuccessMessage.js";
-import { TextInput } from "../../src/components/TextInput.js";
-import { Textarea } from "../../src/components/Textarea.js";
+import { AttachmentState, AttachmentStateName } from "../../src/modules/Tickets/attachments/AttachmentState.js";
+import { Button } from "../../src/components/Common/Button.js";
+import { Chip, type ChipVariant } from "../../src/components/Common/Chip.js";
+import { FilterChip } from "../../src/components/Common/Collection/FilterChip.js";
+import { Form } from "../../src/components/Common/Form/Form.js";
+import { Modal } from "../../src/components/Common/Modal.js";
+import { MultiSelect } from "../../src/components/Common/Form/MultiSelect.js";
+import { Pagination } from "../../src/components/Common/Collection/Pagination.js";
+import { PriorityChip } from "../../src/modules/Tickets/components/PriorityChip.js";
+import { ReadOnlyField } from "../../src/components/Common/Form/ReadOnlyField.js";
+import { Select } from "../../src/components/Common/Form/Select.js";
+import { StatusChip } from "../../src/modules/Tickets/components/StatusChip.js";
+import { SuccessMessage } from "../../src/components/Common/Feedback/SuccessMessage.js";
+import { TextInput } from "../../src/components/Common/Form/TextInput.js";
+import { Textarea } from "../../src/components/Common/Form/Textarea.js";
 
 function ModalHarness({ withAction = false }: { withAction?: boolean }) {
   const [open, setOpen] = useState(false);

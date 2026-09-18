@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { InternalNotes, type InternalNoteDTO } from "../../src/components/InternalNotes.js";
+import { InternalNotes, type InternalNoteDTO } from "../../src/modules/Tickets/components/InternalNotes.js";
 import { ApiResponseError } from "../../src/api.js";
 
 const { callApi, auth } = vi.hoisted(() => ({

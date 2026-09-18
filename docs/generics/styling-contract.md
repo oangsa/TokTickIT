@@ -8,6 +8,24 @@ Feature specifications and API contracts separately define fields, permissions, 
 
 Use React + TypeScript + Vite, Bootstrap, and the existing shared components. This contract does not authorize new dependencies or a bulk rewrite. Keep UI specifications unchanged unless explicitly asked to edit them; record shared styling guidance here.
 
+## Component ownership
+
+Keep shared UI grouped by responsibility under `client/src/components/`:
+
+| Location | Responsibility |
+|---|---|
+| `Common/` | General buttons, cards, chips, modal, and brand mark |
+| `Common/Form/` | CommonForm, field controls, counters, and field validation feedback |
+| `Common/Feedback/` | Loading, empty, error, and success states |
+| `Common/Collection/` | Reusable filter chips and pagination |
+| `Maintain/` | DataTable, ManagePage, and PageHeader page composition |
+
+DataTable belongs in Maintain because its existing implementation composes the page header, filters, actions, and navigation as well as rows. Keep its behavior intact; this folder distinction does not introduce a generic CRUD workflow.
+
+Domain-specific UI lives with its screens under `client/src/modules/`: Auth and System screens, Users screens/UserForm/OneTimePassword, and Tickets requester/staff screens, shared ticket presentation, helpers, and attachments. AppShell and SidebarNav live in `client/src/layouts/`.
+
+Shared managed-form logic remains in `client/src/forms/`; domain form constants remain in `client/src/constants/forms/`. Authentication runtime and navigation guards retain their existing locations. Preserve descriptive filenames and existing exports; grouping does not require new barrel files or wrappers.
+
 ## Visual foundations
 
 [theme.css](../../client/src/styles/theme.css) owns `--tt-*` tokens and Bootstrap aliases. [components.css](../../client/src/styles/components.css) owns shared component treatments. Preserve import order in [main.tsx](../../client/src/main.tsx): Bootstrap, theme, then components. Bootstrap is precompiled: not every `--bs-*` variable affects every component; inspect the actual selector before adding overrides.
@@ -30,15 +48,15 @@ Use Bootstrap spacing/grid utilities first. Desktop page/card padding is about 2
 
 ## Shell, page headers, and sections
 
-Use [AppShell](../../client/src/components/AppShell.tsx) and [SidebarNav](../../client/src/components/SidebarNav.tsx) for authenticated navigation. Pages rendered inside the shell do not add another sidebar or main landmark. Login and the global error page use their specified standalone layouts. Preserve route focus and drawer focus restoration.
+Use [AppShell](../../client/src/layouts/AppShell.tsx) and [SidebarNav](../../client/src/layouts/SidebarNav.tsx) for authenticated navigation. Pages rendered inside the shell do not add another sidebar or main landmark. Login and the global error page use their specified standalone layouts. Preserve route focus and drawer focus restoration.
 
-Use [PageHeader](../../client/src/components/PageHeader.tsx) with `title`, optional `subtitle`/`eyebrow`, `backAction`, and `actions`. It owns title sizing, the consistent outlined back link, and responsive action placement. Use a real Link for navigation and a Button for mutation. Entity identifiers may use `titleClassName` for wrapping. Do not repeat a page title as an unnecessary card title.
+Use [PageHeader](../../client/src/components/Maintain/PageHeader.tsx) with `title`, optional `subtitle`/`eyebrow`, `backAction`, and `actions`. It owns title sizing, the consistent outlined back link, and responsive action placement. Use a real Link for navigation and a Button for mutation. Entity identifiers may use `titleClassName` for wrapping. Do not repeat a page title as an unnecessary card title.
 
-Create/edit/view pages may use [ManagePage](../../client/src/components/ManagePage.tsx) with a page-owned typed header config. Keep title, description, back destination, and actions in that config; ManagePage owns only the shared header-to-content composition, not form state or domain behavior.
+Create/edit/view pages may use [ManagePage](../../client/src/components/Maintain/ManagePage.tsx) with a page-owned typed header config. Keep title, description, back destination, and actions in that config; ManagePage owns only the shared header-to-content composition, not form state or domain behavior.
 
 Ticket Queue and User Management use title-only list headings, with available actions on the right and search/filter controls below. Neither supplies an eyebrow or subtitle. Actions wrap below at narrow widths. This applies to both Administrator and IT Staff uses of StaffTicketQueue; it does not remove subtitles from other page families.
 
-Use [Card](../../client/src/components/Card.tsx) with `title`, optional `actions`, and `children`. A titled Card already supplies a section heading. Its actions render with that heading. Choose one owner for each card and heading: either a CommonForm section creates it or the page wraps the form in Card. Do not render both.
+Use [Card](../../client/src/components/Common/Card.tsx) with `title`, optional `actions`, and `children`. A titled Card already supplies a section heading. Its actions render with that heading. Choose one owner for each card and heading: either a CommonForm section creates it or the page wraps the form in Card. Do not render both.
 
 Current User pages place User Information in a full-width card. Edit User places Account Security below it, not in a sidebar. Staff Ticket Detail stacks Ticket Information, Assignment & Workflow, Attachments, and Communication. Fields within those sections can use responsive columns. Keep password controls reasonably constrained inside the full-width section; do not turn that one form's width into a global field width.
 
@@ -48,20 +66,20 @@ Paths below point to current implementations; inspect their TypeScript props bef
 
 | Need | Component / module | Usage responsibility |
 |---|---|---|
-| Entity create/edit/view | [CommonForm](../../client/src/components/CommonForm.tsx), [useManagedForm](../../client/src/forms/useManagedForm.ts) | Typed sections, modes, field rendering, normal action row, validation mapping |
-| Existing user fields | [UserForm](../../client/src/components/UserForm.tsx) | Reuse shared user config; preserve self-edit restrictions |
-| Ticket information display | [TicketInformationForm](../../client/src/components/TicketInformationForm.tsx) | Format supplied values into a view-mode form; optional requester/audit fields |
-| Small hand-composed control flows | [Form](../../client/src/components/Form.tsx), [FormField](../../client/src/components/FormField.tsx), [TextInput](../../client/src/components/TextInput.tsx), [Textarea](../../client/src/components/Textarea.tsx), [Select](../../client/src/components/Select.tsx) | Keep established specialized flows; these primitives do not supply managed validation or an API workflow |
-| Focusable read-only value | [ReadOnlyField](../../client/src/components/ReadOnlyField.tsx) | `label`, `value`, optional `multiline`; preserves read-only control appearance |
-| Actions | [Button](../../client/src/components/Button.tsx), [IconButton](../../client/src/components/IconButton.tsx) | Semantic variants, busy presentation, accessible icon labels |
-| Lists | [DataTable](../../client/src/components/DataTable.tsx) | Columns, list header, toolbar, states, row actions, pagination |
-| Filters / pagination | [FilterChip](../../client/src/components/FilterChip.tsx), [MultiSelect](../../client/src/components/MultiSelect.tsx), [Pagination](../../client/src/components/Pagination.tsx) | Reuse controls; page owns query semantics and filter commit behavior |
-| Dialogs | [Modal](../../client/src/components/Modal.tsx) | `open`, `title`, `onClose`, `footer`; shared focus and dismissal mechanics |
-| State chips / progress / feedback | [Chip](../../client/src/components/Chip.tsx), [PriorityChip](../../client/src/components/PriorityChip.tsx), [StatusChip](../../client/src/components/StatusChip.tsx), [Skeleton](../../client/src/components/Skeleton.tsx), [ValidationMessage](../../client/src/components/ValidationMessage.tsx), [SuccessMessage](../../client/src/components/SuccessMessage.tsx) | Visible state text and accessible feedback |
-| One-time credentials | [OneTimePassword](../../client/src/components/OneTimePassword.tsx) | Shared read-only password presentation, copy action, and helper text after user creation/reset |
-| Empty / failed region | [EmptyState](../../client/src/components/EmptyState.tsx), [ErrorState](../../client/src/components/ErrorState.tsx) | Explicit title/description and relevant action/retry |
-| Upload lifecycle | [AttachmentSection](../../client/src/attachments/AttachmentSection.tsx), [AttachmentState](../../client/src/components/AttachmentState.tsx) | Pending/Active lifecycle, per-file feedback, preview, removal |
-| Communication | [PublicComments](../../client/src/components/PublicComments.tsx), [InternalNotes](../../client/src/components/InternalNotes.tsx) | Keep audience, permissions, ordering, and pagination in specialized components |
+| Entity create/edit/view | [CommonForm](../../client/src/components/Common/Form/CommonForm.tsx), [useManagedForm](../../client/src/forms/useManagedForm.ts) | Typed sections, modes, field rendering, normal action row, validation mapping |
+| Existing user fields | [UserForm](../../client/src/modules/Users/UserForm.tsx) | Reuse shared user config; preserve self-edit restrictions |
+| Ticket information display | [TicketInformationForm](../../client/src/modules/Tickets/components/TicketInformationForm.tsx) | Format supplied values into a view-mode form; optional requester/audit fields |
+| Small hand-composed control flows | [Form](../../client/src/components/Common/Form/Form.tsx), [FormField](../../client/src/components/Common/Form/FormField.tsx), [TextInput](../../client/src/components/Common/Form/TextInput.tsx), [Textarea](../../client/src/components/Common/Form/Textarea.tsx), [Select](../../client/src/components/Common/Form/Select.tsx) | Keep established specialized flows; these primitives do not supply managed validation or an API workflow |
+| Focusable read-only value | [ReadOnlyField](../../client/src/components/Common/Form/ReadOnlyField.tsx) | `label`, `value`, optional `multiline`; preserves read-only control appearance |
+| Actions | [Button](../../client/src/components/Common/Button.tsx), [IconButton](../../client/src/components/Common/IconButton.tsx) | Semantic variants, busy presentation, accessible icon labels |
+| Lists | [DataTable](../../client/src/components/Maintain/DataTable.tsx) | Columns, list header, toolbar, states, row actions, pagination |
+| Filters / pagination | [FilterChip](../../client/src/components/Common/Collection/FilterChip.tsx), [MultiSelect](../../client/src/components/Common/Form/MultiSelect.tsx), [Pagination](../../client/src/components/Common/Collection/Pagination.tsx) | Reuse controls; page owns query semantics and filter commit behavior |
+| Dialogs | [Modal](../../client/src/components/Common/Modal.tsx) | `open`, `title`, `onClose`, `footer`; shared focus and dismissal mechanics |
+| State chips / progress / feedback | [Chip](../../client/src/components/Common/Chip.tsx), [PriorityChip](../../client/src/modules/Tickets/components/PriorityChip.tsx), [StatusChip](../../client/src/modules/Tickets/components/StatusChip.tsx), [Skeleton](../../client/src/components/Common/Feedback/Skeleton.tsx), [ValidationMessage](../../client/src/components/Common/Form/ValidationMessage.tsx), [SuccessMessage](../../client/src/components/Common/Feedback/SuccessMessage.tsx) | Visible state text and accessible feedback |
+| One-time credentials | [OneTimePassword](../../client/src/modules/Users/OneTimePassword.tsx) | Shared read-only password presentation, copy action, and helper text after user creation/reset |
+| Empty / failed region | [EmptyState](../../client/src/components/Common/Feedback/EmptyState.tsx), [ErrorState](../../client/src/components/Common/Feedback/ErrorState.tsx) | Explicit title/description and relevant action/retry |
+| Upload lifecycle | [AttachmentSection](../../client/src/modules/Tickets/attachments/AttachmentSection.tsx), [AttachmentState](../../client/src/modules/Tickets/attachments/AttachmentState.tsx) | Pending/Active lifecycle, per-file feedback, preview, removal |
+| Communication | [PublicComments](../../client/src/modules/Tickets/components/PublicComments.tsx), [InternalNotes](../../client/src/modules/Tickets/components/InternalNotes.tsx) | Keep audience, permissions, ordering, and pagination in specialized components |
 
 ## Form construction contract
 
@@ -131,7 +149,7 @@ Use Button variants `primary`, `secondary`, `tertiary`, and `destructive`. Butto
 
 Use `lucide-react` (current library) or approved `react-icons`; no hand-drawn SVG, Unicode interface icons, CSS icons, or data-URI icons. Decorative icons have `aria-hidden="true"` and `focusable="false"`. Icon-only controls need an accessible name and visible hover/focus explanation; IconButton is the reusable button choice. Do not duplicate an icon in its label.
 
-Use [Chip](../../client/src/components/Chip.tsx) as the canonical pill surface. Its variants are `primary`, `secondary`, `subtle`, `outline`, and `destructive`; the visible label always remains present. [PriorityChip](../../client/src/components/PriorityChip.tsx) owns LOW/MEDIUM/HIGH mapping and the optional ordinal meter. [StatusChip](../../client/src/components/StatusChip.tsx) owns status-label formatting and status treatment. Ticket lists use semantic defaults so requester and staff/admin tables share the same priority meter and status treatment; pass `variant="outline"` only when a contextual neutral chip is explicitly required. New code must not repeat chip classes or domain mappings. `Badge.tsx` remains only as a compatibility adapter for older imports.
+Use [Chip](../../client/src/components/Common/Chip.tsx) as the canonical pill surface. Its variants are `primary`, `secondary`, `subtle`, `outline`, and `destructive`; the visible label always remains present. [PriorityChip](../../client/src/modules/Tickets/components/PriorityChip.tsx) owns LOW/MEDIUM/HIGH mapping and the optional ordinal meter. [StatusChip](../../client/src/modules/Tickets/components/StatusChip.tsx) owns status-label formatting and status treatment. Ticket lists use semantic defaults so requester and staff/admin tables share the same priority meter and status treatment; pass `variant="outline"` only when a contextual neutral chip is explicitly required. New code must not repeat chip classes or domain mappings. `Badge.tsx` remains only as a compatibility adapter for older imports.
 
 Use Modal for confirmations, filters, and supported previews. Keep focus inside while open, return focus on close, and retain an explicit cancel/close action. Page state determines whether dismissal is allowed during a mutation. Destructive copy names the action and consequence; do not add confirmation dialogs to ordinary actions without a requirement.
 

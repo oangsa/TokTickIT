@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import App from "../../src/App.js";
 import { clearAccessToken } from "../../src/auth/authTransport.js";
 
-import { passwordSchema } from "../../src/pages/ChangePassword.js";
+import { passwordSchema } from "../../src/modules/Auth/ChangePassword.js";
 
 function response(body: unknown, status = 200): Response { return new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }); }
 afterEach(() => { clearAccessToken(false); vi.unstubAllGlobals(); });
