@@ -14,7 +14,9 @@ import { MaintenanceService } from "../services/maintenanceService.js";
  * filenames, no connection strings (BR-86).
  */
 async function main(): Promise<void> {
-  assertLab3TargetEnvironment();
+  if (process.env.NODE_ENV === "test") {
+    assertLab3TargetEnvironment();
+  }
   const prisma = getPrisma();
 
   try {

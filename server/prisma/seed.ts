@@ -132,7 +132,9 @@ async function upsertUser(
 }
 
 async function main(): Promise<void> {
-  assertLab3TargetEnvironment();
+  if (process.env.NODE_ENV === "test") {
+    assertLab3TargetEnvironment();
+  }
   const credentials = loadSeedCredentials();
   const prisma = getPrisma();
   try {

@@ -13,6 +13,7 @@ import { PageHeader } from "../components/PageHeader.js";
 import { ReadOnlyField } from "../components/ReadOnlyField.js";
 import { Skeleton } from "../components/Skeleton.js";
 import { SuccessMessage } from "../components/SuccessMessage.js";
+import { PublicComments } from "../components/PublicComments.js";
 import { ticketDate, ticketDateTime } from "../tickets/ticketDate.js";
 
 /*
@@ -325,7 +326,17 @@ export default function RequesterTicketDetail({ communicationSlot }: RequesterTi
             </Card>
           ) : null}
 
-          {communicationSlot?.(ticket, () => setReloadCount((count) => count + 1))}
+          {communicationSlot ? (
+            communicationSlot(ticket, () => setReloadCount((count) => count + 1))
+          ) : (
+            <Card title="Comments">
+              <PublicComments
+                key={`${ticket.publicId}-${ticket.updatedAt}-${ticket.currentStatus}`}
+                ticketPublicId={ticket.publicId}
+                onCommentAdded={() => setReloadCount((count) => count + 1)}
+              />
+            </Card>
+          )}
 
           {/*
             Attachment behavior is shared with Create

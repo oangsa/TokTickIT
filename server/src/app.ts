@@ -7,9 +7,13 @@ import { requestLog } from "./middleware/requestLog.js";
 import { transport } from "./middleware/transport.js";
 import { authRouter } from "./routes/auth.js";
 import { attachmentsRouter } from "./routes/attachments.js";
+import { adminUsersRouter } from "./routes/adminUsers.js";
+import { commentsRouter } from "./routes/comments.js";
+import { internalNotesRouter } from "./routes/internalNotes.js";
 import { referenceDataRouter } from "./routes/referenceData.js";
 import { ticketsRouter } from "./routes/tickets.js";
 import { createStaffTicketsRouter } from "./routes/staffTickets.js";
+import { writePublicCommentForWorkflow } from "./services/publicCommentService.js";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -41,7 +45,10 @@ app.use("/api", requireFullSession());
 // Reference data and authenticated Lab 2 requester routes.
 // ---------------------------------------------------------------------------
 app.use("/api", referenceDataRouter);
-app.use("/api", createStaffTicketsRouter());
+app.use("/api", createStaffTicketsRouter(writePublicCommentForWorkflow));
+app.use("/api", commentsRouter);
+app.use("/api", internalNotesRouter);
+app.use("/api/admin", adminUsersRouter);
 
 // ---------------------------------------------------------------------------
 // Issue 21 — Ticket creation

@@ -509,11 +509,11 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | UNIT-08 | Unit | BR-49–55, AC-19–24 | Ticket ownership service: Claim, eligible target validation, expected-owner compare, reassignment/unassignment, Admin-owner rules. | Unassigned Claim/assign and owner changes produce the correct domain mutations/conflicts; inactive/Requester owner targets fail. | tests/lab-03/TicketOwnershipService.test.ts | Pass |
 | UNIT-09 | Unit | BR-57–58, BR-60, BR-64–67, AC-26, AC-29–30, AC-33 | Staff Ticket workflow transition matrix and confirmation preconditions independent of HTTP. | Every Staff-owned allowed state/action pair resolves to the approved next state; every disallowed pair yields `INVALID_STATUS_TRANSITION`; Cancelled is terminal. | tests/lab-03/TicketWorkflowService.test.ts | Pass |
 | UNIT-10 | Unit | BR-65–66, AC-27 | Request Information orchestration. | Required Public Comment and status mutation are requested as one transaction; induced failure cannot report partial success. | tests/lab-03/TicketWorkflowService.test.ts | Pass |
-| UNIT-11 | Unit | BR-68, BR-70–75, AC-34–38 | Public Comment validation, root/reply projection, bounded depth, depth-2 flattening, exact reply-target metadata, ordering and preview calculation. | Comments remain escaped/plain-text data; roots/replies order correctly; replies never exceed visual depth 2; no edit/delete behavior exists. | tests/lab-03/PublicCommentService.test.ts | Not Run |
-| UNIT-12 | Unit | BR-69–71, BR-76–77, AC-39–40 | Internal Note validation/projection and authorization-aware create/read service behavior. | Flat append-only notes respect 1–4000 trimmed length; Requester never receives note content; Admin non-owner cannot create. | tests/lab-03/InternalNoteService.test.ts | Not Run |
+| UNIT-11 | Unit | BR-68, BR-70–75, AC-34–38 | Public Comment validation, root/reply projection, bounded depth, depth-2 flattening, exact reply-target metadata, ordering and preview calculation. | Comments remain escaped/plain-text data; roots/replies order correctly; replies never exceed visual depth 2; no edit/delete behavior exists. | tests/lab-03/PublicCommentService.test.ts | Pass |
+| UNIT-12 | Unit | BR-69–71, BR-76–77, AC-39–40 | Internal Note validation/projection and authorization-aware create/read service behavior. | Flat append-only notes respect 1–4000 trimmed length; Requester never receives note content; Admin non-owner cannot create. | tests/lab-03/InternalNoteService.test.ts | Pass |
 | UNIT-13 | Unit | BR-78–86, AC-41–46 | Staff Queue query validator: searchable/filterable/sortable whitelist, typed conversion, Created Date range, defaults, terminal-filter semantics. | Only approved queue fields/operators/types reach QueryBuilder; operational default ordering is constructed correctly. | tests/lab-03/StaffQueueQueryValidator.test.ts | Pass |
-| UNIT-14 | Unit | BR-78–82, AC-47 | Administrator User-list query validator: name/email search, `role` EQUAL filter, approved sort fields, and page defaults. | Only the exact User collection query surface is accepted; invalid fields/conditions/cardinality fail before data access and default name ordering is deterministic. | tests/lab-03/UserQueryValidator.test.ts | Not Run |
-| UNIT-15 | Unit | BR-32–46, AC-48–53 | Administrator User service: create/edit/reset, duplicate email mapping, self-safety, last-admin safety requests, session revocation and owner-unassignment orchestration. | Valid changes produce the planned transactional work; unsafe self/last-admin operations fail before success is reported. | tests/lab-03/UserService.test.ts | Not Run |
+| UNIT-14 | Unit | BR-78–82, AC-47 | Administrator User-list query validator: name/email search, `role` EQUAL filter, approved sort fields, and page defaults. | Only the exact User collection query surface is accepted; invalid fields/conditions/cardinality fail before data access and default name ordering is deterministic. | tests/lab-03/UserQueryValidator.test.ts | Pass |
+| UNIT-15 | Unit | BR-32–46, AC-48–53 | Administrator User service: create/edit/reset, duplicate email mapping, self-safety, last-admin safety requests, session revocation and owner-unassignment orchestration. | Valid changes produce the planned transactional work; unsafe self/last-admin operations fail before success is reported. | tests/lab-03/UserService.test.ts | Pass |
 | UNIT-16 | Unit | FR-66, AC-66 | Maintenance service: expired/revoked session and expired rate-limit selection, bounded repeat-until-empty cleanup, safe rerun. | Only eligible technical rows are selected; live sessions are never targeted; repeated run is idempotent. | tests/lab-03/MaintenanceService.test.ts | Pass |
 | UNIT-17 | Unit | FR-64, BR-78–80, AC-41–46 | Existing reusable QueryBuilder regression plus new Queue validated inputs. | Generic builder constructs approved search/filter/order expressions from already typed input without learning Ticket authorization rules. | tests/lab-02/QueryBuilder.test.ts; tests/lab-03/QueryBuilderRegression.test.ts | Pass |
 | UNIT-18 | Unit | FR-14–FR-16, FR-18, AC-15, AC-17 | Authenticated Requester service boundary: identity-scoped Ticket operations and preservation of Lab 2 idempotency/Attachment orchestration. | Requester identity is derived from auth context; no supplied requester ID changes scope; existing create/list/detail/Attachment behavior remains callable. | tests/lab-03/RequesterRegressionService.test.ts | Pass |
@@ -548,33 +548,33 @@ Public Comment and Internal Note tests deliberately use unique marker text. Requ
 | API-24 | API | AC-25 | Change IT Priority as authorized actor. | IT Priority changes; Requested Priority remains exactly unchanged; invalid enum/unauthorized actor rejected. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 | API-25 | API | AC-26 | Parameterized semantic status-transition matrix. | Every BR-58 allowed action succeeds only from the approved states; all invalid state/action pairs return `409 INVALID_STATUS_TRANSITION`. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 | API-26 | API | AC-27 | Request Information with required message and mocked transaction callback. | Comment insert and `WAITING_FOR_REQUESTER` transition are orchestrated together; failure causes no partial success at application boundary. | tests/lab-03/staff-ticket-detail.api.test.ts; tests/lab-03/comments-notes.api.test.ts | Pass |
-| API-27 | API | AC-28 | Requester posts Public Comment while Ticket is Waiting. | Comment is appended and status remains `WAITING_FOR_REQUESTER`; no automatic Resume occurs. | tests/lab-03/comments-notes.api.test.ts | Not Run |
+| API-27 | API | AC-28 | Requester posts Public Comment while Ticket is Waiting. | Comment is appended and status remains `WAITING_FOR_REQUESTER`; no automatic Resume occurs. | tests/lab-03/comments-notes.api.test.ts | Pass |
 | API-28 | API | AC-29 | Owner Mark Resolved. | Approved state moves to `RESOLVED` and previous Requester resolution-confirmation value is cleared. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 | API-29 | API | AC-30 | Close before and after Requester confirmation. | Close without confirmation returns transition conflict; confirmed RESOLVED Ticket may close by current owner. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 | API-30 | API | AC-31 | Requester Problem Still Exists from RESOLVED and CLOSED. | Both produce `REOPENED`, owner null, confirmation null, priorities unchanged. | tests/lab-03/staff-ticket-detail.api.test.ts; tests/lab-03/requester-regression.api.test.ts | Not Run |
 | API-31 | API | AC-32 | Requester Cancel boundary. | Own NEW/OPEN may cancel; all other statuses and other Requester's Ticket are rejected appropriately. | tests/lab-03/requester-regression.api.test.ts | Not Run |
 | API-32 | API | AC-33 | Attempt every lifecycle action from CANCELLED. | Every mutation is rejected; Ticket remains CANCELLED. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
-| API-33 | API | AC-34 | Create root Public Comment validation and backend author/time. | 1 and 2000 trimmed chars accepted; empty/whitespace/2001 rejected; client author/time fields cannot override backend. | tests/lab-03/comments-notes.api.test.ts | Not Run |
-| API-34 | API | AC-35 | Retrieve root Public Comments. | Defaults to 10 newest-first roots; each root reports total replyCount and at most three oldest-first preview replies. | tests/lab-03/comments-notes.api.test.ts | Not Run |
-| API-35 | API | AC-36 | Retrieve additional replies. | Default page size 5, oldest-first, correct `X-Pagination`, valid beyond-final page returns empty array. | tests/lab-03/comments-notes.api.test.ts | Not Run |
-| API-36 | API | AC-37 | Create replies at target depth 0/1/2. | Depth remains bounded to 2; reply-to-depth-2 stores structural parent correctly and returns exact clicked target metadata. | tests/lab-03/comments-notes.api.test.ts | Not Run |
-| API-37 | API | AC-38 | Append-only Public Comment contract and unsafe content serialization. | No edit/delete route is exposed; HTML/Markdown-like content returns as ordinary text data rather than server-rendered markup. | tests/lab-03/comments-notes.api.test.ts | Not Run |
-| API-38 | API | AC-39 | Internal Note read authorization. | IT Staff/Admin read permitted; Requester receives `403` and response contains no note content/existence detail. | tests/lab-03/comments-notes.api.test.ts; tests/lab-03/authorization.api.test.ts | Not Run |
-| API-39 | API | AC-40 | Internal Note create validation and Admin-owner rule. | IT Staff and Admin owner can create 1–4000 trimmed content; Admin non-owner/Requester cannot; notes remain flat. | tests/lab-03/comments-notes.api.test.ts | Not Run |
+| API-33 | API | AC-34 | Create root Public Comment validation and backend author/time. | 1 and 2000 trimmed chars accepted; empty/whitespace/2001 rejected; client author/time fields cannot override backend. | tests/lab-03/comments-notes.api.test.ts | Pass |
+| API-34 | API | AC-35 | Retrieve root Public Comments. | Defaults to 10 newest-first roots; each root reports total replyCount and at most three oldest-first preview replies. | tests/lab-03/comments-notes.api.test.ts | Pass |
+| API-35 | API | AC-36 | Retrieve additional replies. | Default page size 5, oldest-first, correct `X-Pagination`, valid beyond-final page returns empty array. | tests/lab-03/comments-notes.api.test.ts | Pass |
+| API-36 | API | AC-37 | Create replies at target depth 0/1/2. | Depth remains bounded to 2; reply-to-depth-2 stores structural parent correctly and returns exact clicked target metadata. | tests/lab-03/comments-notes.api.test.ts | Pass |
+| API-37 | API | AC-38 | Append-only Public Comment contract and unsafe content serialization. | No edit/delete route is exposed; HTML/Markdown-like content returns as ordinary text data rather than server-rendered markup. | tests/lab-03/comments-notes.api.test.ts | Pass |
+| API-38 | API | AC-39 | Internal Note read authorization. | IT Staff/Admin read permitted; Requester receives `403` and response contains no note content/existence detail. | tests/lab-03/comments-notes.api.test.ts; tests/lab-03/authorization.api.test.ts | Pass |
+| API-39 | API | AC-40 | Internal Note create validation and Admin-owner rule. | IT Staff and Admin owner can create 1–4000 trimmed content; Admin non-owner/Requester cannot; notes remain flat. | tests/lab-03/comments-notes.api.test.ts | Pass |
 | API-40 | API | AC-41 | Staff Queue multi-field search and AND-with-filter semantics. | Approved four fields form one OR group; ownership is not requester-scoped; search group combines with filters through AND. | tests/lab-03/staff-queue.api.test.ts | Pass |
 | API-41 | API | AC-42 | Staff Queue filter matrix including Created Date range. | Status, IT Priority, owner, category, requested priority, related system and date bounds are typed/validated before repository execution. | tests/lab-03/staff-queue.api.test.ts | Pass |
 | API-42 | API | AC-43 | No explicit Queue sort. | Repository/service receives unassigned-first, semantic IT Priority high-to-low, oldest-first and deterministic tie-break ordering. | tests/lab-03/staff-queue.api.test.ts | Pass |
 | API-43 | API | AC-44 | Queue explicit terminal-status query. | API can return CLOSED/CANCELLED when explicitly requested; it does not make them permanently undiscoverable. | tests/lab-03/staff-queue.api.test.ts | Pass |
 | API-44 | API | AC-45 | Staff Queue pagination boundaries and browser-readable metadata. | Queue page sizes 1 and 100 are accepted; 0/101 are rejected; beyond-final valid page is `200 []` with valid `X-Pagination`. | tests/lab-03/staff-queue.api.test.ts | Pass |
 | API-45 | API | AC-46 | Invalid search/filter/sort/query field/operator/type/cardinality. | `400 VALIDATION_ERROR` occurs before QueryBuilder/Prisma data-access execution. | tests/lab-03/staff-queue.api.test.ts | Pass |
-| API-46 | API | AC-47 | Administrator User list name/email search, `role` filter, approved sort, and pagination. | Returns only safe User list DTO fields with deterministic name-first order; invalid User query combinations return `400 VALIDATION_ERROR` before data access. | tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-47 | API | AC-48 | Create User with default/explicit activation and one role. | `201` compound one-time response; User must-change flag true; generated password has required shape; plaintext is not part of User DTO. | tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-48 | API | AC-49 | Case-insensitive duplicate User email on create/edit. | Returns `409 DUPLICATE_EMAIL`; no second User or partial edit is reported. | tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-49 | API | AC-50 | Edit User and required side effects. | Name-only edit is simple; email/role/deactivation invokes all-session revocation and required Ticket unassignment in one service transaction. | tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-50 | API | AC-51 | Administrator self-safety. | Self-deactivation, self-role change, and self initial-password reset are rejected; permitted self name/email path remains separately defined. | tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-51 | API | AC-52 | Last active Administrator protection. | Demotion/deactivation of last active Admin returns conflict; another active Admin makes otherwise valid target operation possible. | tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-52 | API | AC-53 | Set new initial password for another User. | Returns one generated password, sets must-change, revokes all target sessions; password value is not included in later GET User. | tests/lab-03/users-admin.api.test.ts | Not Run |
-| API-53 | API | AC-54 | Non-Administrator calls every User Management route. | All reads/writes are `403 FORBIDDEN`; no User list/detail/security data is returned. | tests/lab-03/authorization.api.test.ts; tests/lab-03/users-admin.api.test.ts | Not Run |
+| API-46 | API | AC-47 | Administrator User list name/email search, `role` filter, approved sort, and pagination. | Returns only safe User list DTO fields with deterministic name-first order; invalid User query combinations return `400 VALIDATION_ERROR` before data access. | tests/lab-03/users-admin.api.test.ts | Pass |
+| API-47 | API | AC-48 | Create User with default/explicit activation and one role. | `201` compound one-time response; User must-change flag true; generated password has required shape; plaintext is not part of User DTO. | tests/lab-03/users-admin.api.test.ts | Pass |
+| API-48 | API | AC-49 | Case-insensitive duplicate User email on create/edit. | Returns `409 DUPLICATE_EMAIL`; no second User or partial edit is reported. | tests/lab-03/users-admin.api.test.ts | Pass |
+| API-49 | API | AC-50 | Edit User and required side effects. | Name-only edit is simple; email/role/deactivation invokes all-session revocation and required Ticket unassignment in one service transaction. | tests/lab-03/users-admin.api.test.ts | Pass |
+| API-50 | API | AC-51 | Administrator self-safety. | Self-deactivation, self-role change, and self initial-password reset are rejected; permitted self name/email path remains separately defined. | tests/lab-03/users-admin.api.test.ts | Pass |
+| API-51 | API | AC-52 | Last active Administrator protection. | Demotion/deactivation of last active Admin returns conflict; another active Admin makes otherwise valid target operation possible. | tests/lab-03/users-admin.api.test.ts | Pass |
+| API-52 | API | AC-53 | Set new initial password for another User. | Returns one generated password, sets must-change, revokes all target sessions; password value is not included in later GET User. | tests/lab-03/users-admin.api.test.ts | Pass |
+| API-53 | API | AC-54 | Non-Administrator calls every User Management route. | All reads/writes are `403 FORBIDDEN`; no User list/detail/security data is returned. | tests/lab-03/authorization.api.test.ts; tests/lab-03/users-admin.api.test.ts | Pass |
 | API-54 | API | AC-64 | CORS, cookie-origin check, no-store, request correlation, centralized safe errors and logging redaction. | Credentialed approved origin works; disallowed cookie mutation origin fails; approved headers exposed; logs/errors omit secrets, credentials, note content and DB internals. | tests/lab-03/auth-transport.api.test.ts; tests/lab-03/error-contract.api.test.ts | Pass |
 | API-55 | API | AC-17, AC-24, AC-64 | Staff/Admin existing Attachment metadata/preview/download read routes. | Authorized Ticket readers can read existing evidence; Removed binary remains Gone; no Staff/Admin Attachment write route exists; safe failures leak no cross-owner/requester detail. | tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
 
@@ -586,7 +586,7 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | --- | --- | --- | --- | --- | --- | --- |
 | PG-01 | PostgreSQL Integration | AC-64–65 | Upgrade a populated Lab 2 database and provision migrated User credentials. | Existing DevelopmentRequester numeric IDs become User IDs; migration leaves unique fail-closed markers, guarded provisioning creates per-User Argon2id hashes and one-time handoff credentials, and Ticket Requester ownership, Category/System/Ticket/Attachment/idempotency rows and public Ticket identities remain exact. | tests/lab-03/postgres/migration-upgrade.postgres.test.ts | Pass |
 | PG-02 | PostgreSQL Integration | AC-64, AC-65 | Fresh Lab 3 schema/migration contract. | User/session/rate-limit/comment/note tables, enums, unique keys, restrictive FKs, Ticket owner/priority/status fields, indexes and `citext` extension/column are present with approved nullability/defaults. | tests/lab-03/postgres/schema-contract.postgres.test.ts | Pass |
-| PG-03 | PostgreSQL Integration | AC-49 | Case-insensitive email unique constraint under real PostgreSQL including concurrent insert/update. | Only one case-insensitive email identity persists; losing transaction maps to duplicate-email behavior. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
+| PG-03 | PostgreSQL Integration | AC-49 | Case-insensitive email unique constraint under real PostgreSQL including concurrent insert/update. | Only one case-insensitive email identity persists; losing transaction maps to duplicate-email behavior. | tests/lab-03/postgres/users-admin.postgres.test.ts | Pass |
 | PG-04 | PostgreSQL Integration | AC-01, AC-48, AC-53, AC-64 | Persisted password/session security representation. | User rows contain encoded Argon2id hashes rather than fixture plaintext; session rows contain refresh hashes and no refresh plaintext column/value. | tests/lab-03/postgres/auth-session.postgres.test.ts | Pass |
 | PG-05 | PostgreSQL Integration | AC-06–08, AC-10–11 | Real session state across expiry, rotation, previous-token window and revocation. | Row-locked session timestamps/hash transitions enforce the approved deadlines; one valid previous-token reuse rotates without revocation; all-session revocation makes every session inactive. | tests/lab-03/postgres/auth-session.postgres.test.ts | Pass |
 | PG-06 | PostgreSQL Integration | AC-12 | Concurrent failed Login bucket increments for email/IP and global IP. | Threshold counters do not lose updates under concurrent attempts; exact block/window boundaries and successful pair-only clearing preserve deterministic global-IP history. | tests/lab-03/postgres/rate-limit.postgres.test.ts | Pass |
@@ -595,10 +595,10 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | PG-09 | PostgreSQL Integration | AC-19 | Assign previously unassigned NEW Ticket through the owner-update path. | Owner assignment and NEW→OPEN commit atomically or neither commits. | tests/lab-03/postgres/ticket-ownership.postgres.test.ts | Pass |
 | PG-10 | PostgreSQL Integration | AC-27 | Request Information real transaction with induced comment or Ticket-update failure. | Public Comment and WAITING status both commit or both roll back. | tests/lab-03/postgres/ticket-workflow.postgres.test.ts | Pass |
 | PG-11 | PostgreSQL Integration | AC-31 | Requester Reopen transaction from RESOLVED/CLOSED. | REOPENED, owner null, confirmation null commit together; priorities remain unchanged. | tests/lab-03/postgres/ticket-workflow.postgres.test.ts | Pass |
-| PG-12 | PostgreSQL Integration | AC-52 | Two Administrators concurrently attempt changes that could remove the final active Administrator. | Database/application transaction locking prevents zero active Administrators; at least one operation conflicts/rolls back. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
-| PG-13 | PostgreSQL Integration | AC-50 | Email/role/deactivation edit transaction with active sessions and owned Tickets. | Required User change, session revocation and owner unassignment commit together; induced failure rolls all related changes back. | tests/lab-03/postgres/users-admin.postgres.test.ts | Not Run |
-| PG-14 | PostgreSQL Integration | AC-35–37 | Public Comment thread persistence/order using real relational data. | Root/reply indexes and relationships retrieve newest roots, oldest replies, previews, page boundaries and flattened depth-2 reply targets without broken FK state. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Not Run |
-| PG-15 | PostgreSQL Integration | AC-40 | Internal Note persistence and restrictive author/Ticket relationships. | Valid flat notes persist with author/time relation; historical note evidence is not cascade-deleted by User/Ticket lifecycle operations. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Not Run |
+| PG-12 | PostgreSQL Integration | AC-52 | Two Administrators concurrently attempt changes that could remove the final active Administrator. | Database/application transaction locking prevents zero active Administrators; at least one operation conflicts/rolls back. | tests/lab-03/postgres/users-admin.postgres.test.ts | Pass |
+| PG-13 | PostgreSQL Integration | AC-50 | Email/role/deactivation edit transaction with active sessions and owned Tickets. | Required User change, session revocation and owner unassignment commit together; induced failure rolls all related changes back. | tests/lab-03/postgres/users-admin.postgres.test.ts | Pass |
+| PG-14 | PostgreSQL Integration | AC-35–37 | Public Comment thread persistence/order using real relational data. | Root/reply indexes and relationships retrieve newest roots, oldest replies, previews, page boundaries and flattened depth-2 reply targets without broken FK state. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Pass |
+| PG-15 | PostgreSQL Integration | AC-40 | Internal Note persistence and restrictive author/Ticket relationships. | Valid flat notes persist with author/time relation; historical note evidence is not cascade-deleted by User/Ticket lifecycle operations. | tests/lab-03/postgres/comments-notes.postgres.test.ts | Pass |
 | PG-16 | PostgreSQL Integration | AC-17, AC-65 | Authenticated migrated Requester uses existing Ticket/Attachment/idempotency data on real PostgreSQL. | Migrated User owns the same Tickets; existing idempotent replay/Attachment lifecycle remains valid after FK evolution. | tests/lab-03/postgres/requester-regression.postgres.test.ts | Pass |
 | PG-17 | PostgreSQL Integration | AC-66 | Maintenance cleanup against live/expired/revoked session and rate-limit fixtures. | Only eligible technical rows are removed; active valid sessions survive; repeat cleanup changes nothing. | tests/lab-03/postgres/maintenance.postgres.test.ts | Pass |
 
@@ -626,23 +626,23 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | UI-18 | UI | AC-25 | IT Priority edit/local saving behavior. | Authorized edit sends only IT Priority, Requested Priority remains read-only, local busy/success/error states are correct. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
 | UI-19 | UI | AC-26 | Semantic status-action visibility across all statuses. | No generic status select exists; only actions permitted by current status/ownership render as enabled controls. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
 | UI-20 | UI | AC-27 | Request Information required-message form. | Modal/form validates Public Comment content, submits once to semantic endpoint, closes modal on success and reflects WAITING_FOR_REQUESTER state; production live comment thread display is integrated in Issue 6. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
-| UI-21 | UI | AC-28 | Waiting Ticket after Requester comment. | New Public Comment renders while status remains Waiting; no automatic Resume is implied and owner Resume Work remains explicit. | tests/lab-03/StaffTicketDetail.test.tsx | Not Run |
+| UI-21 | UI | AC-28 | Waiting Ticket after Requester comment. | New Public Comment renders while status remains Waiting; no automatic Resume is implied and owner Resume Work remains explicit. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
 | UI-22 | UI | AC-29–30 | Staff Mark Resolved and Close gating UI. | Mark Resolved exposes Requester confirmation; Close is hidden/disabled until confirmation and only succeeds from the approved state. | tests/lab-03/StaffTicketDetail.test.tsx | Pass |
-| UI-23 | UI | AC-34, AC-35 | Public Comment root composer and lazy root list. | Create validation/busy/error works; root order/new item state correct; Load More adds root pages without destroying loaded threads. | tests/lab-03/PublicComments.test.tsx | Not Run |
-| UI-24 | UI | AC-36–38 | Reply preview/View More/depth-2 reply-target presentation. | Replies expand by page; visual depth capped; `@Name` comes from metadata; no edit/delete; markup-like content renders as text. | tests/lab-03/PublicComments.test.tsx | Not Run |
-| UI-25 | UI | AC-39, AC-40, AC-63 | Internal Notes tab, privacy warning, read/create permissions and validation. | Requester has no notes UI; Admin non-owner read-only; Staff/Admin owner composer available; public/private surfaces are unmistakably distinct. | tests/lab-03/StaffTicketDetail.test.tsx; tests/lab-03/InternalNotes.test.tsx | Not Run |
-| UI-26 | UI | AC-47 | User Management list/search/role-filter/pagination UI. | Required columns render; query controls update collection; empty/no-results/loading/failure states remain simple and usable. | tests/lab-03/UserManagement.test.tsx | Not Run |
-| UI-27 | UI | AC-48, AC-49, AC-56 | Create User CommonForm and one-time password state. | Fields/default Active submit correctly; duplicate email maps to field; success replaces form with one-time password/Copy/Done and avoids persisted route state. | tests/lab-03/UserManagement.test.tsx; tests/lab-03/UserForm.test.tsx | Not Run |
-| UI-28 | UI | AC-50–52 | Edit User fields, safety controls and session-impact confirmations. | Name/email/role/status behavior matches target; self/last-admin unsafe controls unavailable; backend conflict still handled safely. | tests/lab-03/UserManagement.test.tsx; tests/lab-03/UserForm.test.tsx | Not Run |
-| UI-29 | UI | AC-53 | Set New Initial Password UI. | Confirmation states sign-out/must-change impact; success reveals password exactly once with Copy; later User fetch does not restore it. | tests/lab-03/UserManagement.test.tsx | Not Run |
-| UI-30 | UI | AC-54 | Non-Admin User Management route guard. | Requester/IT Staff never render User list/form before standalone 403; direct API denial remains separately covered. | tests/lab-03/ApplicationShellAuth.test.tsx | Not Run |
-| UI-31 | UI | AC-55 | Dirty Create/Edit User NavigationGuard. | Untouched form leaves directly; dirty Cancel/sidebar/back asks confirmation; Keep Editing preserves values; Discard clears and leaves. | tests/lab-03/UserForm.test.tsx | Not Run |
+| UI-23 | UI | AC-34, AC-35 | Public Comment root composer and lazy root list. | Create validation/busy/error works; root order/new item state correct; Load More adds root pages without destroying loaded threads. | tests/lab-03/PublicComments.test.tsx | Pass |
+| UI-24 | UI | AC-36–38 | Reply preview/View More/depth-2 reply-target presentation. | Replies expand by page; visual depth capped; `@Name` comes from metadata; no edit/delete; markup-like content renders as text. | tests/lab-03/PublicComments.test.tsx | Pass |
+| UI-25 | UI | AC-39, AC-40, AC-63 | Internal Notes tab, privacy warning, read/create permissions and validation. | Requester has no notes UI; Admin non-owner read-only; Staff/Admin owner composer available; public/private surfaces are unmistakably distinct. | tests/lab-03/StaffTicketDetail.test.tsx; tests/lab-03/InternalNotes.test.tsx | Pass |
+| UI-26 | UI | AC-47 | User Management list/search/role-filter/pagination UI. | Required columns render; query controls update collection; empty/no-results/loading/failure states remain simple and usable. | tests/lab-03/UserManagement.test.tsx | Pass |
+| UI-27 | UI | AC-48, AC-49, AC-56 | Create User CommonForm and one-time password state. | Fields/default Active submit correctly; duplicate email maps to field; success replaces form with one-time password/Copy/Done and avoids persisted route state. | tests/lab-03/UserManagement.test.tsx; tests/lab-03/UserForm.test.tsx | Pass |
+| UI-28 | UI | AC-50–52 | Edit User fields, safety controls and session-impact confirmations. | Name/email/role/status behavior matches target; self/last-admin unsafe controls unavailable; backend conflict still handled safely. | tests/lab-03/UserManagement.test.tsx; tests/lab-03/UserForm.test.tsx | Pass |
+| UI-29 | UI | AC-53 | Set New Initial Password UI. | Confirmation states sign-out/must-change impact; success reveals password exactly once with Copy; later User fetch does not restore it. | tests/lab-03/UserManagement.test.tsx | Pass |
+| UI-30 | UI | AC-54 | Non-Admin User Management route guard. | Requester/IT Staff never render User list/form before standalone 403; direct API denial remains separately covered. | tests/lab-03/ApplicationShellAuth.test.tsx | Pass |
+| UI-31 | UI | AC-55 | Dirty Create/Edit User NavigationGuard. | Untouched form leaves directly; dirty Cancel/sidebar/back asks confirmation; Keep Editing preserves values; Discard clears and leaves. | tests/lab-03/UserForm.test.tsx | Pass |
 | UI-32 | UI | AC-57 | CommonForm built-in field rendering and semantic span mapping. | All approved field discriminants render correct semantic controls; full/half/third/quarter map to approved Bootstrap responsive classes. | tests/lab-03/CommonForm.test.tsx | Pass |
 | UI-33 | UI | AC-58 | React Hook Form + Zod validation integration. | Invalid submit makes no API callback, field errors associate correctly and first invalid control receives focus; valid normalized values submit. | tests/lab-03/CommonForm.test.tsx | Pass |
 | UI-34 | UI | AC-59 | Generic centralized server-validation error mapping. | Known `details[].field` becomes RHF field error; unknown field/code remains form-level safe message without clobbering values. | tests/lab-03/CommonForm.test.tsx | Pass |
 | UI-35 | UI | AC-60 | Ticket specialized AttachmentSection through CommonForm custom field. | Renderer hosts feature component without taking over Pending/Active/retry/cleanup/idempotency state; field layout remains valid. | tests/lab-03/CommonForm.test.tsx; tests/lab-03/RequesterRegression.test.tsx | Not Run |
 | UI-36 | UI | AC-62 | Issue 3-owned keyboard/focus/icon accessibility. | Auth labels, password visibility, role navigation, mobile menu, logout, and standalone error actions have accessible names, usable keyboard paths, and visible focus; queue/comment/pagination/Copy controls remain owned by Issues 4–6. | tests/lab-03/Accessibility.test.tsx; tests/lab-03/ApplicationShellAuth.test.tsx; tests/lab-03/ErrorPageAuth.test.tsx | Pass |
-| UI-37 | UI | AC-38, AC-64 | Safe rendering and secret/non-public-content UI boundaries. | Comment markup remains text; Internal Notes absent for Requester; password hash/token never render; one-time plaintext does not survive navigation/reload. | tests/lab-03/PublicComments.test.tsx; tests/lab-03/UserManagement.test.tsx; tests/lab-03/AuthProvider.test.tsx | Not Run |
+| UI-37 | UI | AC-38, AC-64 | Safe rendering and secret/non-public-content UI boundaries. | Comment markup remains text; Internal Notes absent for Requester; password hash/token never render; one-time plaintext does not survive navigation/reload. | tests/lab-03/PublicComments.test.tsx; tests/lab-03/UserManagement.test.tsx; tests/lab-03/AuthProvider.test.tsx | Pass |
 | UI-38 | UI | AC-14, AC-16, AC-64 | Standalone error variants and role-aware Back targets. | Safe 403/404/500 copy, no role sidebar, no arbitrary backend copy, deterministic role home Back. | tests/lab-03/ErrorPageAuth.test.tsx | Pass |
 
 ## 9. Planned Responsive Tests
@@ -652,8 +652,8 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 | RESP-01 | Responsive | AC-61–62 | Login and Change Password at 1440×900, 820×1180, 390×844. | Centered/constrained desktop/tablet and full-width mobile card; guidance/actions readable; keyboard focus/touch targets usable; no horizontal overflow. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 | RESP-02 | Responsive | AC-61–62 | Requester Create/My Tickets/Ticket Detail regression at all required viewports. | Lab 2 responsive form/table/detail/Attachment behavior remains after CommonForm/auth migration with no selector remnants or clipping. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 | RESP-03 | Responsive | AC-61–62 | IT Staff Queue at all required viewports. | Desktop six-column table; tablet/mobile stacked cards; search/filter/page actions usable; no mega-grid or page overflow. | e2e/lab-03/responsive-visual.spec.ts | Pass |
-| RESP-04 | Responsive | AC-61–63 | Staff/Admin Ticket Detail including comments/notes at all required viewports. | Cards/actions wrap safely; owner lookup works; depth-2 comments stay readable; Internal warning remains visible; no overflow. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
-| RESP-05 | Responsive | AC-61–62 | User Management list/Create/Edit at all required viewports. | Required User data/actions remain discoverable; forms collapse to single-column mobile; one-time password panel fits without clipping. | e2e/lab-03/responsive-visual.spec.ts | Not Run |
+| RESP-04 | Responsive | AC-61–63 | Staff/Admin Ticket Detail including comments/notes at all required viewports. | Cards/actions wrap safely; owner lookup works; depth-2 comments stay readable; Internal warning remains visible; no overflow. | e2e/lab-03/responsive-visual.spec.ts | Pass |
+| RESP-05 | Responsive | AC-61–62 | User Management list/Create/Edit at all required viewports. | Required User data/actions remain discoverable; forms collapse to single-column mobile; one-time password panel fits without clipping. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 | RESP-06 | Responsive | AC-61–62 | Authenticated AppShell/drawer for all roles. | Desktop/sidebar and mobile drawer show correct role navigation; focus containment/restoration and Logout/password actions remain reachable. | e2e/lab-03/responsive-visual.spec.ts | Pass |
 
 ## 10. Planned Visual Evidence
@@ -699,8 +699,8 @@ Each major required screen should have desktop/tablet/mobile captures where the 
 | E2E-02 | E2E | AC-02, AC-12, AC-14 | Invalid/inactive Login, rate-limit-safe feedback and role navigation denial. | Unknown/wrong/inactive cases use safe copy; deterministic fixture can reach rate limit; wrong-role URL/API remains forbidden without protected data. | e2e/lab-03/authentication.spec.ts | Pass |
 | E2E-03 | E2E | AC-15–17, AC-31–32 | Authenticated Requester regression golden path. | Requester creates Ticket with Pending Attachment → Active binding → My Tickets/detail/Attachment operations → permitted Cancel or separate ownership-safe reopen fixture; another Requester cannot open resource. Public Comment/thread coverage belongs to E2E-06. | e2e/lab-03/requester-regression.spec.ts | Pass |
 | E2E-04 | E2E | AC-19–27, AC-29–30, AC-33, AC-41–46 | IT Staff Queue and workflow golden path. | Queue search/filter/sort/page → unassigned Ticket → Claim/Open → Start → safe pre-integration Request Information failure (500, unchanged status, no comment) → explicit Resume fixture → Resolve → confirmed Close; terminal and permission boundaries remain correct. Issue 5 verifies the injected transaction seam via API-26 and PG-10; production Request Information → Public Comment → WAITING browser integration is owned by Issue 6 (E2E-06). Public Comment thread/Note detail coverage belongs to E2E-06. | e2e/lab-03/staff-ticket-flow.spec.ts | Pass |
-| E2E-05 | E2E | AC-47–56 | Administrator User Management golden path. | List/search/filter/page → Create User → copy one-time password → duplicate validation → Edit → role/activation safety → reset initial password → target forced change on next Login. | e2e/lab-03/user-administration.spec.ts | Not Run |
-| E2E-06 | E2E | AC-14, AC-16, AC-23–24, AC-28, AC-34–40, AC-54, AC-63–64 | Direct authorization and communication-boundary regression with real browser auth contexts. | Requester cannot Internal Notes/staff/admin APIs; non-owner Staff owner-only action denied; Admin non-owner vs owner differs; cross-Requester uses 404; Public Comment/reply and Internal Note visibility/creation boundaries remain correct; no protected data appears in response/UI. | e2e/lab-03/staff-ticket-flow.spec.ts; e2e/lab-03/user-administration.spec.ts | Not Run |
+| E2E-05 | E2E | AC-47–56 | Administrator User Management golden path. | List/search/filter/page → Create User → copy one-time password → duplicate validation → Edit → role/activation safety → reset initial password → target forced change on next Login. | e2e/lab-03/user-administration.spec.ts | Pass |
+| E2E-06 | E2E | AC-14, AC-16, AC-23–24, AC-28, AC-34–40, AC-54, AC-63–64 | Direct authorization and communication-boundary regression with real browser auth contexts. | Requester cannot Internal Notes/staff/admin APIs; non-owner Staff owner-only action denied; Admin non-owner vs owner differs; cross-Requester uses 404; Public Comment/reply and Internal Note visibility/creation boundaries remain correct; no protected data appears in response/UI. | e2e/lab-03/staff-ticket-flow.spec.ts; e2e/lab-03/user-administration.spec.ts | Pass |
 
 ## 12. Visual Inspection Checklist
 
@@ -1102,6 +1102,17 @@ npm run build --prefix server
 npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts
 ~~~
 
+Issue 6 execution record (2026-09-17; local verification evidence for all Issue 6 rows):
+
+- The exact server selection passed: 9 files, 102 tests passed, 9 skipped (excluded by the `@issue-6` filter). This covers PublicCommentService (UNIT-11), InternalNoteService (UNIT-12), UserQueryValidator (UNIT-14), UserService (UNIT-15), comments/notes API (API-27, API-33–API-39), admin users API (API-46–API-53), authorization API (API-38, API-53), and real PostgreSQL integration tests (PG-03, PG-12–PG-15).
+- The exact client selection passed: 5 files, 39 passed, 12 skipped (excluded by the `@issue-6` filter). This covers PublicComments (UI-23, UI-24, UI-37), InternalNotes (UI-25), UserManagement (UI-26, UI-27, UI-28, UI-29), UserForm (UI-27, UI-28, UI-31), and StaffTicketDetail (UI-21).
+- Full client regression passed: 24 files, 333 tests. Full server regression (including guarded PostgreSQL suites) passed: 68 files, 1031 tests. Both client and server builds passed.
+- The exact browser selection passed: 12 tests, including RESP-04 (Staff Ticket Detail with comments and notes at 1440×900, 820×1180, 390×844), RESP-05 (User Management list, create, and edit at 1440×900, 820×1180, 390×844), E2E-05 (Administrator User Management golden path), and E2E-06 (Request Information workflow, Requester comments/replies without auto-resume, Staff Internal Notes private warning banner, Cross-Requester safe 404, and Non-Admin access denial).
+- Screenshots are local source-tree evidence under `docs/lab-03/evidence/screenshots/staff-ticket-detail/` (detail-comments-1440/820/390, detail-notes-1440/820/390) and `docs/lab-03/evidence/screenshots/user-management/` (users-list-1440/820/390, user-create-1440/820/390, user-edit-1440/820/390).
+- Production Request Information → Public Comment → WAITING browser integration is fully wired and verified by E2E-06.
+- Dedicated disposable PostgreSQL: `toktickit_lab3_test` on `127.0.0.1:55433`, isolated tmpfs Docker container. Original database identities were captured privately as `LAB3_BASELINE_DATABASE_URL` and `LAB3_BASELINE_DIRECT_URL`; both `DATABASE_URL` and `DIRECT_URL` were explicitly overridden to `TEST_DATABASE_URL` for database/browser commands. Guarded `prisma migrate status` confirmed the local target and current migrations before execution. No shared database was used or schema changed.
+- All primary Issue 6-owned verification rows (UNIT-11–UNIT-12, UNIT-14–UNIT-15, API-27, API-33–API-39, API-46–API-53, PG-03, PG-12–PG-15, UI-21, UI-23–UI-31, UI-37, RESP-04–RESP-05, E2E-05–E2E-06) are fully executed and reconciled to **Pass**.
+
 The PostgreSQL commands in the Issue 2 gate use the captured-baseline preflight
 and explicit `DATABASE_URL = TEST_DATABASE_URL` plus
 `DIRECT_URL = TEST_DATABASE_URL` overrides in Section 4.7. The same guard
@@ -1182,7 +1193,7 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-01 | Delivery | Handout Spec DD | Required `docs/lab-03/` files exist before main implementation work and remain mutually consistent. | Rendered specification/tests/ui/api documents are committed; reviewer/ai_use files are added through the Lab workflow. | Not Run |
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
-| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`. |
+| DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`; GitGuardian alerts for synthetic password-response literals in commit `c1450b8` (`UserForm.test.tsx`) are confirmed synthetic mock fixtures, replaced with explicit placeholders in `e0bfeab`, and dispositioned as false positives. |
 | DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — current guarded server regression 53 files/747 tests and full client regression 18 files/276 tests. |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Pass for production paths — current production route/transport scan is clean; recovery storage now contains only idempotency key, creation time, and payload, while auth teardown clears ambiguous recovery. Focused client/API tests also assert the new routes and absent header. |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Pass |
@@ -1230,3 +1241,192 @@ Final release evidence must eventually record:
 - any blocked/skipped test and why.
 
 A release is not considered green if a required test is skipped/disabled merely to obtain a passing summary.
+
+
+### PR #71 review corrections and final close-gate execution (2026-09-17)
+
+This record captures the implementation fixes and the rerun of the exact Section 14.2 Issue 6 close gates against final head `e0bfeab`:
+
+- Implementation fixes:
+  - Persisted email modification (including case-only changes) detects email mutation in `userService.ts` and revokes target active sessions; unchanged email does not revoke sessions. Edit User (`EditUser.tsx`) uses identical case-sensitive comparison for confirmation modal and self-logout.
+  - Large collection page requests returning zero matches return `200 []` with accurate `X-Pagination` metadata without executing out-of-range `findMany()` queries for Users, root Comments, replies, and Internal Notes.
+  - User query validator permits at most one role filter, rejecting duplicate or conflicting role parameters with `400`.
+- Security triage & GitGuardian disposition:
+  - Both password-like literals in `client/tests/lab-03/UserForm.test.tsx` (introduced in commit `c1450b8`) were synthetic mock fixtures (`"TempPass123!"` and `"NewResetPass456!"`) simulating API response bodies and UI assertions.
+  - Replaced with explicit synthetic placeholder strings in `e0bfeab`.
+  - Confirmed and dispositioned as false positives; no real or production secrets, tokens, or credentials were committed or leaked.
+
+#### Final Issue 6 execution record against head e0bfeab:
+
+- **Exact focused server command** (with `@issue-6`, including PostgreSQL suites PG-03, PG-12–PG-15):
+  - Passed: 9 test files, 110 passed, 9 skipped (119 total).
+  - Database-backed integration suites `users-admin.postgres.test.ts` (6 passed) and `comments-notes.postgres.test.ts` (5 passed) ran against disposable PostgreSQL target `toktickit_lab3_test` at `127.0.0.1:55433` with explicit `DATABASE_URL` and `DIRECT_URL` overrides and captured baseline guards.
+- **Exact focused client command** (with `@issue-6`):
+  - Passed: 5 test files, 40 passed, 12 skipped (52 total). Covers PublicComments, InternalNotes, UserManagement, UserForm, and StaffTicketDetail.
+- **Client production build** (`tsc && vite build`):
+  - Passed. Built production bundle cleanly.
+- **Server production build** (`tsc`):
+  - Passed. Compiled TypeScript cleanly with zero errors.
+- **Exact database-backed browser gate**:
+  - Command: `npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts`
+  - Passed: 12 tests across 3 files (100%):
+    - `e2e/lab-03/responsive-visual.spec.ts`: RESP-04 (Staff Ticket Detail with comments and notes at 1440×900, 820×1180, 390×844) and RESP-05 (User Management list, create, and edit at 1440×900, 820×1180, 390×844) — 6 tests passed.
+    - `e2e/lab-03/staff-ticket-flow.spec.ts`: E2E-06 (Request Information creates Public Comment and transitions to WAITING; Requester sees comments, replies without auto-resume; Staff Internal Notes private warning banner; Cross-Requester safe 404) — 4 tests passed.
+    - `e2e/lab-03/user-administration.spec.ts`: E2E-05 (Administrator User Management golden path) and E2E-06 (Non-Administrator roles denied) — 2 tests passed.
+  - Executed with `NODE_ENV=test`, `TEST_DATABASE_URL=postgresql://lab3_test@127.0.0.1:55433/toktickit_lab3_test`, explicit `DATABASE_URL` and `DIRECT_URL` overrides, and captured baselines against the disposable tmpfs Docker target `toktickit_lab3_test`. Global setup redeployed migrations and seeded the database cleanly.
+
+~~~bash
+cd server
+NODE_ENV=test TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" DATABASE_URL="$LAB3_TEST_DATABASE_URL" DIRECT_URL="$LAB3_TEST_DATABASE_URL" LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" npm test -- tests/lab-03/PublicCommentService.test.ts tests/lab-03/InternalNoteService.test.ts tests/lab-03/UserQueryValidator.test.ts tests/lab-03/UserService.test.ts tests/lab-03/comments-notes.api.test.ts tests/lab-03/users-admin.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/postgres/users-admin.postgres.test.ts tests/lab-03/postgres/comments-notes.postgres.test.ts -t '@issue-6'
+cd ../client
+npm test -- tests/lab-03/PublicComments.test.tsx tests/lab-03/InternalNotes.test.tsx tests/lab-03/UserManagement.test.tsx tests/lab-03/UserForm.test.tsx tests/lab-03/StaffTicketDetail.test.tsx -t '@issue-6'
+npm run build
+cd ..
+npm run build --prefix server
+NODE_ENV=test TEST_DATABASE_URL="$LAB3_TEST_DATABASE_URL" DATABASE_URL="$LAB3_TEST_DATABASE_URL" DIRECT_URL="$LAB3_TEST_DATABASE_URL" LAB3_BASELINE_DATABASE_URL="$LAB3_BASELINE_DATABASE_URL" LAB3_BASELINE_DIRECT_URL="$LAB3_BASELINE_DIRECT_URL" npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts
+~~~
+
+
+### Issue #64 / PR #71 current-head verification (2026-09-17)
+
+Verified commit `3b4be4c0ccc1b6728443976bf717712bb1a4fbfe` on
+`feature/64-communication-admin-users`, starting with a clean working tree.
+Executed the exact Section 14.2 Issue 6 file selections and `@issue-6` filters
+shown above; no application or test source was changed.
+
+| Gate | Actual result |
+| --- | --- |
+| Server focused Vitest/Supertest/PostgreSQL selection | 9 files passed; 110 tests passed, 9 excluded by the name filter; exit 0 |
+| PostgreSQL suites within that selection | users-admin: 6 passed; comments-notes: 5 passed; no database tests skipped |
+| Client focused Vitest selection | 5 files passed; 40 tests passed, 12 excluded by the name filter; exit 0 |
+| `npm run build --prefix client` | TypeScript and Vite passed; exit 0 |
+| `npm run build --prefix server` | TypeScript passed; exit 0 |
+| Exact Issue 6 Playwright selection | 12 passed, none skipped; exit 0 (25.8 seconds) |
+
+Playwright covered RESP-04 and RESP-05 at 1440×900, 820×1180, and 390×844
+(six mocked responsive checks), plus six live API/database browser checks for
+E2E-05 and E2E-06. The latter verified Administrator User Management, production
+Request Information/comment persistence, Requester replies without automatic
+resume, private Internal Notes, cross-Requester 404, and non-Administrator denial.
+Responsive screenshots were regenerated in the existing staff-ticket-detail and
+user-management evidence directories using synthetic fixtures.
+
+Database isolation: created a fresh disposable PostgreSQL 17 container named
+`toktickit-issue64-verification`, database `toktickit_lab3_test` at
+`127.0.0.1:55434`. Captured the existing DATABASE_URL and DIRECT_URL privately as
+the two LAB3 baseline variables, then explicitly set DATABASE_URL, DIRECT_URL,
+and TEST_DATABASE_URL to the disposable target. Read-only Prisma migrate status
+confirmed that target and four pending migrations before the guarded suites
+applied them. Initial sandbox network access failed with P1001; rerunning with
+local network access reached the intended target. Tests reset only this fresh
+disposable database. No shared database was modified; no schema source changed.
+The container was removed after verification.
+
+Non-fatal output: client test emitted a missing `/login` route warning; Vite
+reported dependency annotation and bundle-size warnings; PostgreSQL client
+reported a concurrent-query deprecation warning. None failed a gate. Full
+regression suites and remote CI were not rerun in this evidence-only task.
+GitGuardian alert disposition and peer approval were not changed or reverified.
+This record establishes the requested local current-head acceptance evidence;
+it does not claim a new GitHub review decision. No commit or push was requested.
+
+### Issue 6 review repairs — 2026-09-18
+
+Repaired four confirmed review findings: reset/login session race, repeated
+dirty-form discard blocking, duplicate comment/note pagination boundaries during
+concurrent insertion, and E2E-05 selectors/interaction assumptions predating
+debounced search and the modal role filter.
+
+Login now conditionally writes the verified User snapshot and creates its session
+inside the same transaction. The timestamp-preserving write locks the User and
+causes an overlapping Serializable reset to conflict instead of missing a newly
+created session. Two deterministic PostgreSQL tests cover reset after password
+verification and reset overlapping session creation. Both fail against the
+pre-repair auth/session services and pass against the repaired services. A reset
+retry revokes the resulting session. UI regressions exercise the real shared
+navigation guard and overlapping pagination boundaries.
+
+| Check executed during repair | Result |
+| --- | --- |
+| Section 14.2 focused server selection, `@issue-6` | 112 passed; 9 outside the selection |
+| Section 14.2 focused client selection, `@issue-6` | 45 passed; 12 outside the selection |
+| Affected authentication/session/rate-limit selection | 34 passed |
+| Full server suite | 1042 passed across 68 files |
+| Full client suite | 357 passed across 26 files |
+| Client and server production builds | Passed; Vite annotation/chunk-size warnings remain non-fatal |
+| E2E-05/E2E-06 on isolated ports | 6 passed |
+| RESP-04/RESP-05 on isolated ports | 6 passed at 1440×900, 820×1180, and 390×844 |
+| Exact default-port browser command | Blocked: existing service occupies `127.0.0.1:3000` |
+
+Browser equivalents used a temporary configuration on API port 3006 and client
+port 5176. The responsive copy adjusted only the fixture CORS origin and
+screenshot output path. Temporary configuration/spec files were removed after
+execution. Screenshots and command logs remain under
+`/tmp/toktickit-issue6-fix-responsive/` and `/tmp/toktickit-issue6-fix-*.log`;
+they are local evidence, not committed release artifacts. Existing application
+servers were left running. The exact default-port browser gate therefore remains
+unverified by this repair run; alternate-port success is not claimed as execution
+of that exact command or final Issue 7 visual/release approval.
+
+Tests used disposable PostgreSQL 16 container `toktickit-issue6-fix`, database
+`toktickit_lab3_test` at `127.0.0.1:55435`. Explicit DATABASE_URL, DIRECT_URL,
+and TEST_DATABASE_URL overrides isolated it from the shared database; read-only
+Prisma migration status confirmed the target before applying existing migrations.
+The disposable container was removed after verification. No schema, migration,
+or REST response contract changed. Pre-existing working-tree changes were
+preserved. No commit, push, or peer approval was made.
+
+### PR #71 bound-preview fix — 2026-09-18
+
+Verified the working tree on `feature/64-communication-admin-users` on top of
+baseline `32179e79f2a4c1ee4013f724cc2c7028761cfe55`. The change bounds
+`getRootComments` preview retrieval: a single `Prisma.sql` ranking query
+(`ROW_NUMBER() OVER (PARTITION BY root ORDER BY created_at ASC, id ASC)`)
+selects the three oldest replies per root, and only those preview ids are
+hydrated by `findMany({ where: { id: { in: previewIds } } })`. `replyCount`
+remains the exact `COUNT(*)` per root; the `::int` cast keeps the number-typed
+DTO field honest against PostgreSQL's bigint `COUNT(*)`. No schema, migration,
+or REST response contract changed.
+
+| Gate | Actual result |
+| --- | --- |
+| Section 14.2 focused server selection, `@issue-6` | 9 files passed; 118 passed, 9 excluded by the name filter; exit 0 |
+| PostgreSQL suites within that selection | comments-notes: 6 passed (incl. the new 20-reply mixed-depth bounded-hydration test); users-admin: 6 passed |
+| Section 14.2 focused client selection, `@issue-6` | 5 files passed; 45 passed, 12 excluded by the name filter; exit 0 |
+| `npm run build --prefix client` | TypeScript and Vite passed; exit 0 |
+| `npm run build --prefix server` | TypeScript passed; exit 0 |
+| Exact Issue 6 Playwright selection (default ports) | 12 passed, none skipped; exit 0 |
+| Full server suite | 1048 passed across 68 files; exit 0 |
+| Full client suite | 357 passed across 26 files; exit 0 |
+| `git diff --check` | clean |
+
+The exact default-port browser command
+`npm run test:e2e -- --grep '@issue-6' e2e/lab-03/staff-ticket-flow.spec.ts
+e2e/lab-03/user-administration.spec.ts e2e/lab-03/responsive-visual.spec.ts`
+ran with ports 3000 and 5173 free and the Playwright configuration unchanged
+(Option A). It covered E2E-05 (Administrator User Management golden path) and
+E2E-06 (Request Information comment persistence, Requester replies without
+automatic resume, private Internal Notes, cross-Requester 404, and
+non-Administrator denial), plus RESP-04 and RESP-05 at 1440×900, 820×1180, and
+390×844. Responsive screenshots were regenerated in the existing
+staff-ticket-detail and user-management evidence directories using synthetic
+fixtures.
+
+The new bounded-hydration PostgreSQL test proves the bound against parameterized
+SQL: Prisma's pg adapter logs `$N` placeholders, not literal ids, so the test
+counts the placeholders in the single `public_comment` `id IN (...)` fetch that
+carries an `ORDER BY` and asserts that count is ≤ 3 × roots-on-page and strictly
+less than the total replies on the page (24). Unit and API tests independently
+assert the hydrated `where.id.in` equals exactly the three oldest preview ids
+per root.
+
+Database isolation: a fresh disposable PostgreSQL 16 container named
+`toktickit-lab3-verify`, database `toktickit_lab3_test` at `127.0.0.1:55434`,
+with a synthetic test-only password. Explicit DATABASE_URL, DIRECT_URL, and
+TEST_DATABASE_URL overrides plus distinct LAB3 baseline variables isolated it
+from the shared database; the guarded suites applied the existing migrations.
+No shared, staging, or production database was used. The container remains
+available for the current session and is disposable. Non-fatal output: the
+PostgreSQL client reported a concurrent-query deprecation warning and Vite
+reported bundle-size warnings; none failed a gate. No credentials were written
+to logs, commits, or this record.

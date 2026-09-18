@@ -221,7 +221,8 @@ describe("UI-23 read-only Ticket Detail", () => {
     await screen.findByRole("heading", { name: "TKT-20260820-A81F3C9D7B21" });
 
     expect(screen.getByRole("button", { name: "Cancel Ticket" })).toBeInTheDocument();
-    for (const forbidden of [/comment/i, /internal note/i, /action taken/i, /assign/i, /resolve/i, /close/i, /reopen/i, /delete/i, /^save$/i, /^edit$/i]) {
+    expect(screen.getByRole("button", { name: /post comment/i })).toBeInTheDocument();
+    for (const forbidden of [/internal note/i, /action taken/i, /assign/i, /resolve/i, /close/i, /reopen/i, /delete/i, /^save$/i, /^edit$/i]) {
       expect(screen.queryByRole("button", { name: forbidden })).not.toBeInTheDocument();
     }
   });
@@ -331,7 +332,7 @@ describe("UI-36 Attachment metadata on Ticket Detail", () => {
     expect(within(active).getByRole("checkbox", { name: "Select vpn-error.png" })).toBeInTheDocument();
 
     /* Still read-only in every other respect (FR-22). */
-    expect(screen.queryByRole("button", { name: /edit|assign|transition|comment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit|assign|transition|note/i })).not.toBeInTheDocument();
   });
 });
 

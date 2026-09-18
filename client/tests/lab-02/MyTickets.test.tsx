@@ -121,6 +121,15 @@ function stubApi(list: () => ListResult | Promise<ListResult> = () => DEFAULT_LI
       return { ok: true, status: 200, headers: new Headers(), json: async () => detailTicket() };
     }
 
+    if (/\/api\/tickets\/[^/]+\/comments/.test(url)) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "X-Pagination": JSON.stringify({ page: 1, limit: 10, totalItems: 0, totalPages: 0 }) }),
+        json: async () => [],
+      };
+    }
+
     const result = await list();
     const headers = new Headers();
 

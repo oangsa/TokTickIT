@@ -101,7 +101,33 @@ export class AuthService {
         if (!user || !user.isActive || user.deleted || !passwordMatches) {
           return null;
         }
-        return user;
+        // Recheck the verified snapshot and hold a User write lock until the
+        // session commits. Even this no-op write makes a concurrent Serializable
+        // admin mutation retry rather than miss the new session in its snapshot.
+        const unchanged = await tx.user.updateMany({
+          where: {
+            id: user.id,
+            passwordHash: user.passwordHash,
+            email: user.email,
+            role: user.role,
+            isActive: true,
+            deleted: false,
+            mustChangePassword: user.mustChangePassword,
+            updatedAt: user.updatedAt,
+          },
+          data: { updatedAt: user.updatedAt },
+        });
+        if (unchanged.count !== 1) return null;
+
+        const session = await this.sessions.create({
+          userId: user.id,
+          stage: stageForUser(user),
+          rememberMe: input.rememberMe,
+          now,
+          userAgent: input.userAgent,
+          ipAddress: input.ipAddress,
+        }, tx);
+        return { user, session };
       },
     );
 
@@ -109,19 +135,10 @@ export class AuthService {
       throw new ApiError("RATE_LIMITED");
     }
 
-    const user = attempt.value;
-    if (!user) {
+    if (!attempt.value) {
       throw new ApiError("AUTHENTICATION_FAILED");
     }
-
-    const session = await this.sessions.create({
-      userId: user.id,
-      stage: stageForUser(user),
-      rememberMe: input.rememberMe,
-      now,
-      userAgent: input.userAgent,
-      ipAddress: input.ipAddress,
-    });
+    const { user, session } = attempt.value;
     return {
       token: {
         accessToken: await this.jwt.sign({

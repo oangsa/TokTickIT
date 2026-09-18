@@ -13,13 +13,37 @@ import { useManagedForm } from "../forms/useManagedForm.js";
 import { REQUEST_INFORMATION_SECTIONS, TICKET_FORM_RULES, type RequestInformationValues } from "../constants/forms/ticket.js";
 import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
+import { PublicComments } from "../components/PublicComments.js";
+import { InternalNotes } from "../components/InternalNotes.js";
+import { TicketInformationForm } from "../components/TicketInformationForm.js";
 import { ticketDateTime } from "../tickets/ticketDate.js";
 import { ACTION_LABELS, availableStaffActions, PRIORITIES, statusLabel, type StaffAction, type StaffTicket, type TicketOwnerDTO } from "../tickets/staffTickets.js";
+import { ArrowLeft, CheckCircle2, CheckCheck, Eye, HelpCircle, Play, UserCheck, XCircle } from "lucide-react";
 
 export interface StaffTicketDetailProps {
   communicationSlot?: (ticket: StaffTicket, reload: () => void) => ReactNode;
 }
 type PendingAction = StaffAction | "owner" | null;
+
+function getActionIcon(action: StaffAction) {
+  switch (action) {
+    case "start-work":
+    case "resume-work":
+      return <Play size={16} className="me-1" aria-hidden="true" focusable="false" />;
+    case "claim":
+      return <UserCheck size={16} className="me-1" aria-hidden="true" focusable="false" />;
+    case "request-information":
+      return <HelpCircle size={16} className="me-1" aria-hidden="true" focusable="false" />;
+    case "mark-resolved":
+      return <CheckCircle2 size={16} className="me-1" aria-hidden="true" focusable="false" />;
+    case "close":
+      return <CheckCheck size={16} className="me-1" aria-hidden="true" focusable="false" />;
+    case "cancel":
+      return <XCircle size={16} className="me-1" aria-hidden="true" focusable="false" />;
+    default:
+      return null;
+  }
+}
 
 export default function StaffTicketDetail({ communicationSlot }: StaffTicketDetailProps = {}) {
   const { publicId } = useParams();
@@ -43,6 +67,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [reloadCount, setReloadCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<"comments" | "notes">("comments");
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const generation = useRef(0);
   const basePath = `/api/tickets/${encodeURIComponent(publicId ?? "")}`;
@@ -109,24 +134,173 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
   if (!ticket || ticket.publicId.toLowerCase() !== publicId?.toLowerCase()) return <p role="status">Loading Ticket…</p>;
   const actionTitle = pendingAction === "owner" ? ownerPublicId ? "Reassign" : "Unassign" : pendingAction ? ACTION_LABELS[pendingAction] : "";
   return <div className="tt-staff-page">
-    <PageHeader title={ticket.ticketNumber} eyebrow="Ticket Detail" actions={<Link to={queuePath}>Back to Ticket Queue</Link>} />
+    <PageHeader
+      title={ticket.ticketNumber}
+      eyebrow="Ticket Detail"
+      actions={
+        <Link to={queuePath} className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center">
+          <ArrowLeft size={16} className="me-1" aria-hidden="true" focusable="false" />
+          Back to Ticket Queue
+        </Link>
+      }
+    />
     {success && <p role="status" className="alert alert-success">{success}</p>}
     {!pendingAction && errorView}
-    <div className="row g-4">
-      <div className="col-12 col-xl-7"><Card title="Ticket Information"><dl className="row mb-0">
-        {[["Ticket Date", ticketDateTime(ticket.createdAt)], ["Requester Name", ticket.requesterName], ["Requester Email", ticket.requesterEmail], ["Category", ticket.categoryName], ["Related System", ticket.relatedSystemName], ["Requested Priority", ticket.requestedPriority], ["Summary", ticket.summary], ["Description", ticket.description]].map(([label, value]) => <div className="col-12 mb-3" key={label}><dt>{label}</dt><dd className="text-break mb-0" style={{ whiteSpace: "pre-wrap" }}>{value}</dd></div>)}
-      </dl></Card></div>
-      <div className="col-12 col-xl-5"><Card title="Assignment & Workflow">
-        <p>Current Status: <Badge>{statusLabel(ticket.currentStatus)}</Badge></p>
-        <p>Owner: <Badge>{ticket.owner?.name ?? "Unassigned"}</Badge></p>
-        {operational && !terminal && <Button disabled={busy || conflict} onClick={() => void openLookup()}>Change Owner</Button>}
-        <div className="my-3">{operational ? <><label className="form-label" htmlFor="staff-it-priority">IT Priority</label><select id="staff-it-priority" className="form-select" disabled={busy || conflict} value={ticket.itPriority} onChange={(event) => void mutate("it-priority", { itPriority: event.target.value })}>{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></> : <><span className="form-label d-block">IT Priority</span><div><Badge>{ticket.itPriority}</Badge></div></>}</div>
-        <p>Requester confirmation: {ticket.requesterResolutionConfirmedAt ? `Received ${ticketDateTime(ticket.requesterResolutionConfirmedAt)}` : "Not received"}</p>
-        {!operational && <p className="text-secondary">Ticket operations are read-only unless you are the assigned owner.</p>}
-        <div className="d-flex flex-wrap gap-2">{user && availableStaffActions(ticket, user).map((action) => <Button key={action} disabled={busy || conflict} busy={busy} variant={action === "cancel" ? "destructive" : "secondary"} onClick={() => selectAction(action)}>{ACTION_LABELS[action]}</Button>)}</div>
-      </Card></div>
-      <div className="col-12"><Card title="Attachments">{ticket.attachments.length === 0 ? <p>No Attachments.</p> : <ul className="list-unstyled mb-0">{ticket.attachments.map((attachment) => <li className="d-flex flex-wrap align-items-center gap-2 border-bottom py-3" key={attachment.attachmentId}><span className="text-break me-auto">{attachment.originalName}</span>{attachment.deleted ? <span>Removed — {attachment.removalReason}</span> : <><Button onClick={() => setPreview(attachment)}>Preview {attachment.originalName}</Button><AttachmentDownloadButton attachmentId={attachment.attachmentId} originalName={attachment.originalName} basePath={`${basePath}/attachments`} /></>}</li>)}</ul>}</Card></div>
-      <div className="col-12"><Card title="Communication">{communicationSlot?.(ticket, reload)}</Card></div>
+    <div className="d-flex flex-column gap-4">
+      <Card title="Ticket Information">
+        <TicketInformationForm
+          values={{
+            ticketDate: ticketDateTime(ticket.createdAt),
+            requesterName: ticket.requesterName,
+            requesterEmail: ticket.requesterEmail,
+            categoryName: ticket.categoryName,
+            relatedSystemName: ticket.relatedSystemName,
+            requestedPriority: ticket.requestedPriority,
+            summary: ticket.summary,
+            description: ticket.description,
+          }}
+        />
+      </Card>
+      <Card title="Assignment & Workflow">
+        <div className="row g-3 mb-3">
+          <div className="col-12 col-md-6 col-lg-3">
+            <span className="text-secondary small fw-medium d-block mb-1">Current Status</span>
+            <div><Badge>{statusLabel(ticket.currentStatus)}</Badge></div>
+          </div>
+          <div className="col-12 col-md-6 col-lg-3">
+            <span className="text-secondary small fw-medium d-block mb-1">Owner</span>
+            <div className="d-flex align-items-center gap-2">
+              <Badge>{ticket.owner?.name ?? "Unassigned"}</Badge>
+              {operational && !terminal && (
+                <Button className="btn-sm" variant="secondary" disabled={busy || conflict} onClick={() => void openLookup()}>
+                  <UserCheck size={14} className="me-1" aria-hidden="true" focusable="false" />
+                  Change Owner
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="col-12 col-md-6 col-lg-3">
+            {operational ? (
+              <>
+                <label className="form-label text-secondary small fw-medium d-block mb-1" htmlFor="staff-it-priority">
+                  IT Priority
+                </label>
+                <select
+                  id="staff-it-priority"
+                  className="form-select form-select-sm"
+                  disabled={busy || conflict}
+                  value={ticket.itPriority}
+                  onChange={(event) => void mutate("it-priority", { itPriority: event.target.value })}
+                >
+                  {PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}
+                </select>
+              </>
+            ) : (
+              <>
+                <span className="text-secondary small fw-medium d-block mb-1">IT Priority</span>
+                <div><Badge>{ticket.itPriority}</Badge></div>
+              </>
+            )}
+          </div>
+          <div className="col-12 col-md-6 col-lg-3">
+            <span className="text-secondary small fw-medium d-block mb-1">Requester Confirmation</span>
+            <div className="small text-secondary">
+              {ticket.requesterResolutionConfirmedAt ? `Received ${ticketDateTime(ticket.requesterResolutionConfirmedAt)}` : "Not received"}
+            </div>
+          </div>
+        </div>
+        {!operational && <p className="text-secondary mb-3 small">Ticket operations are read-only unless you are the assigned owner.</p>}
+        {user && availableStaffActions(ticket, user).length > 0 && (
+          <div className="d-flex flex-wrap gap-2 pt-3 border-top">
+            {availableStaffActions(ticket, user).map((action) => (
+              <Button
+                key={action}
+                disabled={busy || conflict}
+                busy={busy}
+                variant={action === "cancel" ? "destructive" : "secondary"}
+                onClick={() => selectAction(action)}
+              >
+                {getActionIcon(action)}
+                {ACTION_LABELS[action]}
+              </Button>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card title="Attachments">
+        {ticket.attachments.length === 0 ? (
+          <p className="text-secondary mb-0">No Attachments.</p>
+        ) : (
+          <ul className="list-unstyled mb-0">
+            {ticket.attachments.map((attachment) => (
+              <li className="d-flex flex-wrap align-items-center gap-2 border-bottom py-3" key={attachment.attachmentId}>
+                <span className="text-break me-auto">{attachment.originalName}</span>
+                {attachment.deleted ? (
+                  <span className="text-secondary">Removed — {attachment.removalReason}</span>
+                ) : (
+                  <>
+                    <Button variant="secondary" onClick={() => setPreview(attachment)}>
+                      <Eye size={16} className="me-1" aria-hidden="true" focusable="false" />
+                      Preview {attachment.originalName}
+                    </Button>
+                    <AttachmentDownloadButton
+                      attachmentId={attachment.attachmentId}
+                      originalName={attachment.originalName}
+                      basePath={`${basePath}/attachments`}
+                    />
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <Card title="Communication">
+        {communicationSlot ? (
+          communicationSlot(ticket, reload)
+        ) : (
+          <div>
+            <ul className="nav nav-tabs mb-3" role="tablist">
+              <li className="nav-item" role="presentation">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "comments"}
+                  className={`nav-link ${activeTab === "comments" ? "active" : ""}`}
+                  onClick={() => setActiveTab("comments")}
+                >
+                  Public Comments
+                </button>
+              </li>
+              <li className="nav-item" role="presentation">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "notes"}
+                  className={`nav-link ${activeTab === "notes" ? "active" : ""}`}
+                  onClick={() => setActiveTab("notes")}
+                >
+                  Internal Notes
+                </button>
+              </li>
+            </ul>
+            {activeTab === "comments" ? (
+              <PublicComments
+                key={`${ticket.publicId}-${ticket.updatedAt}-${ticket.currentStatus}`}
+                ticketPublicId={ticket.publicId}
+                onCommentAdded={reload}
+              />
+            ) : (
+              <InternalNotes
+                key={`${ticket.publicId}-${ticket.updatedAt}-${ticket.currentStatus}`}
+                ticketPublicId={ticket.publicId}
+                ticketOwnerPublicId={ticket.owner?.publicId}
+                onNoteAdded={reload}
+              />
+            )}
+          </div>
+        )}
+      </Card>
     </div>
     <AttachmentPreviewModal target={preview} onClose={() => setPreview(null)} basePath={`${basePath}/attachments`} />
     <Modal open={lookupOpen} title="Choose Ticket Owner" onClose={() => !busy && setLookupOpen(false)} footer={<><Button onClick={() => setLookupOpen(false)}>Cancel</Button><Button variant="primary" disabled={lookupError || busy || terminal || ownerPublicId === (ticket.owner?.publicId ?? "")} onClick={saveOwner}>Apply Owner</Button></>}>

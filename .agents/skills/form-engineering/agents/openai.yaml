@@ -1,0 +1,4 @@
+interface:
+  display_name: "TokTickIT Form Engineering"
+  short_description: "Build consistent TokTickIT create, edit, and view forms"
+  default_prompt: "Use $form-engineering to build this TokTickIT form with the shared styling contract and CommonForm."

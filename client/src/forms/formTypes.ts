@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { FieldValues, Path } from "react-hook-form";
 
+export type FormMode = "create" | "edit" | "view";
 export type SemanticSpan = "full" | "half" | "third" | "quarter";
 export type FormFieldType =
   | "text"
@@ -31,6 +32,7 @@ export interface CustomFieldRenderProps<TValues extends FieldValues> {
   setValue: (value: unknown) => void;
   describedBy?: string;
   invalid: boolean;
+  disabled?: boolean;
 }
 
 interface BaseField<TValues extends FieldValues> {

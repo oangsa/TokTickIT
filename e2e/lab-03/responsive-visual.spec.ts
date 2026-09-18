@@ -254,6 +254,238 @@ async function stubStaffQueuePages(page: Page): Promise<void> {
   });
 }
 
+const ADMIN_USER = {
+  ...STAFF_USER,
+  role: "ADMINISTRATOR" as const,
+  name: "Admin User",
+  email: "admin@example.test",
+};
+
+const SYNTHETIC_USERS = [
+  {
+    publicId: "synthetic-user-1",
+    name: "Alice Requester",
+    email: "alice@example.test",
+    role: "REQUESTER",
+    isActive: true,
+    mustChangePassword: false,
+    createdAt: "2026-09-17T00:00:00.000Z",
+    updatedAt: "2026-09-17T00:00:00.000Z",
+  },
+  {
+    publicId: "synthetic-user-2",
+    name: "Bob Staff",
+    email: "bob@example.test",
+    role: "IT_STAFF",
+    isActive: true,
+    mustChangePassword: false,
+    createdAt: "2026-09-17T00:00:00.000Z",
+    updatedAt: "2026-09-17T00:00:00.000Z",
+  },
+  {
+    publicId: ADMIN_USER.publicId,
+    name: ADMIN_USER.name,
+    email: ADMIN_USER.email,
+    role: "ADMINISTRATOR",
+    isActive: true,
+    mustChangePassword: false,
+    createdAt: "2026-09-17T00:00:00.000Z",
+    updatedAt: "2026-09-17T00:00:00.000Z",
+  },
+];
+
+const SYNTHETIC_COMMENTS = [
+  {
+    id: 1,
+    publicId: "comment-root-1",
+    ticketPublicId: STAFF_TICKETS[0].publicId,
+    author: {
+      publicId: STAFF_USER.publicId,
+      name: STAFF_USER.name,
+      role: STAFF_USER.role,
+    },
+    parentCommentId: null,
+    parentCommentPublicId: null,
+    replyToCommentId: null,
+    replyToCommentPublicId: null,
+    replyToAuthorName: null,
+    content: "Please send more details regarding the network connection error.",
+    createdAt: "2026-09-17T01:00:00.000Z",
+    replyCount: 1,
+    replies: [
+      {
+        id: 2,
+        publicId: "comment-reply-1",
+        ticketPublicId: STAFF_TICKETS[0].publicId,
+        author: {
+          publicId: REQUESTER_USER.publicId,
+          name: REQUESTER_USER.name,
+          role: REQUESTER_USER.role,
+        },
+        parentCommentId: 1,
+        parentCommentPublicId: "comment-root-1",
+        replyToCommentId: 1,
+        replyToCommentPublicId: "comment-root-1",
+        replyToAuthorName: STAFF_USER.name,
+        content: "Here is the error log from the VPN client.",
+        createdAt: "2026-09-17T01:10:00.000Z",
+        replyCount: 0,
+        previews: [],
+        replies: [],
+      },
+    ],
+    previews: [
+      {
+        id: 2,
+        publicId: "comment-reply-1",
+        ticketPublicId: STAFF_TICKETS[0].publicId,
+        author: {
+          publicId: REQUESTER_USER.publicId,
+          name: REQUESTER_USER.name,
+          role: REQUESTER_USER.role,
+        },
+        parentCommentId: 1,
+        parentCommentPublicId: "comment-root-1",
+        replyToCommentId: 1,
+        replyToCommentPublicId: "comment-root-1",
+        replyToAuthorName: STAFF_USER.name,
+        content: "Here is the error log from the VPN client.",
+        createdAt: "2026-09-17T01:10:00.000Z",
+        replyCount: 0,
+        previews: [],
+        replies: [],
+      },
+    ],
+  },
+];
+
+const SYNTHETIC_NOTES = [
+  {
+    id: 1,
+    publicId: "note-1",
+    ticketPublicId: STAFF_TICKETS[0].publicId,
+    author: {
+      publicId: STAFF_USER.publicId,
+      name: STAFF_USER.name,
+      role: STAFF_USER.role,
+    },
+    content: "Checked RADIUS server logs, user authentication succeeded. Routing failure suspected.",
+    createdAt: "2026-09-17T01:15:00.000Z",
+  },
+];
+
+async function stubStaffDetailWithCommunication(page: Page): Promise<void> {
+  await stubAuth(page, STAFF_USER);
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: CORS_HEADERS });
+      return;
+    }
+
+    const url = new URL(request.url());
+    if (url.pathname === "/api/auth/refresh") {
+      await fulfillAuth(route, 200, { accessToken: "e2e-memory-token", expiresIn: 600 });
+      return;
+    }
+    if (url.pathname === "/api/auth/me") {
+      await fulfillAuth(route, 200, STAFF_USER);
+      return;
+    }
+    if (url.pathname === "/api/categories") {
+      await fulfillAuth(route, 200, [STAFF_CATEGORY]);
+      return;
+    }
+    if (url.pathname === "/api/related-systems") {
+      await fulfillAuth(route, 200, [{ id: 5, name: "VPN" }]);
+      return;
+    }
+    if (url.pathname === "/api/users/assignable") {
+      await fulfillAuth(route, 200, [{ publicId: STAFF_USER.publicId, name: STAFF_USER.name, role: STAFF_USER.role }]);
+      return;
+    }
+    if (url.pathname === `/api/tickets/${STAFF_TICKETS[0].publicId}`) {
+      await fulfillAuth(route, 200, {
+        ...STAFF_TICKET_DETAIL,
+        owner: { publicId: STAFF_USER.publicId, name: STAFF_USER.name, role: STAFF_USER.role },
+      });
+      return;
+    }
+    if (url.pathname === `/api/tickets/${STAFF_TICKETS[0].publicId}/comments`) {
+      await fulfillAuth(route, 200, SYNTHETIC_COMMENTS, {
+        "X-Pagination": JSON.stringify({
+          totalItems: 1,
+          pageNumber: 1,
+          pageSize: 10,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }),
+      });
+      return;
+    }
+    if (url.pathname === `/api/tickets/${STAFF_TICKETS[0].publicId}/internal-notes`) {
+      await fulfillAuth(route, 200, SYNTHETIC_NOTES, {
+        "X-Pagination": JSON.stringify({
+          totalItems: 1,
+          pageNumber: 1,
+          pageSize: 10,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }),
+      });
+      return;
+    }
+
+    await fulfillAuth(route, 404, { code: "NOT_FOUND" });
+  });
+}
+
+async function stubUserManagementPages(page: Page): Promise<void> {
+  await stubAuth(page, ADMIN_USER);
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: CORS_HEADERS });
+      return;
+    }
+
+    const url = new URL(request.url());
+    if (url.pathname === "/api/auth/refresh") {
+      await fulfillAuth(route, 200, { accessToken: "e2e-memory-token", expiresIn: 600 });
+      return;
+    }
+    if (url.pathname === "/api/auth/me") {
+      await fulfillAuth(route, 200, ADMIN_USER);
+      return;
+    }
+    if (url.pathname === "/api/admin/users" && request.method() === "GET") {
+      await fulfillAuth(route, 200, SYNTHETIC_USERS, {
+        "X-Pagination": JSON.stringify({
+          totalItems: SYNTHETIC_USERS.length,
+          pageNumber: 1,
+          pageSize: 10,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }),
+      });
+      return;
+    }
+    if (url.pathname === `/api/admin/users/${SYNTHETIC_USERS[0].publicId}`) {
+      await fulfillAuth(route, 200, SYNTHETIC_USERS[0]);
+      return;
+    }
+    if (url.pathname === `/api/admin/users/${ADMIN_USER.publicId}`) {
+      await fulfillAuth(route, 200, SYNTHETIC_USERS[2]);
+      return;
+    }
+
+    await fulfillAuth(route, 404, { code: "NOT_FOUND" });
+  });
+}
+
 for (const viewport of VIEWPORTS) {
   test(`RESP-03 Queue table/cards and filter controls ${viewport.width} @issue-5`, async ({ page }) => {
     await page.setViewportSize(viewport);
@@ -358,4 +590,66 @@ for (const viewport of VIEWPORTS) {
       }
     });
   }
+}
+
+for (const viewport of VIEWPORTS) {
+  test(`RESP-04 Staff Ticket Detail with comments and notes ${viewport.width} @issue-6`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await stubStaffDetailWithCommunication(page);
+    await page.goto(`/staff/tickets/${STAFF_TICKETS[0].publicId}`);
+    await expect(page.getByRole("heading", { name: STAFF_TICKETS[0].ticketNumber })).toBeVisible();
+
+    // Public Comments tab
+    await expect(page.getByRole("tab", { name: "Public Comments" })).toBeVisible();
+    await expect(page.getByText("Please send more details")).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/detail-comments-${viewport.width}.png`,
+      fullPage: true,
+    });
+
+    // Switch to Internal Notes tab
+    await page.getByRole("tab", { name: "Internal Notes" }).click();
+    await expect(page.getByRole("alert")).toContainText("Visible only to IT Staff and Administrators");
+    await expect(page.getByText("Checked RADIUS server logs")).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/detail-notes-${viewport.width}.png`,
+      fullPage: true,
+    });
+  });
+
+  test(`RESP-05 User Management list, create, and edit ${viewport.width} @issue-6`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await stubUserManagementPages(page);
+
+    // User List
+    await page.goto("/admin/users");
+    await expect(page.getByRole("heading", { name: "User Management", exact: true })).toBeVisible();
+    await expect(page.getByText("Alice Requester")).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: `docs/lab-03/evidence/screenshots/user-management/users-list-${viewport.width}.png`,
+      fullPage: true,
+    });
+
+    // Create User
+    await page.goto("/admin/users/new");
+    await expect(page.getByRole("heading", { name: "Create User", exact: true })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: `docs/lab-03/evidence/screenshots/user-management/user-create-${viewport.width}.png`,
+      fullPage: true,
+    });
+
+    // Edit User
+    await page.goto(`/admin/users/${SYNTHETIC_USERS[0].publicId}/edit`);
+    await expect(page.getByRole("heading", { name: /Edit / })).toBeVisible();
+    await expect(page.getByLabel("Name *")).toHaveValue("Alice Requester");
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: `docs/lab-03/evidence/screenshots/user-management/user-edit-${viewport.width}.png`,
+      fullPage: true,
+    });
+  });
 }

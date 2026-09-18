@@ -199,6 +199,13 @@ a {
   text-decoration: none;
 }
 
+.tt-sidebar .tt-sidebar__switch--danger {
+  color: var(--tt-danger);
+  --bs-btn-color: var(--tt-danger);
+  --bs-btn-hover-color: var(--tt-danger-hover);
+  --bs-btn-active-color: var(--tt-danger-hover);
+}
+
 .tt-sidebar .nav-link {
   display: flex;
   align-items: center;
@@ -278,7 +285,7 @@ a {
 
 .tt-staff-page { min-width: 0; overflow-wrap: anywhere; }
 .tt-staff-table { table-layout: fixed; width: 100%; }
-.tt-staff-table th, .tt-staff-table td { overflow-wrap: anywhere; vertical-align: middle; }
+.tt-staff-table th, .tt-staff-table td { overflow-wrap: anywhere; }
 .tt-staff-table th:nth-child(2) { width: 25%; }
 .tt-staff-page .badge { white-space: normal; }
 
@@ -1398,4 +1405,23 @@ a {
   .tt-table--tickets tbody tr {
     transition: none;
   }
+}
+
+.tt-data-table .table > thead > tr > th {
+  vertical-align: middle;
+}
+
+/* Ensure all DataTable rows have consistent hover styling matching Tickets */
+.tt-data-table .table-hover > tbody > tr:hover > td,
+.tt-data-table .table-hover > tbody > tr.tt-row:hover > td,
+.tt-data-table .table-hover > tbody > tr:has(.tt-row-link:focus-visible) > td {
+  background-color: var(--tt-green-pale);
+}
+
+.tt-data-table .table-hover > tbody > tr.tt-row:active > td {
+  background-color: var(--tt-readonly-bg);
+}
+
+.tt-data-table tr.tt-row--clickable {
+  cursor: pointer;
 }

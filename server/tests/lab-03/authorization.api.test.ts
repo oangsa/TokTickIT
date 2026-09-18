@@ -99,3 +99,38 @@ describe("API-22 and API-23 Ticket authorization matrix @issue-5", () => {
     expect((await request(app).post(`${path}/cancel`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(200);
   });
 });
+
+describe("API-38 and API-53 Communication and User Administration authorization @issue-6", () => {
+  let tokens: RequesterTokens;
+  const path = `/api/tickets/${TICKET_ID}`;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    tokens = await configureRequesterAuth(mock, [STAFF, ADMIN, REQUESTER]);
+    mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ requesterId: REQUESTER.id }));
+    mock.internalNote = { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) };
+    mock.user.findMany.mockResolvedValue([]);
+    mock.user.count.mockResolvedValue(0);
+  });
+
+  it("API-38 denies Requester access to Internal Notes with 403 before note data access @issue-6", async () => {
+    const response = await request(app)
+      .get(`${path}/internal-notes`)
+      .set("Authorization", bearerToken(tokens, REQUESTER.id));
+
+    expect(response.status).toBe(403);
+    expect(response.body.code).toBe("FORBIDDEN");
+    expect(mock.internalNote.findMany).not.toHaveBeenCalled();
+  });
+
+  it("API-53 denies non-Administrator callers on /api/admin/users routes with 403 @issue-6", async () => {
+    for (const nonAdmin of [REQUESTER, STAFF]) {
+      const response = await request(app)
+        .get("/api/admin/users")
+        .set("Authorization", bearerToken(tokens, nonAdmin.id));
+
+      expect(response.status).toBe(403);
+      expect(response.body.code).toBe("FORBIDDEN");
+    }
+  });
+});

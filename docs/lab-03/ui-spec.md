@@ -622,6 +622,33 @@ Examples:
 - Login: no discard dialog merely because an email was typed;
 - Change Password: no generic navigation guard unless a later specific security/UX rule requires it.
 
+## 7.11 Unified VIEW, CREATE, and EDIT Modes
+
+CommonForm establishes a single shared component foundation for all entity lifecycle forms:
+
+```ts
+export type FormMode = "create" | "edit" | "view";
+```
+
+1. **CREATE Mode (`mode="create"`)**:
+   - Renders with default/empty values.
+   - All input controls are enabled (interactive).
+   - Standard submit action defaults to `"Submit"` / `"Create"`.
+   - Cancel button navigates away with dirty navigation guard protection.
+
+2. **EDIT Mode (`mode="edit"`)**:
+   - Pre-populated with entity data from backend.
+   - Editable controls are enabled; immutable or safety-restricted controls are selectively disabled (e.g., self role or account status).
+   - Standard submit action defaults to `"Save Changes"`.
+   - Cancel button discards changes through navigation guard.
+
+3. **VIEW Mode (`mode="view"`)**:
+   - Pre-populated with entity data.
+   - **All input controls are disabled (`disabled: true`)**, maintaining standard form layout and field styling without interactivity.
+   - Standard submit button is automatically omitted (`showSubmitButton = false`).
+   - Required markers (`*`) and validation messages are omitted.
+   - Used by Detail pages (`StaffTicketDetail`, `TicketInformationForm`) to replace legacy ad-hoc `<dl><dt><dd>` or read-only plaintext markup.
+
 ---
 
 # 8. Login
@@ -755,13 +782,13 @@ Confirm New Password *
 
 Visible requirements communicate:
 
-- 8-128 characters;
+- at least 8 characters;
 - at least one uppercase letter;
 - at least one lowercase letter;
 - at least one number;
-- at least one symbol;
-- spaces are allowed but do not count as the required symbol;
-- the new password must differ from the current password.
+- at least one symbol.
+
+Render password requirements directly below the password input fields and above the submit button. Keep all five rules visible without hiding satisfied items: unmet rules use red text (`text-danger`) with an open-circle icon once validation begins; satisfied rules turn green (`text-success`) with a checkmark icon. Before validation, unmet rules use neutral text (`text-secondary`). Recompute dynamically on each edit, including deletion. Max-length (128 characters), current-password difference, and space allowance are enforced in logic without displaying visual checklist rows or helper labels. The requirements section title is visually hidden but preserved for accessibility.
 
 Do not trim, normalize, or silently rewrite password content.
 
@@ -1711,22 +1738,23 @@ User Management                              [ + Create User ]
 Manage access to TokTickIT.
 
 ┌─────────────────────────────────────────────────────────┐
-│ [ Search name or email........ ] [ Role ▼ ]             │
+│ [ Search by name or email..... ] [ Filters (N) ]        │
+│ Filters: Role: IT Staff [x] [Clear all]                 │
 │                                                         │
-│ Name | Email | Role | Status | Edit                     │
+│ Name ▲ | Email | Role | Status | Edit                   │
 │                                                         │
 │ results / rows per page / pagination                    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-The page remains intentionally simple.
+The page is powered by the reusable `DataTable` component (`client/src/components/DataTable.tsx`).
 
 ## 21.2 Columns
 
 Desktop columns:
 
-1. Name
-2. Email
+1. Name (sortable)
+2. Email (sortable)
 3. Role
 4. Status
 5. Edit
@@ -1740,14 +1768,15 @@ Do not add:
 - role history;
 - bulk selection;
 - export;
-- last-login analytics.
+- last-login analytics;
+- user deletion action (strictly forbidden in Lab 3).
 
 ## 21.3 Search
 
 Search placeholder:
 
 ```text
-Search by name or email...
+Search by name or email…
 ```
 
 Search is limited to:
@@ -1757,9 +1786,11 @@ name
 email
 ```
 
+Input is debounced (300ms) and can also be triggered immediately via form submission.
+
 ## 21.4 Role filter
 
-One optional role filter:
+One optional role filter managed through the `DataTable` filter modal dialog:
 
 ```text
 Any Role
@@ -1768,7 +1799,7 @@ IT Staff
 Administrator
 ```
 
-This is not an advanced multi-filter admin console.
+Opening the Filter modal presents the role selection dropdown with `aria-label="Filter by role"`. Applying the filter dismisses the dialog and renders an active filter chip above the table with an accessible removal affordance.
 
 ## 21.5 Default order
 
@@ -1776,7 +1807,7 @@ This is not an advanced multi-filter admin console.
 Name A-Z
 ```
 
-with deterministic tie-break from the backend.
+with deterministic tie-break from the backend. Clicking sortable column headers toggles ascending/descending order with visible `lucide-react` chevron indicators and accessible `aria-sort` attributes.
 
 ## 21.6 Pagination
 
@@ -2381,9 +2412,45 @@ Expected reusable component categories include:
 - PublicComment thread item;
 - InternalNote item;
 - one-time password panel;
+- DataTable;
 - existing specialized AttachmentSection.
 
 Do not build a generic CRUD-page generator.
+
+### 29.1 DataTable Component
+
+`client/src/components/DataTable.tsx` provides a reusable, accessible tabular data management container inspired by the reference architecture in `oangsa/maintenance-tracking-system` and strictly adapted to TokTickIT constraints (Bootstrap 5, `lucide-react`, TokTickIT `Pagination`, no Tailwind, no Radix).
+
+#### Capabilities & Contracts
+1. **Configurable Columns (`IColumn<T>`)**:
+   - `key`: string identifier mapping to data key;
+   - `label`: column header text;
+   - `sortable`: boolean indicating sort capability (defaults to true);
+   - `align`: text alignment (`"left" | "right" | "center"`);
+   - `render`: custom cell rendering callback `(value, row) => ReactNode`;
+   - `style`: optional inline styling.
+2. **Server-Side Fetch Integration (`IFetchParams`, `IFetchResult<T>`)**:
+   - `fetchData: (params: IFetchParams) => Promise<IFetchResult<T>>`
+   - Receives `searchTerm`, `page`, `limit`, `search` (filter dictionary), `sortBy`, `sortDir`.
+   - Debounced search input (300ms) with direct form submission fallback.
+3. **Sorting**:
+   - Toggles ascending/descending on column header click;
+   - Accessible keyboard activation via Enter/Space;
+   - Visible `lucide-react` `ChevronUp` / `ChevronDown` icons;
+   - `aria-sort` attributes (`ascending`, `descending`, `none`).
+4. **Filtering**:
+   - `filterFields`: definitions for select, text, date, and multi-select filter controls;
+   - Filter button with active filter counter badge;
+   - Accessible `Modal` dialog for configuring filter values;
+   - Applied filter chips (`FilterChip`) with individual remove actions and "Clear all" button.
+5. **Pagination**:
+   - Integrated TokTickIT `<Pagination>` component;
+   - Supports page size options (`[10, 20, 30, 50, 100]`), windowed navigation, and responsive controls.
+6. **Action Column & Safety Rules**:
+   - Optional Edit link targeting `${basePath}/${key}/edit`;
+   - Optional Delete button calling `onDelete(key)`. **Forbidden in User Management**; `showDeleteAction` defaults to `false`.
+7. **States**:
+   - Accessible status indicators for loading, empty results, and error alerts with retry trigger.
 
 ---
 
