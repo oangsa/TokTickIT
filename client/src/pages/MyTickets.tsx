@@ -9,8 +9,9 @@ import {
   readPaginationHeader,
 } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
-import { Badge } from "../components/Badge.js";
 import { Button } from "../components/Button.js";
+import { PriorityChip, type PriorityValue } from "../components/PriorityChip.js";
+import { StatusChip, type StatusValue } from "../components/StatusChip.js";
 import { DataTable, type IActiveFilterChip, type IColumn } from "../components/DataTable.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { Modal } from "../components/Modal.js";
@@ -59,19 +60,6 @@ interface LoadedPagination {
   request: string;
   metadata: PaginationMetadata;
 }
-
-const PRIORITY_VARIANT = {
-  LOW: "pale",
-  MEDIUM: "medium",
-  HIGH: "strong",
-} as const;
-
-/* Filled segments in the badge meter; the text label carries the meaning. */
-const PRIORITY_LEVEL = {
-  LOW: 1,
-  MEDIUM: 2,
-  HIGH: 3,
-} as const;
 
 const SKELETON_ROWS = 5;
 
@@ -412,14 +400,14 @@ export default function MyTickets() {
       key: "requestedPriority",
       label: "Priority",
       render: (value) => {
-        const priority = String(value) as keyof typeof PRIORITY_VARIANT;
-        return <Badge variant={PRIORITY_VARIANT[priority]} level={PRIORITY_LEVEL[priority]}>{priority}</Badge>;
+        const priority = String(value) as PriorityValue;
+        return <PriorityChip value={priority} />;
       },
     },
     {
       key: "currentStatus",
       label: "Status",
-      render: (value) => <Badge variant="pale">{String(value ?? "")}</Badge>,
+      render: (value) => <StatusChip value={String(value ?? "") as StatusValue} />,
     },
     {
       key: "createdAt",
@@ -483,7 +471,6 @@ export default function MyTickets() {
     <DataTable<TicketListItem>
       title="My Tickets"
       subtitle="View and manage your support requests."
-      cardClassName="tt-ticket-list"
       itemName="Tickets"
       data={items}
       total={totalItems}
@@ -505,9 +492,7 @@ export default function MyTickets() {
       createButtonAriaLabel="Create Ticket (new support ticket)"
       showCreateButton
       showEditAction={false}
-      searchLabel="Search"
-      searchLabelHidden
-      searchAriaLabel="Search"
+      searchLabel="Search Tickets"
       searchPlaceholder="Search by ticket number, summary, or description…"
       searchMaxLength={200}
       searchValue={searchInput}

@@ -46,8 +46,10 @@ describe("UI-13–14 Queue controls @issue-5", () => {
       expect(within(table).getByRole("columnheader", { name: heading })).toBeInTheDocument();
     }
     expect(within(table).getByText("Unassigned")).toBeInTheDocument();
-    expect(within(table).getByText("HIGH")).toBeInTheDocument();
-    expect(within(table).getByText("OPEN")).toBeInTheDocument();
+    const priorityChip = within(table).getByText("HIGH");
+    expect(priorityChip).toHaveClass("tt-chip--primary");
+    expect(priorityChip.querySelectorAll(".tt-level__on")).toHaveLength(3);
+    expect(within(table).getByText("OPEN")).toHaveClass("tt-chip--subtle");
     unmount();
 
     // No-results state when filters applied

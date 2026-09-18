@@ -890,6 +890,12 @@ describe("UI-09 the Ticket Information card (ui-spec 11.3, 20.1)", () => {
     renderCreateTicket();
     await screen.findByLabelText(/^Category/);
 
+    expect(screen.getByRole("link", { name: "Back to My Tickets" })).toHaveAttribute(
+      "href",
+      "/tickets",
+    );
+    expect(screen.getByText("Describe your IT support request.")).toBeInTheDocument();
+
     const heading = screen.getByRole("heading", { name: "Ticket Information" });
 
     expect(screen.getByRole("region", { name: "Ticket Information" })).toContainElement(heading);

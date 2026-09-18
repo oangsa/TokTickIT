@@ -70,6 +70,8 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
 
       renderCreateUser();
       expect(screen.getByRole("heading", { name: "Create User" })).toBeInTheDocument();
+      expect(screen.getByText("Create an account for TokTickIT.")).toBeInTheDocument();
+      expect(screen.queryByText("User Management")).not.toBeInTheDocument();
 
       await userEvent.type(screen.getByLabelText(/^Name/i), "New Colleague");
       await userEvent.type(screen.getByLabelText(/^Email/i), "new@example.test");

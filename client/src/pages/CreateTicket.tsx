@@ -17,8 +17,9 @@ import { releasePendingAttachments } from "../attachments/pendingCleanup.js";
 import { Card } from "../components/Card.js";
 import { CommonForm } from "../components/CommonForm.js";
 import { ErrorState } from "../components/ErrorState.js";
+import { ManagePage } from "../components/ManagePage.js";
 import { Modal } from "../components/Modal.js";
-import { PageHeader } from "../components/PageHeader.js";
+import type { PageHeaderProps } from "../components/PageHeader.js";
 import { Skeleton } from "../components/Skeleton.js";
 import type { FormSection } from "../forms/formTypes.js";
 import { useManagedForm } from "../forms/useManagedForm.js";
@@ -40,6 +41,12 @@ import {
 type LoadState = "loading" | "loaded" | "failed";
 
 const GENERATED_VALUE_TEXT = "Assigned on submission";
+
+const CREATE_TICKET_PAGE_HEADER = {
+  title: "Create Ticket",
+  subtitle: "Describe your IT support request.",
+  backAction: { to: "/tickets", label: "Back to My Tickets" },
+} satisfies PageHeaderProps;
 
 /*
  * Mirrors api-spec Section 7.3 so the user sees the message beside the field
@@ -582,8 +589,7 @@ export default function CreateTicket() {
 
   /* No <main> here: AppShell owns the main landmark for in-shell routes. */
   return (
-    <>
-      <PageHeader title="Create Ticket" subtitle="Describe your IT support request." />
+    <ManagePage header={CREATE_TICKET_PAGE_HEADER} className="tt-create-ticket">
 
       {loadState === "failed" ? (
         <Card>
@@ -644,6 +650,6 @@ export default function CreateTicket() {
       >
         <p className="mb-0">Your Ticket details and any prepared Attachments will be discarded.</p>
       </Modal>
-    </>
+    </ManagePage>
   );
 }

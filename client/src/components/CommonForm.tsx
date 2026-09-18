@@ -126,9 +126,13 @@ function FieldRenderer<TValues extends FieldValues>({
   const feedback = (
     <>
       {error ? <ValidationMessage id={errorId}>{error}</ValidationMessage> : null}
-      {helperText ? <span id={descriptionId} className="form-text d-block">{helperText}</span> : null}
-      {hasCounter && typeof value === "string" && field.maxLength ? (
-        <span id={counterId} className="form-text d-block text-end" aria-live="polite">{Array.from(value).length}/{field.maxLength}</span>
+      {helperText || hasCounter ? (
+        <div className="d-flex justify-content-between gap-3">
+          {helperText ? <span id={descriptionId} className="form-text">{helperText}</span> : <span />}
+          {hasCounter && typeof value === "string" && field.maxLength ? (
+            <span id={counterId} className="form-text tt-counter" aria-live="polite">{Array.from(value).length}/{field.maxLength}</span>
+          ) : null}
+        </div>
       ) : null}
     </>
   );

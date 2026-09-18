@@ -4,10 +4,13 @@ import { Eye } from "lucide-react";
 import { ApiResponseError, readPaginationHeader, type MasterDataItem } from "../api.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
-import { Badge } from "../components/Badge.js";
 import { Button } from "../components/Button.js";
 import { DataTable, type IColumn } from "../components/DataTable.js";
 import { Modal } from "../components/Modal.js";
+import { PriorityChip } from "../components/PriorityChip.js";
+import { Select } from "../components/Select.js";
+import { StatusChip } from "../components/StatusChip.js";
+import { TextInput } from "../components/TextInput.js";
 import { ticketDate } from "../tickets/ticketDate.js";
 import {
   DEFAULT_QUEUE_FILTERS,
@@ -187,12 +190,9 @@ export default function StaffTicketQueue() {
   function selectFilter(field: string, options: { value: string; label: string }[]) {
     return (
       <div className="col-12 col-sm-6" key={field}>
-        <label className="form-label" htmlFor={`queue-${field}`}>
-          {FILTER_LABELS[field]}
-        </label>
-        <select
+        <Select
+          label={FILTER_LABELS[field]}
           id={`queue-${field}`}
-          className="form-select"
           value={
             draft.find(
               (filter) => filter.field === field && ["EQUAL", "ISNULL"].includes(filter.condition),
@@ -208,7 +208,7 @@ export default function StaffTicketQueue() {
               {label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
     );
   }
@@ -249,13 +249,13 @@ export default function StaffTicketQueue() {
       key: "itPriority",
       label: "IT Priority",
       sortable: false,
-      render: (_val, ticket) => <Badge>{ticket.itPriority}</Badge>,
+      render: (_val, ticket) => <PriorityChip value={ticket.itPriority} />,
     },
     {
       key: "currentStatus",
       label: "Status",
       sortable: false,
-      render: (_val, ticket) => <Badge>{statusLabel(ticket.currentStatus)}</Badge>,
+      render: (_val, ticket) => <StatusChip value={ticket.currentStatus} />,
     },
     {
       key: "owner",
@@ -276,8 +276,8 @@ export default function StaffTicketQueue() {
       <h2 className="h6 text-break">{ticket.ticketNumber}</h2>
       <p>{ticket.summary}</p>
       <div className="d-flex flex-wrap gap-2 mb-2">
-        <Badge>{ticket.itPriority}</Badge>
-        <Badge>{statusLabel(ticket.currentStatus)}</Badge>
+        <PriorityChip value={ticket.itPriority} />
+        <StatusChip value={ticket.currentStatus} />
       </div>
       <p className="mb-1">Owner: {ticket.owner?.name ?? "Unassigned"}</p>
       <p className="mb-1">Category: {ticket.categoryName}</p>
@@ -374,13 +374,10 @@ export default function StaffTicketQueue() {
           )}
           {(["GREATEROREQUAL", "LESSEROREQUAL"] as const).map((condition, index) => (
             <div className="col-12 col-sm-6" key={condition}>
-              <label className="form-label" htmlFor={`queue-date-${index}`}>
-                Created {index ? "To" : "From"} (UTC)
-              </label>
-              <input
+              <TextInput
+                label={`Created ${index ? "To" : "From"} (UTC)`}
                 id={`queue-date-${index}`}
                 type="date"
-                className="form-control"
                 value={String(
                   draft.find(
                     (filter) =>

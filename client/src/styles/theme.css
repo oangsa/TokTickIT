@@ -424,8 +424,8 @@ h2 {
   text-wrap: balance;
 }
 
-/* Pill badges (Section 17). Small, wide-tracked, and never taller than a row. */
-.tt-badge {
+/* Shared chips (Section 17). Small, wide-tracked, and never taller than a row. */
+.tt-chip {
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.04em;

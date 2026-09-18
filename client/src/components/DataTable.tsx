@@ -10,6 +10,8 @@ import { Modal } from "./Modal.js";
 import { MultiSelect } from "./MultiSelect.js";
 import { PageHeader } from "./PageHeader.js";
 import { Pagination } from "./Pagination.js";
+import { Select } from "./Select.js";
+import { TextInput } from "./TextInput.js";
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 const MULTI_VALUE_SEPARATOR = ",";
@@ -1267,13 +1269,10 @@ export function DataTable<T extends object>({
           <div className="row g-3">
             {filterFields.map((field) => (
               <div className="col-12 col-sm-6" key={field.key}>
-                <label className="form-label" htmlFor={`filter-${field.key}`}>
-                  {field.label}
-                </label>
                 {field.type === "select" ? (
-                  <select
+                  <Select
+                    label={field.label}
                     id={`filter-${field.key}`}
-                    className="form-select"
                     aria-label={field.ariaLabel || field.label}
                     value={filterDraft[field.key] ?? ""}
                     onChange={(e) => handleFilterDraftChange(field.key, e.target.value)}
@@ -1284,7 +1283,7 @@ export function DataTable<T extends object>({
                         {opt.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : field.type === "multi-select" ? (
                   <MultiSelect
                     label={field.label}
@@ -1294,10 +1293,10 @@ export function DataTable<T extends object>({
                     onChange={(values) => handleFilterDraftMultiSelectChange(field.key, values)}
                   />
                 ) : (
-                  <input
+                  <TextInput
+                    label={field.label}
                     id={`filter-${field.key}`}
                     type={field.type === "date" ? "date" : "text"}
-                    className="form-control"
                     aria-label={field.ariaLabel || field.label}
                     placeholder={field.placeholder}
                     value={filterDraft[field.key] ?? ""}

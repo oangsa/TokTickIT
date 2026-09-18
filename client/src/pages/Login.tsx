@@ -6,6 +6,7 @@ import { LOGIN_FORM_SECTIONS, type LoginFormValues } from "../constants/forms/au
 import { CommonForm } from "../components/CommonForm.js";
 import { Card } from "../components/Card.js";
 import { BrandMark } from "../components/BrandMark.js";
+import { SuccessMessage } from "../components/SuccessMessage.js";
 import { useManagedForm } from "../forms/useManagedForm.js";
 import { ApiResponseError } from "../api.js";
 import { AuthStatus, roleHome, useAuth } from "../auth/AuthProvider.js";
@@ -70,7 +71,7 @@ export default function Login() {
     }
   }
 
-  return <main id="tt-main" tabIndex={-1} className="tt-bootstrap"><div className="tt-bootstrap__panel"><p className="tt-brand h5 justify-content-center w-100 mb-4"><BrandMark />TokTickIT</p><Card title="Sign in">{notice ? <div className="alert alert-success" role="status">{notice}</div> : null}<CommonForm form={form} sections={LOGIN_FORM_SECTIONS} onSubmit={submit} showCancelButton={false} submitLabel="Sign in" submitting={submitting} ariaLabel="Sign in" /></Card></div></main>;
+  return <main id="tt-main" tabIndex={-1} className="tt-bootstrap"><div className="tt-bootstrap__panel"><p className="tt-brand h5 justify-content-center w-100 mb-4"><BrandMark />TokTickIT</p><Card title="Sign in">{notice ? <SuccessMessage className="mb-3">{notice}</SuccessMessage> : null}<CommonForm form={form} sections={LOGIN_FORM_SECTIONS} onSubmit={submit} showCancelButton={false} submitLabel="Sign in" submitting={submitting} ariaLabel="Sign in" /></Card></div></main>;
 }
 
 export { loginSchema };

@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { readPaginationHeader, type PaginationMetadata } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
-import { Badge } from "../components/Badge.js";
+import { Chip } from "../components/Chip.js";
 import {
   DataTable,
   type IColumn,
@@ -37,7 +37,7 @@ const COLUMNS: IColumn<UserListItem>[] = [
     key: "role",
     label: "Role",
     sortable: false,
-    render: (_val, user) => <Badge>{statusLabel(user.role)}</Badge>,
+    render: (_val, user) => <Chip variant="outline">{statusLabel(user.role)}</Chip>,
   },
   {
     key: "status",
@@ -45,9 +45,9 @@ const COLUMNS: IColumn<UserListItem>[] = [
     sortable: false,
     render: (_val, user) =>
       user.isActive ? (
-        <Badge variant="pale">Active</Badge>
+        <Chip variant="subtle">Active</Chip>
       ) : (
-        <Badge variant="neutral">Inactive</Badge>
+        <Chip variant="outline">Inactive</Chip>
       ),
   },
 ];

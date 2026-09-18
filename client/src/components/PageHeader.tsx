@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-interface PageHeaderProps {
+export interface PageHeaderProps {
   title: string;
   /* For a title that is data rather than prose -- a Ticket Number. */
   titleClassName?: string;

@@ -4,15 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { AttachmentState, AttachmentStateName } from "../../src/components/AttachmentState.js";
-import { Badge } from "../../src/components/Badge.js";
 import { Button } from "../../src/components/Button.js";
+import { Chip, type ChipVariant } from "../../src/components/Chip.js";
 import { FilterChip } from "../../src/components/FilterChip.js";
 import { Form } from "../../src/components/Form.js";
 import { Modal } from "../../src/components/Modal.js";
 import { MultiSelect } from "../../src/components/MultiSelect.js";
 import { Pagination } from "../../src/components/Pagination.js";
+import { PriorityChip } from "../../src/components/PriorityChip.js";
 import { ReadOnlyField } from "../../src/components/ReadOnlyField.js";
 import { Select } from "../../src/components/Select.js";
+import { StatusChip } from "../../src/components/StatusChip.js";
 import { SuccessMessage } from "../../src/components/SuccessMessage.js";
 import { TextInput } from "../../src/components/TextInput.js";
 import { Textarea } from "../../src/components/Textarea.js";
@@ -532,7 +534,7 @@ describe("UI-37 icon-only controls and non-colour state (ui-spec 23, 29.8, 29.9)
     const { container } = render(<AttachmentState state={state} />);
 
     expect(screen.getByText(state)).toBeInTheDocument();
-    expect(container.firstElementChild).toHaveClass("tt-badge");
+    expect(container.firstElementChild).toHaveClass("tt-chip");
   });
 
   it("gives every attachment state a treatment of its own, not just a label", () => {
@@ -652,24 +654,31 @@ describe("UI-32 the multi-select filter control (ui-spec 14.2, 14.3)", () => {
   });
 });
 
-describe("UI-37 the ordinal badge meter (ui-spec 15.4, 29.9)", () => {
+describe("UI-37 the shared chip variants and ordinal meter (ui-spec 15.4, 29.9)", () => {
+  it.each(["primary", "secondary", "subtle", "outline", "destructive"] as ChipVariant[])(
+    "exposes the %s visual variant",
+    (variant) => {
+      const { container } = render(<Chip variant={variant}>{variant}</Chip>);
+
+      expect(container.firstElementChild).toHaveClass("tt-chip", "tt-chip--" + variant);
+    },
+  );
+
   it("fills one segment per level and leaves the label to carry the meaning", () => {
     const { container } = render(
-      <Badge variant="strong" level={3}>
-        HIGH
-      </Badge>,
+      <PriorityChip value="HIGH" />,
     );
 
-    const badge = container.firstElementChild as HTMLElement;
-    const meter = badge.querySelector(".tt-level") as HTMLElement;
+    const chip = container.firstElementChild as HTMLElement;
+    const meter = chip.querySelector(".tt-level") as HTMLElement;
 
-    expect(badge).toHaveTextContent("HIGH");
+    expect(chip).toHaveTextContent("HIGH");
     expect(meter.children).toHaveLength(3);
     expect(meter.querySelectorAll(".tt-level__on")).toHaveLength(3);
   });
 
   it("fills fewer segments for a lower level", () => {
-    const { container } = render(<Badge level={1}>LOW</Badge>);
+    const { container } = render(<PriorityChip value="LOW" />);
 
     expect(container.querySelectorAll(".tt-level__on")).toHaveLength(1);
     expect((container.querySelector(".tt-level") as HTMLElement).children).toHaveLength(3);
@@ -677,16 +686,23 @@ describe("UI-37 the ordinal badge meter (ui-spec 15.4, 29.9)", () => {
 
   /* The meter restates the level the text already carries. */
   it("hides the meter from the accessible name", () => {
-    const { container } = render(<Badge level={2}>MEDIUM</Badge>);
+    const { container } = render(<PriorityChip value="MEDIUM" />);
 
     expect(container.querySelector(".tt-level")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("MEDIUM")).toHaveTextContent(/^MEDIUM$/);
   });
 
   /* Status is categorical: three flat segments would invent an order it has not got. */
-  it("renders no meter for a badge without a level", () => {
-    const { container } = render(<Badge variant="pale">NEW</Badge>);
+  it("renders no meter for a status chip without a level", () => {
+    const { container } = render(<StatusChip value="NEW" />);
 
+    expect(container.querySelector(".tt-level")).toBeNull();
+  });
+
+  it("uses neutral outline treatment without a priority meter in queue contexts", () => {
+    const { container } = render(<PriorityChip value="HIGH" variant="outline" />);
+
+    expect(container.firstElementChild).toHaveClass("tt-chip--outline");
     expect(container.querySelector(".tt-level")).toBeNull();
   });
 });
