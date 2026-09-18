@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { useNavigationGuard } from "../navigation/NavigationGuard.js";
 import { BrandMark } from "./BrandMark.js";
 import { Button } from "./Button.js";
+import { Chip } from "./Chip.js";
 
 interface SidebarNavProps {
   id: string;
@@ -64,7 +65,7 @@ export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function Side
     <ul className="nav flex-column gap-1 mt-3">{links.map(({ path, label, icon: Icon }) => <li className="nav-item" key={path}><Link to={path} className={`nav-link${isActive(path) ? " active" : ""}`} aria-current={isActive(path) ? "page" : undefined} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return; event.preventDefault(); navigateWithGuard(path); }}><Icon className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />{label}</Link></li>)}</ul>
     <div className="tt-sidebar__footer">
       <div className="tt-sidebar__identity"><span className="tt-sidebar__avatar" aria-hidden="true"><UserRound className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" /></span><p className="mb-0 tt-sidebar__requester"><span className="tt-sidebar__name fw-semibold">{user.name}</span><span className="tt-sidebar__caption">{user.email}</span></p></div>
-      <span className="badge text-bg-success align-self-start mt-2">{roleLabel}</span>
+      <Chip variant="primary" className="align-self-start mt-2">{roleLabel}</Chip>
       {logoutError ? <div className="alert alert-danger py-2 mt-2 mb-0" role="alert">{logoutError}</div> : null}
       <Button variant="tertiary" className="tt-sidebar__switch w-100 mt-2" onClick={() => navigateWithGuard("/change-password")}><KeyRound className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Change Password</Button>
       <Button variant="tertiary" className="tt-sidebar__switch tt-sidebar__switch--danger w-100" onClick={requestLogout}><LogOut className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Logout</Button>

@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { ApiResponseError } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
+import { ManagePage } from "../components/ManagePage.js";
+import { OneTimePassword } from "../components/OneTimePassword.js";
+import { SuccessMessage } from "../components/SuccessMessage.js";
 import { UserForm } from "../components/UserForm.js";
 import { Modal } from "../components/Modal.js";
-import { PageHeader } from "../components/PageHeader.js";
+import type { PageHeaderProps } from "../components/PageHeader.js";
 import { useManagedForm } from "../forms/useManagedForm.js";
 import { USER_FORM_RULES, USER_FORM_SECTIONS, type UserFormValues } from "../constants/forms/user.js";
 import { useNavigationGuard, type NavigationAction } from "../navigation/NavigationGuard.js";
@@ -27,6 +30,12 @@ const createUserSchema = z.object({
   role: z.enum(["REQUESTER", "IT_STAFF", "ADMINISTRATOR"]),
   isActive: z.boolean(),
 });
+
+const CREATE_USER_PAGE_HEADER = {
+  title: "Create User",
+  subtitle: "Create an account for TokTickIT.",
+  backAction: { to: "/admin/users", label: "Back to Users" },
+} satisfies PageHeaderProps;
 
 export default function CreateUser() {
   const navigate = useNavigate();
@@ -137,45 +146,20 @@ export default function CreateUser() {
   };
 
   return (
-    <div className="tt-create-user">
-      <PageHeader
-        title="Create User"
-        eyebrow="User Management"
-        actions={<Link to="/admin/users">Back to Users</Link>}
-      />
-
+    <ManagePage header={CREATE_USER_PAGE_HEADER} className="tt-create-user">
       {createdPassword ? (
         <div data-testid="initial-password-panel">
           <Card title="User Created Successfully">
-            <div className="alert alert-success mb-3">
-              The user account has been created.
-            </div>
+            <SuccessMessage className="mb-3">The user account has been created.</SuccessMessage>
 
-            <div className="mb-4">
-              <label htmlFor="one-time-initial-password" className="form-label fw-semibold">
-                Initial Password
-              </label>
-              <div className="input-group mb-2" style={{ maxWidth: "420px" }}>
-                <input
-                  id="one-time-initial-password"
-                  type="text"
-                  readOnly
-                  className="form-control font-monospace"
-                  value={createdPassword}
-                  aria-label="One-time initial password"
-                />
-                <Button
-                  variant="secondary"
-                  onClick={handleCopyPassword}
-                  aria-label={copied ? "Password copied" : "Copy initial password"}
-                >
-                  {copied ? "Password copied!" : "Copy"}
-                </Button>
-              </div>
-              <p className="text-secondary small mb-0">
-                This password is shown only once. The User must change it at first login.
-              </p>
-            </div>
+            <OneTimePassword
+              id="one-time-initial-password"
+              label="Initial Password"
+              value={createdPassword}
+              helpText="This password is shown only once. The User must change it at first login."
+              copied={copied}
+              onCopy={handleCopyPassword}
+            />
 
             <div>
               <Button
@@ -222,6 +206,6 @@ export default function CreateUser() {
       >
         <p className="mb-0">Your User changes will be lost.</p>
       </Modal>
-    </div>
+    </ManagePage>
   );
 }

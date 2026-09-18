@@ -63,6 +63,7 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     renderDetail();
     await screen.findByRole("heading", { name: ticket.ticketNumber });
     expect(screen.getByRole("button", { name: "Change Owner" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change Owner" })).not.toHaveClass("btn-sm");
     expect(screen.getByLabelText("IT Priority")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start Work" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Claim Ticket" })).not.toBeInTheDocument();

@@ -396,7 +396,7 @@ describe("UI-18 My Tickets search debounce and query mapping", () => {
    * the 8 s `AbortSignal.timeout` inside `apiFetch`, which is faked here too.
    */
   function typeSearch(value: string): void {
-    fireEvent.change(screen.getByLabelText("Search"), { target: { value } });
+    fireEvent.change(screen.getByLabelText("Search Tickets"), { target: { value } });
   }
 
   it("waits for 400 ms of inactivity, then sends exactly one search request", async () => {
@@ -450,12 +450,12 @@ describe("UI-18 My Tickets search debounce and query mapping", () => {
     renderMyTicketsWithHistory(["/tickets?search=vpn", "/tickets"], 1);
     await advance(0);
 
-    expect(screen.getByLabelText("Search")).toHaveValue("");
+    expect(screen.getByLabelText("Search Tickets")).toHaveValue("");
 
     fireEvent.click(screen.getByRole("button", { name: "Go back" }));
     await advance(0);
 
-    expect(screen.getByLabelText("Search")).toHaveValue("vpn");
+    expect(screen.getByLabelText("Search Tickets")).toHaveValue("vpn");
     expect(lastListQuery(calls).get("search")).toBe("vpn");
 
     /* Well past the debounce boundary: nothing re-commits an empty search. */
@@ -700,6 +700,22 @@ describe("UI-21 My Tickets sort options", () => {
     expect(screen.getByLabelText("Sort by")).toHaveValue(sort);
     expect(label).toBeTruthy();
   });
+
+  it("does not make display-only name columns issue unsupported sort requests", async () => {
+    const { calls } = stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const initialRequestCount = listCalls(calls).length;
+    for (const label of ["Category", "Related System"]) {
+      const header = screen.getByRole("columnheader", { name: label });
+      expect(header).not.toHaveAttribute("tabindex");
+      expect(header).not.toHaveAttribute("aria-sort");
+      fireEvent.click(header);
+    }
+
+    expect(listCalls(calls)).toHaveLength(initialRequestCount);
+  });
 });
 
 describe("UI-22 My Tickets pagination and list projection", () => {
@@ -867,7 +883,7 @@ describe("UI-22 My Tickets pagination and list projection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go back" }));
 
     await waitFor(() => expect(lastListQuery(calls).get("search")).toBe("vpn"));
-    expect(screen.getByLabelText("Search")).toHaveValue("vpn");
+    expect(screen.getByLabelText("Search Tickets")).toHaveValue("vpn");
   });
 
   it("offers the five approved page sizes", async () => {
@@ -1065,23 +1081,20 @@ describe("UI-19 and UI-20 the toolbar states its applied filters", () => {
     );
   });
 
-  /*
-   * The label is hidden, not dropped: the magnifier and the placeholder name the
-   * field in place, and the helper text that repeated the placeholder word for
-   * word is gone (ui-spec Sections 13.2, 29.2).
-   */
-  it("names the search field without a visible label or a repeated hint", async () => {
+  /* Shared DataTable keeps the search label visible across list pages. */
+  it("uses the shared visible search label and preserves the input guard", async () => {
     stubApi();
     renderMyTickets();
 
-    const search = (await screen.findByLabelText("Search")) as HTMLInputElement;
+    const search = (await screen.findByLabelText("Search Tickets")) as HTMLInputElement;
 
-    expect(search.labels?.[0]).toHaveClass("visually-hidden");
+    expect(search.labels?.[0]).not.toHaveClass("visually-hidden");
     expect(search).toHaveAttribute("placeholder");
     expect(screen.queryByText(/^Search ticket number/)).toBeNull();
     /* A ticket number is not prose, and no password manager belongs here. */
     expect(search).toHaveAttribute("autocomplete", "off");
     expect(search).toHaveAttribute("spellcheck", "false");
+    expect(search).toHaveAttribute("maxlength", "200");
   });
 });
 

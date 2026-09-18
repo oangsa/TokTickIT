@@ -1,11 +1,17 @@
 import { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
-interface PageHeaderProps {
+export interface PageHeaderProps {
   title: string;
   /* For a title that is data rather than prose -- a Ticket Number. */
   titleClassName?: string;
   eyebrow?: ReactNode;
   subtitle?: ReactNode;
+  backAction?: {
+    to: string;
+    label: string;
+    ariaLabel?: string;
+  };
   actions?: ReactNode;
 }
 
@@ -14,7 +20,7 @@ interface PageHeaderProps {
  * 11.1, 13.1, 20.1). Rendered as a plain container rather than a <header> so it
  * never competes with the shell's banner landmark.
  */
-export function PageHeader({ title, titleClassName, eyebrow, subtitle, actions }: PageHeaderProps) {
+export function PageHeader({ title, titleClassName, eyebrow, subtitle, backAction, actions }: PageHeaderProps) {
   return (
     <div className="tt-page-header d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
       <div className="tt-page-header__copy">
@@ -24,7 +30,20 @@ export function PageHeader({ title, titleClassName, eyebrow, subtitle, actions }
         </h1>
         {subtitle ? <p className="text-secondary mb-0 mt-1">{subtitle}</p> : null}
       </div>
-      {actions ? <div className="tt-page-header__actions d-flex flex-wrap gap-2">{actions}</div> : null}
+      {backAction || actions ? (
+        <div className="tt-page-header__actions d-flex flex-wrap gap-2">
+          {backAction ? (
+            <Link
+              to={backAction.to}
+              className="btn btn-outline-secondary"
+              aria-label={backAction.ariaLabel ?? backAction.label}
+            >
+              {backAction.label}
+            </Link>
+          ) : null}
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }

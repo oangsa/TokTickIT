@@ -24,7 +24,7 @@ Use React + TypeScript + Vite, Bootstrap, and the existing shared components. Th
 | Controls / surfaces | `--tt-radius-control`: 8px; `--tt-radius-surface`: 12px |
 | Shell | `--tt-sidebar-width`: 240px; `--tt-content-max`: 1280px |
 
-Use locally loaded Inter with the existing system fallback stack. Page headings are prominent; card headings are semibold; field labels sit above controls; helper text, counters, and metadata are secondary. Badges are pills with visible text. Avoid decorative display fonts, improvised colors, nested ornamental cards, and page-specific copies of shared styling.
+Use locally loaded Inter with the existing system fallback stack. Page headings are prominent; card headings are semibold; field labels sit above controls; helper text, counters, and metadata are secondary. Chips are pills with visible text. Avoid decorative display fonts, improvised colors, nested ornamental cards, and page-specific copies of shared styling.
 
 Use Bootstrap spacing/grid utilities first. Desktop page/card padding is about 24px, tablet 20px, mobile 16px; section gaps about 24px and control spacing about 16–20px. Reuse token values for required custom CSS. Maintain visible focus and reduced-motion support; do not hide overflow as a substitute for a usable layout.
 
@@ -32,7 +32,9 @@ Use Bootstrap spacing/grid utilities first. Desktop page/card padding is about 2
 
 Use [AppShell](../../client/src/components/AppShell.tsx) and [SidebarNav](../../client/src/components/SidebarNav.tsx) for authenticated navigation. Pages rendered inside the shell do not add another sidebar or main landmark. Login and the global error page use their specified standalone layouts. Preserve route focus and drawer focus restoration.
 
-Use [PageHeader](../../client/src/components/PageHeader.tsx) with `title`, optional `subtitle`/`eyebrow`, and `actions`. It owns title sizing and responsive action placement. Use a real Link for navigation and a Button for mutation. Entity identifiers may use `titleClassName` for wrapping. Do not repeat a page title as an unnecessary card title.
+Use [PageHeader](../../client/src/components/PageHeader.tsx) with `title`, optional `subtitle`/`eyebrow`, `backAction`, and `actions`. It owns title sizing, the consistent outlined back link, and responsive action placement. Use a real Link for navigation and a Button for mutation. Entity identifiers may use `titleClassName` for wrapping. Do not repeat a page title as an unnecessary card title.
+
+Create/edit/view pages may use [ManagePage](../../client/src/components/ManagePage.tsx) with a page-owned typed header config. Keep title, description, back destination, and actions in that config; ManagePage owns only the shared header-to-content composition, not form state or domain behavior.
 
 Ticket Queue and User Management use title-only list headings, with available actions on the right and search/filter controls below. Neither supplies an eyebrow or subtitle. Actions wrap below at narrow widths. This applies to both Administrator and IT Staff uses of StaffTicketQueue; it does not remove subtitles from other page families.
 
@@ -55,7 +57,8 @@ Paths below point to current implementations; inspect their TypeScript props bef
 | Lists | [DataTable](../../client/src/components/DataTable.tsx) | Columns, list header, toolbar, states, row actions, pagination |
 | Filters / pagination | [FilterChip](../../client/src/components/FilterChip.tsx), [MultiSelect](../../client/src/components/MultiSelect.tsx), [Pagination](../../client/src/components/Pagination.tsx) | Reuse controls; page owns query semantics and filter commit behavior |
 | Dialogs | [Modal](../../client/src/components/Modal.tsx) | `open`, `title`, `onClose`, `footer`; shared focus and dismissal mechanics |
-| Labels / progress / feedback | [Badge](../../client/src/components/Badge.tsx), [Skeleton](../../client/src/components/Skeleton.tsx), [ValidationMessage](../../client/src/components/ValidationMessage.tsx), [SuccessMessage](../../client/src/components/SuccessMessage.tsx) | Visible state text and accessible feedback |
+| State chips / progress / feedback | [Chip](../../client/src/components/Chip.tsx), [PriorityChip](../../client/src/components/PriorityChip.tsx), [StatusChip](../../client/src/components/StatusChip.tsx), [Skeleton](../../client/src/components/Skeleton.tsx), [ValidationMessage](../../client/src/components/ValidationMessage.tsx), [SuccessMessage](../../client/src/components/SuccessMessage.tsx) | Visible state text and accessible feedback |
+| One-time credentials | [OneTimePassword](../../client/src/components/OneTimePassword.tsx) | Shared read-only password presentation, copy action, and helper text after user creation/reset |
 | Empty / failed region | [EmptyState](../../client/src/components/EmptyState.tsx), [ErrorState](../../client/src/components/ErrorState.tsx) | Explicit title/description and relevant action/retry |
 | Upload lifecycle | [AttachmentSection](../../client/src/attachments/AttachmentSection.tsx), [AttachmentState](../../client/src/components/AttachmentState.tsx) | Pending/Active lifecycle, per-file feedback, preview, removal |
 | Communication | [PublicComments](../../client/src/components/PublicComments.tsx), [InternalNotes](../../client/src/components/InternalNotes.tsx) | Keep audience, permissions, ordering, and pagination in specialized components |
@@ -110,21 +113,25 @@ Use [NavigationGuard](../../client/src/navigation/NavigationGuard.tsx) for dirty
 
 ## Lists, filters, and row actions
 
-Use DataTable for the existing User Management and Staff/Admin Ticket Queue patterns. UserManagement demonstrates `fetchData` with `IFetchParams`/`IFetchResult`; StaffTicketQueue demonstrates controlled data and query props. Choose one ownership mode and do not duplicate fetching in both page and component. Preserve pagination metadata and API field mappings.
+Use DataTable for User Management, My Tickets, and the Staff/Admin Ticket Queue. UserManagement demonstrates `fetchData` with `IFetchParams`/`IFetchResult`; MyTickets and StaffTicketQueue demonstrate controlled data and query props. Choose one ownership mode and do not duplicate fetching in both page and component. Preserve pagination metadata and API field mappings.
 
-`IColumn<T>` defines `key`, `label`, optional `align`, `sortable`, `render`, and `style`. Mark unsupported sorts false and map supported keys to the resource contract. Shared CSS vertically centers all DataTable column headers. Ticket Queue retains fixed widths, a 25% second column, and wrapping; shared alignment does not mean equal column widths.
+`IColumn<T>` defines `key`, `label`, optional `align`, `sortable`, `render`, `className`, and `style`. Mark unsupported sorts false and map supported keys to the resource contract. Shared CSS vertically centers all DataTable column headers. Ticket Queue retains fixed widths, a 25% second column, and wrapping; shared alignment does not mean equal column widths. Automatic row actions are icon-only controls with an accessible name and tooltip; use `renderActions` when a resource needs a different action set.
+
+DataTable owns one neutral table shell: transparent headers, shared row padding, collapsed borders, and the final-row rule. Page-specific table classes may tune column widths and responsive projections only; they must not recreate the outer table frame or header treatment.
+
+Pagination uses one spacing rhythm for arrows and numbered links. Keep page numbers as separate controls with the shared 4px gap; reset Bootstrap's joined-link offset when adding a pagination variant.
 
 Supply `basePath` and `itemKey` for navigable rows. Preserve real view links, keyboard activation, hover/focus treatment, and safe handling of interactive children so clicking an action does not also activate the row. Configure view/edit/delete/create visibility explicitly; visual reuse does not authorize those operations. Create labels contain text only; DataTable adds its Plus icon.
 
-Keep draft filter changes separate from applied filters: Cancel discards drafts, Apply commits and resets pagination. Search/filter reset and empty-state actions must follow the page contract; avoid duplicate Clear Filters controls. Distinguish true empty data from no matching results. My Tickets retains its existing specialized responsive table; this contract does not claim it already uses DataTable or authorize replacing it.
+Keep draft filter changes separate from applied filters: Cancel discards drafts, Apply commits and resets pagination. Search/filter reset and empty-state actions must follow the page contract; avoid duplicate Clear Filters controls. Distinguish true empty data from no matching results. My Tickets and Staff/Admin Ticket Queue use the shared DataTable with controlled resource queries; preserve each page's API query semantics, responsive projection, and empty/loading states when extending the shared component.
 
-## Buttons, icons, badges, and dialogs
+## Buttons, icons, chips, and dialogs
 
 Use Button variants `primary`, `secondary`, `tertiary`, and `destructive`. Button defaults to `type="button"`; explicitly use submit when needed. Pass `busy` consistently to preserve the progress slot and keep the original label. Navigation uses Link styled with existing button classes, not a nested button.
 
 Use `lucide-react` (current library) or approved `react-icons`; no hand-drawn SVG, Unicode interface icons, CSS icons, or data-URI icons. Decorative icons have `aria-hidden="true"` and `focusable="false"`. Icon-only controls need an accessible name and visible hover/focus explanation; IconButton is the reusable button choice. Do not duplicate an icon in its label.
 
-Badge variants are visual, not business rules. Keep status/role/priority words visible; ordinal `level` indicators are optional for priority, not categorical status. Do not communicate danger, success, privacy, or disabled state through color alone.
+Use [Chip](../../client/src/components/Chip.tsx) as the canonical pill surface. Its variants are `primary`, `secondary`, `subtle`, `outline`, and `destructive`; the visible label always remains present. [PriorityChip](../../client/src/components/PriorityChip.tsx) owns LOW/MEDIUM/HIGH mapping and the optional ordinal meter. [StatusChip](../../client/src/components/StatusChip.tsx) owns status-label formatting and status treatment. Ticket lists use semantic defaults so requester and staff/admin tables share the same priority meter and status treatment; pass `variant="outline"` only when a contextual neutral chip is explicitly required. New code must not repeat chip classes or domain mappings. `Badge.tsx` remains only as a compatibility adapter for older imports.
 
 Use Modal for confirmations, filters, and supported previews. Keep focus inside while open, return focus on close, and retain an explicit cancel/close action. Page state determines whether dismissal is allowed during a mutation. Destructive copy names the action and consequence; do not add confirmation dialogs to ordinary actions without a requirement.
 

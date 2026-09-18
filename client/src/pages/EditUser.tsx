@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { ApiResponseError } from "../api.js";
 import { useAuth } from "../auth/AuthProvider.js";
@@ -8,7 +8,9 @@ import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { UserForm } from "../components/UserForm.js";
 import { Modal } from "../components/Modal.js";
+import { OneTimePassword } from "../components/OneTimePassword.js";
 import { PageHeader } from "../components/PageHeader.js";
+import { SuccessMessage } from "../components/SuccessMessage.js";
 import { useManagedForm } from "../forms/useManagedForm.js";
 import { USER_FORM_RULES, type UserFormValues } from "../constants/forms/user.js";
 import { useNavigationGuard, type NavigationAction } from "../navigation/NavigationGuard.js";
@@ -278,7 +280,7 @@ export default function EditUser() {
   if (loading) {
     return (
       <div className="tt-edit-user">
-        <PageHeader title="Edit User" eyebrow="User Management" actions={<Link to="/admin/users">Back to Users</Link>} />
+        <PageHeader title="Edit User" eyebrow="User Management" backAction={{ to: "/admin/users", label: "Back to Users" }} />
         <p role="status" className="text-secondary py-3">
           Loading user details…
         </p>
@@ -289,7 +291,7 @@ export default function EditUser() {
   if (loadError || !targetUser) {
     return (
       <div className="tt-edit-user">
-        <PageHeader title="Edit User" eyebrow="User Management" actions={<Link to="/admin/users">Back to Users</Link>} />
+        <PageHeader title="Edit User" eyebrow="User Management" backAction={{ to: "/admin/users", label: "Back to Users" }} />
         <div className="alert alert-danger" role="alert">
           <p className="mb-2">{loadError || "User not found."}</p>
           <Button variant="secondary" onClick={() => void loadUser()}>
@@ -305,13 +307,11 @@ export default function EditUser() {
       <PageHeader
         title={`Edit ${targetUser.name}`}
         eyebrow="User Management"
-        actions={<Link to="/admin/users">Back to Users</Link>}
+        backAction={{ to: "/admin/users", label: "Back to Users" }}
       />
 
       {successMessage ? (
-        <div className="alert alert-success alert-dismissible fade show" role="status">
-          {successMessage}
-        </div>
+        <SuccessMessage className="mb-3">{successMessage}</SuccessMessage>
       ) : null}
 
       <div className="d-flex flex-column gap-4">
@@ -340,35 +340,15 @@ export default function EditUser() {
         <Card title="Account Security">
           {newInitialPassword ? (
             <div data-testid="reset-initial-password-panel">
-              <div className="alert alert-success mb-3">
-                Initial password has been reset.
-              </div>
-
-              <div className="mb-3">
-                <label htmlFor="edit-one-time-password" className="form-label fw-semibold">
-                  New Initial Password
-                </label>
-                <div className="input-group mb-2" style={{ maxWidth: "420px" }}>
-                  <input
-                    id="edit-one-time-password"
-                    type="text"
-                    readOnly
-                    className="form-control font-monospace"
-                    value={newInitialPassword}
-                    aria-label="One-time initial password"
-                  />
-                  <Button
-                    variant="secondary"
-                    onClick={handleCopyPassword}
-                    aria-label={copied ? "Password copied" : "Copy initial password"}
-                  >
-                    {copied ? "Password copied!" : "Copy"}
-                  </Button>
-                </div>
-                <p className="text-secondary small mb-0">
-                  This password is shown only once. The User must change it at next login.
-                </p>
-              </div>
+              <SuccessMessage className="mb-3">Initial password has been reset.</SuccessMessage>
+              <OneTimePassword
+                id="edit-one-time-password"
+                label="New Initial Password"
+                value={newInitialPassword}
+                helpText="This password is shown only once. The User must change it at next login."
+                copied={copied}
+                onCopy={handleCopyPassword}
+              />
 
               <Button variant="secondary" onClick={() => setNewInitialPassword(null)}>
                 Done

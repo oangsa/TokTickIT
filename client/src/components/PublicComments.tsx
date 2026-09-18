@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiResponseError, readPaginationHeader, type PaginationMetadata } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
-import { Badge } from "./Badge.js";
 import { Button } from "./Button.js";
+import { Chip } from "./Chip.js";
 import { ticketDateTime } from "../tickets/ticketDate.js";
 import { statusLabel } from "../tickets/staffTickets.js";
 
@@ -379,7 +379,7 @@ export function PublicComments({ ticketPublicId, onCommentAdded }: PublicComment
                 {/* Root Comment Header */}
                 <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
                   <span className="fw-bold">{root.author?.name}</span>
-                  {root.author?.role ? <Badge>{statusLabel(root.author.role)}</Badge> : null}
+                  {root.author?.role ? <Chip variant="outline">{statusLabel(root.author.role)}</Chip> : null}
                   <small className="text-secondary">{ticketDateTime(root.createdAt)}</small>
                 </div>
 
@@ -471,7 +471,7 @@ export function PublicComments({ ticketPublicId, onCommentAdded }: PublicComment
                         >
                           <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
                             <span className="fw-semibold small">{reply.author?.name}</span>
-                            {reply.author?.role ? <Badge>{statusLabel(reply.author.role)}</Badge> : null}
+                            {reply.author?.role ? <Chip variant="outline">{statusLabel(reply.author.role)}</Chip> : null}
                             <small className="text-secondary">{ticketDateTime(reply.createdAt)}</small>
                           </div>
                           <p className="mb-1 small text-break" style={{ whiteSpace: "pre-wrap" }}>

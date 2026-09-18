@@ -40,13 +40,16 @@ describe("UI-13–14 Queue controls @issue-5", () => {
       updatedAt: "2026-09-16T00:00:00Z",
     }]);
     await screen.findAllByText("TK-20260916-0001");
+    expect(screen.queryByRole("link", { name: "Create Ticket" })).not.toBeInTheDocument();
     const table = screen.getByRole("table");
     for (const heading of ["Ticket Number", "Summary / Category", "IT Priority", "Status", "Owner", "Created"]) {
       expect(within(table).getByRole("columnheader", { name: heading })).toBeInTheDocument();
     }
     expect(within(table).getByText("Unassigned")).toBeInTheDocument();
-    expect(within(table).getByText("HIGH")).toBeInTheDocument();
-    expect(within(table).getByText("OPEN")).toBeInTheDocument();
+    const priorityChip = within(table).getByText("HIGH");
+    expect(priorityChip).toHaveClass("tt-chip--primary");
+    expect(priorityChip.querySelectorAll(".tt-level__on")).toHaveLength(3);
+    expect(within(table).getByText("OPEN")).toHaveClass("tt-chip--subtle");
     unmount();
 
     // No-results state when filters applied
@@ -106,7 +109,7 @@ describe("UI-13–14 Queue controls @issue-5", () => {
     await user.type(screen.getByLabelText("Search Tickets"), "vpn");
     await waitFor(() => expect(new URL(queueCalls().at(-1)![0], "http://test").searchParams.get("search")).toBe("vpn"));
     expect(new URL(queueCalls().at(-1)![0], "http://test").searchParams.get("searchFields")).toBe("ticketNumber,summary,description,requesterName");
-    await user.selectOptions(screen.getByLabelText("Sort"), "itPriority:desc");
+    await user.selectOptions(screen.getByLabelText("Sort by"), "itPriority:desc");
     await waitFor(() => expect(new URL(queueCalls().at(-1)![0], "http://test").searchParams.get("sort")).toBe("itPriority:desc"));
     expect(new URL(queueCalls().at(-1)![0], "http://test").searchParams.get("pageNumber")).toBe("1");
   });

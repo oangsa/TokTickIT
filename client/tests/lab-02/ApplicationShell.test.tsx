@@ -136,7 +136,11 @@ describe("authenticated application shell and navigation", () => {
 
     expect(screen.getAllByText(/TokTickIT/).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "My Tickets" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Create Ticket" })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", {
+        name: "Create Ticket",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Change Requester" })).not.toBeInTheDocument();
     expect(screen.queryByText("Development Requester", { exact: true })).not.toBeInTheDocument();

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiResponseError, readPaginationHeader, type PaginationMetadata } from "../api.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
-import { Badge } from "./Badge.js";
 import { Button } from "./Button.js";
+import { Chip } from "./Chip.js";
 import { ticketDateTime } from "../tickets/ticketDate.js";
 import { statusLabel } from "../tickets/staffTickets.js";
 
@@ -221,7 +221,7 @@ export function InternalNotes({
             >
               <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
                 <span className="fw-bold">{note.author.name}</span>
-                <Badge variant="medium">{statusLabel(note.author.role)}</Badge>
+                <Chip variant="secondary">{statusLabel(note.author.role)}</Chip>
                 <small className="text-secondary">{ticketDateTime(note.createdAt)}</small>
               </div>
               <p className="mb-0 text-break" style={{ whiteSpace: "pre-wrap" }}>

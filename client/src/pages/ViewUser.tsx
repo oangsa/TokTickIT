@@ -69,11 +69,7 @@ export default function ViewUser() {
         <PageHeader
           title="User Details"
           eyebrow="Administration"
-          actions={
-            <Link to="/admin/users" className="btn btn-outline-secondary">
-              Back to Users
-            </Link>
-          }
+          backAction={{ to: "/admin/users", label: "Back to Users" }}
         />
         <div className="alert alert-danger" role="alert">
           <p className="mb-2">{loadError || "User not found."}</p>
@@ -90,11 +86,9 @@ export default function ViewUser() {
       <PageHeader
         title={targetUser.name}
         eyebrow="User Detail"
+        backAction={{ to: "/admin/users", label: "Back to Users" }}
         actions={
           <div className="d-flex gap-2">
-            <Link to="/admin/users" className="btn btn-outline-secondary">
-              Back to Users
-            </Link>
             <Link
               to={`/admin/users/${encodeURIComponent(targetUser.publicId)}/edit`}
               className="btn btn-primary d-inline-flex align-items-center gap-1"

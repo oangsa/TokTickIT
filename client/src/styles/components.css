@@ -383,6 +383,32 @@ a {
   color: var(--tt-text);
 }
 
+.tt-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  border: 0;
+  border-radius: var(--tt-radius-control);
+  background: transparent;
+  color: var(--tt-text);
+  line-height: 1;
+  text-decoration: none;
+}
+
+.tt-row-action:hover,
+.tt-row-action:focus-visible {
+  background: var(--tt-green-pale);
+  color: var(--tt-green-primary);
+}
+
+.tt-row-action--danger:hover,
+.tt-row-action--danger:focus-visible {
+  color: var(--bs-danger);
+}
+
 /* Busy buttons keep their width and center their original action text (Section 10.6). */
 .tt-btn--busy {
   display: inline-grid;
@@ -440,6 +466,16 @@ a {
   resize: vertical;
 }
 
+.tt-one-time-password {
+  max-width: 26.25rem;
+}
+
+.tt-workflow-value {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
 /*
  * A read-only Description keeps the read-only fill and dashed border but stays
  * vertically resizable, so a long value can be opened up rather than scrolled
@@ -457,34 +493,39 @@ a {
   color: var(--tt-danger);
 }
 
-/* Badges stay inside the Zen Green language (Section 17). */
-.tt-badge--pale {
+/* Shared chips stay inside the Zen Green language (Section 17). */
+.tt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid transparent;
+}
+
+.tt-chip--subtle {
   background-color: var(--tt-green-pale);
   color: var(--tt-green-primary);
 }
 
-.tt-badge--medium {
+.tt-chip--secondary {
   background-color: color-mix(in srgb, var(--tt-green-primary) 25%, var(--tt-green-pale));
   color: var(--tt-green-primary);
 }
 
-.tt-badge--strong {
+.tt-chip--primary {
   background-color: var(--tt-green-primary);
   color: var(--tt-surface);
 }
 
-.tt-badge--neutral {
+.tt-chip--outline {
   background-color: var(--tt-readonly-bg);
   color: var(--tt-text);
   border: 1px solid var(--tt-border);
 }
 
-.tt-chip {
-  background-color: var(--tt-green-pale);
-  color: var(--tt-green-primary);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
+.tt-chip--destructive {
+  background-color: var(--tt-danger-surface);
+  color: var(--tt-danger);
+  border-color: var(--tt-danger);
 }
 
 /* Skeletons resemble the final layout without distracting animation (Section 28). */
@@ -517,14 +558,14 @@ a {
 }
 
 /*
- * Attachment lifecycle badges (Section 23). Uploading/Failed/Invalid are
+ * Attachment lifecycle chips (Section 23). Uploading/Failed/Invalid are
  * client-local upload states; Pending/Active/Removed are the persisted
  * lifecycle. Each badge always renders its text label.
  */
 /*
  * Pending is pre-uploaded but not yet Ticket evidence, so it borrows the dashed
  * "not directly editable" border already used by `.tt-readonly`. Uploading keeps
- * the plain neutral badge, so the two read differently at a glance and not only
+ * the plain neutral chip, so the two read differently at a glance and not only
  * by their label (Section 34).
  */
 .tt-attachment-state--pending {
@@ -785,7 +826,7 @@ a {
     font-size: 0.875rem;
   }
 
-  .tt-badge {
+  .tt-chip {
     font-size: 0.625rem;
   }
 
@@ -838,7 +879,7 @@ a {
     letter-spacing: 0.05em;
   }
 
-  .tt-badge {
+  .tt-chip {
     padding: 0.25rem 0.4rem;
   }
 
@@ -950,10 +991,10 @@ a {
 /*
  * ── Priority meter (Section 17.1) ──────────────────────────────────────────
  *
- * Priority is the one ordinal value on a Ticket, and three flat badge colours
+ * Priority is the one ordinal value on a Ticket, and three flat chip colours
  * make it read as three unrelated categories. Three segments, filled to the
- * level, put the ordering into the badge's shape: the scale survives greyscale,
- * a colour-vision difference, and the small-screen table where the badges sit
+ * level, put the ordering into the chip's shape: the scale survives greyscale,
+ * a colour-vision difference, and the small-screen table where the chips sit
  * closest together. The text label still carries the meaning on its own
  * (Section 29.9); the meter is aria-hidden so it is never announced twice.
  */
@@ -1164,134 +1205,10 @@ a {
   letter-spacing: 0.06em;
 }
 
-.tt-table--tickets {
-  border: 1px solid var(--tt-border);
-  border-radius: var(--tt-radius-control);
-  border-collapse: separate;
-  border-spacing: 0;
-  overflow: hidden;
-}
-
-.tt-table--tickets thead th {
-  padding-block: 0.75rem;
-  background-color: var(--tt-page-bg) !important;
-  border-bottom-width: 1px;
-  font-size: 0.8125rem;
-  letter-spacing: normal;
-  text-transform: none;
-}
-
-.tt-table--tickets tbody td {
-  padding-block: 0.75rem;
-}
-
-.tt-table--tickets .tt-ticket-no {
-  display: inline-block;
-  max-inline-size: 100%;
-  color: var(--tt-text);
-  font-weight: 500;
-}
-
-.tt-table--tickets tbody tr {
-  transition: background-color var(--tt-duration-fast) var(--tt-ease-out);
-}
-
-.tt-table--tickets tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-/* Reference: maintenance-tracking-system Common/DataTable. Reuse local tokens
- * and query controls; keep responsive columns and native navigation intact.
- */
-.tt-ticket-list .tt-toolbar {
-  grid-template-columns: minmax(0, 24rem) auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.75rem;
-  margin-block-end: 1rem;
-}
-
-.tt-ticket-list .tt-toolbar__sort {
-  justify-self: end;
-  min-width: 0;
-}
-
-.tt-ticket-list .tt-toolbar__sort > .mb-3 {
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.tt-ticket-list .tt-toolbar__sort .form-label {
-  color: var(--tt-text-muted);
-  font-size: 0.8125rem;
-  white-space: nowrap;
-}
-
-.tt-ticket-list .tt-toolbar__filter .btn {
-  gap: 0.375rem;
-}
-
-.tt-ticket-list .tt-toolbar__filter svg {
-  flex-shrink: 0;
-}
-
-/* Bootstrap paints cell surfaces; row background alone is covered by them. */
-.tt-table--tickets .tt-row:hover > td,
-.tt-table--tickets .tt-row:has(.tt-row-link:focus-visible) > td {
-  background-color: var(--tt-green-pale);
-}
-
-.tt-table--tickets .tt-row:active > td {
-  background-color: var(--tt-readonly-bg);
-}
-
-.tt-ticket-list .tt-pagination {
-  margin-block-start: 1rem;
-  border-block-start: 0;
-  padding-block-start: 0;
-}
-
-.tt-ticket-list .pagination {
-  gap: 0.25rem;
-}
-
-.tt-ticket-list .page-link {
-  margin-inline-start: 0;
-  border-radius: var(--tt-radius-control);
-}
-
-@media (max-width: 991.98px) {
-  .tt-ticket-list .tt-toolbar {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .tt-ticket-list .tt-toolbar__search {
-    grid-column: 1 / -1;
-  }
-
-  .tt-ticket-list .tt-toolbar__sort {
-    width: auto;
-    max-width: 100%;
-  }
-}
-
 @media (max-width: 375px) {
-  .tt-table--tickets thead th {
-    font-size: 0.625rem;
-  }
-
-  .tt-table--tickets .tt-badge {
+  .tt-table--tickets .tt-chip {
     padding-inline: 0.2rem;
     letter-spacing: normal;
-  }
-
-  .tt-ticket-list .tt-toolbar__sort > .mb-3 {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.25rem;
-  }
-
-  .tt-ticket-list .tt-toolbar {
-    align-items: end;
   }
 }
 
@@ -1352,6 +1269,15 @@ a {
   border-radius: var(--tt-radius-control);
 }
 
+/* Keep page numbers as discrete controls with the same rhythm as the arrows. */
+.tt-pagination__actions .pagination {
+  gap: 0.25rem;
+}
+
+.tt-pagination__actions .page-item + .page-item .page-link {
+  margin-inline-start: 0;
+}
+
 .tt-pagination__actions .tt-tip-host {
   display: inline-flex;
 }
@@ -1409,6 +1335,42 @@ a {
 
 .tt-data-table .table > thead > tr > th {
   vertical-align: middle;
+}
+
+/* Every DataTable owns one table shell; page classes only tune columns. */
+.tt-data-table .table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.tt-data-table .table > thead > tr > th {
+  padding-block: 0.75rem;
+  background-color: transparent !important;
+  border-bottom-width: 1px;
+  color: var(--tt-text);
+  font-size: 0.8125rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.tt-data-table .table > tbody > tr > td {
+  padding-block: 0.75rem;
+}
+
+.tt-data-table .table > tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+@media (max-width: 991.98px) {
+  .tt-data-table .tt-table--tickets > thead > tr > th {
+    font-size: 0.6875rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .tt-data-table .tt-table--tickets > thead > tr > th {
+    font-size: 0.625rem;
+  }
 }
 
 /* Ensure all DataTable rows have consistent hover styling matching Tickets */

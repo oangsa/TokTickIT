@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ListFilter, Plus, Search } from "lucide-react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import {
@@ -10,19 +9,14 @@ import {
   readPaginationHeader,
 } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
-import { Badge } from "../components/Badge.js";
 import { Button } from "../components/Button.js";
-import { Card } from "../components/Card.js";
+import { PriorityChip, type PriorityValue } from "../components/PriorityChip.js";
+import { StatusChip, type StatusValue } from "../components/StatusChip.js";
+import { DataTable, type IActiveFilterChip, type IColumn } from "../components/DataTable.js";
 import { EmptyState } from "../components/EmptyState.js";
-import { ErrorState } from "../components/ErrorState.js";
-import { FilterChip } from "../components/FilterChip.js";
 import { Modal } from "../components/Modal.js";
 import { MultiSelect } from "../components/MultiSelect.js";
-import { PageHeader } from "../components/PageHeader.js";
-import { Pagination } from "../components/Pagination.js";
-import { Select } from "../components/Select.js";
 import { Skeleton } from "../components/Skeleton.js";
-import { TextInput } from "../components/TextInput.js";
 import { ticketDate } from "../tickets/ticketDate.js";
 import {
   EMPTY_FILTERS,
@@ -66,19 +60,6 @@ interface LoadedPagination {
   request: string;
   metadata: PaginationMetadata;
 }
-
-const PRIORITY_VARIANT = {
-  LOW: "pale",
-  MEDIUM: "medium",
-  HIGH: "strong",
-} as const;
-
-/* Filled segments in the badge meter; the text label carries the meaning. */
-const PRIORITY_LEVEL = {
-  LOW: 1,
-  MEDIUM: 2,
-  HIGH: 3,
-} as const;
 
 const SKELETON_ROWS = 5;
 
@@ -406,380 +387,156 @@ export default function MyTickets() {
     setFilterDraft(null);
   }
 
-  function openTicket(publicId: string): void {
-    navigate(`/tickets/${publicId}${location.search}`);
-  }
-
-  function handleTicketRowClick(
-    event: React.MouseEvent<HTMLTableRowElement>,
-    publicId: string,
-  ): void {
-    if ((event.target as HTMLElement).closest("a, button") !== null) {
-      return;
-    }
-
-    openTicket(publicId);
-  }
-
-  const columns = [
-    { label: "Ticket Number", secondary: false },
-    { label: "Summary", secondary: false },
-    { label: "Category", secondary: true },
-    { label: "Related System", secondary: true },
-    { label: "Priority", secondary: false },
-    { label: "Status", secondary: false },
-    { label: "Created At", secondary: true },
+  const sharedColumns: IColumn<TicketListItem>[] = [
+    {
+      key: "ticketNumber",
+      label: "Ticket Number",
+      render: (value) => <span className="tt-row-link tt-ticket-no">{String(value ?? "")}</span>,
+    },
+    { key: "summary", label: "Summary" },
+    { key: "categoryName", label: "Category", sortable: false, className: SECONDARY_COLUMN },
+    { key: "relatedSystemName", label: "Related System", sortable: false, className: SECONDARY_COLUMN },
+    {
+      key: "requestedPriority",
+      label: "Priority",
+      render: (value) => {
+        const priority = String(value) as PriorityValue;
+        return <PriorityChip value={priority} />;
+      },
+    },
+    {
+      key: "currentStatus",
+      label: "Status",
+      render: (value) => <StatusChip value={String(value ?? "") as StatusValue} />,
+    },
+    {
+      key: "createdAt",
+      label: "Created At",
+      className: SECONDARY_COLUMN,
+      render: (value) => ticketDate(String(value ?? "")),
+    },
   ];
 
-  return (
-    <>
-      <PageHeader
-        title="My Tickets"
-        subtitle="View and manage your support requests."
-        actions={
-          <Link
-            className="btn btn-primary gap-2"
-            to="/tickets/new"
-            aria-label="Create Ticket (new support ticket)"
-          >
-            <Plus size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
-            Create Ticket
-          </Link>
-        }
-      />
-
-      <Card className="tt-ticket-list">
-        <div className="tt-toolbar">
-          <div className="tt-toolbar__search tt-search-field">
-            <Search
-              className="tt-search-field__icon"
-              size={16}
-              strokeWidth={1.75}
-              aria-hidden="true"
-              focusable="false"
-            />
-            {/*
-              * The label is hidden, not dropped: the magnifier and the
-              * placeholder name the field in place, and the label still names
-              * it programmatically (ui-spec Sections 13.2, 29.2).
-              */}
-            <TextInput
-              label="Search"
-              labelHidden
-              className="tt-search-input"
-              type="search"
-              name="search"
-              /* A ticket number is not prose, and no password manager belongs here. */
-              autoComplete="off"
-              spellCheck={false}
-              value={searchInput}
-              maxLength={200}
-              placeholder="Search by ticket number, summary, or description…"
-              onChange={(event) => setSearchInput(event.target.value)}
-            />
-          </div>
-
-          <div className="tt-toolbar__controls">
-            <div className="tt-toolbar__filter mb-3">
-            {/*
-              * Not disabled during a fetch. Disabling a focused control moves
-              * focus to `<body>`, and this screen fetches on every search
-              * pause -- so a keyboard user was thrown out of the toolbar every
-              * 400ms while typing. Nothing here needs the guard: `commitQuery`
-              * only writes the URL, and the list effect discards the superseded
-              * response through its `ignore` flag.
-              */}
-              {/*
-                * Applied filters change the button's surface, not only its
-                * count: the count alone reads as part of the label, and a
-                * Requester scanning an unexpected result set needs the toolbar
-                * to say at a glance that a filter is narrowing it (Section 14.1).
-                */}
-              <Button
-                variant="secondary"
-                className={appliedCount > 0 ? "tt-filters--applied" : undefined}
-                onClick={() => setFilterDraft(selectedFilters(query))}
-              >
-                <ListFilter size={16} strokeWidth={1.75} aria-hidden="true" focusable="false" />
-                Filters{appliedCount > 0 ? ` (${appliedCount})` : ""}
-              </Button>
-            </div>
-
-            <div className="tt-toolbar__sort">
-              <Select
-                label="Sort by"
-                name="sort"
-                autoComplete="off"
-                value={query.sort}
-                onChange={(event) =>
-                  commitQuery({ ...query, sort: event.target.value, pageNumber: 1 })
-                }
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
+  const sharedFilterModal = (
+    <Modal
+      open={filterDraft !== null}
+      title="Filters"
+      onClose={() => setFilterDraft(null)}
+      footer={
+        <div className="d-flex justify-content-between w-100">
+          <Button variant="tertiary" onClick={() => setFilterDraft(EMPTY_FILTERS)}>
+            Reset
+          </Button>
+          <div className="d-flex gap-2">
+            <Button variant="secondary" onClick={() => setFilterDraft(null)}>Cancel</Button>
+            <Button variant="primary" onClick={applyFilters}>Apply</Button>
           </div>
         </div>
+      }
+    >
+      <MultiSelect
+        label="Category"
+        placeholder="Any Category…"
+        options={categories.map((category) => ({ value: String(category.id), label: category.name }))}
+        selected={filterDraft?.categoryId ?? []}
+        onChange={(categoryId) => setFilterDraft((draft) => draft === null ? draft : { ...draft, categoryId })}
+      />
+      <MultiSelect
+        label="Related System"
+        placeholder="Any Related System…"
+        options={relatedSystems.map((system) => ({ value: String(system.id), label: system.name }))}
+        selected={filterDraft?.relatedSystemId ?? []}
+        onChange={(relatedSystemId) => setFilterDraft((draft) => draft === null ? draft : { ...draft, relatedSystemId })}
+      />
+      <MultiSelect
+        label="Requested Priority"
+        placeholder="Any Requested Priority…"
+        options={PRIORITY_OPTIONS.map((priority) => ({ value: priority, label: priority }))}
+        selected={filterDraft?.requestedPriority ?? []}
+        onChange={(requestedPriority) => setFilterDraft((draft) => draft === null ? draft : { ...draft, requestedPriority })}
+      />
+      <MultiSelect
+        label="Status"
+        placeholder="Any Status…"
+        options={STATUS_OPTIONS.map((status) => ({ value: status, label: status }))}
+        selected={filterDraft?.currentStatus ?? []}
+        onChange={(currentStatus) => setFilterDraft((draft) => draft === null ? draft : { ...draft, currentStatus })}
+      />
+    </Modal>
+  );
 
-        {referenceDataFailed ? (
-          <div
-            role="alert"
-            className="alert alert-warning d-flex align-items-center justify-content-between gap-3"
-          >
-            <span>Filter options could not be loaded.</span>
-            <Button
-              variant="secondary"
-              onClick={() => setReferenceDataRetryCount((count) => count + 1)}
-            >
-              Retry filters
-            </Button>
-          </div>
-        ) : null}
+  const tableLoading = loading || (pagination !== null && stale);
 
-        {queryActive ? (
-          <div className="tt-filter-summary d-flex flex-wrap align-items-center gap-2 mb-3">
-            {FILTER_FIELDS.flatMap((field) =>
-              query[field].map((value) => (
-                <FilterChip
-                  key={`${field}:${value}`}
-                  label={chipLabel(field, value)}
-                  removeLabel={`Remove filter ${chipLabel(field, value)}`}
-                  onRemove={() => removeFilterValue(field, value)}
-                />
-              )),
-            )}
-
-            <Button variant="tertiary" className="ms-auto" onClick={clearFilters}>
-              Clear Filters
-            </Button>
-          </div>
-        ) : null}
-
-        {/* Skeleton rows are decorative, so the screen owns the announcement. */}
-        <p role="status" className="visually-hidden">
-          {announcement}
-        </p>
-
-        {loadState === "invalid" ? (
-          <ErrorState
-            title="This search could not be run."
-            description="Reset the search, filters, sorting, and page size, then try again."
-            onRetry={resetQuery}
-            retryLabel="Reset Search"
-          />
+  return (
+    <DataTable<TicketListItem>
+      title="My Tickets"
+      subtitle="View and manage your support requests."
+      itemName="Tickets"
+      data={items}
+      total={totalItems}
+      loading={tableLoading}
+      invalidState={loadState === "invalid"}
+      onResetQuery={resetQuery}
+      columns={sharedColumns}
+      tableClassName="tt-table tt-table--tickets"
+      tableCaption="My Tickets"
+      tableTestId="ticket-table"
+      rowTestIdPrefix="ticket-row"
+      basePath="/tickets"
+      itemKey="publicId"
+      linkFirstColumn
+      linkFirstColumnLabel={(item) => `Open ticket ${item.ticketNumber}`}
+      rowLink={(item) => `/tickets/${encodeURIComponent(item.publicId)}${location.search}`}
+      createButtonLabel="Create Ticket"
+      createButtonTo="/tickets/new"
+      createButtonAriaLabel="Create Ticket (new support ticket)"
+      showCreateButton
+      showEditAction={false}
+      searchLabel="Search Tickets"
+      searchPlaceholder="Search by ticket number, summary, or description…"
+      searchMaxLength={200}
+      searchValue={searchInput}
+      onSearchInputChange={setSearchInput}
+      sortOptions={SORT_OPTIONS.map((option) => [option.id, option.label])}
+      selectedSort={query.sort}
+      onSortChange={(sort) => commitQuery({ ...query, sort, pageNumber: 1 })}
+      filterCount={appliedCount}
+      onOpenFilterDialog={() => setFilterDraft(selectedFilters(query))}
+      activeChips={FILTER_FIELDS.flatMap((field): IActiveFilterChip[] => query[field].map((value) => ({
+        key: `${field}:${value}`,
+        label: chipLabel(field, value),
+        onRemove: () => removeFilterValue(field, value),
+      })))}
+      onClearFilters={clearFilters}
+      customFilterModal={sharedFilterModal}
+      statusMessage={tableLoading ? "Loading tickets…" : announcement}
+      tableTopContent={referenceDataFailed ? (
+        <div role="alert" className="alert alert-warning d-flex align-items-center justify-content-between gap-3">
+          <span>Filter options could not be loaded.</span>
+          <Button variant="secondary" onClick={() => setReferenceDataRetryCount((count) => count + 1)}>Retry filters</Button>
+        </div>
+      ) : null}
+      pageNumber={query.pageNumber}
+      pageSize={query.pageSize}
+      showPagination={loading || totalItems > 0 || items.length > 0}
+      onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber }, correctingPage)}
+      onPageSizeChange={(pageSize) => commitQuery({ ...query, pageSize, pageNumber: 1 })}
+      renderLoading={() => (
+        <>
+          <table className="table tt-table tt-table--tickets align-middle mb-0" data-testid="ticket-table">
+            <thead><tr>{sharedColumns.map((column) => <th key={column.key} scope="col" className={column.className}>{column.label}</th>)}</tr></thead>
+            <tbody>{Array.from({ length: SKELETON_ROWS }, (_unused, row) => <tr key={`skeleton-${row}`}>{sharedColumns.map((column) => <td key={column.key} className={column.className}><Skeleton height="1.25rem" /></td>)}</tr>)}</tbody>
+          </table>
+        </>
+      )}
+      renderEmptyState={() => {
+        if (correctingPage) return null;
+        return trulyEmpty ? (
+          <EmptyState title="No tickets yet." description="Create your first support ticket." action={<Link className="btn btn-primary" to="/tickets/new" aria-label="Create Ticket for this Requester">Create Ticket</Link>} />
         ) : (
-          <>
-            <div>
-              <table className="table tt-table tt-table--tickets align-middle mb-0">
-                <thead>
-                  <tr>
-                    {columns.map((column) => (
-                      <th
-                        key={column.label}
-                        scope="col"
-                        className={column.secondary ? SECONDARY_COLUMN : undefined}
-                      >
-                        {column.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {loading
-                    ? Array.from({ length: SKELETON_ROWS }, (_unused, row) => (
-                        <tr key={`skeleton-${row}`}>
-                          {columns.map((column) => (
-                            <td
-                              key={column.label}
-                              className={column.secondary ? SECONDARY_COLUMN : undefined}
-                            >
-                              <Skeleton height="1.25rem" />
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    : items.map((item) => (
-                        <tr
-                          key={item.publicId}
-                          className="tt-row"
-                          onClick={(event) => handleTicketRowClick(event, item.publicId)}
-                        >
-                          <td>
-                            <Link
-                              className="tt-row-link tt-ticket-no"
-                              to={`/tickets/${item.publicId}${location.search}`}
-                              aria-label={`Open ticket ${item.ticketNumber}`}
-                            >
-                              {item.ticketNumber}
-                            </Link>
-                          </td>
-                          <td>{item.summary}</td>
-                          <td className={SECONDARY_COLUMN}>{item.categoryName}</td>
-                          <td className={SECONDARY_COLUMN}>{item.relatedSystemName}</td>
-                          <td>
-                            {/* Never colour alone: the level is always spelled out. */}
-                            <Badge
-                              variant={PRIORITY_VARIANT[item.requestedPriority]}
-                              level={PRIORITY_LEVEL[item.requestedPriority]}
-                            >
-                              {item.requestedPriority}
-                            </Badge>
-                          </td>
-                          <td>
-                            <Badge variant="pale">{item.currentStatus}</Badge>
-                          </td>
-                          <td className={SECONDARY_COLUMN}>{ticketDate(item.createdAt)}</td>
-                        </tr>
-                      ))}
-                </tbody>
-              </table>
-            </div>
-
-            {!loading && items.length === 0 && !correctingPage ? (
-              trulyEmpty ? (
-                <EmptyState
-                  title="No tickets yet."
-                  description="Create your first support ticket."
-                  action={
-                    <Link
-                      className="btn btn-primary"
-                      to="/tickets/new"
-                      aria-label="Create Ticket for this Requester"
-                    >
-                      Create Ticket
-                    </Link>
-                  }
-                />
-              ) : (
-                <EmptyState
-                  title="No tickets found."
-                  description="Try changing your search or filters."
-                />
-              )
-            ) : null}
-
-            {/*
-              * Hidden on a total of zero, not on a row count of zero: an empty
-              * result set has an empty state that owns the whole card, and
-              * "Showing 0-0 of 0" beneath it would contradict it. A page past
-              * the last one is also rowless but has a real total, and there the
-              * controls must stay -- `Pagination` reports its own clamp back
-              * through `onPageChange`, which is what moves a shared or restored
-              * `?pageNumber=5` onto the last real page. Unmounting it on the
-              * row count would strand that address on "No tickets found" with
-              * no control left to correct it.
-              *
-              * During a fetch the controls stay in place so the surrounding
-              * structure does not jump (Section 19.1), and they stay *enabled*.
-              * They were previously wrapped in `<fieldset disabled={loading}>`,
-              * which drops focus to `<body>` every time it flips -- once per
-              * search pause on this screen. The guard bought nothing: a page
-              * click only writes the URL, the list effect discards the
-              * superseded response through its `ignore` flag, and `pending`
-              * already stops `Pagination` from stating a range or acting on a
-              * clamp computed from a total it is about to replace.
-              *
-              * `countless` is the one case that reads the row count instead:
-              * with no header there is no total to be zero, and the rows are
-              * the only thing left to decide on. `stale` is still true there,
-              * so the control renders without a range and without a clamp --
-              * it can page nothing it cannot vouch for, but Rows per page
-              * still works and the rows keep a control beneath them.
-              */}
-            {loadState === "loaded" && (countless ? items.length === 0 : totalItems === 0) ? null : (
-            <Pagination
-              pageNumber={query.pageNumber}
-              pageSize={query.pageSize}
-              totalItems={totalItems}
-              pending={stale}
-              /*
-               * A correction replaces the address it corrects. Pushing would
-               * leave the out-of-range entry behind, and Back would land on it,
-               * clamp again, and push again -- a page the user can never
-               * navigate back past. A Previous/Next/page-number click is never
-               * a correction, so it still pushes.
-               */
-              onPageChange={(pageNumber) => commitQuery({ ...query, pageNumber }, correctingPage)}
-              onPageSizeChange={(pageSize) => commitQuery({ ...query, pageSize, pageNumber: 1 })}
-            />
-            )}
-          </>
-        )}
-      </Card>
-
-      <Modal
-        open={filterDraft !== null}
-        title="Filters"
-        onClose={() => setFilterDraft(null)}
-        footer={
-          <div className="d-flex justify-content-between w-100">
-            {/* Reset clears the draft only, and never fetches (Section 14.3). */}
-            <Button variant="tertiary" onClick={() => setFilterDraft(EMPTY_FILTERS)}>
-              Reset
-            </Button>
-
-            <div className="d-flex gap-2">
-              <Button variant="secondary" onClick={() => setFilterDraft(null)}>
-                Cancel
-              </Button>
-              <Button variant="primary" onClick={applyFilters}>
-                Apply
-              </Button>
-            </div>
-          </div>
-        }
-      >
-        <MultiSelect
-          label="Category"
-          placeholder="Any Category…"
-          options={categories.map((category) => ({
-            value: String(category.id),
-            label: category.name,
-          }))}
-          selected={filterDraft?.categoryId ?? []}
-          onChange={(categoryId) =>
-            setFilterDraft((draft) => (draft === null ? draft : { ...draft, categoryId }))
-          }
-        />
-
-        <MultiSelect
-          label="Related System"
-          placeholder="Any Related System…"
-          options={relatedSystems.map((system) => ({
-            value: String(system.id),
-            label: system.name,
-          }))}
-          selected={filterDraft?.relatedSystemId ?? []}
-          onChange={(relatedSystemId) =>
-            setFilterDraft((draft) => (draft === null ? draft : { ...draft, relatedSystemId }))
-          }
-        />
-
-        <MultiSelect
-          label="Requested Priority"
-          placeholder="Any Requested Priority…"
-          options={PRIORITY_OPTIONS.map((priority) => ({ value: priority, label: priority }))}
-          selected={filterDraft?.requestedPriority ?? []}
-          onChange={(requestedPriority) =>
-            setFilterDraft((draft) => (draft === null ? draft : { ...draft, requestedPriority }))
-          }
-        />
-
-        <MultiSelect
-          label="Status"
-          placeholder="Any Status…"
-          options={STATUS_OPTIONS.map((status) => ({ value: status, label: status }))}
-          selected={filterDraft?.currentStatus ?? []}
-          onChange={(currentStatus) =>
-            setFilterDraft((draft) => (draft === null ? draft : { ...draft, currentStatus }))
-          }
-        />
-      </Modal>
-    </>
+          <EmptyState title="No tickets found." description="Try changing your search or filters." />
+        );
+      }}
+    />
   );
 }

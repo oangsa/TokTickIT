@@ -1,11 +1,10 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { ApiResponseError } from "../api.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { AttachmentDownloadButton, AttachmentPreviewModal, type PreviewTarget } from "../attachments/AttachmentPreviewModal.js";
-import { Badge } from "../components/Badge.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { CommonForm } from "../components/CommonForm.js";
@@ -15,10 +14,15 @@ import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { PublicComments } from "../components/PublicComments.js";
 import { InternalNotes } from "../components/InternalNotes.js";
+import { Chip } from "../components/Chip.js";
+import { PriorityChip } from "../components/PriorityChip.js";
+import { StatusChip } from "../components/StatusChip.js";
+import { SuccessMessage } from "../components/SuccessMessage.js";
 import { TicketInformationForm } from "../components/TicketInformationForm.js";
+import { Select } from "../components/Select.js";
 import { ticketDateTime } from "../tickets/ticketDate.js";
 import { ACTION_LABELS, availableStaffActions, PRIORITIES, statusLabel, type StaffAction, type StaffTicket, type TicketOwnerDTO } from "../tickets/staffTickets.js";
-import { ArrowLeft, CheckCircle2, CheckCheck, Eye, HelpCircle, Play, UserCheck, XCircle } from "lucide-react";
+import { CheckCircle2, CheckCheck, Eye, HelpCircle, Play, UserCheck, XCircle } from "lucide-react";
 
 export interface StaffTicketDetailProps {
   communicationSlot?: (ticket: StaffTicket, reload: () => void) => ReactNode;
@@ -137,14 +141,9 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     <PageHeader
       title={ticket.ticketNumber}
       eyebrow="Ticket Detail"
-      actions={
-        <Link to={queuePath} className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center">
-          <ArrowLeft size={16} className="me-1" aria-hidden="true" focusable="false" />
-          Back to Ticket Queue
-        </Link>
-      }
+      backAction={{ to: queuePath, label: "Back to Ticket Queue" }}
     />
-    {success && <p role="status" className="alert alert-success">{success}</p>}
+    {success && <SuccessMessage className="mb-3">{success}</SuccessMessage>}
     {!pendingAction && errorView}
     <div className="d-flex flex-column gap-4">
       <Card title="Ticket Information">
@@ -165,14 +164,14 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
         <div className="row g-3 mb-3">
           <div className="col-12 col-md-6 col-lg-3">
             <span className="text-secondary small fw-medium d-block mb-1">Current Status</span>
-            <div><Badge>{statusLabel(ticket.currentStatus)}</Badge></div>
+            <div className="tt-workflow-value"><StatusChip value={ticket.currentStatus} /></div>
           </div>
           <div className="col-12 col-md-6 col-lg-3">
             <span className="text-secondary small fw-medium d-block mb-1">Owner</span>
-            <div className="d-flex align-items-center gap-2">
-              <Badge>{ticket.owner?.name ?? "Unassigned"}</Badge>
+            <div className="tt-workflow-value d-flex align-items-center gap-2">
+              <Chip variant="outline">{ticket.owner?.name ?? "Unassigned"}</Chip>
               {operational && !terminal && (
-                <Button className="btn-sm" variant="secondary" disabled={busy || conflict} onClick={() => void openLookup()}>
+                <Button variant="secondary" disabled={busy || conflict} onClick={() => void openLookup()}>
                   <UserCheck size={14} className="me-1" aria-hidden="true" focusable="false" />
                   Change Owner
                 </Button>
@@ -185,26 +184,28 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
                 <label className="form-label text-secondary small fw-medium d-block mb-1" htmlFor="staff-it-priority">
                   IT Priority
                 </label>
-                <select
-                  id="staff-it-priority"
-                  className="form-select form-select-sm"
-                  disabled={busy || conflict}
-                  value={ticket.itPriority}
-                  onChange={(event) => void mutate("it-priority", { itPriority: event.target.value })}
-                >
-                  {PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}
-                </select>
+                <div className="tt-workflow-value">
+                  <select
+                    id="staff-it-priority"
+                    className="form-select form-select-sm"
+                    disabled={busy || conflict}
+                    value={ticket.itPriority}
+                    onChange={(event) => void mutate("it-priority", { itPriority: event.target.value })}
+                  >
+                    {PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}
+                  </select>
+                </div>
               </>
             ) : (
               <>
                 <span className="text-secondary small fw-medium d-block mb-1">IT Priority</span>
-                <div><Badge>{ticket.itPriority}</Badge></div>
+                <div className="tt-workflow-value"><PriorityChip value={ticket.itPriority} /></div>
               </>
             )}
           </div>
           <div className="col-12 col-md-6 col-lg-3">
             <span className="text-secondary small fw-medium d-block mb-1">Requester Confirmation</span>
-            <div className="small text-secondary">
+            <div className="tt-workflow-value small text-secondary">
               {ticket.requesterResolutionConfirmedAt ? `Received ${ticketDateTime(ticket.requesterResolutionConfirmedAt)}` : "Not received"}
             </div>
           </div>
@@ -305,7 +306,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     <AttachmentPreviewModal target={preview} onClose={() => setPreview(null)} basePath={`${basePath}/attachments`} />
     <Modal open={lookupOpen} title="Choose Ticket Owner" onClose={() => !busy && setLookupOpen(false)} footer={<><Button onClick={() => setLookupOpen(false)}>Cancel</Button><Button variant="primary" disabled={lookupError || busy || terminal || ownerPublicId === (ticket.owner?.publicId ?? "")} onClick={saveOwner}>Apply Owner</Button></>}>
       {lookupError && <p role="alert">Assignable Users could not be loaded. Close and retry.</p>}
-      <label className="form-label" htmlFor="staff-owner">Ticket Owner</label><select id="staff-owner" className="form-select" value={ownerPublicId} onChange={(event) => setOwnerPublicId(event.target.value)}><option value="">Unassigned</option>{owners.map((owner) => <option key={owner.publicId} value={owner.publicId}>{owner.name} ({statusLabel(owner.role)})</option>)}</select>
+      <Select label="Ticket Owner" id="staff-owner" value={ownerPublicId} onChange={(event) => setOwnerPublicId(event.target.value)}><option value="">Unassigned</option>{owners.map((owner) => <option key={owner.publicId} value={owner.publicId}>{owner.name} ({statusLabel(owner.role)})</option>)}</Select>
     </Modal>
     <Modal open={pendingAction !== null} title={pendingAction === "request-information" ? "Request information from Requester" : `${actionTitle} this Ticket?`} onClose={() => !busy && setPendingAction(null)} footer={pendingAction === "request-information" ? undefined : <><Button disabled={busy} onClick={() => setPendingAction(null)}>Cancel</Button><Button variant={pendingAction === "cancel" ? "destructive" : "primary"} busy={busy} disabled={conflict} onClick={() => {
       if (pendingAction) void mutate(pendingAction, pendingAction === "owner" ? { ownerPublicId: ownerPublicId || null, expectedOwnerPublicId: ticket.owner?.publicId ?? null } : undefined);

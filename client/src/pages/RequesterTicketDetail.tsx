@@ -1,12 +1,11 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
 
 import { ApiResponseError, Ticket } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { AttachmentSection } from "../attachments/AttachmentSection.js";
 import { Card } from "../components/Card.js";
 import { Button } from "../components/Button.js";
-import { Badge } from "../components/Badge.js";
 import { FormField } from "../components/FormField.js";
 import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
@@ -14,6 +13,7 @@ import { ReadOnlyField } from "../components/ReadOnlyField.js";
 import { Skeleton } from "../components/Skeleton.js";
 import { SuccessMessage } from "../components/SuccessMessage.js";
 import { PublicComments } from "../components/PublicComments.js";
+import { StatusChip } from "../components/StatusChip.js";
 import { ticketDate, ticketDateTime } from "../tickets/ticketDate.js";
 
 /*
@@ -205,14 +205,7 @@ export default function RequesterTicketDetail({ communicationSlot }: RequesterTi
         title={heading ?? "Ticket Detail"}
         titleClassName="tt-ticket-no"
         {...(heading === null ? {} : { eyebrow: "Ticket Detail" })}
-        actions={
-          <Link
-            className="btn btn-outline-secondary"
-            to={{ pathname: "/tickets", search: location.search }}
-          >
-            Back to My Tickets
-          </Link>
-        }
+        backAction={{ to: `/tickets${location.search}`, label: "Back to My Tickets" }}
       />
 
       {/* Skeletons are decorative, so the screen owns the announcement. */}
@@ -246,7 +239,7 @@ export default function RequesterTicketDetail({ communicationSlot }: RequesterTi
                 <FormField label="Current Status">
                   {({ id, describedBy }) => (
                     <output id={id} role="group" className="form-control-plaintext" aria-describedby={describedBy}>
-                      <Badge variant="pale">{ticket.currentStatus}</Badge>
+                      <StatusChip value={ticket.currentStatus} />
                     </output>
                   )}
                 </FormField>
