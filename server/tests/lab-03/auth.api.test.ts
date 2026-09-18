@@ -28,6 +28,14 @@ const prisma = vi.hoisted(() => ({
       state.users[index] = { ...state.users[index], ...data };
       return state.users[index];
     },
+    updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+      const index = state.users.findIndex((user) =>
+        Object.entries(where).every(([key, value]) => user[key] === value),
+      );
+      if (index < 0) return { count: 0 };
+      state.users[index] = { ...state.users[index], ...data };
+      return { count: 1 };
+    },
   },
   userSession: {
     create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -115,6 +123,7 @@ function configureUser(overrides: Record<string, unknown> = {}): void {
     mustChangePassword: false,
     isActive: true,
     deleted: false,
+    updatedAt: new Date("2026-09-13T00:00:00.000Z"),
     ...overrides,
   }];
 }

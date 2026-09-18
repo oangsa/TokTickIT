@@ -6,13 +6,12 @@ import { useAuth } from "../auth/AuthProvider.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
-import { CommonForm } from "../components/CommonForm.js";
+import { UserForm } from "../components/UserForm.js";
 import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { useManagedForm } from "../forms/useManagedForm.js";
-import { USER_FORM_RULES, USER_FORM_SECTIONS, type UserFormValues } from "../constants/forms/user.js";
+import { USER_FORM_RULES, type UserFormValues } from "../constants/forms/user.js";
 import { useNavigationGuard, type NavigationAction } from "../navigation/NavigationGuard.js";
-import type { FormSection } from "../forms/formTypes.js";
 
 const editUserSchema = z.object({
   name: z
@@ -43,7 +42,7 @@ export default function EditUser() {
   const navigate = useNavigate();
   const { user: currentUser, logout } = useAuth();
   const callApi = useAuthenticatedApi();
-  const { register } = useNavigationGuard();
+  const { register, allowNavigation, cancelNavigation } = useNavigationGuard();
 
   const [targetUser, setTargetUser] = useState<UserDetailDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,13 +124,14 @@ export default function EditUser() {
 
   const handleCancel = () => {
     if (dirty) {
-      requestDiscard(() => navigate("/admin/users"));
+      requestDiscard(() => allowNavigation(() => navigate("/admin/users")));
     } else {
       navigate("/admin/users");
     }
   };
 
   const handleKeepEditing = () => {
+    cancelNavigation();
     setConfirmDiscard(false);
     pendingNavigationRef.current = null;
   };
@@ -144,7 +144,7 @@ export default function EditUser() {
     if (action) {
       action();
     } else {
-      navigate("/admin/users");
+      allowNavigation(() => navigate("/admin/users"));
     }
   };
 
@@ -275,17 +275,6 @@ export default function EditUser() {
     }
   };
 
-  // Build tailored sections with disabled self-safety controls if self
-  const sections: FormSection<UserFormValues>[] = USER_FORM_SECTIONS.map((section) => ({
-    ...section,
-    fields: section.fields.map((field) => {
-      if (isSelf && (field.name === "role" || field.name === "isActive")) {
-        return { ...field, disabled: true };
-      }
-      return field;
-    }),
-  }));
-
   if (loading) {
     return (
       <div className="tt-edit-user">
@@ -325,93 +314,89 @@ export default function EditUser() {
         </div>
       ) : null}
 
-      <div className="row g-4">
+      <div className="d-flex flex-column gap-4">
         {/* User Details Form Card */}
-        <div className="col-12 col-lg-8">
-          <Card title="User Information">
-            {isSelf ? (
-              <div className="alert alert-info mb-3">
-                You are editing your own administrator profile. You cannot change your own role or
-                deactivate your own account.
-              </div>
-            ) : null}
+        <Card title="User Information">
+          {isSelf ? (
+            <div className="alert alert-info mb-3">
+              You are editing your own administrator profile. You cannot change your own role or
+              deactivate your own account.
+            </div>
+          ) : null}
 
-            <CommonForm
-              form={form}
-              sections={sections}
-              onSubmit={handleFormSubmit}
-              onCancel={handleCancel}
-              submitLabel="Save Changes"
-              submitting={submitting}
-              submitDisabled={submitting}
-              cancelDisabled={submitting}
-            />
-          </Card>
-        </div>
+          <UserForm
+            mode="edit"
+            form={form}
+            isSelf={isSelf}
+            onSubmit={handleFormSubmit}
+            onCancel={handleCancel}
+            submitting={submitting}
+            submitDisabled={submitting}
+            cancelDisabled={submitting}
+          />
+        </Card>
 
         {/* Account Security Card */}
-        <div className="col-12 col-lg-4">
-          <Card title="Account Security">
-            {newInitialPassword ? (
-              <div data-testid="reset-initial-password-panel">
-                <div className="alert alert-success mb-3">
-                  Initial password has been reset.
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="edit-one-time-password" className="form-label fw-semibold">
-                    New Initial Password
-                  </label>
-                  <div className="input-group mb-2">
-                    <input
-                      id="edit-one-time-password"
-                      type="text"
-                      readOnly
-                      className="form-control font-monospace"
-                      value={newInitialPassword}
-                      aria-label="One-time initial password"
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={handleCopyPassword}
-                      aria-label={copied ? "Password copied" : "Copy initial password"}
-                    >
-                      {copied ? "Password copied!" : "Copy"}
-                    </Button>
-                  </div>
-                  <p className="text-secondary small mb-0">
-                    This password is shown only once. The User must change it at next login.
-                  </p>
-                </div>
-
-                <Button variant="secondary" onClick={() => setNewInitialPassword(null)}>
-                  Done
-                </Button>
+        <Card title="Account Security">
+          {newInitialPassword ? (
+            <div data-testid="reset-initial-password-panel">
+              <div className="alert alert-success mb-3">
+                Initial password has been reset.
               </div>
-            ) : (
-              <div>
-                <p className="text-secondary small mb-3">
-                  Set a new initial password for this User. The User will be signed out and must
-                  change it the next time they sign in.
-                </p>
 
-                {isSelf ? (
-                  <p className="text-muted small fst-italic">
-                    An Administrator cannot reset their own initial password.
-                  </p>
-                ) : (
+              <div className="mb-3">
+                <label htmlFor="edit-one-time-password" className="form-label fw-semibold">
+                  New Initial Password
+                </label>
+                <div className="input-group mb-2" style={{ maxWidth: "420px" }}>
+                  <input
+                    id="edit-one-time-password"
+                    type="text"
+                    readOnly
+                    className="form-control font-monospace"
+                    value={newInitialPassword}
+                    aria-label="One-time initial password"
+                  />
                   <Button
-                    variant="destructive"
-                    onClick={() => setConfirmResetOpen(true)}
-                    disabled={submitting}
+                    variant="secondary"
+                    onClick={handleCopyPassword}
+                    aria-label={copied ? "Password copied" : "Copy initial password"}
                   >
-                    Set New Initial Password
+                    {copied ? "Password copied!" : "Copy"}
                   </Button>
-                )}
+                </div>
+                <p className="text-secondary small mb-0">
+                  This password is shown only once. The User must change it at next login.
+                </p>
               </div>
-            )}
-          </Card>
-        </div>
+
+              <Button variant="secondary" onClick={() => setNewInitialPassword(null)}>
+                Done
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-secondary mb-3">
+                Set a new initial password for this User. The User will be signed out and must
+                change it the next time they sign in.
+              </p>
+
+              {isSelf ? (
+                <p className="text-muted small fst-italic mb-0">
+                  An Administrator cannot reset their own initial password.
+                </p>
+              ) : (
+                <Button
+                  variant="destructive"
+                  onClick={() => setConfirmResetOpen(true)}
+                  disabled={submitting}
+                >
+                  Set New Initial Password
+                </Button>
+              )}
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Role Change / Deactivation Confirmation Modal */}

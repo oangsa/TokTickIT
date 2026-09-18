@@ -71,11 +71,11 @@ export class SessionService {
     now?: Date;
     userAgent?: string;
     ipAddress?: string;
-  }): Promise<SessionTokenResult> {
+  }, client: Pick<Prisma.TransactionClient, "userSession"> = this.prisma): Promise<SessionTokenResult> {
     const now = input.now ?? new Date();
     const id = randomUUID();
     const refreshToken = createRefreshToken(id);
-    const session = await this.prisma.userSession.create({
+    const session = await client.userSession.create({
       data: {
         id,
         userId: input.userId,

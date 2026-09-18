@@ -67,7 +67,7 @@ export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function Side
       <span className="badge text-bg-success align-self-start mt-2">{roleLabel}</span>
       {logoutError ? <div className="alert alert-danger py-2 mt-2 mb-0" role="alert">{logoutError}</div> : null}
       <Button variant="tertiary" className="tt-sidebar__switch w-100 mt-2" onClick={() => navigateWithGuard("/change-password")}><KeyRound className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Change Password</Button>
-      <Button variant="tertiary" className="tt-sidebar__switch w-100" onClick={requestLogout}><LogOut className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Logout</Button>
+      <Button variant="tertiary" className="tt-sidebar__switch tt-sidebar__switch--danger w-100" onClick={requestLogout}><LogOut className="tt-sidebar__icon" size={18} aria-hidden="true" focusable="false" />Logout</Button>
     </div>
   </nav>;
 });

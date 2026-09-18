@@ -47,6 +47,7 @@ function renderUserManagement() {
     <MemoryRouter initialEntries={["/admin/users"]}>
       <Routes>
         <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/users/:publicId" element={<div>View User Page</div>} />
         <Route path="/admin/users/:publicId/edit" element={<div>Edit User Page</div>} />
         <Route path="/admin/users/new" element={<div>Create User Page</div>} />
       </Routes>
@@ -71,15 +72,23 @@ describe("UserManagement page @issue-6", () => {
               hasNextPage: false,
             }),
           }),
-        } as Response);
-        return mockUsers;
+        });
+        return {
+          items: mockUsers,
+          pagination: {
+            pageNumber: 1,
+            pageSize: 10,
+            totalItems: 3,
+            totalPages: 1,
+          },
+        };
       }
       return [];
     });
   });
 
   describe("UI-26 User Management table, search, role filter, and pagination", () => {
-    it("renders table with required columns, user rows, and Edit action", async () => {
+    it("renders table with required columns, user rows, and Edit and View actions", async () => {
       renderUserManagement();
       expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
 
@@ -96,16 +105,25 @@ describe("UserManagement page @issue-6", () => {
       expect(screen.getByText("bob@example.test")).toBeInTheDocument();
       expect(screen.getByText("Charlie Admin")).toBeInTheDocument();
 
+      // View links
+      const viewLinks = screen.getAllByRole("link", { name: "View" });
+      expect(viewLinks.length).toBe(3);
+      expect(viewLinks[0]).toHaveAttribute("href", "/admin/users/u-1");
+
       // Edit links
       const editLinks = screen.getAllByRole("link", { name: "Edit" });
       expect(editLinks.length).toBe(3);
       expect(editLinks[0]).toHaveAttribute("href", "/admin/users/u-1/edit");
 
-      // + Create User button
-      expect(screen.getByRole("link", { name: "+ Create User" })).toHaveAttribute(
+      // Create User button
+      expect(screen.getByRole("link", { name: "Create User" })).toHaveAttribute(
         "href",
         "/admin/users/new",
       );
+
+      // Clicking row navigates to View User Page
+      await userEvent.click(screen.getByText("Alice Requester"));
+      expect(await screen.findByText("View User Page")).toBeInTheDocument();
     });
 
     it("searches users by name or email on form submission", async () => {
@@ -124,19 +142,63 @@ describe("UserManagement page @issue-6", () => {
       });
     });
 
-    it("filters users by role via dropdown selection", async () => {
+    it("filters users by role via modal dropdown selection", async () => {
       renderUserManagement();
       expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+
+      const filterButton = screen.getByRole("button", { name: /filter/i });
+      await userEvent.click(filterButton);
 
       const roleSelect = screen.getByLabelText(/filter by role/i);
       await userEvent.selectOptions(roleSelect, "IT_STAFF");
 
+      const applyButton = screen.getByRole("button", { name: /apply/i });
+      await userEvent.click(applyButton);
+
       await waitFor(() => {
         expect(callApi).toHaveBeenCalledWith(
-          expect.stringContaining("filters=%5B%7B%22field%22%3A%22role%22%2C%22condition%22%3A%22EQUAL%22%2C%22value%22%3A%22IT_STAFF%22%7D%5D"),
+          expect.stringContaining(
+            "filters=%5B%7B%22field%22%3A%22role%22%2C%22condition%22%3A%22EQUAL%22%2C%22value%22%3A%22IT_STAFF%22%7D%5D",
+          ),
           expect.anything(),
         );
       });
+
+      // Filter chip should be visible
+      expect(screen.getByText(/role:\s*it staff/i)).toBeInTheDocument();
+
+      // Removing filter chip clears the filter
+      const removeChipBtn = screen.getByRole("button", { name: /remove filter role/i });
+      await userEvent.click(removeChipBtn);
+
+      await waitFor(() => {
+        expect(callApi).toHaveBeenLastCalledWith(
+          expect.not.stringContaining("filters="),
+          expect.anything(),
+        );
+      });
+    });
+
+    it("sorts users by column header click", async () => {
+      renderUserManagement();
+      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+
+      const nameHeader = screen.getByRole("columnheader", { name: /name/i });
+      await userEvent.click(nameHeader);
+
+      await waitFor(() => {
+        expect(callApi).toHaveBeenCalledWith(
+          expect.stringContaining("sort=name%3Adesc"),
+          expect.anything(),
+        );
+      });
+    });
+
+    it("never renders delete action for users", async () => {
+      renderUserManagement();
+      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+
+      expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
     });
 
     it("displays empty state when no users match", async () => {

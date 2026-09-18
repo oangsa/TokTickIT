@@ -18,29 +18,32 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page 
     // 2. Search & filter controls
     const searchInput = page.getByPlaceholder("Search by name or email…");
     await searchInput.fill("Workflow Staff");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toHaveCount(0);
 
     // Search for Requester
     await searchInput.fill("Workflow Requester");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toHaveCount(0);
 
-    // Clear search
-    await searchInput.fill("");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
+    // Keep fixture users on the same page even when other test users exist.
+    await searchInput.fill("Workflow");
 
-    // Filter by role
+    // Filter by role through the modal, then remove its active chip.
+    await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
+    const filterDialog = page.getByRole("dialog", { name: "Filter User Management" });
     const roleSelect = page.getByLabel("Filter by role");
     await roleSelect.selectOption("IT_STAFF");
+    await filterDialog.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(filterDialog).not.toBeVisible();
     await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toHaveCount(0);
-    await roleSelect.selectOption("");
+    await page.getByRole("button", { name: "Remove filter Role: IT Staff" }).click();
+    await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toBeVisible();
 
     // 3. Create User
-    await page.getByRole("link", { name: "+ Create User" }).click();
+    await page.getByRole("link", { name: "Create User", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/users\/new$/);
     await expect(page.getByRole("heading", { name: "Create User", exact: true })).toBeVisible();
 
@@ -61,7 +64,7 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page 
     await expect(page).toHaveURL(/\/admin\/users$/);
 
     // 4. Duplicate email validation
-    await page.getByRole("link", { name: "+ Create User" }).click();
+    await page.getByRole("link", { name: "Create User", exact: true }).click();
     await page.getByLabel("Name *").fill("Duplicate User");
     await page.getByLabel("Email *").fill(duplicateEmail);
     await page.getByLabel("Role *").selectOption("REQUESTER");
@@ -73,7 +76,6 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page 
 
     // 5. Edit User
     await searchInput.fill(targetEmail);
-    await page.getByRole("button", { name: "Search", exact: true }).click();
     const targetRow1 = page.locator("tr", { has: page.getByRole("cell", { name: targetEmail, exact: true }) });
     await expect(targetRow1).toBeVisible();
     await targetRow1.getByRole("link", { name: "Edit" }).click();
@@ -88,7 +90,6 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page 
     // 6. Administrator Self-Management Safety
     await page.goto("/admin/users");
     await searchInput.fill(fixture.admin.email);
-    await page.getByRole("button", { name: "Search", exact: true }).click();
     const adminRow = page.locator("tr", { has: page.getByRole("cell", { name: fixture.admin.email, exact: true }) });
     await expect(adminRow).toBeVisible();
     await adminRow.getByRole("link", { name: "Edit" }).click();
@@ -100,7 +101,6 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page 
     // 7. Reset Initial Password for target user
     await page.goto("/admin/users");
     await searchInput.fill(targetEmail);
-    await page.getByRole("button", { name: "Search", exact: true }).click();
     const targetRow2 = page.locator("tr", { has: page.getByRole("cell", { name: targetEmail, exact: true }) });
     await expect(targetRow2).toBeVisible();
     await targetRow2.getByRole("link", { name: "Edit" }).click();

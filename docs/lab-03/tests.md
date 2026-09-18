@@ -1329,3 +1329,49 @@ regression suites and remote CI were not rerun in this evidence-only task.
 GitGuardian alert disposition and peer approval were not changed or reverified.
 This record establishes the requested local current-head acceptance evidence;
 it does not claim a new GitHub review decision. No commit or push was requested.
+
+### Issue 6 review repairs — 2026-09-18
+
+Repaired four confirmed review findings: reset/login session race, repeated
+dirty-form discard blocking, duplicate comment/note pagination boundaries during
+concurrent insertion, and E2E-05 selectors/interaction assumptions predating
+debounced search and the modal role filter.
+
+Login now conditionally writes the verified User snapshot and creates its session
+inside the same transaction. The timestamp-preserving write locks the User and
+causes an overlapping Serializable reset to conflict instead of missing a newly
+created session. Two deterministic PostgreSQL tests cover reset after password
+verification and reset overlapping session creation. Both fail against the
+pre-repair auth/session services and pass against the repaired services. A reset
+retry revokes the resulting session. UI regressions exercise the real shared
+navigation guard and overlapping pagination boundaries.
+
+| Check executed during repair | Result |
+| --- | --- |
+| Section 14.2 focused server selection, `@issue-6` | 112 passed; 9 outside the selection |
+| Section 14.2 focused client selection, `@issue-6` | 45 passed; 12 outside the selection |
+| Affected authentication/session/rate-limit selection | 34 passed |
+| Full server suite | 1042 passed across 68 files |
+| Full client suite | 357 passed across 26 files |
+| Client and server production builds | Passed; Vite annotation/chunk-size warnings remain non-fatal |
+| E2E-05/E2E-06 on isolated ports | 6 passed |
+| RESP-04/RESP-05 on isolated ports | 6 passed at 1440×900, 820×1180, and 390×844 |
+| Exact default-port browser command | Blocked: existing service occupies `127.0.0.1:3000` |
+
+Browser equivalents used a temporary configuration on API port 3006 and client
+port 5176. The responsive copy adjusted only the fixture CORS origin and
+screenshot output path. Temporary configuration/spec files were removed after
+execution. Screenshots and command logs remain under
+`/tmp/toktickit-issue6-fix-responsive/` and `/tmp/toktickit-issue6-fix-*.log`;
+they are local evidence, not committed release artifacts. Existing application
+servers were left running. The exact default-port browser gate therefore remains
+unverified by this repair run; alternate-port success is not claimed as execution
+of that exact command or final Issue 7 visual/release approval.
+
+Tests used disposable PostgreSQL 16 container `toktickit-issue6-fix`, database
+`toktickit_lab3_test` at `127.0.0.1:55435`. Explicit DATABASE_URL, DIRECT_URL,
+and TEST_DATABASE_URL overrides isolated it from the shared database; read-only
+Prisma migration status confirmed the target before applying existing migrations.
+The disposable container was removed after verification. No schema, migration,
+or REST response contract changed. Pre-existing working-tree changes were
+preserved. No commit, push, or peer approval was made.

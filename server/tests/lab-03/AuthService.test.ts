@@ -16,12 +16,14 @@ const USER = {
   role: "REQUESTER" as const,
   isActive: true,
   deleted: false,
+  updatedAt: new Date("2026-09-13T00:00:00.000Z"),
 };
 
 interface AuthFakePrisma {
   user: {
     findUnique: () => Promise<Record<string, unknown> | null>;
     update: (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown> | null>;
+    updateMany: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<{ count: number }>;
   };
   userSession: {
     create: (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown>>;
@@ -47,6 +49,13 @@ function fakePrisma(user: Record<string, unknown>, passwordHash: string) {
       update: async ({ data }: { data: Record<string, unknown> }) => {
         currentUser = { ...(currentUser as Record<string, unknown>), ...data };
         return currentUser;
+      },
+      updateMany: async ({ where, data }) => {
+        if (!currentUser || Object.entries(where).some(([key, value]) => currentUser?.[key] !== value)) {
+          return { count: 0 };
+        }
+        currentUser = { ...currentUser, ...data };
+        return { count: 1 };
       },
     },
     userSession: {

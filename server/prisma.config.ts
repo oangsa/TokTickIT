@@ -8,7 +8,7 @@ config({ path: [".env.local", ".env"] });
 const prismaCommand = process.argv[2];
 const usesDatabase = prismaCommand === "migrate" || prismaCommand === "db" || prismaCommand === "studio";
 
-if (usesDatabase) {
+if (usesDatabase && process.env.NODE_ENV === "test") {
   assertLab3TargetEnvironment(process.env);
 }
 

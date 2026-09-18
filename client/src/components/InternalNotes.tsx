@@ -75,7 +75,11 @@ export function InternalNotes({
         });
 
         const items = Array.isArray(res) ? res : Array.isArray(res?.items) ? res.items : [];
-        setNotes((prev) => (append ? [...prev, ...items] : items));
+        setNotes((prev) => {
+          if (!append) return items;
+          const existingIds = new Set(prev.map((note) => note.publicId));
+          return [...prev, ...items.filter((note) => !existingIds.has(note.publicId))];
+        });
         const pagination = paginationMeta ?? (Array.isArray(res) ? null : res?.pagination);
         setPage(pagination?.pageNumber ?? pageToLoad);
         setTotalPages(pagination?.totalPages ?? 1);
@@ -179,11 +183,7 @@ export function InternalNotes({
             </Button>
           </div>
         </form>
-      ) : (
-        <div className="alert alert-secondary mb-4" role="status">
-          Only IT Staff or the assigned Administrator owner can add internal notes.
-        </div>
-      )}
+      ) : null}
 
       {/* Loading state */}
       {loading ? (

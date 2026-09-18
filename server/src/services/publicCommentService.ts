@@ -316,29 +316,15 @@ export async function getRootComments(
     }
   }
 
-  // Preview replies for each root (up to 3, oldest first) and total count
-  const items: RootPublicCommentDTO[] = await Promise.all(
-    roots.map(async (root) => {
-      const d1Ids = depth1IdsByRoot.get(root.id) ?? [];
-      const replyCount = replyCountByRoot.get(root.id) ?? 0;
+  // Batch-fetch all replies across all roots in one query, then partition in-memory.
+  // This replaces N per-root queries (up to pageSize) with a single round trip.
+  const allChildIds = rootIds.flatMap((rootId) => depth1IdsByRoot.get(rootId) ?? []);
+  const allReplyParentIds = [...rootIds, ...allChildIds];
 
-      if (replyCount === 0 || d1Ids.length === 0) {
-        return {
-          ...toPublicCommentDTO({ ...root, parent: null, replyTo: null }, 0),
-          depth: 0 as const,
-          replyCount: 0,
-          replies: [],
-        };
-      }
-
-      const replyWhere: Prisma.PublicCommentWhereInput = {
-        OR: [{ parentCommentId: root.id }, { parentCommentId: { in: d1Ids } }],
-      };
-
-      const previews = await prisma.publicComment.findMany({
-        where: replyWhere,
+  const allReplies = allReplyParentIds.length > 0
+    ? await prisma.publicComment.findMany({
+        where: { parentCommentId: { in: allReplyParentIds } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take: 3,
         include: {
           author: { select: { publicId: true, name: true, role: true } },
           parent: { select: { id: true, publicId: true, parentCommentId: true } },
@@ -349,20 +335,37 @@ export async function getRootComments(
             },
           },
         },
-      });
+      })
+    : [];
 
-      const mappedPreviews = previews.map((p) =>
-        toPublicCommentDTO(p, p.parentCommentId === root.id ? 1 : 2),
-      );
+  // Partition replies by root: depth-1 replies map directly via rootIds,
+  // depth-2 replies resolve through d1IdToRootId.
+  const rootIdSet = new Set(rootIds);
+  const repliesByRoot = new Map<number, typeof allReplies>();
+  for (const reply of allReplies) {
+    const parentId = reply.parentCommentId!;
+    const rootId = rootIdSet.has(parentId) ? parentId : d1IdToRootId.get(parentId);
+    if (rootId === undefined) continue;
+    const list = repliesByRoot.get(rootId) ?? [];
+    list.push(reply);
+    repliesByRoot.set(rootId, list);
+  }
 
-      return {
-        ...toPublicCommentDTO({ ...root, parent: null, replyTo: null }, 0),
-        depth: 0 as const,
-        replyCount,
-        replies: mappedPreviews,
-      };
-    }),
-  );
+  const items: RootPublicCommentDTO[] = roots.map((root) => {
+    const replyCount = replyCountByRoot.get(root.id) ?? 0;
+    // Already sorted oldest-first by the query; take first 3 as previews.
+    const previews = (repliesByRoot.get(root.id) ?? []).slice(0, 3);
+    const mappedPreviews = previews.map((p) =>
+      toPublicCommentDTO(p, p.parentCommentId === root.id ? 1 : 2),
+    );
+
+    return {
+      ...toPublicCommentDTO({ ...root, parent: null, replyTo: null }, 0),
+      depth: 0 as const,
+      replyCount,
+      replies: mappedPreviews,
+    };
+  });
 
   return {
     items,

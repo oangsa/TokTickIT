@@ -82,6 +82,34 @@ describe("PublicComments component @issue-6", () => {
   });
 
   describe("UI-23 Root composer and lazy root list", () => {
+    it("does not duplicate a page boundary when another user posts between page requests", async () => {
+      const roots = Array.from({ length: 11 }, (_, index) => ({
+        ...mockRootComments[1],
+        publicId: `root-${index}`,
+        content: `Comment ${index}`,
+      }));
+      callApi.mockImplementation(async (path: string, options?: { onResponse?: (response: Response) => void }) => {
+        const secondPage = path.includes("pageNumber=2");
+        options?.onResponse?.(new Response(null, { headers: {
+          "X-Pagination": JSON.stringify({
+            pageNumber: secondPage ? 2 : 1, pageSize: 10,
+            totalItems: secondPage ? 12 : 11, totalPages: 2,
+            hasPreviousPage: secondPage, hasNextPage: !secondPage,
+          }),
+        } }));
+        // A new root at the front moves the old tenth root onto page two.
+        return secondPage ? roots.slice(9) : roots.slice(0, 10);
+      });
+
+      render(<PublicComments ticketPublicId="tkt-1" />);
+      await screen.findByText("Comment 0");
+      await userEvent.click(screen.getByRole("button", { name: "Load more comments" }));
+      await screen.findByText("Comment 10");
+      expect(screen.getAllByTestId("comment-root-9")).toHaveLength(1);
+      expect(screen.getAllByRole("article")).toHaveLength(11);
+      expect(screen.queryByRole("button", { name: "Load more comments" })).not.toBeInTheDocument();
+    });
+
     it("renders root composer with character counter and enforces 1-2000 boundaries", async () => {
       render(<PublicComments ticketPublicId="tkt-1" />);
       await screen.findByText(/Newer root comment/);

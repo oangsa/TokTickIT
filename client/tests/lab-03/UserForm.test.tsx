@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { createMemoryRouter, Outlet, RouterProvider } from "react-router-dom";
 import CreateUser from "../../src/pages/CreateUser.js";
 import EditUser from "../../src/pages/EditUser.js";
 import { ApiResponseError } from "../../src/api.js";
@@ -20,33 +20,37 @@ vi.mock("../../src/auth/AuthProvider.js", () => ({
   useAuth: () => ({ ...auth, logout }),
 }));
 
+function renderUserPage(initialEntry: string) {
+  // Match the existing data-router harness: Node Request cannot consume
+  // jsdom AbortSignal. These mocked API tests have no router loaders to abort.
+  const NativeRequest = globalThis.Request;
+  vi.stubGlobal("Request", class TestRequest extends NativeRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      super(input, init === undefined ? undefined : { ...init, signal: undefined });
+    }
+  });
+  const router = createMemoryRouter([{
+    element: <NavigationGuardProvider enableHistoryBlocking><Outlet /></NavigationGuardProvider>,
+    children: [
+      { path: "/admin/users/new", element: <CreateUser /> },
+      { path: "/admin/users/:publicId/edit", element: <EditUser /> },
+      { path: "/admin/users", element: <div>User List Page</div> },
+      { path: "/login", element: <div>Login Page</div> },
+    ],
+  }], { initialEntries: [initialEntry] });
+  return render(<RouterProvider router={router} />);
+}
+
 function renderCreateUser() {
-  return render(
-    <MemoryRouter initialEntries={["/admin/users/new"]}>
-      <NavigationGuardProvider>
-        <Routes>
-          <Route path="/admin/users/new" element={<CreateUser />} />
-          <Route path="/admin/users" element={<div>User List Page</div>} />
-        </Routes>
-      </NavigationGuardProvider>
-    </MemoryRouter>,
-  );
+  return renderUserPage("/admin/users/new");
 }
 
 function renderEditUser(publicId = "user-2") {
-  return render(
-    <MemoryRouter initialEntries={[`/admin/users/${publicId}/edit`]}>
-      <NavigationGuardProvider>
-        <Routes>
-          <Route path="/admin/users/:publicId/edit" element={<EditUser />} />
-          <Route path="/admin/users" element={<div>User List Page</div>} />
-        </Routes>
-      </NavigationGuardProvider>
-    </MemoryRouter>,
-  );
+  return renderUserPage(`/admin/users/${publicId}/edit`);
 }
 
 describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
+  afterEach(() => vi.unstubAllGlobals());
   beforeEach(() => {
     vi.clearAllMocks();
     auth.user = { publicId: "admin-1", name: "Admin Lead", role: "ADMINISTRATOR" };
@@ -494,6 +498,20 @@ describe("UserForm tests (CreateUser and EditUser) @issue-6", () => {
       await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
       const discardModal = await screen.findByRole("dialog");
       expect(discardModal).toHaveTextContent("Discard unsaved changes?");
+      await userEvent.click(within(discardModal).getByRole("button", { name: "Discard" }));
+      expect(await screen.findByText("User List Page")).toBeInTheDocument();
+    });
+
+    it("resets a blocked route change on Keep Editing and guards the next navigation", async () => {
+      renderCreateUser();
+      await userEvent.type(screen.getByLabelText(/^Name/i), "Draft Name");
+      await userEvent.click(screen.getByRole("link", { name: "Back to Users" }));
+      await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Keep Editing" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/^Name/i)).toHaveValue("Draft Name");
+      await userEvent.click(screen.getByRole("link", { name: "Back to Users" }));
+      await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Discard" }));
+      expect(await screen.findByText("User List Page")).toBeInTheDocument();
     });
   });
 });

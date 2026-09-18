@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import argon2 from "argon2";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../../../src/generated/prisma/client.js";
 import { ApiError } from "../../../src/http/errors.js";
-import { createUser, updateUser } from "../../../src/services/userService.js";
+import { createUser, resetInitialPassword, updateUser } from "../../../src/services/userService.js";
+import { AuthService } from "../../../src/services/authService.js";
+import { SessionService } from "../../../src/services/sessionService.js";
+import { hashPassword, TEST_ARGON2_PROFILE } from "../../../src/services/passwordService.js";
 import type { TicketActor } from "../../../src/services/ticketWorkflowService.js";
 import {
   assertLab2TestDatabase,
@@ -48,6 +52,86 @@ describe.sequential("PostgreSQL User Admin Integration PG-03, PG-12, PG-13 @issu
   afterAll(async () => {
     await first?.$disconnect();
     await second?.$disconnect();
+  });
+
+  it("rejects a login verified before a concurrent password reset commits", async () => {
+    vi.stubEnv("JWT_SECRET", `synthetic-${randomUUID()}-${randomUUID()}`);
+    const password = `Synthetic-${randomUUID()}!`;
+    const user = await first.user.create({ data: {
+      name: "Reset Race", email: `reset-race-${randomUUID()}@example.test`, role: "REQUESTER",
+      passwordHash: await hashPassword(password, TEST_ARGON2_PROFILE), mustChangePassword: false,
+      createdBy: "test", updatedBy: "test",
+    } });
+    const verify = argon2.verify;
+    const verification = vi.spyOn(argon2, "verify").mockImplementationOnce(async (...args) => {
+      const matches = await verify(...args);
+      await resetInitialPassword(second, adminActor, user.publicId);
+      return matches;
+    });
+    const service = new AuthService(first, TEST_ARGON2_PROFILE);
+    try {
+      const failure = await service.login({
+        email: user.email, password, rememberMe: false, ipAddress: "127.0.0.11",
+      }).then(() => null, (error: unknown) => error);
+      expect(failure).toMatchObject({ code: "AUTHENTICATION_FAILED" });
+      expect(await first.userSession.count({ where: { userId: user.id } })).toBe(0);
+      expect(await first.user.findUniqueOrThrow({ where: { id: user.id } }))
+        .toMatchObject({ mustChangePassword: true });
+    } finally {
+      verification.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("serializes reset with a login that has reserved its session, preserving User timestamps", async () => {
+    vi.stubEnv("JWT_SECRET", `synthetic-${randomUUID()}-${randomUUID()}`);
+    const password = `Synthetic-${randomUUID()}!`;
+    const user = await first.user.create({ data: {
+      name: "Session Race", email: `session-race-${randomUUID()}@example.test`, role: "REQUESTER",
+      passwordHash: await hashPassword(password, TEST_ARGON2_PROFILE), mustChangePassword: false,
+      createdBy: "test", updatedBy: "test",
+    } });
+    let enteredSession!: () => void;
+    let releaseSession!: () => void;
+    let readResetTarget!: () => void;
+    const sessionEntered = new Promise<void>((resolve) => { enteredSession = resolve; });
+    const sessionReleased = new Promise<void>((resolve) => { releaseSession = resolve; });
+    const resetTargetRead = new Promise<void>((resolve) => { readResetTarget = resolve; });
+    // Observe the real query only to control transaction ordering.
+    const observedAdmin = second.$extends({ query: { user: {
+      async findFirst({ args, query }) {
+        const result = await query(args);
+        readResetTarget();
+        return result;
+      },
+    } } });
+    const createSession = SessionService.prototype.create;
+    const sessionSpy = vi.spyOn(SessionService.prototype, "create").mockImplementationOnce(async function (this: SessionService, input, client) {
+      enteredSession();
+      await sessionReleased;
+      return createSession.call(this, input, client);
+    });
+    const service = new AuthService(first, TEST_ARGON2_PROFILE);
+    try {
+      const login = service.login({ email: user.email, password, rememberMe: false, ipAddress: "127.0.0.12" });
+      await sessionEntered;
+      const reset = resetInitialPassword(observedAdmin as unknown as PrismaClient, adminActor, user.publicId)
+        .then(() => null, (error: unknown) => error);
+      await resetTargetRead;
+      releaseSession();
+      const signedIn = await login;
+      expect(await reset).toMatchObject({ code: "CONFLICT" });
+      expect((await first.user.findUniqueOrThrow({ where: { id: user.id } })).updatedAt).toEqual(user.updatedAt);
+
+      const sessionId = signedIn.refreshToken.split(".")[0];
+      await resetInitialPassword(second, adminActor, user.publicId);
+      await expect(service.context(sessionId, user.publicId)).rejects.toMatchObject({ code: "SESSION_INVALID" });
+      expect(await first.userSession.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
+    } finally {
+      releaseSession();
+      sessionSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
   });
 
   describe("PG-03 Case-insensitive email unique constraint under real PostgreSQL", () => {

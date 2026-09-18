@@ -143,4 +143,51 @@ describe("Issue 3 CommonForm", () => {
     await user.click(screen.getByRole("button", { name: "Submit" }));
     expect(onSubmit).toHaveBeenCalledWith({ priority: 10 });
   });
+
+  it("renders disabled controls and hides submit button in mode='view' @issue-3", () => {
+    function ViewHarness() {
+      const form = useManagedForm<Values>({
+        defaultValues: { name: "Read-only Name", kind: "one", enabled: true },
+      });
+      const sections: FormSection<Values>[] = [{
+        key: "main",
+        fields: [
+          { key: "name", name: "name", label: "Name", type: "text", required: true },
+          { key: "kind", name: "kind", label: "Kind", type: "select", options: [{ value: "one", label: "One" }] },
+          { key: "enabled", name: "enabled", label: "Enabled", type: "switch" },
+        ],
+      }];
+      return <CommonForm mode="view" form={form} sections={sections} />;
+    }
+
+    render(<ViewHarness />);
+    expect(screen.getByLabelText("Name")).toHaveValue("Read-only Name");
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.getByLabelText("Kind")).toBeDisabled();
+    expect(screen.getByLabelText("Enabled")).toBeDisabled();
+    // Required asterisk omitted in view mode
+    expect(screen.queryByText("*")).not.toBeInTheDocument();
+    // Submit button hidden in view mode
+    expect(screen.queryByRole("button", { name: /submit|save/i })).not.toBeInTheDocument();
+  });
+
+  it("defaults submit label to 'Save Changes' in mode='edit' @issue-3", () => {
+    function EditHarness() {
+      const form = useManagedForm<Values>({
+        defaultValues: { name: "Editable Name", kind: "one", enabled: false },
+      });
+      const sections: FormSection<Values>[] = [{
+        key: "main",
+        fields: [
+          { key: "name", name: "name", label: "Name", type: "text" },
+        ],
+      }];
+      return <CommonForm mode="edit" form={form} sections={sections} />;
+    }
+
+    render(<EditHarness />);
+    expect(screen.getByLabelText("Name")).toHaveValue("Editable Name");
+    expect(screen.getByLabelText("Name")).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeInTheDocument();
+  });
 });

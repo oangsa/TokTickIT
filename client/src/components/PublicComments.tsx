@@ -103,7 +103,11 @@ export function PublicComments({ ticketPublicId, onCommentAdded }: PublicComment
         });
 
         const items = Array.isArray(res) ? res : Array.isArray(res?.items) ? res.items : [];
-        setRoots((prev) => (append ? [...prev, ...items] : items));
+        setRoots((prev) => {
+          if (!append) return items;
+          const existingIds = new Set(prev.map((comment) => comment.publicId));
+          return [...prev, ...items.filter((comment) => !existingIds.has(comment.publicId))];
+        });
         const pagination = paginationMeta ?? (Array.isArray(res) ? null : res?.pagination);
         setPage(pagination?.pageNumber ?? pageToLoad);
         setTotalPages(pagination?.totalPages ?? 1);

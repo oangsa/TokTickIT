@@ -46,6 +46,7 @@ not a transcript.
 | current (priority contrast) | HIGH and MEDIUM priority chips look almost the same color. | Changed the shared medium badge to a lighter green mix with dark green text, keeping HIGH dark and LOW pale; updated the UI contract. |
 | current (button alignment and icon source) | Explain the visible button-label offset, fix its cause, use Lucide or React Icons for interface icons, and document the rule. | Traced the offset to the reserved idle busy-spinner slot; kept progress width stable while centering labels, replaced hand-drawn/Unicode interface icons with `lucide-react`, and documented the allowed icon libraries in `AGENTS.md`. |
 | current (Lab 3 regression compatibility) | Adjust Lab 2 tests for the Lab 3 implementation and require affected earlier-lab tests to evolve with specification changes. | Updated Lab 1/Lab 2 API, service, migration, seed, maintenance, and PostgreSQL regression tests for authenticated User/session transport and the renamed persistence model; added the cross-lab test rule to `AGENTS.md`. |
+| current (global styling contract and form skill) | Consolidate Lab 2 and Lab 3 styling and shared-component usage into a global contract; create the project-specific form-engineering skill for future forms. | Expanded docs/generics/styling-contract.md from both UI specs and current components, linked it from this UI spec, and added .agents/skills/form-engineering. Documentation/skill work only; no application behavior changed. |
 
 ## Reflection
 

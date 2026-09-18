@@ -13,7 +13,7 @@ import type { ZodType } from "zod";
 import { mapServerFieldErrors, DEFAULT_FORM_ERROR, type ServerErrorResult } from "./serverFieldErrors.js";
 
 export type ManagedFormOptions<TValues extends FieldValues> = Omit<UseFormProps<TValues>, "resolver"> & {
-  schema: ZodType<TValues>;
+  schema?: ZodType<TValues>;
 };
 
 export interface ManagedForm<TValues extends FieldValues> extends UseFormReturn<TValues> {
@@ -27,7 +27,7 @@ export function useManagedForm<TValues extends FieldValues>({ schema, ...options
   const form = useForm<TValues>({
     ...options,
     defaultValues: options.defaultValues as DefaultValues<TValues> | undefined,
-    resolver: zodResolver(schema as never) as never,
+    resolver: schema ? (zodResolver(schema as never) as never) : undefined,
     shouldFocusError: true,
   }) as UseFormReturn<TValues>;
   const [formError, setFormError] = useState<string>();

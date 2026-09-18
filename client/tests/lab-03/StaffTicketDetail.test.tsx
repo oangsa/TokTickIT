@@ -46,8 +46,10 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     auth.user = { publicId: "admin", role: "ADMINISTRATOR" };
     renderDetail();
     await screen.findByRole("heading", { name: ticket.ticketNumber });
-    expect(screen.getByText("Requester Name").nextSibling).toHaveTextContent("Requester");
-    expect(screen.getByText("Requested Priority").nextSibling).toHaveTextContent("HIGH");
+    expect(screen.getByLabelText("Requester Name")).toHaveValue("Requester");
+    expect(screen.getByLabelText("Requester Name")).toBeDisabled();
+    expect(screen.getByLabelText("Requested Priority")).toHaveValue("HIGH");
+    expect(screen.getByLabelText("Requested Priority")).toBeDisabled();
     expect(screen.getByText("Ticket operations are read-only unless you are the assigned owner.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Change Owner" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("IT Priority")).not.toBeInTheDocument();

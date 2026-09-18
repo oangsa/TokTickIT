@@ -117,7 +117,7 @@ describe("InternalNotes component @issue-6", () => {
       expect(screen.getByRole("button", { name: "Add Note" })).toBeInTheDocument();
     });
 
-    it("restricts Administrator non-owner to read-only with explicit notice", async () => {
+    it("restricts Administrator non-owner to read-only without rendering composer", async () => {
       auth.user = { publicId: "admin-2", name: "Admin NonOwner", role: "ADMINISTRATOR" };
       render(<InternalNotes ticketPublicId="tkt-1" ticketOwnerPublicId="staff-1" />);
       await screen.findByText(/Newer internal note/);
@@ -126,10 +126,10 @@ describe("InternalNotes component @issue-6", () => {
       expect(screen.queryByLabelText("Add an internal note")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Add Note" })).not.toBeInTheDocument();
 
-      // Read-only notice should be shown
+      // Read-only notice should be omitted to avoid visual clutter
       expect(
-        screen.getByText(/Only IT Staff or the assigned Administrator owner can add internal notes/i),
-      ).toBeInTheDocument();
+        screen.queryByText(/Only IT Staff or the assigned Administrator owner can add internal notes/i),
+      ).not.toBeInTheDocument();
     });
 
     it("retains note draft on submission error and displays alert", async () => {
@@ -203,6 +203,31 @@ describe("InternalNotes component @issue-6", () => {
 
       expect(await screen.findByText("Page 2 older note")).toBeInTheDocument();
       expect(screen.getByText(/Newer internal note/)).toBeInTheDocument();
+    });
+
+    it("does not duplicate a page boundary when another staff member posts between requests", async () => {
+      const notes = Array.from({ length: 11 }, (_, index) => ({
+        ...mockNotes[0], publicId: `note-${index}`, content: `Note ${index}`,
+      }));
+      callApi.mockImplementation(async (path: string, options?: { onResponse?: (response: Response) => void }) => {
+        const secondPage = path.includes("pageNumber=2");
+        options?.onResponse?.(new Response(null, { headers: {
+          "X-Pagination": JSON.stringify({
+            pageNumber: secondPage ? 2 : 1, pageSize: 10,
+            totalItems: secondPage ? 12 : 11, totalPages: 2,
+            hasPreviousPage: secondPage, hasNextPage: !secondPage,
+          }),
+        } }));
+        return secondPage ? notes.slice(9) : notes.slice(0, 10);
+      });
+
+      render(<InternalNotes ticketPublicId="tkt-1" ticketOwnerPublicId="staff-1" />);
+      await screen.findByText("Note 0");
+      await userEvent.click(screen.getByRole("button", { name: "Load more notes" }));
+      await screen.findByText("Note 10");
+      expect(screen.getAllByTestId("note-note-9")).toHaveLength(1);
+      expect(screen.getAllByRole("article")).toHaveLength(11);
+      expect(screen.queryByRole("button", { name: "Load more notes" })).not.toBeInTheDocument();
     });
 
     it("never provides edit or delete controls on internal notes", async () => {

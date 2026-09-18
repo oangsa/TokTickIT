@@ -12,12 +12,12 @@ import { ApiResponseError } from "../api.js";
 import { AuthStatus, useAuth } from "../auth/AuthProvider.js";
 
 const PASSWORD_REQUIREMENTS = [
-  { label: `At least ${AUTH_FORM_RULES.password.minLength} characters`, test: (value: string) => Array.from(value).length >= AUTH_FORM_RULES.password.minLength, message: `Password must be at least ${AUTH_FORM_RULES.password.minLength} characters.` },
-  { label: `No more than ${AUTH_FORM_RULES.password.maxLength} characters`, test: (value: string) => Array.from(value).length <= AUTH_FORM_RULES.password.maxLength, message: `Password must be no more than ${AUTH_FORM_RULES.password.maxLength} characters.` },
-  { label: "At least one uppercase letter (A–Z)", test: (value: string) => /[A-Z]/.test(value), message: "Password needs an uppercase letter." },
-  { label: "At least one lowercase letter (a–z)", test: (value: string) => /[a-z]/.test(value), message: "Password needs a lowercase letter." },
-  { label: "At least one number", test: (value: string) => /\p{Nd}/u.test(value), message: "Password needs a number." },
-  { label: "At least one symbol (not a space)", test: (value: string) => /[\p{P}\p{S}]/u.test(value), message: "Password needs a symbol." },
+  { label: `At least ${AUTH_FORM_RULES.password.minLength} characters`, test: (value: string) => Array.from(value).length >= AUTH_FORM_RULES.password.minLength, message: `Password must be at least ${AUTH_FORM_RULES.password.minLength} characters.`, visual: true },
+  { label: `No more than ${AUTH_FORM_RULES.password.maxLength} characters`, test: (value: string) => Array.from(value).length <= AUTH_FORM_RULES.password.maxLength, message: `Password must be no more than ${AUTH_FORM_RULES.password.maxLength} characters.`, visual: false },
+  { label: "At least one uppercase letter (A–Z)", test: (value: string) => /[A-Z]/.test(value), message: "Password needs an uppercase letter.", visual: true },
+  { label: "At least one lowercase letter (a–z)", test: (value: string) => /[a-z]/.test(value), message: "Password needs a lowercase letter.", visual: true },
+  { label: "At least one number", test: (value: string) => /\p{Nd}/u.test(value), message: "Password needs a number.", visual: true },
+  { label: "At least one symbol (not a space)", test: (value: string) => /[\p{P}\p{S}]/u.test(value), message: "Password needs a symbol.", visual: true },
 ];
 
 function passwordSchema(restricted: boolean) {
@@ -52,11 +52,13 @@ function ChangePasswordForm({ restricted }: { restricted: boolean }) {
     defaultValues: restricted ? { newPassword: "", confirmPassword: "" } : { currentPassword: "", newPassword: "", confirmPassword: "" },
   });
   const newPassword = form.watch("newPassword");
-  const currentPassword = form.watch("currentPassword");
-  const requirements = [
-    ...PASSWORD_REQUIREMENTS.map((rule) => ({ label: rule.label, met: newPassword.length > 0 && rule.test(newPassword), serverChecked: false })),
-    { label: "Different from your current password", met: !restricted && Boolean(currentPassword) && Boolean(newPassword) && currentPassword !== newPassword, serverChecked: restricted },
-  ];
+  const hasValidated = Boolean(newPassword && newPassword.length > 0) || form.formState.isSubmitted;
+  const requirements = PASSWORD_REQUIREMENTS
+    .filter((rule) => rule.visual)
+    .map((rule) => {
+      const met = Boolean(newPassword && newPassword.length > 0 && rule.test(newPassword));
+      return { label: rule.label, met };
+    });
 
   const sections = restricted
     ? CHANGE_PASSWORD_FORM_SECTIONS.map((section) => ({ ...section, fields: section.fields.filter((field) => field.name !== "currentPassword") }))
@@ -78,16 +80,24 @@ function ChangePasswordForm({ restricted }: { restricted: boolean }) {
     }
   }
 
-  return <main id="tt-main" tabIndex={-1} className="tt-bootstrap"><div className="tt-bootstrap__panel"><Card><PageHeader title="Change Password" subtitle={restricted ? "You must choose a new password before continuing." : "Update your password for this account."} /><section aria-labelledby="password-requirements-title" className="mb-4">
-    <h2 id="password-requirements-title" className="h6">Password requirements</h2>
-    <ul className="list-unstyled small mb-2" aria-live="polite" aria-atomic="false">
-      {requirements.map(({ label, met, serverChecked }) => <li key={label} className={`d-flex align-items-start gap-2 mb-1 ${met ? "text-success" : "text-secondary"}`}>
-        {met ? <Check size={16} className="flex-shrink-0 mt-1" aria-hidden="true" focusable="false" /> : <Circle size={16} className="flex-shrink-0 mt-1" aria-hidden="true" focusable="false" />}
-        <span><span className="visually-hidden">{met ? "Met: " : serverChecked ? "" : "Not met: "}</span>{label}{serverChecked ? " — checked when you submit" : ""}</span>
-      </li>)}
+  return <main id="tt-main" tabIndex={-1} className="tt-bootstrap"><div className="tt-bootstrap__panel"><Card><PageHeader title="Change Password" subtitle={restricted ? "You must choose a new password before continuing." : "Update your password for this account."} /><CommonForm form={form} sections={sections} onSubmit={submit} showCancelButton={false} submitLabel="Change Password" submitting={submitting} ariaLabel="Change Password"><section aria-labelledby="password-requirements-title" className="mb-3">
+    <h2 id="password-requirements-title" className="visually-hidden">Password requirements</h2>
+    <ul className="list-unstyled small mb-0" aria-live="polite" aria-atomic="false">
+      {requirements.map(({ label, met }) => {
+        const stateClass = met ? "text-success" : hasValidated ? "text-danger" : "text-secondary";
+        return (
+          <li key={label} className={`d-flex align-items-start gap-2 mb-1 ${stateClass}`}>
+            {met ? (
+              <Check size={16} className="flex-shrink-0 mt-1" aria-hidden="true" focusable="false" />
+            ) : (
+              <Circle size={16} className="flex-shrink-0 mt-1" aria-hidden="true" focusable="false" />
+            )}
+            <span><span className="visually-hidden">{met ? "Met: " : "Not met: "}</span>{label}</span>
+          </li>
+        );
+      })}
     </ul>
-    <p className="small text-secondary mb-0">Spaces are allowed but do not count as symbols.</p>
-  </section><CommonForm form={form} sections={sections} onSubmit={submit} showCancelButton={false} submitLabel="Change Password" submitting={submitting} ariaLabel="Change Password" /></Card></div></main>;
+  </section></CommonForm></Card></div></main>;
 }
 
 export { passwordSchema };

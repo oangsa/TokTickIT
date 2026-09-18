@@ -5,7 +5,7 @@ import { ApiResponseError } from "../api.js";
 import { useAuthenticatedApi } from "../auth/useAuthenticatedApi.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
-import { CommonForm } from "../components/CommonForm.js";
+import { UserForm } from "../components/UserForm.js";
 import { Modal } from "../components/Modal.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { useManagedForm } from "../forms/useManagedForm.js";
@@ -31,7 +31,7 @@ const createUserSchema = z.object({
 export default function CreateUser() {
   const navigate = useNavigate();
   const callApi = useAuthenticatedApi();
-  const { register } = useNavigationGuard();
+  const { register, allowNavigation, cancelNavigation } = useNavigationGuard();
 
   const form = useManagedForm<UserFormValues>({
     schema: createUserSchema as never,
@@ -64,13 +64,14 @@ export default function CreateUser() {
 
   const handleCancel = () => {
     if (dirty) {
-      requestDiscard(() => navigate("/admin/users"));
+      requestDiscard(() => allowNavigation(() => navigate("/admin/users")));
     } else {
       navigate("/admin/users");
     }
   };
 
   const handleKeepEditing = () => {
+    cancelNavigation();
     setConfirmDiscard(false);
     pendingNavigationRef.current = null;
   };
@@ -83,7 +84,7 @@ export default function CreateUser() {
     if (action) {
       action();
     } else {
-      navigate("/admin/users");
+      allowNavigation(() => navigate("/admin/users"));
     }
   };
 
@@ -191,12 +192,11 @@ export default function CreateUser() {
         </div>
       ) : (
         <Card title="User Information">
-          <CommonForm
+          <UserForm
+            mode="create"
             form={form}
-            sections={USER_FORM_SECTIONS}
             onSubmit={handleFormSubmit}
             onCancel={handleCancel}
-            submitLabel="Create User"
             submitting={submitting}
             submitDisabled={submitting}
             cancelDisabled={submitting}
