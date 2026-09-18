@@ -5,7 +5,7 @@ import { MemoryRouter, useNavigate } from "react-router-dom";
 
 import App from "../helpers/AuthenticatedRequesterApp.js";
 import { PaginationMetadata } from "../../src/api.js";
-import { SEARCH_DEBOUNCE_MS, STATUS_OPTIONS } from "../../src/tickets/ticketListQuery.js";
+import { SEARCH_DEBOUNCE_MS, STATUS_OPTIONS } from "../../src/modules/Tickets/ticketListQuery.js";
 import { setViewportWidth } from "../setup.js";
 
 /*

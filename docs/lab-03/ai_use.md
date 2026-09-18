@@ -1,5 +1,15 @@
 # Lab 3 AI Use Record
 
+## Client structure v2 (2026-09-19)
+
+| Prompt | Use of result |
+|---|---|
+| Redesign the client project structure without changing code, logic, or styling, using Maintenance Tracking System and AXONS frontend as references. | Inspected both local references and current source/contracts; produced a temporary HTML proposal with complete file mapping. No repository changes during proposal preparation. |
+| Group and separate components for maintainability; adapt both references. | Revised the proposal around Common controls, Form/Feedback/Collection families, Maintain page composition, domain modules, and layouts. Preserved existing filenames and implementation. |
+| I love v2, proceed. | Moved 58 source files and mechanically updated 236 module-path strings across source/tests. Updated active source references and ownership documentation. Verified all 107 TypeScript source/test files differ from the clean baseline only in module paths; source CSS, entrypoint, and package/config files are unchanged. Baseline and final client suites each passed 365 tests; focused suite passed 88; mocked-auth browser suite passed 7; client/server builds passed. Production output is byte-identical to baseline. No commit or push. |
+
+Only prompts available in this session are recorded above. See the current client structure verification record in tests.md for commands and limitations.
+
 Issue 6 session additions (2026-09-17):
 
 | Prompt | Use of result |

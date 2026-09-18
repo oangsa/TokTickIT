@@ -14,7 +14,7 @@ Resolve paths from the TokTickIT repository root. When installed at `.agents/ski
 1. Read applicable AGENTS.md and the requested lab/Issue requirements.
 2. Read [global styling contract](../../../docs/generics/styling-contract.md), especially Form construction, Shared component selection, and Responsive acceptance.
 3. Read the affected parts of `docs/lab-02/ui-spec.md` and `docs/lab-03/ui-spec.md`; Lab 3 Section 7 defines the managed-form foundation. Consult the current API specification for fields, validation, permissions, and success/failure behavior.
-4. Inspect current `client/src/components/CommonForm.tsx`, `client/src/forms/formTypes.ts`, `client/src/forms/useManagedForm.ts`, and the closest entity form. Treat actual props as the implementation interface; do not copy stale sample APIs from memory.
+4. Inspect current `client/src/components/Common/Form/CommonForm.tsx`, `client/src/forms/formTypes.ts`, `client/src/forms/useManagedForm.ts`, and the closest entity form. Treat actual props as the implementation interface; do not copy stale sample APIs from memory.
 
 Current lab behavior overrides superseded earlier-lab flows. If a required field, default, mutation, permission, or error behavior is unresolved, ask one concrete question before implementing that dependent portion. Do not invent an API to make a form appear complete.
 
@@ -22,10 +22,10 @@ Current lab behavior overrides superseded earlier-lab flows. If a required field
 
 | Request | Starting reference |
 |---|---|
-| Create/edit/view of one entity | `client/src/components/UserForm.tsx`, `client/src/constants/forms/user.ts`, and corresponding User pages |
-| Read-only entity information | `client/src/components/TicketInformationForm.tsx`, `client/src/pages/StaffTicketDetail.tsx` |
-| Specialized upload workflow inside a form | `client/src/pages/CreateTicket.tsx`, `client/src/attachments/AttachmentSection.tsx` |
-| Authentication/password form | `client/src/pages/Login.tsx`, `client/src/pages/ChangePassword.tsx`, `client/src/constants/forms/auth.ts` |
+| Create/edit/view of one entity | `client/src/modules/Users/UserForm.tsx`, `client/src/constants/forms/user.ts`, and corresponding User pages |
+| Read-only entity information | `client/src/modules/Tickets/components/TicketInformationForm.tsx`, `client/src/modules/Tickets/Staff/StaffTicketDetail.tsx` |
+| Specialized upload workflow inside a form | `client/src/modules/Tickets/Requester/CreateTicket.tsx`, `client/src/modules/Tickets/attachments/AttachmentSection.tsx` |
+| Authentication/password form | `client/src/modules/Auth/Login.tsx`, `client/src/modules/Auth/ChangePassword.tsx`, `client/src/constants/forms/auth.ts` |
 
 Use typed `FormSection<TValues>[]` and `useManagedForm<TValues>` for new entity forms. Reuse an existing entity component when applicable. Create a thin entity wrapper only when it meaningfully shares fields or mode behavior; do not create a CRUD-page factory. Keep existing small specialized forms on shared primitives unless the requested change needs migration.
 

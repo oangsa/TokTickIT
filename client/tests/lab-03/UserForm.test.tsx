@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, Outlet, RouterProvider } from "react-router-dom";
-import CreateUser from "../../src/pages/CreateUser.js";
-import EditUser from "../../src/pages/EditUser.js";
+import CreateUser from "../../src/modules/Users/CreateUser.js";
+import EditUser from "../../src/modules/Users/EditUser.js";
 import { ApiResponseError } from "../../src/api.js";
 import { NavigationGuardProvider } from "../../src/navigation/NavigationGuard.js";
 

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { ApiResponseError } from "../../src/api.js";
-import ViewUser from "../../src/pages/ViewUser.js";
+import ViewUser from "../../src/modules/Users/ViewUser.js";
 
 const { callApi } = vi.hoisted(() => ({ callApi: vi.fn() }));
 

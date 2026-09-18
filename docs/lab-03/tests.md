@@ -1,5 +1,23 @@
 # Lab 3 Test Specification
 
+## Client structure v2 verification (2026-09-19)
+
+The approved relocation moves 58 existing client source files into Common/Maintain, domain modules, and layouts. Source and test edits are limited to module paths; no assertions, runtime behavior, JSX, styles, REST contracts, or persistence behavior changed.
+
+| Check | Result |
+|---|---|
+| Baseline `npm --prefix client test` | 26 files, 365 tests passed. |
+| Focused `npm --prefix client test -- tests/lab-03/CommonForm.test.tsx tests/lab-03/DataTable.test.tsx tests/lab-02/SharedComponents.test.tsx tests/lab-02/ApplicationShell.test.tsx tests/lab-01/App.test.tsx` | 5 files, 88 tests passed. |
+| Final `npm --prefix client test` | 26 files, 365 tests passed. |
+| `npm --prefix client run build` | TypeScript check and Vite build passed. |
+| `npm --prefix server run build` | TypeScript build passed; backend source unchanged. |
+| `ISSUE_3_UI_ONLY=1 npm run test:e2e -- e2e/lab-03/authentication.spec.ts --grep @issue-3` | 7 mocked-auth browser tests passed. Initial sandbox attempt could not start Vite; rerun with local-process permission passed. No database used. |
+| Source preservation comparison | All 107 TypeScript source/test files match the pre-move snapshot after only module-path substitutions; 236 path strings changed. CSS, main.tsx, package/lockfile, Vite config, and TypeScript config remain byte-identical. |
+| Baseline/final production-output comparison | `diff -qr` between the temporary pre-move build and final client/dist reported no differences, including JavaScript, CSS, HTML, and font assets. |
+| `git diff --check` | Passed. |
+
+Existing React act warnings, dependency annotation warnings, and the large-bundle warning also appeared in baseline verification. No dedicated visual screenshot suite, live-database E2E suite, or server test suite was run for this structural-only change. Historical verification entries below remain unchanged.
+
 ## 1. Purpose
 
 This document defines the **planned verification contract** for TokTickIT Lab 3. It is derived from and must remain consistent with:

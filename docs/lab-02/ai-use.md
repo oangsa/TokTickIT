@@ -6,6 +6,16 @@ This is the canonical Lab 2 AI-use record. It curates ten important prompts
 from the prompt history available in the repository and current session; it is
 not a transcript.
 
+## Current client structure follow-up (2026-09-19)
+
+| Prompt | What I did with the result |
+|---|---|
+| Redesign client structure using Maintenance Tracking System and AXONS frontend without changing logic or styling. | Prepared a temporary architecture report covering the existing requester screens, attachments, shared controls, and other current client modules. |
+| Group components for maintainability using both references. | Revised the report to separate Common controls and Maintain page composition, with domain-owned UI and application layouts. |
+| I love v2, proceed. | Applied the approved file moves and import-path changes, including earlier-lab test imports. Preserved test assertions, requester behavior, CSS, and package/config files. All 365 client tests passed before and after; 88 focused tests and 7 mocked-auth browser checks passed; client/server builds passed. Production output is byte-identical to baseline. No commit or push. |
+
+These additions use only prompts available in the current session; no missing prompt history or review results were reconstructed. Detailed commands and limits are recorded in `docs/lab-03/tests.md`.
+
 ## Selected key prompts (10)
 
 | # | Prompt (summarised) | What I did with the result |

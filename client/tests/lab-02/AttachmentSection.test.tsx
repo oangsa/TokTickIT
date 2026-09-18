@@ -9,7 +9,7 @@ import {
   ATTACHMENT_TIMEOUT_MS,
   MAX_ATTACHMENT_BYTES,
   formatSize,
-} from "../../src/attachments/attachmentRules.js";
+} from "../../src/modules/Tickets/attachments/attachmentRules.js";
 
 /*
  * UI-25 to UI-30, UI-34, and the Attachment halves of UI-36 and UI-37.

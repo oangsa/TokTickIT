@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ApiResponseError } from "../../src/api.js";
-import StaffTicketQueue from "../../src/pages/StaffTicketQueue.js";
+import StaffTicketQueue from "../../src/modules/Tickets/Staff/StaffTicketQueue.js";
 const { callApi } = vi.hoisted(() => ({ callApi: vi.fn() }));
 vi.mock("../../src/auth/useAuthenticatedApi.js", () => ({ useAuthenticatedApi: () => callApi }));
 vi.mock("../../src/auth/AuthProvider.js", () => ({ useAuth: () => ({ user: { role: "IT_STAFF" } }) }));

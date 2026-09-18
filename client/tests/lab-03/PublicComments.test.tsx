@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PublicComments, type RootPublicCommentDTO, type PublicCommentDTO } from "../../src/components/PublicComments.js";
+import { PublicComments, type RootPublicCommentDTO, type PublicCommentDTO } from "../../src/modules/Tickets/components/PublicComments.js";
 import { ApiResponseError } from "../../src/api.js";
 
 const { callApi, auth } = vi.hoisted(() => ({

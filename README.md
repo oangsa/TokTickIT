@@ -101,10 +101,10 @@ is browser hardening, not authentication, authorization, or a privacy boundary.
 | 18 — Data model + forward migration + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
 | 19 — Zen Green shell + UI foundation | Done | `client/src/`, `client/src/components/`, `client/src/requester/` |
 | 20 — Requester context + selector | Done | `server/src/middleware/`, `server/src/routes/referenceData.ts`, `client/src/pages/RequesterSelection.tsx`, `client/src/requester/useRequesterApi.ts` |
-| 21 — Ticket creation + idempotency | Done | `server/src/routes/tickets.ts`, `server/src/services/createTicketFlow.ts`, `client/src/pages/CreateTicket.tsx` |
-| 22 — My Tickets | Done | `server/src/services/ticketListService.ts`, `server/src/services/ticketQueryValidator.ts`, `client/src/pages/MyTickets.tsx` |
-| 23 — Ticket Detail | Done | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/pages/RequesterTicketDetail.tsx`, `client/src/pages/ErrorPage.tsx` |
-| 24 — Attachment lifecycle | Done | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/attachments/AttachmentSection.tsx` |
+| 21 — Ticket creation + idempotency | Done | `server/src/routes/tickets.ts`, `server/src/services/createTicketFlow.ts`, `client/src/modules/Tickets/Requester/CreateTicket.tsx` |
+| 22 — My Tickets | Done | `server/src/services/ticketListService.ts`, `server/src/services/ticketQueryValidator.ts`, `client/src/modules/Tickets/Requester/MyTickets.tsx` |
+| 23 — Ticket Detail | Done | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/modules/Tickets/Requester/RequesterTicketDetail.tsx`, `client/src/modules/System/ErrorPage.tsx` |
+| 24 — Attachment lifecycle | Done | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/modules/Tickets/attachments/AttachmentSection.tsx` |
 | 25 — final integration/tooling | Done | `package.json`, `playwright.config.ts`, `playwright.global-setup.ts`, `e2e/lab-02/`, tracked screenshot evidence |
 | 26 — release evidence | Closed by approved/merged [PR #49](https://github.com/oangsa/TokTickIT/pull/49); post-merge staging gate passed on `df8da1e`; docs follow-up [PR #50](https://github.com/oangsa/TokTickIT/pull/50) merged; replacement release [PR #51](https://github.com/oangsa/TokTickIT/pull/51) is open for peer review and is not merged; prior release PR [#47](https://github.com/oangsa/TokTickIT/pull/47) remains closed | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md`, `docs/lab-02/tests.md`; `feature/26-lab2-release-link` |
 
@@ -166,19 +166,21 @@ unauthenticated Lab 2 application is restricted to development/test networks
 and must not be described as safe for public deployment (AC-50, part of the
 DATA-09 evidence).
 
-`client/src/components/` holds the shared conventions Issue 19 established —
-form field, button hierarchy, badge, skeleton, empty/error/success state,
-modal, pagination, filter chip, and Attachment lifecycle state. They are
-covered by `client/tests/lab-02/SharedComponents.test.tsx`; Requester Selection
-is the first screen to consume them, and the rest arrive with Issues 21–23.
+`client/src/components/Common/` groups reusable controls, with `Form/`,
+`Feedback/`, and `Collection/` families. `components/Maintain/` owns DataTable,
+ManagePage, and PageHeader page composition. Domain screens and presentation
+live under `modules/Auth/`, `modules/System/`, `modules/Users/`, and
+`modules/Tickets/`; the application shell lives under `layouts/`.
+Managed-form logic and domain form constants remain in `forms/` and
+`constants/forms/`. See the [component ownership contract](docs/generics/styling-contract.md#component-ownership).
 
 ## Lab 1 status
 
 | Issue | Status | Where |
 |---|---|---|
-| 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/pages/SystemCheck.tsx` |
+| 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/modules/System/SystemCheck.tsx` |
 | 3 — Category model + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
-| 4 — Category list + UI states | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/pages/SystemCheck.tsx` |
+| 4 — Category list + UI states | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/modules/System/SystemCheck.tsx` |
 
 ### Issue 2 — API health check
 
@@ -189,7 +191,7 @@ GET /api/health  ->  200  {"status":"ok","service":"TokTickIT API"}
 The client calls it from `checkSystem()` in `client/src/api.ts`; **Check System**
 shows `Backend status: Online`, or `Backend status: Offline` when the request
 fails. Since the Lab 2 shell landed, this screen lives in
-`client/src/pages/SystemCheck.tsx` and is no longer the application's landing
+`client/src/modules/System/SystemCheck.tsx` and is no longer the application's landing
 route; its Lab 1 tests continue to exercise it directly. Covered by `server/tests/lab-01/health.test.ts`
 (Supertest). Evidence in `docs/lab-01/tests.md`.
 

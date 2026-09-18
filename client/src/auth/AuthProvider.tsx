@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ApiResponseError } from "../api.js";
 import { AUTH_FORM_RULES } from "../constants/forms/auth.js";
 import type { ChangePasswordFormValues } from "../constants/forms/auth.js";
-import { clearRecovery } from "../tickets/createTicketDraft.js";
+import { clearRecovery } from "../modules/Tickets/createTicketDraft.js";
 import {
   authenticatedRequest,
   authenticatedBlobRequest,

@@ -8,11 +8,11 @@ import {
 } from "../../src/auth/AuthProvider.js";
 import type { CurrentUserDTO } from "../../src/auth/authTypes.js";
 import { authenticatedBlobRequest, authenticatedRequest, clearAccessToken, setAccessToken } from "../../src/auth/authTransport.js";
-import { AppShell } from "../../src/components/AppShell.js";
-import ErrorPage from "../../src/pages/ErrorPage.js";
-import CreateTicket from "../../src/pages/CreateTicket.js";
-import MyTickets from "../../src/pages/MyTickets.js";
-import RequesterTicketDetail from "../../src/pages/RequesterTicketDetail.js";
+import { AppShell } from "../../src/layouts/AppShell.js";
+import ErrorPage from "../../src/modules/System/ErrorPage.js";
+import CreateTicket from "../../src/modules/Tickets/Requester/CreateTicket.js";
+import MyTickets from "../../src/modules/Tickets/Requester/MyTickets.js";
+import RequesterTicketDetail from "../../src/modules/Tickets/Requester/RequesterTicketDetail.js";
 import { NavigationGuardProvider } from "../../src/navigation/NavigationGuard.js";
 
 export const TEST_USER: CurrentUserDTO = {

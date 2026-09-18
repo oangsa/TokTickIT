@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import UserManagement, { type UserListItem } from "../../src/pages/UserManagement.js";
+import UserManagement, { type UserListItem } from "../../src/modules/Users/UserManagement.js";
 import App from "../../src/App.js";
 import { clearAccessToken } from "../../src/auth/authTransport.js";
 
