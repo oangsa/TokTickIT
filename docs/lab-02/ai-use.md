@@ -69,6 +69,18 @@ These additions use only prompts available in the current session; no missing pr
 
 | current (frontend styling consistency audit; fix-then-ship) | Scrutinize whether frontend pages follow shared styling and reuse components, then fix the findings. | Replaced page-local success alerts with `SuccessMessage`, routed generated and Staff Queue filter controls through shared `Select`/`TextInput`, aligned CommonForm helper/counter layout, and extracted the repeated one-time-password display into `OneTimePassword`. Focused client tests and the client build were run; no browser visual verification or commit. |
 
+## Server structure refactor (2026-09-24)
+
+| Prompt | What I did with the result |
+|---|---|
+| Improve server structure with the architecture skill while preserving Lab 1 structure. | Inspected the current server, Lab 1 directory and route contracts, and later-lab code; produced a temporary HTML report with Attachment and Ticket candidates. Then implemented only the selected structural changes within `server/src/`. |
+| Why can't we do both? | Treated both candidates as the requested scope instead of choosing only the top recommendation. |
+| Yes, to moving only shared Ticket DTO mapping and Prisma relation selection. | Moved those definitions into `ticketRepresentation.ts`; kept Ticket creation and read behavior in their existing modules. |
+| Yes, to moving staff Attachment lookup and 404/410 rules into the Attachment module. | Moved that lookup into `AttachmentService` and shared binary response handling through `http/binary.ts`; kept the existing REST behavior. |
+| Yes, to the full behavior-preserving design. | Added staff-binary unit and PostgreSQL regressions. Focused unit (91), Supertest (137), non-PostgreSQL server (946), and guarded PostgreSQL (27) tests passed; server and client builds passed. An earlier full-suite attempt without explicit test overrides failed in 23 PostgreSQL suite hooks because the local target was unavailable and Lab 3 overrides were absent. No commit or push. |
+
+Only prompts in this session are recorded here; unavailable prompt history and review outcomes were not reconstructed.
+
 ## Reflection
 
 AI helped me keep a large contract, implementation, test, and delivery record

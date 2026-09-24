@@ -9,7 +9,7 @@ import {
   resolveUploadName,
 } from "./attachmentRules.js";
 import { MAX_ATTACHMENTS } from "./ticketCreateRequest.js";
-import { AttachmentDTO, toAttachmentDTO } from "./ticketService.js";
+import { toAttachmentDTO, type AttachmentDTO } from "./ticketRepresentation.js";
 
 /* BR-76: three transaction attempts in total, the first one included. */
 const TRANSACTION_ATTEMPTS = 3;
@@ -350,6 +350,38 @@ export class AttachmentService {
     });
 
     if (removed !== null) {
+      throw new ApiError("GONE");
+    }
+
+    return null;
+  }
+
+  /* Staff may read only evidence bound to an existing, non-deleted Ticket. */
+  async findStaffBinary(ticketPublicId: string, storageKey: string): Promise<AttachmentBinary | null> {
+    if (!STORAGE_KEY_PATTERN.test(ticketPublicId) || !STORAGE_KEY_PATTERN.test(storageKey)) {
+      return null;
+    }
+
+    const where = { storageKey, ticket: { publicId: ticketPublicId, deleted: false } };
+    const row = await this.prisma.attachment.findFirst({
+      where: { ...where, deleted: false },
+      select: { data: true, mimeType: true, originalName: true, sizeBytes: true },
+    });
+
+    if (row !== null) {
+      return {
+        data: Buffer.from(row.data),
+        mimeType: row.mimeType,
+        originalName: row.originalName,
+        sizeBytes: row.sizeBytes,
+      };
+    }
+
+    const removed = await this.prisma.attachment.findFirst({
+      where,
+      select: { deleted: true },
+    });
+    if (removed?.deleted) {
       throw new ApiError("GONE");
     }
 

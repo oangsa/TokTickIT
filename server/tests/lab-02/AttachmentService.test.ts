@@ -602,6 +602,51 @@ describe("UNIT-13 metadata, preview, and download access", () => {
     expect(await service().findBinary(REQUESTER_ID, ACTIVE_KEY)).toBeNull();
   });
 
+  it("reads staff binary only through its non-deleted Ticket association", async () => {
+    prisma.attachment.findFirst.mockResolvedValue({
+      data: new Uint8Array([1, 2, 3]),
+      mimeType: "image/png",
+      originalName: "vpn-error.png",
+      sizeBytes: 3,
+    });
+
+    expect(await service().findStaffBinary(TICKET_PUBLIC_ID, ACTIVE_KEY)).toEqual({
+      data: Buffer.from([1, 2, 3]),
+      mimeType: "image/png",
+      originalName: "vpn-error.png",
+      sizeBytes: 3,
+    });
+    expect(prisma.attachment.findFirst).toHaveBeenCalledWith({
+      where: {
+        storageKey: ACTIVE_KEY,
+        ticket: { publicId: TICKET_PUBLIC_ID, deleted: false },
+        deleted: false,
+      },
+      select: { data: true, mimeType: true, originalName: true, sizeBytes: true },
+    });
+  });
+
+  it("returns Gone for removed staff evidence without reading its bytes", async () => {
+    prisma.attachment.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ deleted: true });
+
+    const error = await rejectionOf(service().findStaffBinary(TICKET_PUBLIC_ID, REMOVED_KEY));
+
+    expect(error.code).toBe("GONE");
+    expect(prisma.attachment.findFirst.mock.calls[1][0]).toEqual({
+      where: { storageKey: REMOVED_KEY, ticket: { publicId: TICKET_PUBLIC_ID, deleted: false } },
+      select: { deleted: true },
+    });
+  });
+
+  it("keeps malformed and out-of-scope staff evidence hidden", async () => {
+    expect(await service().findStaffBinary("bad", ACTIVE_KEY)).toBeNull();
+    expect(await service().findStaffBinary(TICKET_PUBLIC_ID, "bad")).toBeNull();
+    expect(prisma.attachment.findFirst).not.toHaveBeenCalled();
+
+    prisma.attachment.findFirst.mockResolvedValue(null);
+    expect(await service().findStaffBinary(TICKET_PUBLIC_ID, ACTIVE_KEY)).toBeNull();
+  });
+
   it("does not invent a per-Requester Pending quota", async () => {
     await expect(service().createPending({
       requesterId: REQUESTER_ID,

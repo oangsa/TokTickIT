@@ -1,7 +1,8 @@
 import { ApiError } from "../http/errors.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { ClaimResolution, IdempotencyService } from "./idempotencyService.js";
-import { FencedOutError, TicketDTO, TicketService, toTicketDTO } from "./ticketService.js";
+import { FencedOutError, TicketService } from "./ticketService.js";
+import { toTicketDTO, type TicketDTO } from "./ticketRepresentation.js";
 import { CreateTicketPayload, hashCreateTicketPayload } from "./ticketCreateRequest.js";
 
 /*

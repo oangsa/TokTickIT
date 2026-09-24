@@ -1099,6 +1099,37 @@ describe.sequential("AttachmentService query shapes against PostgreSQL", () => {
     expect(metadata?.ticketPublicId).toBe(ticket?.publicId);
   }, 30_000);
 
+  it("reads staff evidence only while bound to a visible Ticket and returns Gone after removal", async () => {
+    const service = new AttachmentService(prisma);
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: fixture.ticketId },
+      select: { publicId: true },
+    });
+    const publicId = ticket?.publicId ?? "";
+    const created = await service.createForTicket({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      publicId,
+      file: { filename: "staff-evidence.png", data: Buffer.from([3, 4]) },
+    });
+
+    expect(await service.findStaffBinary(publicId, created.attachmentId)).toMatchObject({
+      data: Buffer.from([3, 4]),
+      sizeBytes: 2,
+    });
+    expect(await service.findStaffBinary(randomUUID(), created.attachmentId)).toBeNull();
+
+    await service.deleteCollection({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      items: [{ attachmentId: created.attachmentId, reason: "Removed evidence." }],
+    });
+    await expect(service.findStaffBinary(publicId, created.attachmentId)).rejects.toMatchObject({
+      code: "GONE",
+      statusCode: 410,
+    });
+  }, 30_000);
+
   it("hides an Attachment owned by another Requester behind the same empty answer", async () => {
     const service = new AttachmentService(prisma);
     const other = await createRequesterUser(prisma, {

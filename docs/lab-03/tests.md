@@ -1448,3 +1448,15 @@ available for the current session and is disposable. Non-fatal output: the
 PostgreSQL client reported a concurrent-query deprecation warning and Vite
 reported bundle-size warnings; none failed a gate. No credentials were written
 to logs, commits, or this record.
+
+## Server structure refactor verification (2026-09-24)
+
+Shared Ticket DTO mapping and Prisma relation selection now live in `server/src/services/ticketRepresentation.ts`. Staff Attachment binary lookup, association, and Removed-state handling now live in `AttachmentService`; HTTP binary headers live in `server/src/http/binary.ts`. REST contracts and Prisma schema are unchanged.
+
+- Focused Ticket/Attachment unit suites: 91 passed.
+- Focused requester Attachment and staff Ticket Supertest suites: 137 passed with local socket permission.
+- Full non-PostgreSQL server selection: 946 passed across 51 files (`npm test -- --silent --exclude '**/*.postgres.test.ts'`).
+- Guarded Lab 2 Attachment transaction and Lab 3 Ticket workflow PostgreSQL suites: 27 passed across 2 files on a fresh localhost-only PostgreSQL 16 tmpfs container. Prisma target was confirmed as `127.0.0.1:55434`; all database URLs were explicitly overridden to the disposable target, with distinct captured baselines. The container was removed afterward.
+- Server and client production builds: passed.
+
+The first full-server command was attempted before the disposable target and explicit Lab 3 overrides were supplied; 23 PostgreSQL suite hooks failed during setup. No full database-backed suite pass is claimed from that attempt.
