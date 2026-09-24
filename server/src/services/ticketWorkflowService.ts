@@ -3,7 +3,7 @@ import { ApiError } from "../http/errors.js";
 import type { AuthContext } from "./authService.js";
 import { ELIGIBLE_OWNER } from "./staffTicketReadService.js";
 import { invalidField, PRIORITIES, PUBLIC_ID_PATTERN, record } from "./staffQueueQueryValidator.js";
-import { TICKET_DTO_INCLUDE, toTicketDTO } from "./ticketService.js";
+import { TICKET_DTO_INCLUDE, toTicketDTO } from "./ticketRepresentation.js";
 
 export type TicketActor = Pick<AuthContext, "userId" | "userPublicId" | "role" | "email">;
 export type WorkflowAction = "start-work" | "request-information" | "resume-work" | "mark-resolved" | "close" | "cancel";

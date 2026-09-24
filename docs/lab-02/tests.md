@@ -2945,3 +2945,15 @@ Lab 2 testing is complete only when:
 6. `tests.md`, `specification.md`, `api-spec.md`, and `ui-spec.md` remain mutually consistent.
 
 If implementation architecture changes but externally observable behavior does not, filenames/class names may be updated to match the final code while preserving the same test responsibilities and AC traceability.
+
+## Server structure refactor verification (2026-09-24)
+
+The Attachment staff-binary lookup and Ticket representation moved within `server/src/`; REST responses and the Prisma schema did not change. `server/tests/lab-02/AttachmentService.test.ts` adds malformed, missing, associated, and Removed-state coverage, and `server/tests/lab-02/postgres/transactions.postgres.test.ts` now exercises the staff lookup against real PostgreSQL.
+
+- `npm test -- tests/lab-02/TicketService.test.ts tests/lab-02/AttachmentService.test.ts`: 91 passed.
+- `npm test -- tests/lab-02/attachments.api.test.ts tests/lab-03/staff-ticket-detail.api.test.ts`: 137 passed with local socket permission.
+- `npm test -- --silent --exclude '**/*.postgres.test.ts'`: 946 passed across 51 files, including both Lab 1 server tests.
+- On a fresh localhost-only PostgreSQL 16 tmpfs container, after confirming Prisma resolved `127.0.0.1:55434` and explicitly overriding `TEST_DATABASE_URL`, `DATABASE_URL`, and `DIRECT_URL`: `npm test -- --silent tests/lab-02/postgres/transactions.postgres.test.ts tests/lab-03/postgres/ticket-workflow.postgres.test.ts`: 27 passed across 2 files.
+- `npm run build` in `server/` and `client/`: passed.
+
+An earlier full-server test attempt without explicit test overrides entered PostgreSQL suites while the local test target was unavailable and Lab 3 explicit overrides were absent; 23 suite hooks failed. It is not evidence of a full database-backed pass. The focused guarded PostgreSQL run above used only the disposable target, and its container was removed after the run.

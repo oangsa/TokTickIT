@@ -3,7 +3,7 @@ import { ApiError } from "../http/errors.js";
 import { buildPaginationMetadata } from "../http/pagination.js";
 import { buildFilter, buildOrderBy } from "./queryBuilder.js";
 import { PUBLIC_ID_PATTERN, type StaffQueueQuery } from "./staffQueueQueryValidator.js";
-import { TICKET_DTO_INCLUDE, toTicketDTO } from "./ticketService.js";
+import { TICKET_DTO_INCLUDE, toTicketDTO } from "./ticketRepresentation.js";
 
 export interface TicketOwnerDTO { publicId: string; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }
 export const OWNER_SELECT = { publicId: true, name: true, role: true } as const;
