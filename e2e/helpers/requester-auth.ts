@@ -112,6 +112,17 @@ export async function restoreSeededPassword(
   session.passwordWasChanged = false;
 }
 
+export async function signOutIfAuthenticated(page: Page): Promise<void> {
+  await page.goto("/tickets");
+  const logout = page.getByRole("button", { name: "Logout", exact: true });
+  const signInHeading = page.getByRole("heading", { name: "Sign in", exact: true });
+  await expect(logout.or(signInHeading)).toBeVisible();
+  if (await logout.isVisible().catch(() => false)) {
+    await logout.click();
+    await expect(page).toHaveURL(/\/login$/);
+  }
+}
+
 export const aliceRequesterTest = test.extend<{ aliceSession: SeededSession }>({
   aliceSession: [
     async ({ page }, use) => {

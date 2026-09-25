@@ -197,8 +197,8 @@ for (const viewport of VIEWPORTS) {
       await page.getByLabel("Add Attachment").setInputFiles(attachment);
       await expect(page.getByText("Pending", { exact: true })).toBeVisible();
 
-      await expect(page.getByLabel("Ticket Number")).toHaveValue("Assigned on submission");
-      await expect(page.getByLabel("Ticket Date")).toHaveValue("Assigned on submission");
+      await expect(page.getByLabel("Ticket Number")).toHaveText("Assigned on submission");
+      await expect(page.getByLabel("Ticket Date")).toHaveText("Assigned on submission");
       await expect(page.getByLabel("Requester")).toHaveValue("Alice Johnson");
       await expect(page.getByRole("button", { name: "Submit Ticket", exact: true })).toBeEnabled();
 

@@ -964,6 +964,11 @@ a {
   padding-inline-end: 0.5rem;
 }
 
+/* Preserve room for the attachment row's three controls in its 8rem column. */
+.tt-table--attachments > :not(caption) > * > *:last-child {
+  padding-inline-end: 0;
+}
+
 /*
  * Column labels break between words, never inside one: `.tt-table` sets
  * `overflow-wrap: anywhere` for free-text cells, which turned PRIORITY into

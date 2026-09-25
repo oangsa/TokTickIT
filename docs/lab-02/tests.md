@@ -2933,6 +2933,12 @@ passed and the regenerated 390 × 844 capture shows one line.
 | --- | --- | --- |
 | Ticket Detail responsive regression | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> npm run test:e2e -- e2e/lab-02/responsive-visual.spec.ts -g 'Ticket Detail and Attachments'` | **Pass** — 3 tests, 3 passed at `1440x900`, `820x1180`, and `390x844` |
 
+### Regression follow-up (2026-09-25)
+
+A shared `.tt-table` change added end padding to every final cell and narrowed the Attachment Actions column. Keep that inset on other tables; `.tt-table--attachments` clears final-cell end padding so its three icon controls retain one row.
+
+Focused client validation passed (106 tests across four suites), and `npm run build` passed with existing dependency-annotation and chunk-size warnings. Playwright parsed all 11 affected E2E cases with `--list`; browser E2E was not run locally because `NODE_ENV` and guarded `TEST_DATABASE_URL` were unset. CI must rerun the database-backed browser cases to re-establish visual evidence.
+
 ## 16. Completion Rule
 
 Lab 2 testing is complete only when:

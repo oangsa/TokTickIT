@@ -12,6 +12,12 @@ not a transcript.
 |---|---|
 | Diagnose the Lab 3 CI Playwright failures in inherited Lab 2 requester tests. | Updated the inherited E2E tests to authenticate seeded Requesters and use Lab 3 protected endpoints and UI selectors. Preserved Create Ticket recovery, Requester flows, Attachment lifecycle, and responsive coverage. Playwright listed all 60 tests; the full browser suite was not run because no local test database was configured. |
 
+## Lab 3 CI E2E failure repair (2026-09-25)
+
+| Prompt | What I did with the result |
+|---|---|
+| Diagnose the five failing Lab 2 Requester Playwright cases on the Lab 3 verification branch. | Made the ownership flow sign out Alice before Bob's login; changed pre-submit generated-field checks to read their `<output>` text; restored Attachment action-column space lost to shared table-cell padding. Four focused client suites passed (106 tests), client build passed with existing warnings, and Playwright parsed all 11 affected cases. Browser E2E remains unverified locally because guarded database variables were absent. |
+
 ## Current client structure follow-up (2026-09-19)
 
 | Prompt | What I did with the result |

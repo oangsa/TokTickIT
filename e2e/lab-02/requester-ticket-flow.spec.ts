@@ -5,6 +5,7 @@ import {
   BOB_EMAIL,
   restoreSeededPassword,
   signInSeededRequester,
+  signOutIfAuthenticated,
 } from "../helpers/requester-auth.js";
 
 interface FilePayload {
@@ -145,6 +146,7 @@ test.describe("Lab 2 Requester browser flows", () => {
     const created = await submitTicket(page);
 
     await restoreSeededPassword(page, aliceSession);
+    await signOutIfAuthenticated(page);
     const bobSession = await signInSeededRequester(page, BOB_EMAIL);
 
     try {
