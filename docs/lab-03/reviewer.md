@@ -9,9 +9,11 @@
 |----|--------|------------------|
 | [#67](https://github.com/oangsa/TokTickIT/pull/67) | feature/60-lab3-data-auth-backend | Approved after changes requested; merged |
 | [#68](https://github.com/oangsa/TokTickIT/pull/68) | feature/61-commonform-auth-frontend | Approved after changes requested; merged |
-| [#69](https://github.com/oangsa/TokTickIT/pull/69) | feature/62-requester-auth-migration | Intended approval per author clarification; GitHub still records changes requested, then merge |
+| [#69](https://github.com/oangsa/TokTickIT/pull/69) | feature/62-requester-auth-migration | Approved 2026-09-25 after earlier changes requested; merged |
 | [#70](https://github.com/oangsa/TokTickIT/pull/70) | feature/63-staff-queue-ticket-workflow | Approved; merged |
 | [#71](https://github.com/oangsa/TokTickIT/pull/71) | feature/64-communication-admin-users | Approved after review comments; merged |
+| [#72](https://github.com/oangsa/TokTickIT/pull/72)–[#74](https://github.com/oangsa/TokTickIT/pull/74) | Later shared refactor/fix branches | Merged; no recorded GitHub reviews as of 2026-09-25 |
+| [#75](https://github.com/oangsa/TokTickIT/pull/75) | feature/65-lab3-final-verification-release | Changes requested 2026-09-25; open |
 
 Reviewer comments I received (@kittipichcha):
 
@@ -97,7 +99,7 @@ Transport/source inspection found server-authoritative User/session/role context
 
 The first full browser run had five failures: three Administrator responsive cases lacked an `/api/admin/users` mock, and two Staff E2E selectors expected old `Sort` and `WAITING_FOR_REQUESTER` UI text. All five passed targeted rerun; complete browser rerun passed. A subsequent responsive run exposed a test strict-mode collision after mobile cards were added; the locator was scoped to the visible card/table, then focused and complete runs passed. The new live auth test initially queried the cookie at `/` despite its `/api/auth` path; corrected lookup passed.
 
-GitHub shows feature PRs #67–#71 merged into `lab3-staging`. PRs #67, #68, #70, and #71 have recorded approvals. The author clarified on 2026-09-25 that PR #69's changes-requested verdict was a mistake and approval was intended. A fresh GitHub review query still shows only `CHANGES_REQUESTED`, with no recorded approval; the peer reviewer must correct the GitHub record for a documented approval claim. Later refactor/fix PRs #72–#74 show no recorded reviews in the queried GitHub review list. This Issue 7 branch has no PR or peer review yet. The required reviewed integration claim therefore remains unproven. No `lab3-staging` to `main` release PR exists or was created here.
+GitHub shows feature PRs #67–#71 merged into `lab3-staging` with recorded approvals, including a subsequent `APPROVED` review for #69 from @kittipichcha at 2026-09-25 07:15:07 UTC. Later shared refactor/fix PRs #72–#74 were merged with no recorded GitHub reviews. PR #75 is open with `CHANGES_REQUESTED` at head `c556d37`; local responses to that review are uncommitted. The required reviewed integration claim remains unproven for #72–#74 and #75. No `lab3-staging` to `main` release PR exists.
 
 Proposed release PR title: **Lab 3: authenticated requester, staff workflow, administrator management, and verification**.
 
@@ -109,10 +111,10 @@ Proposed release PR body (prepare only; refresh results after Issue 7 merges):
 >
 > ## Verification
 >
-> Guarded disposable PostgreSQL: fresh migration and populated Lab 2 upgrade passed; seed was idempotent; cleanup was repeatable and preserved business rows. Server 1,052/1,052 and client 365/365 tests passed; both builds passed. Lab 3 Playwright passed 48/48, including 30 responsive cases. Screenshots: `docs/lab-03/evidence/screenshots/`.
+> Guarded disposable PostgreSQL: fresh migration and populated Lab 2 upgrade passed; seed was idempotent; cleanup was repeatable and preserved business rows. Server 1,052/1,052 and client 365/365 tests passed; both builds passed. Lab 3 Playwright passed 58/58, including 30 responsive cases; complete Playwright passed 70/70 locally. Screenshots: `docs/lab-03/evidence/screenshots/`.
 >
 > ## Review before release
 >
-> Review Issue 7 evidence and the owner-specific E2E gaps recorded in `docs/lab-03/reviewer.md`. PR #69's author says its changes-requested verdict was mistaken and approval was intended; GitHub still lacks the corrected approval. Later PRs #72–#74 have no recorded reviews. Confirm the required peer-review disposition and rerun integration checks on merged `lab3-staging` before opening this PR.
+> Review Issue 7 evidence and this PR's final CI run. PR #69 has a recorded approval after its earlier changes-requested review. PRs #72–#74 were merged without recorded GitHub reviews; document peer-review disposition before claiming the staging workflow complete. Rerun integration checks on merged `lab3-staging` before opening the release PR.
 
-**Coverage limits.** Existing E2E files do not individually demonstrate every action listed in Issue 7's acceptance text. Requester browser coverage omits direct idempotency/recovery and Looks Resolved/Reopen paths; Staff browser coverage omits some race/page/assignment combinations; User Administration browser coverage omits explicit pagination, copy/no-storage, last-active-Administrator, and owner-unassignment paths. Corresponding unit/API/PostgreSQL tests passed where implemented, but those do not turn the missing browser assertions into E2E proof. These gaps belong to the focused owners (Issues 4–6) before a final release claim. No commit, push, branch switch, or release PR was made; Issue 7 work remains uncommitted for review.
+**PR #75 review response, local only.** Removed committed browser JWT literals from workflow and Playwright fallback; both now generate a random 32-byte secret at runtime. Added Lab 3 browser cases for authenticated ambiguous Create Ticket replay, My Tickets search/filter/sort/page, resolution confirmation/reopen, Staff queue default order/page, simultaneous Claim, Administrator reassign, Staff Attachment read, Requester reopen followed by Staff reclaim, User pagination/copy/no-storage, deactivation/session revocation/owner unassignment, and concurrent last-active-Administrator protection. Guarded local runs passed: complete Playwright 70/70 (58 Lab 3), full server regression 1,052/1,052, client regression 365/365, and both builds. Earlier GitHub Global Verification runs [36128542774](https://github.com/oangsa/TokTickIT/actions/runs/36128542774) and [36128538609](https://github.com/oangsa/TokTickIT/actions/runs/36128538609) passed at `c556d37`, before these changes. Final-head CI and PR #75 re-review remain pending because changes are uncommitted; #72–#74 review disposition also remains open. GitGuardian's `requester-auth.ts` alert points to a runtime-generated value and ignored local handoff, so inspection found no committed real password in that occurrence.

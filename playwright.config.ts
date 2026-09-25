@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { defineConfig } from "@playwright/test";
 import { assertLab3TargetEnvironment } from "./server/src/databaseTargetGuard.js";
 
@@ -79,7 +80,7 @@ function testEnvironment(testUrl: string): NodeJS.ProcessEnv {
     DATABASE_URL: testUrl,
     DIRECT_URL: testUrl,
     CORS_ALLOWED_ORIGINS: clientBaseUrl,
-    JWT_SECRET: process.env.JWT_SECRET || "synthetic-test-jwt-secret-at-least-32-chars-long",
+    JWT_SECRET: process.env.JWT_SECRET || randomBytes(32).toString("hex"),
   };
 }
 

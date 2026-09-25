@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { createStaffFixture, loginStaffFixture } from "./staff-fixture.js";
 
-test("E2E-05 Administrator User Management golden path @issue-6", async ({ page }) => {
+test("E2E-05 Administrator User Management golden path @issue-6", async ({ page, context }) => {
   const fixture = await createStaffFixture();
   const suffix = randomUUID().slice(0, 8);
   const targetEmail = `target-${suffix}@example.test`;
@@ -58,10 +58,15 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page 
     await expect(initialPasswordInput).toBeVisible();
     const initialPassword = await initialPasswordInput.inputValue();
     expect(initialPassword.length).toBe(16);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByRole("button", { name: "Copy initial password" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(initialPassword);
+    expect(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))).not.toContain(initialPassword);
 
     // Done button returns to users list
     await page.getByRole("button", { name: "Done", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/users$/);
+    await expect(page.getByTestId("initial-password-panel")).toHaveCount(0);
 
     // 4. Duplicate email validation
     await page.getByRole("link", { name: "Create User", exact: true }).click();
@@ -145,6 +150,93 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page 
     // Clean up created target user
     await fixture.prisma.userSession.deleteMany({ where: { user: { email: targetEmail } } });
     await fixture.prisma.user.deleteMany({ where: { email: targetEmail } });
+    await fixture.dispose();
+  }
+});
+
+test("E2E-05 User list paginates and deactivation revokes owner session @issue-6", async ({ page, browser }) => {
+  const fixture = await createStaffFixture();
+  const extraUsers = Array.from({ length: 11 }, (_, index) => ({
+    name: `Page Fixture ${String(index).padStart(2, "0")}`,
+    email: `page-${index}-${randomUUID()}@example.test`, role: "REQUESTER" as const,
+    passwordHash: fixture.requester.passwordHash, mustChangePassword: false,
+    createdBy: "issue6-e2e", updatedBy: "issue6-e2e",
+  }));
+  const staffContext = await browser.newContext();
+  const staffPage = await staffContext.newPage();
+  try {
+    await fixture.prisma.user.createMany({ data: extraUsers });
+    await fixture.prisma.ticket.update({ where: { id: fixture.tickets[0].id }, data: { ownerUserId: fixture.staff.id, currentStatus: "OPEN" } });
+    await loginStaffFixture(staffPage, fixture);
+    await loginStaffFixture(page, fixture, true);
+    await page.goto("/admin/users");
+    await page.getByPlaceholder("Search by name or email…").fill("Page Fixture");
+    await expect(page.locator("table tbody tr")).toHaveCount(10);
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.locator("table tbody tr")).toHaveCount(1);
+    await expect(page.getByRole("cell", { name: "Page Fixture 10" })).toBeVisible();
+
+    await page.goto(`/admin/users/${fixture.staff.publicId}/edit`);
+    await page.getByLabel("Active", { exact: true }).uncheck();
+    await page.getByRole("button", { name: "Save Changes" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
+    await expect(page.getByText("User updated successfully.")).toBeVisible();
+    expect(await fixture.prisma.ticket.findUniqueOrThrow({ where: { id: fixture.tickets[0].id } })).toMatchObject({ ownerUserId: null });
+    await staffPage.reload();
+    await expect(staffPage).toHaveURL(/\/login$/);
+  } finally {
+    await staffContext.close();
+    await fixture.prisma.userSession.deleteMany({ where: { user: { email: { in: extraUsers.map((user) => user.email) } } } });
+    await fixture.prisma.user.deleteMany({ where: { email: { in: extraUsers.map((user) => user.email) } } });
+    await fixture.dispose();
+  }
+});
+
+test("E2E-05 concurrent Administrator deactivation preserves last active Administrator @issue-6", async ({ page, browser }) => {
+  const fixture = await createStaffFixture();
+  const secondAdmin = await fixture.prisma.user.create({ data: {
+    name: "Other Workflow Administrator", email: `other-admin-${randomUUID()}@example.test`,
+    role: "ADMINISTRATOR", passwordHash: fixture.admin.passwordHash, mustChangePassword: false,
+    createdBy: "issue6-e2e", updatedBy: "issue6-e2e",
+  } });
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+  const activeSeedAdmins = await fixture.prisma.user.findMany({
+    where: { role: "ADMINISTRATOR", isActive: true, id: { notIn: [fixture.admin.id, secondAdmin.id] } },
+    select: { id: true },
+  });
+  try {
+    await loginStaffFixture(page, fixture, true);
+    await otherPage.goto("/login");
+    await otherPage.getByLabel("Email *").fill(secondAdmin.email);
+    await otherPage.getByLabel("Password *").fill(fixture.password);
+    await otherPage.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(otherPage).toHaveURL(/\/admin\/users$/);
+    await page.goto(`/admin/users/${secondAdmin.publicId}/edit`);
+    await otherPage.goto(`/admin/users/${fixture.admin.publicId}/edit`);
+    await expect(page.getByLabel("Active", { exact: true })).toBeChecked();
+    await expect(otherPage.getByLabel("Active", { exact: true })).toBeChecked();
+    await fixture.prisma.user.updateMany({ where: { id: { in: activeSeedAdmins.map((admin) => admin.id) } }, data: { isActive: false } });
+    for (const editor of [page, otherPage]) {
+      await editor.getByLabel("Active", { exact: true }).uncheck();
+      await editor.getByRole("button", { name: "Save Changes" }).click();
+      await expect(editor.getByRole("dialog", { name: "Deactivate user account?" })).toBeVisible();
+    }
+    const results = await Promise.all([
+      page.waitForResponse((response) => response.url().includes("/api/admin/users/") && response.request().method() === "PATCH"),
+      otherPage.waitForResponse((response) => response.url().includes("/api/admin/users/") && response.request().method() === "PATCH"),
+      page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click(),
+      otherPage.getByRole("dialog").getByRole("button", { name: "Confirm" }).click(),
+    ]);
+    expect([results[0].status(), results[1].status()].sort()).toEqual([200, 409]);
+    expect(await fixture.prisma.user.count({ where: { role: "ADMINISTRATOR", isActive: true } })).toBe(1);
+    const rejectedPage = results[0].status() === 409 ? page : otherPage;
+    await expect(rejectedPage.getByRole("alert")).toContainText("The request failed (HTTP 409).");
+  } finally {
+    await fixture.prisma.user.updateMany({ where: { id: { in: activeSeedAdmins.map((admin) => admin.id) } }, data: { isActive: true } });
+    await otherContext.close();
+    await fixture.prisma.userSession.deleteMany({ where: { userId: secondAdmin.id } });
+    await fixture.prisma.user.delete({ where: { id: secondAdmin.id } });
     await fixture.dispose();
   }
 });
