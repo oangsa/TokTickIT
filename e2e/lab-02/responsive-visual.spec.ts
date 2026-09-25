@@ -199,7 +199,7 @@ for (const viewport of VIEWPORTS) {
 
       await expect(page.getByLabel("Ticket Number")).toHaveText("Assigned on submission");
       await expect(page.getByLabel("Ticket Date")).toHaveText("Assigned on submission");
-      await expect(page.getByLabel("Requester")).toHaveValue("Alice Johnson");
+      await expect(page.getByLabel("Requester")).toHaveText("Alice Johnson");
       await expect(page.getByRole("button", { name: "Submit Ticket", exact: true })).toBeEnabled();
 
       const categoryBox = await page.getByLabel("Category *", { exact: true }).boundingBox();
