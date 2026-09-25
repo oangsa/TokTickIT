@@ -1,8 +1,9 @@
-name: Lab 3 Issue 2 Verification
+name: Lab 3 Global Verification
 
 on:
   pull_request:
     branches:
+      - main
       - lab3-staging
     types: [opened, reopened, synchronize]
   push:
@@ -23,7 +24,7 @@ env:
   CORS_ALLOWED_ORIGINS: http://localhost:5173
 
 jobs:
-  issue-2:
+  server:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -132,80 +133,35 @@ jobs:
           npm run maintenance:cleanup
           npm run maintenance:cleanup
 
-      - name: Install client dependencies for requester browser gate
+      - name: Install client dependencies for full browser suite
         run: npm ci
         working-directory: client
 
-      - name: Install root E2E dependencies for requester browser gate
+      - name: Install root E2E dependencies
         run: npm ci
         working-directory: .
 
-      - name: Install pinned Playwright Chromium for requester browser gate
+      - name: Install pinned Playwright Chromium
         run: npx --no-install playwright install --with-deps chromium
         working-directory: .
 
-      - name: Run focused Issue 4 PostgreSQL-backed Playwright gate
+      - name: Run all Lab 3 Playwright suites
         env:
           NODE_ENV: test
           TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
           JWT_SECRET: lab3-ci-browser-test-secret-only-2026
-        run: >-
-          npm run test:e2e --
-          --grep '@issue-4'
-          e2e/lab-03/requester-regression.spec.ts
-          e2e/lab-03/responsive-visual.spec.ts
+        run: npm run test:e2e
         working-directory: .
 
-      - name: Upload Issue 4 Playwright report
+      - name: Upload full Lab 3 Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lab3-issue4-playwright-report
+          name: lab3-playwright-report
           path: |
             artifacts/lab-03/playwright-report
             artifacts/lab-03/playwright
           if-no-files-found: ignore
-
-      - name: Run focused Issue 2 unit and API gate
-        env:
-          NODE_ENV: test
-          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
-          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
-          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
-          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
-          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
-        run: >-
-          npm test --
-          tests/lab-03/PasswordService.test.ts
-          tests/lab-03/InitialPasswordGenerator.test.ts
-          tests/lab-03/JwtService.test.ts
-          tests/lab-03/SessionService.test.ts
-          tests/lab-03/LoginRateLimitService.test.ts
-          tests/lab-03/AuthService.test.ts
-          tests/lab-03/MaintenanceService.test.ts
-          tests/lab-03/databaseTargetGuard.test.ts
-          tests/lab-03/auth.api.test.ts
-          tests/lab-03/authorization.api.test.ts
-          tests/lab-03/auth-transport.api.test.ts
-          tests/lab-03/error-contract.api.test.ts
-          -t '@issue-2'
-
-      - name: Run focused Issue 2 PostgreSQL gate
-        env:
-          NODE_ENV: test
-          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
-          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
-          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
-          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
-          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
-        run: >-
-          npm test --
-          tests/lab-03/postgres/migration-upgrade.postgres.test.ts
-          tests/lab-03/postgres/schema-contract.postgres.test.ts
-          tests/lab-03/postgres/auth-session.postgres.test.ts
-          tests/lab-03/postgres/rate-limit.postgres.test.ts
-          tests/lab-03/postgres/maintenance.postgres.test.ts
-          -t '@issue-2'
 
       - name: Run full server regression suite from Lab 1 through Lab 3
         env:
@@ -246,31 +202,3 @@ jobs:
 
       - name: Build client
         run: npm run build
-
-      - name: Install root E2E dependencies
-        run: npm ci
-        working-directory: .
-
-      - name: Install pinned Playwright Chromium
-        run: npx --no-install playwright install --with-deps chromium
-        working-directory: .
-
-      - name: Run current Lab 3 Playwright gate
-        env:
-          ISSUE_3_UI_ONLY: "1"
-        run: >-
-          npm run test:e2e --
-          --grep '@issue-3'
-          e2e/lab-03/authentication.spec.ts
-          e2e/lab-03/responsive-visual.spec.ts
-        working-directory: .
-
-      - name: Upload Lab 3 Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lab3-playwright-report
-          path: |
-            artifacts/lab-03/playwright-report
-            artifacts/lab-03/playwright
-          if-no-files-found: ignore

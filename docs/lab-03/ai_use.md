@@ -1,5 +1,11 @@
 # Lab 3 AI Use Record
 
+## Global verification workflow (2026-09-25)
+
+| Prompt | Use of result |
+|---|---|
+| Diagnose the CI `dotenv` import failure and make CI rerun every issue suite globally. | Traced the Issue 3 UI-only spec's eager DB-fixture import to a server-only dependency absent from the client job. Deferred that import until the live DB test runs; changed the workflow to run all Lab 3 Playwright specs with the full server/client regressions and builds. Updated current CI descriptions. No CI run was triggered in this task. |
+
 ## Client structure v2 (2026-09-19)
 
 | Prompt | Use of result |

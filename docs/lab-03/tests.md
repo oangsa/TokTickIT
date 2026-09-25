@@ -989,9 +989,10 @@ The Issue 3 browser command sets `ISSUE_3_UI_ONLY=1`: its authentication and
 responsive specs mock all auth traffic and intentionally start only the client.
 All other browser suites keep the guarded API web server and require the
 dedicated Lab 3 test target and baseline variables.
-The existing `.github/workflows/lab3-issue2-verification.yml` runs the full
-server/client regression and this current Lab 3 Playwright gate in one CI
-workflow; no separate Issue 3 workflow is used.
+The `.github/workflows/lab3-issue2-verification.yml` workflow runs the full
+server/client regression and every Lab 3 Playwright spec on each configured
+push or pull request. Its browser job uses the guarded, seeded Lab 3 database;
+the focused Issue 3 command above remains available for local UI-only checks.
 
 Issue 3 execution at the current head:
 
@@ -1041,9 +1042,9 @@ Issue 4 current-head execution record:
   the three RESP-02 viewports). The server/client browser processes used a
   synthetic test-only JWT secret; no production credential or database was
   used. The mocked UI-only RESP-02 run also passed all three viewport cases.
-- The CI workflow provisions the dedicated Lab 3 PostgreSQL target in the
-  seeded server job, supplies the test-only JWT secret, and runs the exact
-  Issue 4 PostgreSQL-backed Playwright command there.
+- The CI workflow provisions and seeds the dedicated Lab 3 PostgreSQL target,
+  supplies the test-only JWT secret, and runs every Lab 3 Playwright spec,
+  including the Issue 4 PostgreSQL-backed cases.
 - Playwright listing passed and discovers one real-seed E2E-03 case plus three
   RESP-02 viewport cases. The first local browser attempt was rejected because
   the parent process pointed `DATABASE_URL` at the test target; the corrected

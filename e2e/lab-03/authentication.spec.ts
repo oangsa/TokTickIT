@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createStaffFixture } from "./staff-fixture.js";
 
 const FULL_USER = {
   publicId: "e2e-user",
@@ -227,6 +226,7 @@ test("E2E-02 restricted identity reaches Change Password without shell flash @is
 
 test("E2E-01 live Remember Me, refresh bootstrap, and logout-all revoke sessions @issue-3", async ({ page, browser }) => {
   test.skip(process.env.ISSUE_3_UI_ONLY === "1", "Live session proof needs guarded PostgreSQL");
+  const { createStaffFixture } = await import("./staff-fixture.js");
   const fixture = await createStaffFixture(0);
   const secondContext = await browser.newContext();
   const secondPage = await secondContext.newPage();

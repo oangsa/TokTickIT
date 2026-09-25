@@ -289,11 +289,13 @@ npm run build
 
 The guard rejects missing, invalid, baseline-equal, non-Lab-3, or implicit
 database targets. Do not print baseline URLs or the synthetic password. The
-same sequence runs in `.github/workflows/lab3-issue2-verification.yml`. For a
-populated Lab 2 upgrade, the provisioning command generates one random
-16-character initial password per migrated User, stores only Argon2id hashes in
-PostgreSQL, and writes the one-time operator handoff to the ignored
-`server/.local/lab3-migrated-user-credentials.json` file with mode `0600`.
+workflow at `.github/workflows/lab3-issue2-verification.yml` runs the full
+server and client test suites, builds both packages, and runs every Lab 3
+Playwright spec against its guarded, seeded test database. The commands above
+remain focused Issue 2 checks. For a populated Lab 2 upgrade, the provisioning
+command generates one random 16-character initial password per migrated User,
+stores only Argon2id hashes in PostgreSQL, and writes the one-time operator
+handoff to `server/.local/lab3-migrated-user-credentials.json` with mode `0600`.
 Protect or delete that file after handoff; passwords are never printed or
 logged.
 The guarded seed command hands off synthetic initial credentials through the
