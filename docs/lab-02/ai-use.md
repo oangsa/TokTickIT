@@ -6,6 +6,12 @@ This is the canonical Lab 2 AI-use record. It curates ten important prompts
 from the prompt history available in the repository and current session; it is
 not a transcript.
 
+## Lab 3 CI regression follow-up (2026-09-25)
+
+| Prompt | What I did with the result |
+|---|---|
+| Diagnose the Lab 3 CI Playwright failures in inherited Lab 2 requester tests. | Updated the inherited E2E tests to authenticate seeded Requesters and use Lab 3 protected endpoints and UI selectors. Preserved Create Ticket recovery, Requester flows, Attachment lifecycle, and responsive coverage. Playwright listed all 60 tests; the full browser suite was not run because no local test database was configured. |
+
 ## Current client structure follow-up (2026-09-19)
 
 | Prompt | What I did with the result |

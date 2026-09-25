@@ -1461,3 +1461,15 @@ Shared Ticket DTO mapping and Prisma relation selection now live in `server/src/
 - Server and client production builds: passed.
 
 The first full-server command was attempted before the disposable target and explicit Lab 3 overrides were supplied; 23 PostgreSQL suite hooks failed during setup. No full database-backed suite pass is claimed from that attempt.
+
+## Inherited Lab 2 browser-suite compatibility — 2026-09-25
+
+The reported Lab 3 CI run (48 passed, 12 failed) showed inherited Lab 2 requester browser tests failing in setup. They still requested unauthenticated `GET /api/requesters`; Lab 3 removes that bootstrap route and protects API resources with full sessions. Updated those tests to log in with seeded Requesters, send Bearer tokens for direct API setup, use `/api/users/me/*` routes, and assert current authenticated UI controls. Create Ticket recovery, golden-path actions, owner isolation, Attachment lifecycle, and all nine viewport cases remain covered.
+
+| Verification | Result |
+| --- | --- |
+| Reported CI run before repair | 48 passed, 12 failed; five minutes |
+| `npm run test:e2e -- --list` with a synthetic Lab 3 test URL | Listed all 60 Playwright tests; no browser tests ran |
+| Full Playwright execution after repair | Not run locally: `TEST_DATABASE_URL` is unset, PostgreSQL ports 5432/55432/55434/55435 are closed, and Docker socket access is denied |
+
+The CI artifact and GitHub run details could not be fetched from this environment. No application source, API contract, or database schema changed in this repair.

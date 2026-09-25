@@ -5,6 +5,7 @@
 | Prompt | Use of result |
 |---|---|
 | Diagnose the CI `dotenv` import failure and make CI rerun every issue suite globally. | Traced the Issue 3 UI-only spec's eager DB-fixture import to a server-only dependency absent from the client job. Deferred that import until the live DB test runs; changed the workflow to run all Lab 3 Playwright specs with the full server/client regressions and builds. Updated current CI descriptions. No CI run was triggered in this task. |
+| Diagnose the Lab 3 CI run with 12 failures in inherited Lab 2 Playwright suites. | Traced failures to unauthenticated tests still calling the removed `/api/requesters` endpoint. Updated inherited tests to use seeded User authentication, Lab 3 requester routes, and current UI controls while preserving their flows. Local E2E execution remains unverified because no dedicated local PostgreSQL target is configured. |
 
 ## Client structure v2 (2026-09-19)
 

@@ -1,87 +1,11 @@
-import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { expect, test, type Page } from "@playwright/test";
-
-const ALICE_EMAIL = "alice.johnson@example.com";
-const BOB_EMAIL = "bob.smith@example.com";
-const SEED_CREDENTIALS_PATH = resolve(
-  process.cwd(),
-  "server/.local/lab3-seed-credentials.json",
-);
-const TEMPORARY_PASSWORD = `E2e-${randomUUID()}!`;
-
-interface SeededSession {
-  initialPassword: string;
-  passwordWasChanged: boolean;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readSeedPassword(email: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(SEED_CREDENTIALS_PATH, "utf8"));
-  } catch {
-    throw new Error("Lab 3 seed credentials are unavailable; run the guarded E2E setup first.");
-  }
-
-  if (!isRecord(parsed) || typeof parsed[email] !== "string") {
-    throw new Error("Lab 3 seed credentials do not contain the required Requester.");
-  }
-
-  return parsed[email];
-}
-
-async function fillLogin(page: Page, email: string, password: string): Promise<void> {
-  await page.getByLabel("Email *", { exact: true }).fill(email);
-  await page.getByLabel("Password *", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-}
-
-async function signInSeededRequester(page: Page, email: string): Promise<SeededSession> {
-  const initialPassword = readSeedPassword(email);
-
-  await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
-  await fillLogin(page, email, initialPassword);
-
-  await expect(page).toHaveURL(/\/(change-password|tickets)$/);
-  const passwordChangeRequired = new URL(page.url()).pathname === "/change-password";
-
-  if (!passwordChangeRequired) {
-    await expect(page).toHaveURL(/\/tickets$/);
-    return { initialPassword, passwordWasChanged: false };
-  }
-
-  await page.getByLabel("New Password *", { exact: true }).fill(TEMPORARY_PASSWORD);
-  await page.getByLabel("Confirm New Password *", { exact: true }).fill(TEMPORARY_PASSWORD);
-  await page.getByRole("button", { name: "Change Password", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
-
-  await fillLogin(page, email, TEMPORARY_PASSWORD);
-  await expect(page).toHaveURL(/\/tickets$/);
-
-  return { initialPassword, passwordWasChanged: true };
-}
-
-async function restoreSeededPassword(page: Page, session: SeededSession): Promise<void> {
-  if (!session.passwordWasChanged) {
-    return;
-  }
-
-  await page.goto("/change-password");
-  await expect(page.getByRole("heading", { name: "Change Password", exact: true })).toBeVisible();
-  await page.getByLabel("Current Password *", { exact: true }).fill(TEMPORARY_PASSWORD);
-  await page.getByLabel("New Password *", { exact: true }).fill(session.initialPassword);
-  await page.getByLabel("Confirm New Password *", { exact: true }).fill(session.initialPassword);
-  await page.getByRole("button", { name: "Change Password", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
-  session.passwordWasChanged = false;
-}
+import {
+  ALICE_EMAIL,
+  BOB_EMAIL,
+  restoreSeededPassword,
+  signInSeededRequester,
+  type SeededSession,
+} from "../helpers/requester-auth.js";
 
 async function signOutIfAuthenticated(page: Page): Promise<void> {
   await page.goto("/tickets");
