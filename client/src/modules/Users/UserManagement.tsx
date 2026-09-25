@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { Link } from "react-router-dom";
 import { readPaginationHeader, type PaginationMetadata } from "../../api.js";
 import { useAuthenticatedApi } from "../../auth/useAuthenticatedApi.js";
 import { Chip } from "../../components/Common/Chip.js";
@@ -138,6 +139,22 @@ export default function UserManagement() {
         title="User Management"
         fetchData={fetchUsers}
         columns={COLUMNS}
+        renderMobileCard={(user) => (
+          <article className="border rounded p-3" data-testid={`user-card-${user.publicId}`}>
+            <h2 className="h6 text-break">{user.name}</h2>
+            <p className="text-break mb-2">{user.email}</p>
+            <div className="d-flex flex-wrap gap-2 mb-3">
+              <Chip variant="outline">{statusLabel(user.role)}</Chip>
+              <Chip variant={user.isActive ? "subtle" : "outline"}>
+                {user.isActive ? "Active" : "Inactive"}
+              </Chip>
+            </div>
+            <div className="d-flex gap-3">
+              <Link to={`/admin/users/${user.publicId}`}>View</Link>
+              <Link to={`/admin/users/${user.publicId}/edit`}>Edit</Link>
+            </div>
+          </article>
+        )}
         filterFields={FILTER_FIELDS}
         searchLabel="Search Users"
         searchPlaceholder="Search by name or email…"

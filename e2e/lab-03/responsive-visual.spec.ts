@@ -90,7 +90,7 @@ async function fulfillAuth(
 }
 
 async function stubAuth(page: Page, user = STAFF_USER): Promise<void> {
-  for (const resource of ["tickets", "users/assignable", "categories", "related-systems"]) {
+  for (const resource of ["tickets", "users/assignable", "admin/users", "categories", "related-systems"]) {
     await page.route(`**/api/${resource}{,?*}`, async (route) => { await fulfillAuth(route, 200, []); });
   }
   await page.route("**/api/auth/refresh", async (route) => {
@@ -503,15 +503,15 @@ for (const viewport of VIEWPORTS) {
       await expect(page.getByRole("link", { name: /^Open Ticket/ }).first()).toBeVisible();
     }
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/queue-${viewport.width}.png`, fullPage: true });
+    await page.screenshot({ animations: "disabled", path: `docs/lab-03/evidence/screenshots/staff-queue/queue-${viewport.width}.png`, fullPage: true });
     await page.getByLabel("Search Tickets").fill("No matching synthetic Ticket");
     await expect(page.getByText(/No Tickets match your search/)).toBeVisible();
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-queue/no-results-${viewport.width}.png`, fullPage: true });
+    await page.screenshot({ animations: "disabled", path: `docs/lab-03/evidence/screenshots/staff-queue/no-results-${viewport.width}.png`, fullPage: true });
     await page.goto(`/staff/tickets/${STAFF_TICKETS[0].publicId}`);
     await expect(page.getByRole("button", { name: "Claim Ticket" })).toBeVisible();
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({ path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/unassigned-${viewport.width}.png`, fullPage: true });
+    await page.screenshot({ animations: "disabled", path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/unassigned-${viewport.width}.png`, fullPage: true });
   });
 }
 
@@ -545,6 +545,7 @@ for (const viewport of VIEWPORTS) {
     await expect(page.getByLabel("Email *")).toBeVisible();
     await expect(page.getByLabel("Password *")).toBeVisible();
     await assertNoHorizontalOverflow(page);
+    await page.screenshot({ animations: "disabled", path: `docs/lab-03/evidence/screenshots/authentication/login-${viewport.width}.png`, fullPage: true });
   });
 
   test(`RESP-01 Change Password remains readable at ${viewport.width}x${viewport.height} @issue-3`, async ({ page }) => {
@@ -556,6 +557,16 @@ for (const viewport of VIEWPORTS) {
     await expect(page.getByLabel("Confirm New Password *", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Current Password *", { exact: true })).not.toBeVisible();
     await assertNoHorizontalOverflow(page);
+    await page.screenshot({ animations: "disabled", path: `docs/lab-03/evidence/screenshots/authentication/change-password-${viewport.width}.png`, fullPage: true });
+  });
+
+  test(`RESP-01 safe 403 remains readable at ${viewport.width}x${viewport.height} @issue-3`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await stubAuth(page, REQUESTER_USER);
+    await page.goto("/staff/tickets");
+    await expect(page.getByText("403", { exact: true })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({ animations: "disabled", path: `docs/lab-03/evidence/screenshots/authentication/safe-403-${viewport.width}.png`, fullPage: true });
   });
 
   for (const shellRole of SHELL_ROLES) {
@@ -603,7 +614,7 @@ for (const viewport of VIEWPORTS) {
     await expect(page.getByRole("tab", { name: "Public Comments" })).toBeVisible();
     await expect(page.getByText("Please send more details")).toBeVisible();
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
+    await page.screenshot({ animations: "disabled",
       path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/detail-comments-${viewport.width}.png`,
       fullPage: true,
     });
@@ -613,7 +624,7 @@ for (const viewport of VIEWPORTS) {
     await expect(page.getByRole("alert")).toContainText("Visible only to IT Staff and Administrators");
     await expect(page.getByText("Checked RADIUS server logs")).toBeVisible();
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
+    await page.screenshot({ animations: "disabled",
       path: `docs/lab-03/evidence/screenshots/staff-ticket-detail/detail-notes-${viewport.width}.png`,
       fullPage: true,
     });
@@ -626,9 +637,18 @@ for (const viewport of VIEWPORTS) {
     // User List
     await page.goto("/admin/users");
     await expect(page.getByRole("heading", { name: "User Management", exact: true })).toBeVisible();
-    await expect(page.getByText("Alice Requester")).toBeVisible();
+    if (viewport.width < 1200) {
+      const userCard = page.getByTestId(`user-card-${SYNTHETIC_USERS[0].publicId}`);
+      await expect(userCard.getByRole("heading", { name: "Alice Requester" })).toBeVisible();
+      await expect(userCard.getByText("alice@example.test")).toBeVisible();
+      await expect(userCard.getByText("Active", { exact: true })).toBeVisible();
+      await expect(userCard.getByRole("link", { name: "Edit" })).toBeVisible();
+      await expect(page.getByTestId("user-table")).toBeHidden();
+    } else {
+      await expect(page.getByTestId("user-row-synthetic-user-1")).toBeVisible();
+    }
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
+    await page.screenshot({ animations: "disabled",
       path: `docs/lab-03/evidence/screenshots/user-management/users-list-${viewport.width}.png`,
       fullPage: true,
     });
@@ -637,7 +657,7 @@ for (const viewport of VIEWPORTS) {
     await page.goto("/admin/users/new");
     await expect(page.getByRole("heading", { name: "Create User", exact: true })).toBeVisible();
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
+    await page.screenshot({ animations: "disabled",
       path: `docs/lab-03/evidence/screenshots/user-management/user-create-${viewport.width}.png`,
       fullPage: true,
     });
@@ -647,7 +667,7 @@ for (const viewport of VIEWPORTS) {
     await expect(page.getByRole("heading", { name: /Edit / })).toBeVisible();
     await expect(page.getByLabel("Name *")).toHaveValue("Alice Requester");
     await assertNoHorizontalOverflow(page);
-    await page.screenshot({
+    await page.screenshot({ animations: "disabled",
       path: `docs/lab-03/evidence/screenshots/user-management/user-edit-${viewport.width}.png`,
       fullPage: true,
     });

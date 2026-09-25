@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import UserManagement, { type UserListItem } from "../../src/modules/Users/UserManagement.js";
@@ -90,7 +90,7 @@ describe("UserManagement page @issue-6", () => {
   describe("UI-26 User Management table, search, role filter, and pagination", () => {
     it("renders table with required columns, user rows, and Edit and View actions", async () => {
       renderUserManagement();
-      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+      expect(await screen.findByTestId("user-row-u-1")).toBeInTheDocument();
 
       // Column headers
       expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
@@ -100,18 +100,19 @@ describe("UserManagement page @issue-6", () => {
       expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
 
       // User rows
-      expect(screen.getByText("alice@example.test")).toBeInTheDocument();
-      expect(screen.getByText("Bob Staff")).toBeInTheDocument();
-      expect(screen.getByText("bob@example.test")).toBeInTheDocument();
-      expect(screen.getByText("Charlie Admin")).toBeInTheDocument();
+      const table = within(screen.getByTestId("user-table"));
+      expect(table.getByText("alice@example.test")).toBeInTheDocument();
+      expect(table.getByText("Bob Staff")).toBeInTheDocument();
+      expect(table.getByText("bob@example.test")).toBeInTheDocument();
+      expect(table.getByText("Charlie Admin")).toBeInTheDocument();
 
       // View links
-      const viewLinks = screen.getAllByRole("link", { name: "View" });
+      const viewLinks = table.getAllByRole("link", { name: "View" });
       expect(viewLinks.length).toBe(3);
       expect(viewLinks[0]).toHaveAttribute("href", "/admin/users/u-1");
 
       // Edit links
-      const editLinks = screen.getAllByRole("link", { name: "Edit" });
+      const editLinks = table.getAllByRole("link", { name: "Edit" });
       expect(editLinks.length).toBe(3);
       expect(editLinks[0]).toHaveAttribute("href", "/admin/users/u-1/edit");
 
@@ -122,13 +123,13 @@ describe("UserManagement page @issue-6", () => {
       );
 
       // Clicking row navigates to View User Page
-      await userEvent.click(screen.getByText("Alice Requester"));
+      await userEvent.click(table.getByText("Alice Requester"));
       expect(await screen.findByText("View User Page")).toBeInTheDocument();
     });
 
     it("searches users by name or email on form submission", async () => {
       renderUserManagement();
-      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+      expect(await screen.findByTestId("user-row-u-1")).toBeInTheDocument();
 
       const searchInput = screen.getByLabelText(/search users by name or email/i);
       await userEvent.type(searchInput, "Alice");
@@ -144,7 +145,7 @@ describe("UserManagement page @issue-6", () => {
 
     it("filters users by role via modal dropdown selection", async () => {
       renderUserManagement();
-      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+      expect(await screen.findByTestId("user-row-u-1")).toBeInTheDocument();
 
       const filterButton = screen.getByRole("button", { name: /filter/i });
       await userEvent.click(filterButton);
@@ -181,7 +182,7 @@ describe("UserManagement page @issue-6", () => {
 
     it("sorts users by column header click", async () => {
       renderUserManagement();
-      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+      expect(await screen.findByTestId("user-row-u-1")).toBeInTheDocument();
 
       const nameHeader = screen.getByRole("columnheader", { name: /name/i });
       await userEvent.click(nameHeader);
@@ -196,7 +197,7 @@ describe("UserManagement page @issue-6", () => {
 
     it("never renders delete action for users", async () => {
       renderUserManagement();
-      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+      expect(await screen.findByTestId("user-row-u-1")).toBeInTheDocument();
 
       expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
     });
@@ -240,7 +241,7 @@ describe("UserManagement page @issue-6", () => {
   describe("UI-37 Security hygiene in user list", () => {
     it("never exposes password hashes, tokens, or credential fields", async () => {
       renderUserManagement();
-      expect(await screen.findByText("Alice Requester")).toBeInTheDocument();
+      expect(await screen.findByTestId("user-row-u-1")).toBeInTheDocument();
 
       expect(screen.queryByText(/argon2/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/password/i)).not.toBeInTheDocument();

@@ -1212,13 +1212,13 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
 | DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`; GitGuardian alerts for synthetic password-response literals in commit `c1450b8` (`UserForm.test.tsx`) are confirmed synthetic mock fixtures, replaced with explicit placeholders in `e0bfeab`, and dispositioned as false positives. |
-| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — current guarded server regression 53 files/747 tests and full client regression 18 files/276 tests. |
+| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — 2026-09-25 guarded Lab 1/Lab 2 server 30 files/668 tests and client 10 files/250 tests; complete server 68/1,052 and client 26/365. |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Pass for production paths — current production route/transport scan is clean; recovery storage now contains only idempotency key, creation time, and payload, while auth teardown clears ambiguous recovery. Focused client/API tests also assert the new routes and absent header. |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Pass |
-| DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Tracked evidence exists under `docs/lab-03/evidence/screenshots/` and is readable and passes Section 12 checklist. | Not Run |
-| DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Not Run |
+| DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Evidence exists under `docs/lab-03/evidence/screenshots/` at 1440×900, 820×1180, and 390×844. | Pass — 33 PNGs generated and representative images inspected on 2026-09-25; automated overflow assertions passed. |
+| DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Pass — all 38 server, 16 client, and 5 E2E spec files executed on 2026-09-25. |
 | DATA-10 | Maintenance | AC-66 | Documented maintenance command and safe repeat-run evidence. | Command targets only eligible session/rate-limit technical state and can be repeated safely. | Pass |
-| DATA-11 | Workflow | DoD | Feature branches/PRs/focused close gates follow Lab 3 staging flow. | No implementation Issue is marked Done before its owned focused tests pass; final release regression does not replace feature gates. | Not Run |
+| DATA-11 | Workflow | DoD | Feature branches/PRs/focused close gates follow Lab 3 staging flow. | No implementation Issue is marked Done before its owned focused tests pass; final release regression does not replace feature gates. | Blocked — feature PRs #67–#71 merged; author says #69's changes-requested verdict was mistaken, but GitHub still lacks a recorded approval. Issue 7 evidence remains uncommitted/unreviewed. See `reviewer.md`. |
 
 ### 15.1 Explicit Security and Exclusion Evidence
 
@@ -1226,18 +1226,18 @@ The following items deserve explicit review because their absence is part of the
 
 | Contract item | Evidence | Final |
 | --- | --- | --- |
-| No `X-Requester-Id` identity mechanism in Lab 3 app traffic | DATA-06 + API-14 + browser network/E2E inspection | Not Run — production scan and focused API/client assertions pass; browser network inspection is blocked with the other DB-gated E2E checks. |
-| No self-registration endpoint/UI | route inventory + authorization/API tests | Not Run |
-| No User delete endpoint/UI | route inventory + User Management UI/API tests | Not Run |
-| No Public Comment edit/delete | API-37 + UI-24 | Not Run |
-| No Internal Note edit/delete | API-39 + UI-25 | Not Run |
-| No Staff/Admin Attachment upload/removal | API-55 + route inventory | Not Run |
-| No access JWT in localStorage/sessionStorage | UI-08 + E2E auth storage inspection | Pass — focused AuthProvider coverage and the 22-test browser gate observed empty `localStorage`/`sessionStorage`; bearer state remains in memory. |
-| No refresh plaintext in database | PG-04 | Not Run |
-| No password plaintext in database | PG-04 + DATA-04 | Not Run |
-| No one-time initial password in later User GET/history/Web Storage/logs | API-52 + UI-27/UI-29/UI-37 + DATA-04 | Not Run |
-| No role trust solely from JWT | UNIT-07 + API-13 + session/user-state tests | Not Run |
-| No zero-active-Administrator state under concurrency | API-51 + PG-12 | Not Run |
+| No `X-Requester-Id` identity mechanism in Lab 3 app traffic | DATA-06 + API-14 + browser network/E2E inspection | Pass — production scan and E2E-03 request-header assertions on 2026-09-25. |
+| No self-registration endpoint/UI | route inventory + authorization/API tests | Pass — current route inventory and complete API suite. |
+| No User delete endpoint/UI | route inventory + User Management UI/API tests | Pass — current route inventory and UI/API suites. |
+| No Public Comment edit/delete | API-37 + UI-24 | Pass — GET/POST-only route inventory and complete API/UI suites. |
+| No Internal Note edit/delete | API-39 + UI-25 | Pass — GET/POST-only route inventory and complete API/UI suites. |
+| No Staff/Admin Attachment upload/removal | API-55 + route inventory | Pass — Staff routes expose GET reads; write routes remain under Requester guard. |
+| No access JWT in localStorage/sessionStorage | UI-08 + E2E auth storage inspection | Pass — client and live browser checks observed empty Web Storage during authentication; Create Ticket recovery remains an approved separate record. |
+| No refresh plaintext in database | PG-04 | Pass — guarded PostgreSQL suite and session-service inspection. |
+| No password plaintext in database | PG-04 + DATA-04 | Pass — guarded PostgreSQL suite and Argon2id service inspection. |
+| No one-time initial password in later User GET/history/Web Storage/logs | API-52 + UI-27/UI-29/UI-37 + DATA-04 | Pass for tested paths — API/UI suites and source/log inspection; external GitGuardian was not rerun. |
+| No role trust solely from JWT | UNIT-07 + API-13 + session/user-state tests | Pass — middleware resolves active User/session context through database. |
+| No zero-active-Administrator state under concurrency | API-51 + PG-12 | Pass — guarded API/PostgreSQL suites. |
 
 ### 15.2 Final Release Snapshot Placeholder
 

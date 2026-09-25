@@ -127,3 +127,12 @@ prompt history is unavailable.
 | Prompt | Use of result |
 |---|---|
 | Improve server structure within Lab 1 constraints; then select both Attachment and Ticket candidates and confirm their behavior-preserving scope. | Moved staff Attachment binary lookup and Removed-state handling into `AttachmentService`, kept binary headers in `http/binary.ts`, and moved shared Ticket DTO mapping and relation selection into `ticketRepresentation.ts`. Preserved Lab 1 directories, Prisma schema, and REST responses. Added staff-binary unit and PostgreSQL coverage; 91 focused unit, 137 focused Supertest, 946 non-PostgreSQL server, and 27 guarded PostgreSQL tests passed, as did server/client builds. An earlier full-suite attempt failed in PostgreSQL setup before the disposable target and explicit overrides were provided. No commit or push. |
+
+## Issue 7 final verification (2026-09-25)
+
+| Prompt | Use of result |
+|---|---|
+| Rerun Lab 3 focused and complete gates, guarded Docker PostgreSQL migration/seed/cleanup, Playwright workflows and visual evidence; inspect security and workflow; update delivery records; prepare release PR without creating it. | Used the repository's disposable `toktickit_lab3_test` Docker target with captured, distinct baseline identities and explicit Prisma overrides. Replayed fresh and populated migration evidence, seed and cleanup twice, focused Issue 2–6 checks, full server/client suites and builds, and Lab 3 browser coverage. Fixed stale E2E selectors and missing Administrator mock; added live Remember Me/refresh/logout-all browser proof, authentication/safe-error screenshots, deterministic screenshot capture, and mobile User Management cards after visual inspection found clipped table content. Recorded actual command results and review limits in reviewer.md. No commit, push, branch switch, or release PR was made. |
+| Clarify that PR #69's changes-requested verdict was a mistake and should have been approval. | Rechecked GitHub: it still records `CHANGES_REQUESTED` with no approval. Updated reviewer and workflow evidence to state the intended approval separately from the recorded review state. No GitHub review was changed. |
+
+Only this session's prompt is available for this Issue 7 record. Earlier prompt history in this file was not independently reconstructed or reverified here.

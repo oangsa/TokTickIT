@@ -7,7 +7,7 @@ test("E2E-04 Queue controls, Claim, owner workflow, confirmation and Close @issu
   try {
     await loginStaffFixture(page, fixture);
     await page.getByLabel("Search Tickets").fill(ticket.ticketNumber);
-    await page.getByLabel("Sort", { exact: true }).selectOption("createdAt:asc");
+    await page.getByLabel("Sort by", { exact: true }).selectOption("createdAt:asc");
     await page.getByRole("button", { name: "Filters (2)" }).click();
     await page.getByLabel("Owner", { exact: true }).selectOption("unassigned");
     await page.getByRole("button", { name: "Apply", exact: true }).click();
@@ -140,7 +140,7 @@ test("E2E-06 Requester sees Public Comments, can reply, and AC-28 waiting status
 
     // AC-28: ticket status does NOT auto-resume, remains WAITING_FOR_REQUESTER
     expect((await fixture.prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).currentStatus).toBe("WAITING_FOR_REQUESTER");
-    await expect(page.getByText("WAITING_FOR_REQUESTER", { exact: true })).toBeVisible();
+    await expect(page.getByText("WAITING FOR REQUESTER", { exact: true })).toBeVisible();
   } finally {
     await fixture.dispose();
   }
