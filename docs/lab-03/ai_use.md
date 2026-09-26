@@ -1,5 +1,12 @@
 # Lab 3 AI Use Record
 
+## Global verification workflow (2026-09-25)
+
+| Prompt | Use of result |
+|---|---|
+| Diagnose the CI `dotenv` import failure and make CI rerun every issue suite globally. | Traced the Issue 3 UI-only spec's eager DB-fixture import to a server-only dependency absent from the client job. Deferred that import until the live DB test runs; changed the workflow to run all Lab 3 Playwright specs with the full server/client regressions and builds. Updated current CI descriptions. No CI run was triggered in this task. |
+| Diagnose the Lab 3 CI run with 12 failures in inherited Lab 2 Playwright suites. | Traced failures to unauthenticated tests still calling the removed `/api/requesters` endpoint. Updated inherited tests to use seeded User authentication, Lab 3 requester routes, and current UI controls while preserving their flows. Local E2E execution remains unverified because no dedicated local PostgreSQL target is configured. |
+
 ## Client structure v2 (2026-09-19)
 
 | Prompt | Use of result |
@@ -127,3 +134,13 @@ prompt history is unavailable.
 | Prompt | Use of result |
 |---|---|
 | Improve server structure within Lab 1 constraints; then select both Attachment and Ticket candidates and confirm their behavior-preserving scope. | Moved staff Attachment binary lookup and Removed-state handling into `AttachmentService`, kept binary headers in `http/binary.ts`, and moved shared Ticket DTO mapping and relation selection into `ticketRepresentation.ts`. Preserved Lab 1 directories, Prisma schema, and REST responses. Added staff-binary unit and PostgreSQL coverage; 91 focused unit, 137 focused Supertest, 946 non-PostgreSQL server, and 27 guarded PostgreSQL tests passed, as did server/client builds. An earlier full-suite attempt failed in PostgreSQL setup before the disposable target and explicit overrides were provided. No commit or push. |
+
+## Issue 7 final verification (2026-09-25)
+
+| Prompt | Use of result |
+|---|---|
+| Rerun Lab 3 focused and complete gates, guarded Docker PostgreSQL migration/seed/cleanup, Playwright workflows and visual evidence; inspect security and workflow; update delivery records; prepare release PR without creating it. | Used the repository's disposable `toktickit_lab3_test` Docker target with captured, distinct baseline identities and explicit Prisma overrides. Replayed fresh and populated migration evidence, seed and cleanup twice, focused Issue 2–6 checks, full server/client suites and builds, and Lab 3 browser coverage. Fixed stale E2E selectors and missing Administrator mock; added live Remember Me/refresh/logout-all browser proof, authentication/safe-error screenshots, deterministic screenshot capture, and mobile User Management cards after visual inspection found clipped table content. Recorded actual command results and review limits in reviewer.md. No commit, push, branch switch, or release PR was made. |
+| Clarify that PR #69's changes-requested verdict was a mistake and should have been approval. | Rechecked GitHub: it still records `CHANGES_REQUESTED` with no approval. Updated reviewer and workflow evidence to state the intended approval separately from the recorded review state. No GitHub review was changed. |
+| PR #75 review requesting fixes for committed JWT secret, missing Issue #65 browser scenarios, and stale release evidence. | Generated browser JWT signing secrets at runtime, added real Lab 3 Playwright cases for requester, Staff, and Administrator acceptance paths, reran guarded local verification (70 browser, 1,052 server, 365 client; both builds), and corrected PR #69/#75 review state in `reviewer.md` and `tests.md`. Recorded #72–#74 as lacking GitHub reviews and left final-head CI and peer disposition pending. |
+
+Only this session's prompt is available for this Issue 7 record. Earlier prompt history in this file was not independently reconstructed or reverified here.

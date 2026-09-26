@@ -715,9 +715,9 @@ Each major required screen should have desktop/tablet/mobile captures where the 
 | --- | --- | --- | --- | --- | --- | --- |
 | E2E-01 | E2E | AC-01–05, AC-10, AC-13, AC-18 | Authentication and first-login golden path. | Initial-password User signs in → restricted screen only → invalid/valid password change → forced fresh Login → role shell → Logout → protected direct access blocked; no auth flash on refresh restore. | e2e/lab-03/authentication.spec.ts | Pass |
 | E2E-02 | E2E | AC-02, AC-12, AC-14 | Invalid/inactive Login, rate-limit-safe feedback and role navigation denial. | Unknown/wrong/inactive cases use safe copy; deterministic fixture can reach rate limit; wrong-role URL/API remains forbidden without protected data. | e2e/lab-03/authentication.spec.ts | Pass |
-| E2E-03 | E2E | AC-15–17, AC-31–32 | Authenticated Requester regression golden path. | Requester creates Ticket with Pending Attachment → Active binding → My Tickets/detail/Attachment operations → permitted Cancel or separate ownership-safe reopen fixture; another Requester cannot open resource. Public Comment/thread coverage belongs to E2E-06. | e2e/lab-03/requester-regression.spec.ts | Pass |
-| E2E-04 | E2E | AC-19–27, AC-29–30, AC-33, AC-41–46 | IT Staff Queue and workflow golden path. | Queue search/filter/sort/page → unassigned Ticket → Claim/Open → Start → safe pre-integration Request Information failure (500, unchanged status, no comment) → explicit Resume fixture → Resolve → confirmed Close; terminal and permission boundaries remain correct. Issue 5 verifies the injected transaction seam via API-26 and PG-10; production Request Information → Public Comment → WAITING browser integration is owned by Issue 6 (E2E-06). Public Comment thread/Note detail coverage belongs to E2E-06. | e2e/lab-03/staff-ticket-flow.spec.ts | Pass |
-| E2E-05 | E2E | AC-47–56 | Administrator User Management golden path. | List/search/filter/page → Create User → copy one-time password → duplicate validation → Edit → role/activation safety → reset initial password → target forced change on next Login. | e2e/lab-03/user-administration.spec.ts | Pass |
+| E2E-03 | E2E | AC-15–17, AC-31–32 | Authenticated Requester regression golden path. | Authenticated Create Ticket with Pending-to-Active Attachment, My Tickets search/filter/sort/page and detail, Cancel and cross-Requester 404; ambiguous Create Ticket response replays one record with same idempotency key after reload; Requester confirms resolution and reopens to unassigned. Public Comment/thread coverage belongs to E2E-06. | e2e/lab-03/requester-regression.spec.ts | Pass — 4 browser cases in complete local run 2026-09-25. |
+| E2E-04 | E2E | AC-19–27, AC-29–30, AC-33, AC-41–46 | IT Staff Queue and workflow golden path. | Queue search/filter/sort/default priority order/page, simultaneous Claim conflict, Administrator reassign/unassign, priority independence, Start/Resolve/confirmed Close, Request Information transaction and Resume, Requester reopen clearing Staff ownership followed by Staff reclaim, and existing Staff Attachment preview. Production Request Information → Public Comment → WAITING browser integration belongs to E2E-06. | e2e/lab-03/staff-ticket-flow.spec.ts | Pass — 8 browser cases in complete local run 2026-09-25. |
+| E2E-05 | E2E | AC-47–56 | Administrator User Management golden path. | List/search/filter/page, Create User, one-time copy/no-storage, duplicate validation, Edit/reset/forced password change, deactivation with session revocation and owner unassignment, self-protection, concurrent last-active-Administrator protection. | e2e/lab-03/user-administration.spec.ts | Pass — 3 browser cases in complete local run 2026-09-25. |
 | E2E-06 | E2E | AC-14, AC-16, AC-23–24, AC-28, AC-34–40, AC-54, AC-63–64 | Direct authorization and communication-boundary regression with real browser auth contexts. | Requester cannot Internal Notes/staff/admin APIs; non-owner Staff owner-only action denied; Admin non-owner vs owner differs; cross-Requester uses 404; Public Comment/reply and Internal Note visibility/creation boundaries remain correct; no protected data appears in response/UI. | e2e/lab-03/staff-ticket-flow.spec.ts; e2e/lab-03/user-administration.spec.ts | Pass |
 
 ## 12. Visual Inspection Checklist
@@ -989,9 +989,10 @@ The Issue 3 browser command sets `ISSUE_3_UI_ONLY=1`: its authentication and
 responsive specs mock all auth traffic and intentionally start only the client.
 All other browser suites keep the guarded API web server and require the
 dedicated Lab 3 test target and baseline variables.
-The existing `.github/workflows/lab3-issue2-verification.yml` runs the full
-server/client regression and this current Lab 3 Playwright gate in one CI
-workflow; no separate Issue 3 workflow is used.
+The `.github/workflows/lab3-issue2-verification.yml` workflow runs the full
+server/client regression and every Lab 3 Playwright spec on each configured
+push or pull request. Its browser job uses the guarded, seeded Lab 3 database;
+the focused Issue 3 command above remains available for local UI-only checks.
 
 Issue 3 execution at the current head:
 
@@ -1041,9 +1042,9 @@ Issue 4 current-head execution record:
   the three RESP-02 viewports). The server/client browser processes used a
   synthetic test-only JWT secret; no production credential or database was
   used. The mocked UI-only RESP-02 run also passed all three viewport cases.
-- The CI workflow provisions the dedicated Lab 3 PostgreSQL target in the
-  seeded server job, supplies the test-only JWT secret, and runs the exact
-  Issue 4 PostgreSQL-backed Playwright command there.
+- The CI workflow provisions and seeds the dedicated Lab 3 PostgreSQL target,
+  supplies the test-only JWT secret, and runs every Lab 3 Playwright spec,
+  including the Issue 4 PostgreSQL-backed cases.
 - Playwright listing passed and discovers one real-seed E2E-03 case plus three
   RESP-02 viewport cases. The first local browser attempt was rejected because
   the parent process pointed `DATABASE_URL` at the test target; the corrected
@@ -1212,13 +1213,13 @@ Mocked Unit/API tests must not be described as proof of real PostgreSQL constrai
 | DATA-02 | Migration | AC-65 | Committed migration upgrades populated Lab 2 and fresh schema. | Migration SQL/Prisma history is committed; no drop/recreate shortcut discards Ticket/Attachment history. | Pass |
 | DATA-03 | Seed | AC-65 | Idempotent synthetic Lab 3 seed. | At least required Requester/IT Staff/Admin accounts plus realistic tickets/comments/notes exist; unchanged rerun makes no duplicates, and the local credential handoff authenticates the active roles. | Pass |
 | DATA-04 | Security | AC-64 | Secrets and credential-storage inspection. | Current-head inspection and GitGuardian review pass; no production secret or prohibited plaintext credential persistence/logging is present. | Pass — no current-head secret exposure found; incident `37228452` was dispositioned as a false positive for a synthetic invalid-password fixture in historical test-only commit `d8691ba`; GitGuardian alerts for synthetic password-response literals in commit `c1450b8` (`UserForm.test.tsx`) are confirmed synthetic mock fixtures, replaced with explicit placeholders in `e0bfeab`, and dispositioned as false positives. |
-| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — current guarded server regression 53 files/747 tests and full client regression 18 files/276 tests. |
+| DATA-05 | Regression | AC-17 | Full Lab 1/Lab 2 automated regression alongside Lab 3. | Existing Lab 1/Lab 2 server/client tests pass or are deliberately evolved with equivalent/new coverage where authentication changes the old contract. | Pass — 2026-09-25 guarded Lab 1/Lab 2 server 30 files/668 tests and client 10 files/250 tests; complete server 68/1,052 and client 26/365. |
 | DATA-06 | Repository | AC-17 | Removal of temporary Requester identity mechanism. | No active `/requesters` route, Change Requester action, `X-Requester-Id` client injection, or sessionStorage requester identity remains in Lab 3 app paths. | Pass for production paths — current production route/transport scan is clean; recovery storage now contains only idempotency key, creation time, and payload, while auth teardown clears ambiguous recovery. Focused client/API tests also assert the new routes and absent header. |
 | DATA-07 | Tooling | AC-57–60 | Package manifests/lockfiles contain the approved form/auth/test dependencies without introducing another UI framework. | Bootstrap 5 remains UI framework; RHF/Zod/auth libraries are pinned through committed lockfiles; root Playwright remains local/pinned. | Pass |
-| DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Tracked evidence exists under `docs/lab-03/evidence/screenshots/` and is readable and passes Section 12 checklist. | Not Run |
-| DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Not Run |
+| DATA-08 | Visual | AC-61–63 | Required screenshot artifact directories and exact viewport evidence exist. | Evidence exists under `docs/lab-03/evidence/screenshots/` at 1440×900, 820×1180, and 390×844. | Pass — 33 PNGs generated and representative images inspected on 2026-09-25; automated overflow assertions passed. |
+| DATA-09 | Test DD | All AC | Handout-required Lab 3 test filenames exist as real files, with additional modular tests allowed. | Required server/client/E2E filenames are present and execute; every AC has planned and final traceability. | Pass — all 38 server, 16 client, and 5 E2E spec files executed on 2026-09-25. |
 | DATA-10 | Maintenance | AC-66 | Documented maintenance command and safe repeat-run evidence. | Command targets only eligible session/rate-limit technical state and can be repeated safely. | Pass |
-| DATA-11 | Workflow | DoD | Feature branches/PRs/focused close gates follow Lab 3 staging flow. | No implementation Issue is marked Done before its owned focused tests pass; final release regression does not replace feature gates. | Not Run |
+| DATA-11 | Workflow | DoD | Feature branches/PRs/focused close gates follow Lab 3 staging flow. | No implementation Issue is marked Done before its owned focused tests pass; final release regression does not replace feature gates. | Blocked — #69 now has recorded approval; #72–#74 were merged without recorded GitHub reviews. PR #75 is open with changes requested; local review fixes are uncommitted and final-head CI/re-review remain pending. See `reviewer.md`. |
 
 ### 15.1 Explicit Security and Exclusion Evidence
 
@@ -1226,18 +1227,18 @@ The following items deserve explicit review because their absence is part of the
 
 | Contract item | Evidence | Final |
 | --- | --- | --- |
-| No `X-Requester-Id` identity mechanism in Lab 3 app traffic | DATA-06 + API-14 + browser network/E2E inspection | Not Run — production scan and focused API/client assertions pass; browser network inspection is blocked with the other DB-gated E2E checks. |
-| No self-registration endpoint/UI | route inventory + authorization/API tests | Not Run |
-| No User delete endpoint/UI | route inventory + User Management UI/API tests | Not Run |
-| No Public Comment edit/delete | API-37 + UI-24 | Not Run |
-| No Internal Note edit/delete | API-39 + UI-25 | Not Run |
-| No Staff/Admin Attachment upload/removal | API-55 + route inventory | Not Run |
-| No access JWT in localStorage/sessionStorage | UI-08 + E2E auth storage inspection | Pass — focused AuthProvider coverage and the 22-test browser gate observed empty `localStorage`/`sessionStorage`; bearer state remains in memory. |
-| No refresh plaintext in database | PG-04 | Not Run |
-| No password plaintext in database | PG-04 + DATA-04 | Not Run |
-| No one-time initial password in later User GET/history/Web Storage/logs | API-52 + UI-27/UI-29/UI-37 + DATA-04 | Not Run |
-| No role trust solely from JWT | UNIT-07 + API-13 + session/user-state tests | Not Run |
-| No zero-active-Administrator state under concurrency | API-51 + PG-12 | Not Run |
+| No `X-Requester-Id` identity mechanism in Lab 3 app traffic | DATA-06 + API-14 + browser network/E2E inspection | Pass — production scan and E2E-03 request-header assertions on 2026-09-25. |
+| No self-registration endpoint/UI | route inventory + authorization/API tests | Pass — current route inventory and complete API suite. |
+| No User delete endpoint/UI | route inventory + User Management UI/API tests | Pass — current route inventory and UI/API suites. |
+| No Public Comment edit/delete | API-37 + UI-24 | Pass — GET/POST-only route inventory and complete API/UI suites. |
+| No Internal Note edit/delete | API-39 + UI-25 | Pass — GET/POST-only route inventory and complete API/UI suites. |
+| No Staff/Admin Attachment upload/removal | API-55 + route inventory | Pass — Staff routes expose GET reads; write routes remain under Requester guard. |
+| No access JWT in localStorage/sessionStorage | UI-08 + E2E auth storage inspection | Pass — client and live browser checks observed empty Web Storage during authentication; Create Ticket recovery remains an approved separate record. |
+| No refresh plaintext in database | PG-04 | Pass — guarded PostgreSQL suite and session-service inspection. |
+| No password plaintext in database | PG-04 + DATA-04 | Pass — guarded PostgreSQL suite and Argon2id service inspection. |
+| No one-time initial password in later User GET/history/Web Storage/logs | API-52 + UI-27/UI-29/UI-37 + DATA-04 | Pass for tested paths — API/UI suites and source/log inspection; external GitGuardian was not rerun. |
+| No role trust solely from JWT | UNIT-07 + API-13 + session/user-state tests | Pass — middleware resolves active User/session context through database. |
+| No zero-active-Administrator state under concurrency | API-51 + PG-12 | Pass — guarded API/PostgreSQL suites. |
 
 ### 15.2 Final Release Snapshot Placeholder
 
@@ -1460,3 +1461,31 @@ Shared Ticket DTO mapping and Prisma relation selection now live in `server/src/
 - Server and client production builds: passed.
 
 The first full-server command was attempted before the disposable target and explicit Lab 3 overrides were supplied; 23 PostgreSQL suite hooks failed during setup. No full database-backed suite pass is claimed from that attempt.
+
+## Inherited Lab 2 browser-suite compatibility — 2026-09-25
+
+The reported Lab 3 CI run (48 passed, 12 failed) showed inherited Lab 2 requester browser tests failing in setup. They still requested unauthenticated `GET /api/requesters`; Lab 3 removes that bootstrap route and protects API resources with full sessions. Updated those tests to log in with seeded Requesters, send Bearer tokens for direct API setup, use `/api/users/me/*` routes, and assert current authenticated UI controls. Create Ticket recovery, golden-path actions, owner isolation, Attachment lifecycle, and all nine viewport cases remain covered.
+
+| Verification | Result |
+| --- | --- |
+| Reported CI run before repair | 48 passed, 12 failed; five minutes |
+| `npm run test:e2e -- --list` with a synthetic Lab 3 test URL | Listed all 60 Playwright tests; no browser tests ran |
+| Full Playwright execution after repair | Not run locally: `TEST_DATABASE_URL` is unset, PostgreSQL ports 5432/55432/55434/55435 are closed, and Docker socket access is denied |
+
+The CI artifact and GitHub run details could not be fetched from this environment. No application source, API contract, or database schema changed in this repair.
+
+## PR #75 review repair and current local verification — 2026-09-25
+
+Issue #65's named Lab 3 browser specs now directly exercise ambiguous authenticated Create Ticket replay, My Tickets search/filter/sort/page, resolution confirmation/reopen, Staff queue default order/page and Claim race, Administrator reassign/unassign, Staff Attachment preview, Requester reopen followed by Staff reclaim, User pagination and one-time password copy/no-storage, session revocation/owner unassignment, and concurrent last-active-Administrator protection. The workflow and Playwright configuration generate runtime JWT signing secrets; no browser JWT literal remains committed.
+
+Verification used the guarded disposable `toktickit_lab3_test` PostgreSQL 16 target with explicit `DATABASE_URL`, `DIRECT_URL`, `TEST_DATABASE_URL`, and distinct captured baseline guards through the private `/tmp/toktickit-lab3-run.cjs` runner. Its connection details and credentials are not recorded here.
+
+| Command | Result |
+| --- | --- |
+| `node /tmp/toktickit-lab3-run.cjs npm run test:e2e -- --reporter=dot` at repository root | 70 passed, including 58 Lab 3 tests; exit 0. Initial focused attempts exposed selector/session timing mistakes, a Staff reclaim assertion before its response completed, and a status dropdown covering Apply; each was corrected and rerun before this complete pass. |
+| `node /tmp/toktickit-lab3-run.cjs npm test` in `server/` | 68 files, 1,052 passed including PostgreSQL; exit 0. |
+| `npm test` in `client/` | 26 files, 365 passed; exit 0. |
+| `npm run build` in `server/` | TypeScript passed; exit 0. |
+| `npm run build` in `client/` | TypeScript and Vite passed; exit 0. Existing Zod annotation and bundle-size warnings; exit 0. |
+
+GitHub's two prior Global Verification runs passed at `c556d37` before this local diff. No final-head CI result is claimed. PR #69 has a subsequent recorded approval; PR #75 remains changes requested, and PRs #72–#74 show no recorded reviews. DATA-11 remains blocked until review disposition and final-head/staging verification are recorded. Earlier compatibility-only statement above reflects its historical run, not this later complete browser execution.

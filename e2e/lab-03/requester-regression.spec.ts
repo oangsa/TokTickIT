@@ -1,87 +1,12 @@
-import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { expect, test, type Page } from "@playwright/test";
-
-const ALICE_EMAIL = "alice.johnson@example.com";
-const BOB_EMAIL = "bob.smith@example.com";
-const SEED_CREDENTIALS_PATH = resolve(
-  process.cwd(),
-  "server/.local/lab3-seed-credentials.json",
-);
-const TEMPORARY_PASSWORD = `E2e-${randomUUID()}!`;
-
-interface SeededSession {
-  initialPassword: string;
-  passwordWasChanged: boolean;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readSeedPassword(email: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(SEED_CREDENTIALS_PATH, "utf8"));
-  } catch {
-    throw new Error("Lab 3 seed credentials are unavailable; run the guarded E2E setup first.");
-  }
-
-  if (!isRecord(parsed) || typeof parsed[email] !== "string") {
-    throw new Error("Lab 3 seed credentials do not contain the required Requester.");
-  }
-
-  return parsed[email];
-}
-
-async function fillLogin(page: Page, email: string, password: string): Promise<void> {
-  await page.getByLabel("Email *", { exact: true }).fill(email);
-  await page.getByLabel("Password *", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-}
-
-async function signInSeededRequester(page: Page, email: string): Promise<SeededSession> {
-  const initialPassword = readSeedPassword(email);
-
-  await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
-  await fillLogin(page, email, initialPassword);
-
-  await expect(page).toHaveURL(/\/(change-password|tickets)$/);
-  const passwordChangeRequired = new URL(page.url()).pathname === "/change-password";
-
-  if (!passwordChangeRequired) {
-    await expect(page).toHaveURL(/\/tickets$/);
-    return { initialPassword, passwordWasChanged: false };
-  }
-
-  await page.getByLabel("New Password *", { exact: true }).fill(TEMPORARY_PASSWORD);
-  await page.getByLabel("Confirm New Password *", { exact: true }).fill(TEMPORARY_PASSWORD);
-  await page.getByRole("button", { name: "Change Password", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
-
-  await fillLogin(page, email, TEMPORARY_PASSWORD);
-  await expect(page).toHaveURL(/\/tickets$/);
-
-  return { initialPassword, passwordWasChanged: true };
-}
-
-async function restoreSeededPassword(page: Page, session: SeededSession): Promise<void> {
-  if (!session.passwordWasChanged) {
-    return;
-  }
-
-  await page.goto("/change-password");
-  await expect(page.getByRole("heading", { name: "Change Password", exact: true })).toBeVisible();
-  await page.getByLabel("Current Password *", { exact: true }).fill(TEMPORARY_PASSWORD);
-  await page.getByLabel("New Password *", { exact: true }).fill(session.initialPassword);
-  await page.getByLabel("Confirm New Password *", { exact: true }).fill(session.initialPassword);
-  await page.getByRole("button", { name: "Change Password", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
-  session.passwordWasChanged = false;
-}
+import {
+  ALICE_EMAIL,
+  BOB_EMAIL,
+  restoreSeededPassword,
+  signInSeededRequester,
+  type SeededSession,
+} from "../helpers/requester-auth.js";
+import { createStaffFixture } from "./staff-fixture.js";
 
 async function signOutIfAuthenticated(page: Page): Promise<void> {
   await page.goto("/tickets");
@@ -204,4 +129,100 @@ test("E2E-03 authenticated Requester create/detail/action and owner isolation @i
     expect(request.headers["x-requester-id"]).toBeUndefined();
     expect(request.headers.authorization).toMatch(/^Bearer\s+\S+$/);
   }
+});
+
+test("E2E-03 ambiguous Create Ticket response replays one Ticket after reload @issue-4", async ({ page, request }) => {
+  let session: SeededSession | null = null;
+  const summary = `Lab 3 recovery ${Date.now()}`;
+  const keys: string[] = [];
+  try {
+    session = await signInSeededRequester(page, ALICE_EMAIL);
+    await page.route("**/api/users/me/tickets", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      keys.push(route.request().headers()["idempotency-key"]);
+      const response = await route.fetch();
+      expect(response.status()).toBe(201);
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ code: "INTERNAL_SERVER_ERROR", message: "An unexpected error occurred." }) });
+    });
+    await page.goto("/tickets/new");
+    await page.getByLabel("Category *").selectOption({ label: "Network" });
+    await page.getByLabel("Related System *").selectOption({ label: "VPN" });
+    await page.getByLabel("Requested Priority *").selectOption("HIGH");
+    await page.getByLabel("Summary *").fill(summary);
+    await page.getByLabel("Description *").fill("A synthetic ambiguous submission for Lab 3.");
+    await page.getByRole("button", { name: "Submit Ticket" }).click();
+    const retry = page.getByRole("button", { name: "Retry Again" });
+    await expect(retry).toBeVisible();
+    await page.reload();
+    await expect(retry).toBeVisible();
+    await page.unrouteAll();
+    page.on("request", (outgoing) => {
+      if (outgoing.method() === "POST" && new URL(outgoing.url()).pathname === "/api/users/me/tickets") {
+        keys.push(outgoing.headers()["idempotency-key"]);
+      }
+    });
+    await retry.click();
+    await expect(page).toHaveURL(/\/tickets\/[0-9a-f-]+$/i);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+    const response = await request.get(`http://127.0.0.1:3000/api/users/me/tickets?search=${encodeURIComponent(summary)}&searchFields=summary`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
+    expect(response.ok()).toBeTruthy();
+    expect(await response.json()).toHaveLength(1);
+  } finally {
+    if (session !== null) await restoreSeededPassword(page, session);
+  }
+});
+
+test("E2E-03 Requester confirms resolution then reopens unassigned @issue-4", async ({ page }) => {
+  const fixture = await createStaffFixture();
+  const ticket = fixture.tickets[0];
+  try {
+    await fixture.prisma.ticket.update({ where: { id: ticket.id }, data: { currentStatus: "RESOLVED", ownerUserId: fixture.staff.id, itPriority: "HIGH" } });
+    await page.goto("/login");
+    await page.getByLabel("Email *").fill(fixture.requester.email);
+    await page.getByLabel("Password *").fill(fixture.password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/tickets$/);
+    await page.goto(`/tickets/${ticket.publicId}`);
+    await page.getByRole("button", { name: "Problem appears resolved" }).click();
+    await expect(page.getByRole("button", { name: "Resolution confirmed" })).toBeDisabled();
+    expect((await fixture.prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).requesterResolutionConfirmedAt).not.toBeNull();
+    await page.getByRole("button", { name: "Problem Still Exists" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Reopen Ticket" }).click();
+    await expect(page.getByText("REOPENED", { exact: true })).toBeVisible();
+    expect(await fixture.prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).toMatchObject({
+      currentStatus: "REOPENED", ownerUserId: null, requesterResolutionConfirmedAt: null, itPriority: "HIGH",
+    });
+  } finally {
+    await fixture.dispose();
+  }
+});
+
+test("E2E-03 My Tickets search, filter, sort and page use authenticated ownership @issue-4", async ({ page }) => {
+  const fixture = await createStaffFixture(12);
+  try {
+    await page.goto("/login");
+    await page.getByLabel("Email *").fill(fixture.requester.email);
+    await page.getByLabel("Password *").fill(fixture.password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/tickets$/);
+    await page.getByPlaceholder("Search by ticket number, summary, or description…").fill("Support request");
+    await page.getByLabel("Sort by", { exact: true }).selectOption("summary:desc");
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
+    const filters = page.getByRole("dialog", { name: "Filters" });
+    await filters.getByRole("button", { name: /Status.*Any Status/ }).click();
+    await filters.getByRole("checkbox", { name: "NEW" }).check();
+    await filters.getByRole("checkbox", { name: "NEW" }).press("Escape");
+    await filters.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(page.locator("[data-testid='ticket-table'] tbody tr")).toHaveCount(10);
+    expect(new URL(page.url()).searchParams.get("sort")).toBe("summary:desc");
+    expect(new URL(page.url()).searchParams.get("currentStatus")).toBe("NEW");
+    await expect(page.locator("[data-testid='ticket-table'] tbody tr").first()).toContainText("Support request 9");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.locator("[data-testid='ticket-table'] tbody tr")).toHaveCount(1);
+    await expect(page.locator("[data-testid='ticket-table'] tbody tr")).toContainText("Support request 10");
+  } finally { await fixture.dispose(); }
 });

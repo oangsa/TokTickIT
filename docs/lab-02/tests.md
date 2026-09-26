@@ -2360,17 +2360,17 @@ These tests run only against guarded `TEST_DATABASE_URL` and inspect committed s
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| RESP-01 | Responsive | AC-35–37 | Create Ticket at 1440×900, 820×1180, 390×844. | Desktop/tablet approved column behavior; mobile stack; required controls/counters/actions usable; no page-level horizontal overflow/clipping. | e2e/lab-02/responsive-visual.spec.ts | Passed — 3 browser cases at exactly 1440×900, 820×1180, and 390×844; assertions cover generated/read-only fields, Pending Attachment, desktop columns/mobile stack, no horizontal overflow, and usable Submit/tooltip controls. |
+| RESP-01 | Responsive | AC-35–37 | Create Ticket at 1440×900, 820×1180, 390×844. | Desktop/tablet approved column behavior; mobile stack; required controls/counters/actions usable; no page-level horizontal overflow/clipping. | e2e/lab-02/responsive-visual.spec.ts | Prior browser run passed all 3 viewports. Latest Lab 3 CI run failed at the Requester assertion because the read-only value is an `<output>`; assertion now checks text. Database-backed rerun pending. |
 | RESP-02 | Responsive | AC-35–37 | My Tickets responsive table and pagination. | Desktop full columns; mobile keeps Ticket Number/Summary/Priority/Status and hides Category/System/Created At; toolbar/pagination usable; no page-level horizontal overflow. | e2e/lab-02/responsive-visual.spec.ts | Passed — 3 browser cases at exactly 1440×900, 820×1180, and 390×844; assertions cover required/hidden columns, mobile toolbar/drawer focus containment, desktop long-list sticky sidebar with visible Change Requester, pagination, and no horizontal overflow. |
-| RESP-03 | Responsive | AC-35–37 | Ticket Detail and Attachments responsive behavior. | Desktop/tablet read-only field layout; mobile stack; attachment table adapts while filename/selection/actions stay readable/operable; no page-level horizontal overflow. | e2e/lab-02/responsive-visual.spec.ts | Passed — 3 browser cases at exactly 1440×900, 820×1180, and 390×844; assertions cover read-only fields, responsive Attachment columns/actions, tooltip focus, and no horizontal overflow. |
+| RESP-03 | Responsive | AC-35–37 | Ticket Detail and Attachments responsive behavior. | Desktop/tablet read-only field layout; mobile stack; attachment table adapts while filename/selection/actions stay readable/operable; no page-level horizontal overflow. | e2e/lab-02/responsive-visual.spec.ts | Prior browser run passed all 3 viewports. Latest Lab 3 CI run found wrapped actions at 390×844; Actions minimum width is now 8.5rem. Database-backed rerun pending. |
 
 ## 10. Planned Visual Evidence
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 | --- | --- | --- | --- | --- | --- | --- |
-| VIS-01 | Visual | AC-35–38 | Create Ticket screenshot evidence at all required viewports. | Screenshots saved under tracked Create Ticket evidence directory and pass visual checklist; no pixel-perfect baseline requirement. | e2e/lab-02/responsive-visual.spec.ts | Passed — six exact-size captures (three required screen captures plus three Attachment-support captures) exist under `docs/lab-02/evidence/screenshots/create-ticket/`; browser assertions cover Zen Green/read-only/editable/validation/button/badge/Attachment/icon-tooltip checklist items. |
+| VIS-01 | Visual | AC-35–38 | Create Ticket screenshot evidence at all required viewports. | Screenshots saved under tracked Create Ticket evidence directory and pass visual checklist; no pixel-perfect baseline requirement. | e2e/lab-02/responsive-visual.spec.ts | Six prior exact-size captures remain tracked. Latest CI stopped before capture at the Requester `<output>` assertion; corrected assertion awaits database-backed rerun. |
 | VIS-02 | Visual | AC-35–38 | My Tickets screenshot evidence at all required viewports. | Screenshots saved under tracked My Tickets evidence directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Passed — three exact-size captures exist under `docs/lab-02/evidence/screenshots/my-tickets/`; browser assertions cover the closed mobile drawer's tab exclusion, hover tooltip, desktop long-list sticky sidebar, visible Change Requester, required columns, and no overflow. |
-| VIS-03 | Visual | AC-35–38 | Ticket Detail screenshot evidence at all required viewports. | Screenshots saved under tracked Ticket Detail evidence directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Passed — six exact-size captures (three required screen captures plus three Attachment-support captures) exist under `docs/lab-02/evidence/screenshots/ticket-detail/`; browser assertions cover Zen Green/read-only fields, responsive Attachment semantics, focus tooltip, and no overflow. |
+| VIS-03 | Visual | AC-35–38 | Ticket Detail screenshot evidence at all required viewports. | Screenshots saved under tracked Ticket Detail evidence directory and pass visual checklist. | e2e/lab-02/responsive-visual.spec.ts | Six prior exact-size captures remain tracked. Latest CI found wrapped Attachment actions at 390×844; corrected width awaits database-backed rerun and fresh screenshot capture. |
 
 Required screenshot directories:
 
@@ -2921,8 +2921,8 @@ magnifier, and Filters and Sort by together at the end of the toolbar row.
 At 390 × 844 on Ticket Detail the Attachment row actions wrapped onto two lines:
 the Select column made the Actions column narrower than on Create Ticket, and
 `.tt-row-actions` kept `flex-wrap: wrap` for the download failure alert. The
-Actions column now reserves `8rem`, enough for the three icon controls and their
-gaps, while the existing wrap remains available for a download failure message.
+Actions column reserves `8.5rem` for three icon controls, their gaps, and cell
+padding; wrapping remains available for a download failure message.
 
 The responsive E2E case now checks that every action button in the row has the
 same rendered top coordinate. Before the fix it failed only at 390 × 844 with
@@ -2932,6 +2932,22 @@ passed and the regenerated 390 × 844 capture shows one line.
 | Check | Command | Result |
 | --- | --- | --- |
 | Ticket Detail responsive regression | `NODE_ENV=test TEST_DATABASE_URL=<lab2_url> npm run test:e2e -- e2e/lab-02/responsive-visual.spec.ts -g 'Ticket Detail and Attachments'` | **Pass** — 3 tests, 3 passed at `1440x900`, `820x1180`, and `390x844` |
+
+### Regression follow-up (2026-09-25)
+
+A shared `.tt-table` change added end padding to every final cell and narrowed the Attachment Actions column. Keep that inset on other tables; `.tt-table--attachments` clears final-cell end padding so its three icon controls retain one row.
+
+Focused client validation passed (106 tests across four suites), and `npm run build` passed with existing dependency-annotation and chunk-size warnings. Playwright parsed all 11 affected E2E cases with `--list`; browser E2E was not run locally because `NODE_ENV` and guarded `TEST_DATABASE_URL` were unset. CI must rerun the database-backed browser cases to re-establish visual evidence.
+
+### Lab 3 CI follow-up (2026-09-25)
+
+The next CI run reported three Create Ticket failures because the Requester
+control is a read-only `<output>`, not an input; the assertion now checks its
+text. At 390×844, the 8rem Actions minimum still left 128.45px for three 42px
+buttons and two 2px gaps. Raising it to 8.5rem produced one row in a CSS-only
+Chromium check with no page overflow. The local database-backed E2E suite was
+not run because guarded `TEST_DATABASE_URL` is unset; CI rerun and fresh Ticket
+Detail screenshot evidence remain pending.
 
 ## 16. Completion Rule
 

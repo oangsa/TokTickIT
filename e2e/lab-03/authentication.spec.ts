@@ -223,3 +223,56 @@ test("E2E-02 restricted identity reaches Change Password without shell flash @is
   await expect(page.getByRole("navigation")).not.toBeVisible();
   expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 });
 });
+
+test("E2E-01 live Remember Me, refresh bootstrap, and logout-all revoke sessions @issue-3", async ({ page, browser }) => {
+  test.skip(process.env.ISSUE_3_UI_ONLY === "1", "Live session proof needs guarded PostgreSQL");
+  const { createStaffFixture } = await import("./staff-fixture.js");
+  const fixture = await createStaffFixture(0);
+  const secondContext = await browser.newContext();
+  const secondPage = await secondContext.newPage();
+
+  try {
+    await page.goto("/login");
+    await page.getByLabel("Email *").fill(fixture.requester.email);
+    await page.getByLabel("Password *").fill(fixture.password);
+    await page.getByLabel("Remember me").check();
+    const loginResponse = page.waitForResponse((response) => response.url().endsWith("/api/auth/login") && response.request().method() === "POST");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    const { accessToken } = await (await loginResponse).json() as { accessToken: string };
+    await expect(page).toHaveURL(/\/tickets$/);
+
+    const cookie = (await page.context().cookies("http://127.0.0.1:3000/api/auth/refresh")).find((item) => item.name === "toktickit_refresh");
+    expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Strict" });
+    expect(cookie!.expires).toBeGreaterThan(Date.now() / 1000);
+    expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 });
+
+    const refreshResponse = page.waitForResponse((response) => response.url().endsWith("/api/auth/refresh") && response.request().method() === "POST");
+    await page.reload();
+    expect((await refreshResponse).status()).toBe(200);
+    await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
+
+    await secondPage.goto("/login");
+    await secondPage.getByLabel("Email *").fill(fixture.requester.email);
+    await secondPage.getByLabel("Password *").fill(fixture.password);
+    await secondPage.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(secondPage).toHaveURL(/\/tickets$/);
+
+    const logoutStatus = await page.evaluate(async (token) => {
+      const response = await fetch("http://127.0.0.1:3000/api/auth/logout-all", {
+        method: "POST",
+        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.status;
+    }, accessToken);
+    expect(logoutStatus).toBe(204);
+    await page.reload();
+    await secondPage.reload();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(secondPage).toHaveURL(/\/login$/);
+    expect(await fixture.prisma.userSession.count({ where: { userId: fixture.requester.id, revokedAt: null } })).toBe(0);
+  } finally {
+    await secondContext.close();
+    await fixture.dispose();
+  }
+});

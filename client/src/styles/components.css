@@ -949,10 +949,10 @@ a {
   table-layout: auto;
 }
 
-/* Three icon controls plus their gaps must share one action row. */
+/* Three icon controls plus gaps and cell padding must share one action row. */
 .tt-table--attachments th:last-child,
 .tt-table--attachments td:last-child {
-  min-width: 8rem;
+  min-width: 8.5rem;
 }
 
 /* Keep the outer cells inset so the table frame does not crowd its content. */
@@ -962,6 +962,11 @@ a {
 
 .tt-table > :not(caption) > * > *:last-child {
   padding-inline-end: 0.5rem;
+}
+
+/* Preserve room for the attachment row's three controls in its 8rem column. */
+.tt-table--attachments > :not(caption) > * > *:last-child {
+  padding-inline-end: 0;
 }
 
 /*
