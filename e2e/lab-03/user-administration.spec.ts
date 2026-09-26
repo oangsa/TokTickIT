@@ -228,10 +228,26 @@ test("E2E-05 concurrent Administrator deactivation preserves last active Adminis
       page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click(),
       otherPage.getByRole("dialog").getByRole("button", { name: "Confirm" }).click(),
     ]);
-    expect([results[0].status(), results[1].status()].sort()).toEqual([200, 409]);
+    const responseStatuses = [results[0].status(), results[1].status()];
+    expect(responseStatuses.filter((status) => status === 200)).toHaveLength(1);
+    const rejectedStatus = responseStatuses[0] === 200 ? responseStatuses[1] : responseStatuses[0];
+    expect([401, 409]).toContain(rejectedStatus);
     expect(await fixture.prisma.user.count({ where: { role: "ADMINISTRATOR", isActive: true } })).toBe(1);
-    const rejectedPage = results[0].status() === 409 ? page : otherPage;
-    await expect(rejectedPage.getByRole("alert")).toContainText("The request failed (HTTP 409).");
+    const rejectedPage = responseStatuses[0] === rejectedStatus ? page : otherPage;
+    if (rejectedStatus === 401) {
+      const deactivatedAdmin = responseStatuses[0] === 200 ? secondAdmin : fixture.admin;
+      expect(await fixture.prisma.user.findUniqueOrThrow({
+        where: { id: deactivatedAdmin.id },
+        select: { isActive: true, role: true },
+      })).toMatchObject({ isActive: false, role: "ADMINISTRATOR" });
+      expect(await fixture.prisma.userSession.count({
+        where: { userId: deactivatedAdmin.id, revokedAt: null },
+      })).toBe(0);
+      await expect(rejectedPage).toHaveURL(/\/login$/);
+      await expect(rejectedPage.getByText("Your session has expired. Please sign in again.", { exact: true })).toBeVisible();
+    } else {
+      await expect(rejectedPage.getByRole("alert")).toContainText(`The request failed (HTTP ${rejectedStatus}).`);
+    }
   } finally {
     await fixture.prisma.user.updateMany({ where: { id: { in: activeSeedAdmins.map((admin) => admin.id) } }, data: { isActive: true } });
     await otherContext.close();
