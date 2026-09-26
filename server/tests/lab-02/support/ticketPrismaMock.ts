@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 
+import { testUser } from "./authenticatedRequester.js";
+
 /*
  * One Prisma double shared by the three Ticket-create API suites. It is a module
  * singleton so `vi.mock("../../src/prisma.js")` in each suite can resolve it
@@ -20,13 +22,15 @@ export const tx = {
     create: vi.fn(),
     deleteMany: vi.fn(),
   },
-  ticket: { create: vi.fn(), findFirst: vi.fn() },
+  ticket: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
   idempotencyRecord: { update: vi.fn() },
   $queryRaw: vi.fn(),
   $executeRawUnsafe: vi.fn(),
 };
 
 export const prismaMock = {
+  user: { findUnique: vi.fn() },
+  userSession: { findUnique: vi.fn() },
   developmentRequester: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
   category: { findMany: vi.fn() },
   relatedSystem: { findMany: vi.fn() },
@@ -62,6 +66,13 @@ export const ALICE = {
   updatedAt: new Date("2026-08-20T01:00:00.000Z"),
 };
 
+export const ALICE_AUTH = testUser(ALICE);
+export const BOB_AUTH = testUser({
+  id: 4,
+  name: "Bob Smith",
+  email: "bob.smith@example.com",
+});
+
 export const KEY = "550e8400-e29b-41d4-a716-446655440000";
 export const OTHER_KEY = "8e294972-f950-4db7-a83e-d3bbd55a8799";
 export const ATTACHMENT_A = "eb87467e-b209-4a18-bbc6-c8c5a4dccf95";
@@ -96,9 +107,12 @@ export function ticketRow(overrides: Record<string, unknown> = {}) {
     currentStatus: "NEW",
     deleted: false,
     ...TICKET_AUDIT,
-    requester: { id: 3, name: ALICE.name, email: ALICE.email },
+    requester: { id: 3, publicId: ALICE_AUTH.publicId, name: ALICE.name, email: ALICE.email },
     category: { id: 4, name: "Network" },
     relatedSystem: { id: 5, name: "VPN" },
+    itPriority: "HIGH",
+    owner: null,
+    requesterResolutionConfirmedAt: null,
     attachments: [],
     ...overrides,
   };

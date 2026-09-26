@@ -7,6 +7,8 @@ const originalEnvironment = {
   TEST_DATABASE_URL: process.env.TEST_DATABASE_URL,
   DATABASE_URL: process.env.DATABASE_URL,
   DIRECT_URL: process.env.DIRECT_URL,
+  LAB3_BASELINE_DATABASE_URL: process.env.LAB3_BASELINE_DATABASE_URL,
+  LAB3_BASELINE_DIRECT_URL: process.env.LAB3_BASELINE_DIRECT_URL,
 };
 
 function restoreEnvironmentVariable(
@@ -27,6 +29,8 @@ describe("Lab 2 PostgreSQL test-database guard", () => {
     restoreEnvironmentVariable("TEST_DATABASE_URL");
     restoreEnvironmentVariable("DATABASE_URL");
     restoreEnvironmentVariable("DIRECT_URL");
+    restoreEnvironmentVariable("LAB3_BASELINE_DATABASE_URL");
+    restoreEnvironmentVariable("LAB3_BASELINE_DIRECT_URL");
   });
 
   it("rejects when NODE_ENV is not test", () => {
@@ -87,6 +91,23 @@ describe("Lab 2 PostgreSQL test-database guard", () => {
     expect(() => assertLab2TestDatabase()).toThrow(
       "TEST_DATABASE_URL database name must contain an explicit test marker",
     );
+  });
+
+  it("accepts the guarded Lab 3 target for cross-lab regression", () => {
+    process.env.NODE_ENV = "test";
+    process.env.TEST_DATABASE_URL =
+      "postgresql://lab3_test@127.0.0.1:55433/toktickit_lab3_test";
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+    process.env.DIRECT_URL = process.env.TEST_DATABASE_URL;
+    process.env.LAB3_BASELINE_DATABASE_URL =
+      "postgresql://lab3_test@127.0.0.1:55433/toktickit_lab3_baseline";
+    process.env.LAB3_BASELINE_DIRECT_URL =
+      "postgresql://lab3_test@127.0.0.1:55433/toktickit_lab3_baseline";
+
+    expect(assertLab2TestDatabase()).toEqual({
+      url: process.env.TEST_DATABASE_URL,
+      databaseName: "toktickit_lab3_test",
+    });
   });
 
   it("rejects a reset target that is not the guarded TEST_DATABASE_URL", async () => {

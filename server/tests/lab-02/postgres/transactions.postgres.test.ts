@@ -8,6 +8,7 @@ import { runCreateTicket } from "../../../src/services/createTicketFlow.js";
 import { parseCreateTicketRequest } from "../../../src/services/ticketCreateRequest.js";
 import {
   assertLab2TestDatabase,
+  createRequesterUser,
   createTestPrisma,
   deployMigrations,
   resetTestSchema,
@@ -45,13 +46,9 @@ function createBytes(length: number, value = 0x61): Uint8Array<ArrayBuffer> {
 }
 
 async function createFixture(prisma: PrismaClient): Promise<Fixture> {
-  const requester = await prisma.developmentRequester.create({
-    data: {
-      name: "Attachment Test Requester",
-      email: "attachment.test@example.com",
-      createdBy: "system",
-      updatedBy: "system",
-    },
+  const requester = await createRequesterUser(prisma, {
+    name: "Attachment Test Requester",
+    email: "attachment.test@example.com",
   });
   const category = await prisma.category.create({
     data: { name: "Attachment Test Category", createdBy: "system", updatedBy: "system" },
@@ -361,13 +358,9 @@ describe.sequential("Lab 2 Attachment PostgreSQL invariants", () => {
 
   it("rejects duplicate authoritative unique keys", async () => {
     await expectDatabaseReject(() =>
-      prisma.developmentRequester.create({
-        data: {
-          name: "Duplicate Requester Email",
-          email: "attachment.test@example.com",
-          createdBy: "system",
-          updatedBy: "system",
-        },
+      createRequesterUser(prisma, {
+        name: "Duplicate Requester Email",
+        email: "attachment.test@example.com",
       }),
       "23505",
     );
@@ -485,8 +478,9 @@ describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
     target = assertLab2TestDatabase();
     prisma = createTestPrisma(target);
 
-    const requester = await prisma.developmentRequester.create({
-      data: { name: "Rollback Test Requester", email: ACTOR, createdBy: "system", updatedBy: "system" },
+    const requester = await createRequesterUser(prisma, {
+      name: "Rollback Test Requester",
+      email: ACTOR,
     });
     const category = await prisma.category.create({
       data: { name: `Rollback Category ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
@@ -850,8 +844,9 @@ describe.sequential("PG-04 mixed Attachment batch rollback", () => {
 
     /* Its own identities: the suite shares one database across describes, and
      * `development_requester.email` is unique. */
-    const requester = await prisma.developmentRequester.create({
-      data: { name: "Batch Rollback Requester", email: BATCH_ACTOR, createdBy: "system", updatedBy: "system" },
+    const requester = await createRequesterUser(prisma, {
+      name: "Batch Rollback Requester",
+      email: BATCH_ACTOR,
     });
     const category = await prisma.category.create({
       data: { name: `Batch Category ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
@@ -1017,8 +1012,9 @@ describe.sequential("AttachmentService query shapes against PostgreSQL", () => {
     target = assertLab2TestDatabase();
     prisma = createTestPrisma(target);
 
-    const requester = await prisma.developmentRequester.create({
-      data: { name: "Query Shape Requester", email: SHAPE_ACTOR, createdBy: "system", updatedBy: "system" },
+    const requester = await createRequesterUser(prisma, {
+      name: "Query Shape Requester",
+      email: SHAPE_ACTOR,
     });
     const category = await prisma.category.create({
       data: { name: `Shape Category ${randomUUID()}`, createdBy: "system", updatedBy: "system" },
@@ -1103,15 +1099,42 @@ describe.sequential("AttachmentService query shapes against PostgreSQL", () => {
     expect(metadata?.ticketPublicId).toBe(ticket?.publicId);
   }, 30_000);
 
+  it("reads staff evidence only while bound to a visible Ticket and returns Gone after removal", async () => {
+    const service = new AttachmentService(prisma);
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: fixture.ticketId },
+      select: { publicId: true },
+    });
+    const publicId = ticket?.publicId ?? "";
+    const created = await service.createForTicket({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      publicId,
+      file: { filename: "staff-evidence.png", data: Buffer.from([3, 4]) },
+    });
+
+    expect(await service.findStaffBinary(publicId, created.attachmentId)).toMatchObject({
+      data: Buffer.from([3, 4]),
+      sizeBytes: 2,
+    });
+    expect(await service.findStaffBinary(randomUUID(), created.attachmentId)).toBeNull();
+
+    await service.deleteCollection({
+      requesterId: fixture.requesterId,
+      actor: SHAPE_ACTOR,
+      items: [{ attachmentId: created.attachmentId, reason: "Removed evidence." }],
+    });
+    await expect(service.findStaffBinary(publicId, created.attachmentId)).rejects.toMatchObject({
+      code: "GONE",
+      statusCode: 410,
+    });
+  }, 30_000);
+
   it("hides an Attachment owned by another Requester behind the same empty answer", async () => {
     const service = new AttachmentService(prisma);
-    const other = await prisma.developmentRequester.create({
-      data: {
-        name: "Other Requester",
-        email: `other-${randomUUID()}@example.com`,
-        createdBy: "system",
-        updatedBy: "system",
-      },
+    const other = await createRequesterUser(prisma, {
+      name: "Other Requester",
+      email: `other-${randomUUID()}@example.com`,
     });
 
     const mine = await service.createPending({

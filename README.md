@@ -21,12 +21,19 @@ CPE334 Software Engineering — Lab 2 final delivery record.
 cd server
 npm ci
 cp .env.example .env        # then edit DATABASE_URL and DIRECT_URL
-npm run prisma:migrate      # prisma migrate dev
-npm run prisma:seed         # tsx prisma/seed.ts
 npm run dev                 # http://localhost:3000
 npm test                    # vitest run
 npm run build               # TypeScript build
 ```
+
+Lab 3 database writes require a dedicated disposable PostgreSQL target. Capture
+the normal `DATABASE_URL` and `DIRECT_URL` first, then set `NODE_ENV=test`,
+`TEST_DATABASE_URL`, both explicit database overrides, and both captured
+baseline variables before running migration, seed, maintenance, or PostgreSQL
+tests. Never run those commands against the normal or shared database.
+
+Read-only `npx prisma generate` and `npx prisma validate` do not need the test
+target. The guarded write form is documented in `docs/lab-03/tests.md`.
 
 The backend also reads two Lab 2 variables from `.env`:
 
@@ -53,7 +60,12 @@ set `VITE_API_URL=""` in `client/.env.local`. The Vite dev server proxies
 `/api` to the local Express server on port 3000, so both dev servers must stay
 running. Restart Vite after changing this value.
 
-### Lab 2 client
+### Lab 2 client (historical)
+
+This is the pre-Lab 3 client and still documents the removed Development
+Requester selector. It is not compatible with the Lab 3 authenticated backend
+until the Issue 3/4 frontend work replaces that flow; it must not be used as an
+authentication mechanism.
 
 Run `npm ci` in `client/` after pulling: Lab 2 adds `react-router-dom`
 for routing and `@fontsource/inter` for the required typeface. Bootstrap
@@ -89,10 +101,10 @@ is browser hardening, not authentication, authorization, or a privacy boundary.
 | 18 — Data model + forward migration + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
 | 19 — Zen Green shell + UI foundation | Done | `client/src/`, `client/src/components/`, `client/src/requester/` |
 | 20 — Requester context + selector | Done | `server/src/middleware/`, `server/src/routes/referenceData.ts`, `client/src/pages/RequesterSelection.tsx`, `client/src/requester/useRequesterApi.ts` |
-| 21 — Ticket creation + idempotency | Done | `server/src/routes/tickets.ts`, `server/src/services/createTicketFlow.ts`, `client/src/pages/CreateTicket.tsx` |
-| 22 — My Tickets | Done | `server/src/services/ticketListService.ts`, `server/src/services/ticketQueryValidator.ts`, `client/src/pages/MyTickets.tsx` |
-| 23 — Ticket Detail | Done | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/pages/RequesterTicketDetail.tsx`, `client/src/pages/ErrorPage.tsx` |
-| 24 — Attachment lifecycle | Done | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/attachments/AttachmentSection.tsx` |
+| 21 — Ticket creation + idempotency | Done | `server/src/routes/tickets.ts`, `server/src/services/createTicketFlow.ts`, `client/src/modules/Tickets/Requester/CreateTicket.tsx` |
+| 22 — My Tickets | Done | `server/src/services/ticketListService.ts`, `server/src/services/ticketQueryValidator.ts`, `client/src/modules/Tickets/Requester/MyTickets.tsx` |
+| 23 — Ticket Detail | Done | `server/src/routes/tickets.ts`, `server/src/services/ticketService.ts`, `client/src/modules/Tickets/Requester/RequesterTicketDetail.tsx`, `client/src/modules/System/ErrorPage.tsx` |
+| 24 — Attachment lifecycle | Done | `server/src/routes/attachments.ts`, `server/src/services/attachmentService.ts`, `server/src/scripts/maintenanceCleanup.ts`, `client/src/modules/Tickets/attachments/AttachmentSection.tsx` |
 | 25 — final integration/tooling | Done | `package.json`, `playwright.config.ts`, `playwright.global-setup.ts`, `e2e/lab-02/`, tracked screenshot evidence |
 | 26 — release evidence | Closed by approved/merged [PR #49](https://github.com/oangsa/TokTickIT/pull/49); post-merge staging gate passed on `df8da1e`; docs follow-up [PR #50](https://github.com/oangsa/TokTickIT/pull/50) merged; replacement release [PR #51](https://github.com/oangsa/TokTickIT/pull/51) is open for peer review and is not merged; prior release PR [#47](https://github.com/oangsa/TokTickIT/pull/47) remains closed | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md`, `docs/lab-02/tests.md`; `feature/26-lab2-release-link` |
 
@@ -154,19 +166,21 @@ unauthenticated Lab 2 application is restricted to development/test networks
 and must not be described as safe for public deployment (AC-50, part of the
 DATA-09 evidence).
 
-`client/src/components/` holds the shared conventions Issue 19 established —
-form field, button hierarchy, badge, skeleton, empty/error/success state,
-modal, pagination, filter chip, and Attachment lifecycle state. They are
-covered by `client/tests/lab-02/SharedComponents.test.tsx`; Requester Selection
-is the first screen to consume them, and the rest arrive with Issues 21–23.
+`client/src/components/Common/` groups reusable controls, with `Form/`,
+`Feedback/`, and `Collection/` families. `components/Maintain/` owns DataTable,
+ManagePage, and PageHeader page composition. Domain screens and presentation
+live under `modules/Auth/`, `modules/System/`, `modules/Users/`, and
+`modules/Tickets/`; the application shell lives under `layouts/`.
+Managed-form logic and domain form constants remain in `forms/` and
+`constants/forms/`. See the [component ownership contract](docs/generics/styling-contract.md#component-ownership).
 
 ## Lab 1 status
 
 | Issue | Status | Where |
 |---|---|---|
-| 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/pages/SystemCheck.tsx` |
+| 2 — API health check | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/modules/System/SystemCheck.tsx` |
 | 3 — Category model + seed | Done | `server/prisma/schema.prisma`, `server/prisma/migrations/`, `server/prisma/seed.ts` |
-| 4 — Category list + UI states | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/pages/SystemCheck.tsx` |
+| 4 — Category list + UI states | Done | `server/src/app.ts`, `client/src/api.ts`, `client/src/modules/System/SystemCheck.tsx` |
 
 ### Issue 2 — API health check
 
@@ -177,7 +191,7 @@ GET /api/health  ->  200  {"status":"ok","service":"TokTickIT API"}
 The client calls it from `checkSystem()` in `client/src/api.ts`; **Check System**
 shows `Backend status: Online`, or `Backend status: Offline` when the request
 fails. Since the Lab 2 shell landed, this screen lives in
-`client/src/pages/SystemCheck.tsx` and is no longer the application's landing
+`client/src/modules/System/SystemCheck.tsx` and is no longer the application's landing
 route; its Lab 1 tests continue to exercise it directly. Covered by `server/tests/lab-01/health.test.ts`
 (Supertest). Evidence in `docs/lab-01/tests.md`.
 
@@ -203,6 +217,10 @@ app connects separately through the `@prisma/adapter-pg` driver adapter in
 tracked. Evidence in `docs/lab-01/tests.md`.
 
 ### Lab 2 PostgreSQL integration tests
+
+The following section documents the historical Lab 2 target and applies to a
+pre-Lab 3 checkout. The current schema's Prisma CLI, seed, maintenance, and
+Lab 3 PostgreSQL tests require the guarded target in the next section.
 
 The Lab 2 persistence suites use only a disposable PostgreSQL target. They
 never fall back to the normal development `DATABASE_URL`, and their guard
@@ -238,6 +256,52 @@ regressions run immediately after the clean migration and seed, before the Lab 2
 PostgreSQL suites reset the disposable target. Teardown is last so every command
 uses the same guarded database while the normal development database remains
 untouched.
+
+### Lab 3 Issue 2 PostgreSQL verification
+
+From `server/`, use the separate tmpfs-backed Lab 3 target on port `55433`.
+Capture normal database variables before setting the explicit test overrides;
+keep the password synthetic and shell-local:
+
+```bash
+set -a
+source .env.local
+set +a
+export LAB3_BASELINE_DATABASE_URL="$DATABASE_URL"
+export LAB3_BASELINE_DIRECT_URL="$DIRECT_URL"
+export LAB3_TEST_DB_PASSWORD='<PASSWORD>'
+docker compose -f tests/lab-03/postgres/docker-compose.test.yml up -d --wait
+export NODE_ENV=test
+export TEST_DATABASE_URL="postgresql://lab3_test:${LAB3_TEST_DB_PASSWORD}@localhost:55433/toktickit_lab3_test?schema=public"
+export DATABASE_URL="$TEST_DATABASE_URL"
+export DIRECT_URL="$TEST_DATABASE_URL"
+npx --no-install prisma migrate status
+npx --no-install prisma migrate deploy
+npm run prisma:provision-migrated-passwords
+npm run prisma:seed
+npm run prisma:seed
+npm run maintenance:cleanup
+npm run maintenance:cleanup
+npm test -- tests/lab-03/PasswordService.test.ts tests/lab-03/InitialPasswordGenerator.test.ts tests/lab-03/JwtService.test.ts tests/lab-03/SessionService.test.ts tests/lab-03/LoginRateLimitService.test.ts tests/lab-03/AuthService.test.ts tests/lab-03/MaintenanceService.test.ts tests/lab-03/databaseTargetGuard.test.ts tests/lab-03/auth.api.test.ts tests/lab-03/authorization.api.test.ts tests/lab-03/auth-transport.api.test.ts tests/lab-03/error-contract.api.test.ts -t '@issue-2'
+npm test -- tests/lab-03/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/schema-contract.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/rate-limit.postgres.test.ts tests/lab-03/postgres/maintenance.postgres.test.ts -t '@issue-2'
+npm run build
+```
+
+The guard rejects missing, invalid, baseline-equal, non-Lab-3, or implicit
+database targets. Do not print baseline URLs or the synthetic password. The
+workflow at `.github/workflows/lab3-issue2-verification.yml` runs the full
+server and client test suites, builds both packages, and runs every Lab 3
+Playwright spec against its guarded, seeded test database. The commands above
+remain focused Issue 2 checks. For a populated Lab 2 upgrade, the provisioning
+command generates one random 16-character initial password per migrated User,
+stores only Argon2id hashes in PostgreSQL, and writes the one-time operator
+handoff to `server/.local/lab3-migrated-user-credentials.json` with mode `0600`.
+Protect or delete that file after handoff; passwords are never printed or
+logged.
+The guarded seed command hands off synthetic initial credentials through the
+ignored `server/.local/lab3-seed-credentials.json` file (mode `0600`), never
+through logs or PostgreSQL. Seed reruns reuse those credentials and do not
+reset a User who already completed the mandatory first password change.
 
 ### Lab 2 browser verification
 

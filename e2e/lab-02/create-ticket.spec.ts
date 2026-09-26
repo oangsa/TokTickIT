@@ -1,15 +1,10 @@
-import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
+
+import {
+  aliceRequesterTest as test,
+} from "../helpers/requester-auth.js";
 
 const API_BASE_URL = "http://127.0.0.1:3000";
-
-interface NamedRecord {
-  id: number;
-  name: string;
-}
-
-interface DevelopmentRequester extends NamedRecord {
-  email: string;
-}
 
 interface Attachment {
   attachmentId: string;
@@ -43,46 +38,27 @@ function pngFile(name: string): FilePayload {
 async function getJson<T>(
   request: APIRequestContext,
   path: string,
-  requesterId?: number,
+  accessToken: string,
 ): Promise<T> {
   const response = await request.get(`${API_BASE_URL}${path}`, {
-    headers: requesterId === undefined ? undefined : { "X-Requester-Id": String(requesterId) },
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  expect(response.ok()).toBeTruthy();
+  expect(
+    response.ok(),
+    `GET ${path} returned ${response.status()} ${response.statusText()}`,
+  ).toBeTruthy();
   return (await response.json()) as T;
-}
-
-function named<T extends NamedRecord>(records: T[], name: string): T {
-  const record = records.find((candidate) => candidate.name === name);
-
-  if (record === undefined) {
-    throw new Error(`Test fixture is missing ${name}.`);
-  }
-
-  return record;
-}
-
-async function selectRequester(page: Page, name: string): Promise<void> {
-  await page.goto("/requesters");
-  await page.evaluate(() => sessionStorage.clear());
-  await page.reload();
-
-  const requester = page.getByRole("combobox", { name: "Development Requester" });
-  await expect(requester).toBeVisible();
-  await requester.selectOption({ label: name });
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page).toHaveURL(/\/tickets$/);
 }
 
 async function fillTicketForm(page: Page, summary: string, attachment: FilePayload): Promise<void> {
   await page.goto("/tickets/new");
   await expect(page.getByRole("heading", { name: "Create Ticket", exact: true })).toBeVisible();
-  await page.getByLabel("Category").selectOption({ label: "Network" });
-  await page.getByLabel("Related System").selectOption({ label: "VPN" });
-  await page.getByLabel("Requested Priority").selectOption("HIGH");
-  await page.getByLabel("Summary").fill(summary);
-  await page.getByLabel("Description").fill(`${summary} recovery description for Lab 2.`);
+  await page.getByLabel("Category *", { exact: true }).selectOption({ label: "Network" });
+  await page.getByLabel("Related System *", { exact: true }).selectOption({ label: "VPN" });
+  await page.getByLabel("Requested Priority *", { exact: true }).selectOption("HIGH");
+  await page.getByLabel("Summary *", { exact: true }).fill(summary);
+  await page.getByLabel("Description *", { exact: true }).fill(`${summary} recovery description for Lab 2.`);
   await page.getByLabel("Add Attachment").setInputFiles(attachment);
   await expect(page.getByText(attachment.name, { exact: true })).toBeVisible();
   await expect(page.getByText("Pending", { exact: true })).toBeVisible();
@@ -101,31 +77,29 @@ function pathPublicId(url: string): string {
 test("E2E-03 recovers an ambiguous Create Ticket submission across reload", async ({
   page,
   request,
+  aliceSession,
 }) => {
   const marker = `E2E Recovery ${Date.now()}`;
   const attachment = pngFile("recovery-path.png");
-  const requesters = await getJson<DevelopmentRequester[]>(request, "/api/requesters");
-  const alice = named(requesters, "Alice Johnson");
   let createRequests = 0;
   let uploadRequests = 0;
 
   page.on("request", (outgoing) => {
     const pathname = new URL(outgoing.url()).pathname;
 
-    if (outgoing.method() === "POST" && pathname === "/api/tickets") {
+    if (outgoing.method() === "POST" && pathname === "/api/users/me/tickets") {
       createRequests += 1;
     }
 
-    if (outgoing.method() === "POST" && pathname === "/api/attachments") {
+    if (outgoing.method() === "POST" && pathname === "/api/users/me/attachments") {
       uploadRequests += 1;
     }
   });
 
-  await selectRequester(page, "Alice Johnson");
-  await page.route("**/api/tickets**", async (route) => {
+  await page.route("**/api/users/me/tickets**", async (route) => {
     const url = new URL(route.request().url());
 
-    if (route.request().method() !== "POST" || url.pathname !== "/api/tickets") {
+    if (route.request().method() !== "POST" || url.pathname !== "/api/users/me/tickets") {
       await route.continue();
       return;
     }
@@ -161,7 +135,7 @@ test("E2E-03 recovers an ambiguous Create Ticket submission across reload", asyn
   expect(uploadRequests).toBe(1);
   expect(page.url()).toMatch(/\/tickets\/new$/);
 
-  await page.unroute("**/api/tickets**");
+  await page.unroute("**/api/users/me/tickets**");
   await recovery.click();
   await expect(page).toHaveURL(/\/tickets\/[0-9a-f-]+$/);
 
@@ -173,13 +147,17 @@ test("E2E-03 recovers an ambiguous Create Ticket submission across reload", asyn
 
   const list = await getJson<Array<{ publicId: string; summary: string }>>(
     request,
-    `/api/tickets?search=${encodeURIComponent(marker)}&searchFields=summary&pageNumber=1&pageSize=100`,
-    alice.id,
+    `/api/users/me/tickets?search=${encodeURIComponent(marker)}&searchFields=summary&pageNumber=1&pageSize=100`,
+    aliceSession.accessToken,
   );
   expect(list).toHaveLength(1);
   expect(list[0]).toMatchObject({ publicId: recoveredPublicId, summary: marker });
 
-  const recovered = await getJson<Ticket>(request, `/api/tickets/${recoveredPublicId}`, alice.id);
+  const recovered = await getJson<Ticket>(
+    request,
+    `/api/users/me/tickets/${recoveredPublicId}`,
+    aliceSession.accessToken,
+  );
   expect(recovered).toMatchObject({ publicId: recoveredPublicId, ticketNumber, summary: marker });
   expect(recovered.attachments).toHaveLength(1);
   expect(recovered.attachments[0].deleted).toBe(false);

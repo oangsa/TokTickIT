@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 import { ApiError } from "../http/errors.js";
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { IdempotencyService, PrismaTransaction } from "./idempotencyService.js";
 import { MAX_ATTACHMENTS, CreateTicketPayload } from "./ticketCreateRequest.js";
 import { generateTicketNumber } from "./ticketNumber.js";
+import { TICKET_DTO_INCLUDE, toTicketDTO, type TicketDTO, type TicketWithRelations } from "./ticketRepresentation.js";
 
 /* BR-03: at most three Ticket-creation attempts for Ticket Number collisions. */
 export const TICKET_NUMBER_ATTEMPTS = 3;
@@ -15,110 +16,63 @@ const TICKET_NUMBER_SAVEPOINT = "ticket_number_attempt";
 /* BR-54: a Pending Attachment is cleanup-eligible 24 hours after creation. */
 export const PENDING_ATTACHMENT_TTL_HOURS = 24;
 
-/*
- * Everything the full TicketDTO needs in one query (api-spec Section 5.5).
- * Category and Related System are loaded by relation rather than re-validated,
- * because Ticket metadata is historical: a Ticket keeps resolving its names
- * after the master row goes inactive or is logically deleted (BR-72-73).
- *
- * `data` is omitted: the Attachment DTO carries `sizeBytes`, never the bytes.
- * Without this, every create, replay, and detail read pulls up to five
- * 5,000,000-byte blobs (MAX_ATTACHMENT_BYTES) into memory only to discard them.
- */
-const TICKET_DTO_INCLUDE = {
-  requester: true,
-  category: true,
-  relatedSystem: true,
-  attachments: { orderBy: { id: "asc" }, omit: { data: true } },
-} satisfies Prisma.TicketInclude;
+export type RequesterTicketAction = "cancel" | "looks-resolved" | "reopen";
 
-type TicketWithRelations = Prisma.TicketGetPayload<{ include: typeof TICKET_DTO_INCLUDE }>;
+export async function applyRequesterTicketAction(
+  prisma: PrismaClient,
+  requesterId: number,
+  actor: string,
+  publicId: string,
+  action: RequesterTicketAction,
+): Promise<TicketDTO | null> {
+  if (!Number.isSafeInteger(requesterId) || requesterId <= 0 || !PUBLIC_ID_PATTERN.test(publicId)) {
+    return null;
+  }
 
-type AttachmentRow = TicketWithRelations["attachments"][number];
+  return prisma.$transaction(async (tx) => {
+    const ticket = await tx.ticket.findFirst({
+      where: { publicId, requesterId, deleted: false },
+      select: { id: true, currentStatus: true, requesterResolutionConfirmedAt: true },
+    });
 
-export interface AttachmentDTO {
-  attachmentId: string;
-  ticketPublicId: string | null;
-  originalName: string;
-  extension: string;
-  mimeType: string;
-  sizeBytes: number;
-  removalReason: string | null;
-  createdBy: string;
-  createdAt: string;
-  updatedBy: string;
-  updatedAt: string;
-  deleted: boolean;
-}
+    if (ticket === null) return null;
 
-export interface TicketDTO {
-  publicId: string;
-  ticketNumber: string;
-  requesterId: number;
-  requesterName: string;
-  requesterEmail: string;
-  categoryId: number;
-  categoryName: string;
-  relatedSystemId: number;
-  relatedSystemName: string;
-  summary: string;
-  description: string;
-  requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
-  attachments: AttachmentDTO[];
-  createdBy: string;
-  createdAt: string;
-  updatedBy: string;
-  updatedAt: string;
-  deleted: boolean;
-}
+    const allowed = action === "cancel"
+      ? ticket.currentStatus === "NEW" || ticket.currentStatus === "OPEN"
+      : action === "looks-resolved"
+        ? ticket.currentStatus === "RESOLVED"
+        : ticket.currentStatus === "RESOLVED" || ticket.currentStatus === "CLOSED";
 
-/*
- * The public Attachment identifier is the opaque storageKey, never the row id.
- *
- * Exported for `attachmentService.ts`, which answers the same DTO from the
- * standalone Attachment endpoints. One mapper, so a field can never be spelled
- * one way inside a Ticket and another way beside it.
- */
-export function toAttachmentDTO(row: AttachmentRow, ticketPublicId: string | null): AttachmentDTO {
-  return {
-    attachmentId: row.storageKey,
-    ticketPublicId: row.ticketId === null ? null : ticketPublicId,
-    originalName: row.originalName,
-    extension: row.extension,
-    mimeType: row.mimeType,
-    sizeBytes: row.sizeBytes,
-    removalReason: row.removalReason,
-    createdBy: row.createdBy,
-    createdAt: row.createdAt.toISOString(),
-    updatedBy: row.updatedBy,
-    updatedAt: row.updatedAt.toISOString(),
-    deleted: row.deleted,
-  };
-}
+    if (!allowed) throw new ApiError("INVALID_STATUS_TRANSITION");
 
-export function toTicketDTO(ticket: TicketWithRelations): TicketDTO {
-  return {
-    publicId: ticket.publicId,
-    ticketNumber: ticket.ticketNumber,
-    requesterId: ticket.requesterId,
-    requesterName: ticket.requester.name,
-    requesterEmail: ticket.requester.email,
-    categoryId: ticket.categoryId,
-    categoryName: ticket.category.name,
-    relatedSystemId: ticket.relatedSystemId,
-    relatedSystemName: ticket.relatedSystem.name,
-    summary: ticket.summary,
-    description: ticket.description,
-    requestedPriority: ticket.requestedPriority,
-    currentStatus: ticket.currentStatus,
-    attachments: ticket.attachments.map((row) => toAttachmentDTO(row, ticket.publicId)),
-    createdBy: ticket.createdBy,
-    createdAt: ticket.createdAt.toISOString(),
-    updatedBy: ticket.updatedBy,
-    updatedAt: ticket.updatedAt.toISOString(),
-    deleted: ticket.deleted,
-  };
+    /* A repeated confirmation is an idempotent read: do not churn audit fields. */
+    if (action === "looks-resolved" && ticket.requesterResolutionConfirmedAt !== null) {
+      const current = await tx.ticket.findUnique({ where: { id: ticket.id }, include: TICKET_DTO_INCLUDE });
+      return current === null ? null : toTicketDTO(current);
+    }
+
+    const data = action === "cancel"
+      ? { currentStatus: "CANCELLED" as const, updatedBy: actor }
+      : action === "looks-resolved"
+        ? { requesterResolutionConfirmedAt: ticket.requesterResolutionConfirmedAt ?? new Date(), updatedBy: actor }
+        : { currentStatus: "REOPENED" as const, ownerUserId: null, requesterResolutionConfirmedAt: null, updatedBy: actor };
+
+    const result = await tx.ticket.updateMany({
+      where: {
+        id: ticket.id,
+        deleted: false,
+        ...(action === "cancel" ? { currentStatus: { in: ["NEW", "OPEN"] as const } } : {}),
+        ...(action === "looks-resolved" ? { currentStatus: "RESOLVED" as const } : {}),
+        ...(action === "reopen" ? { currentStatus: { in: ["RESOLVED", "CLOSED"] as const } } : {}),
+      },
+      data,
+    });
+
+    if (result.count !== 1) throw new ApiError("INVALID_STATUS_TRANSITION");
+
+    const updated = await tx.ticket.findUnique({ where: { id: ticket.id }, include: TICKET_DTO_INCLUDE });
+    return updated === null ? null : toTicketDTO(updated);
+  });
 }
 
 /*
@@ -146,12 +100,8 @@ export async function findTicketForRequester(
   publicId: string,
 ): Promise<TicketDTO | null> {
   /*
-   * The route reads `req.requesterId`, which is optional on the Express type
-   * and arrives here through an `as number` cast. Prisma reads `undefined` in a
-   * `where` as "predicate not supplied", so an unresolved Requester would drop
-   * the ownership predicate and answer 200 with another Requester's Ticket.
-   * `requireRequesterContext` covers this route today; this makes a future gap
-   * in that cover a loud 500 instead of a scope leak.
+   * The route supplies the numeric User FK derived by authenticated middleware.
+   * A missing/invalid value fails closed before Prisma sees the predicate.
    */
   if (!Number.isSafeInteger(requesterId) || requesterId <= 0) {
     throw new Error("findTicketForRequester requires a resolved Requester.");
@@ -418,6 +368,7 @@ export class TicketService {
             relatedSystemId: input.payload.relatedSystemId,
             summary: input.payload.summary,
             requestedPriority: input.payload.requestedPriority,
+            itPriority: input.payload.requestedPriority,
             description: input.payload.description,
             currentStatus: "NEW",
             deleted: false,

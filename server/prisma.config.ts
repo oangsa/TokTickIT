@@ -1,8 +1,16 @@
 import { config } from "dotenv";
 import { defineConfig, env } from "prisma/config";
+import { assertLab3TargetEnvironment } from "./src/databaseTargetGuard.js";
 
 // dotenv/config only reads ".env"; this repo keeps its values in ".env.local".
 config({ path: [".env.local", ".env"] });
+
+const prismaCommand = process.argv[2];
+const usesDatabase = prismaCommand === "migrate" || prismaCommand === "db" || prismaCommand === "studio";
+
+if (usesDatabase && process.env.NODE_ENV === "test") {
+  assertLab3TargetEnvironment(process.env);
+}
 
 
 // Prisma 7 reads the migration connection from here instead of schema.prisma.

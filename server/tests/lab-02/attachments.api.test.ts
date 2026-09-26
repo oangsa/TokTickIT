@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
 import { binaryParser } from "./support/binaryResponse.js";
-import { ALICE, attachmentRow, prismaMock, tx } from "./support/ticketPrismaMock.js";
+import {
+  ALICE,
+  ALICE_AUTH,
+  attachmentRow,
+  prismaMock,
+  tx,
+} from "./support/ticketPrismaMock.js";
+import { bearerToken, configureRequesterAuth, type RequesterTokens } from "./support/authenticatedRequester.js";
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
@@ -17,23 +24,26 @@ const UNKNOWN_KEY = "33333333-3333-4333-8333-333333333333";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-function upload(path: string) {
-  return request(app).post(path).set("X-Requester-Id", String(ALICE.id));
+let tokens: RequesterTokens;
+
+function upload(path: string, userId = ALICE_AUTH.id) {
+  return request(app).post(path).set("Authorization", bearerToken(tokens, userId));
 }
 
-function get(path: string, requesterId: number = ALICE.id) {
-  return request(app).get(path).set("X-Requester-Id", String(requesterId));
+function get(path: string, userId: number = ALICE_AUTH.id) {
+  return request(app).get(path).set("Authorization", bearerToken(tokens, userId));
 }
 
 function removeCollection(body: unknown) {
   return request(app)
-    .delete("/api/attachments/collection")
-    .set("X-Requester-Id", String(ALICE.id))
+    .delete("/api/users/me/attachments/collection")
+    .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
     .send(body as object);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  tokens = await configureRequesterAuth(prismaMock, [ALICE_AUTH]);
   prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
   prismaMock.$transaction.mockImplementation(
     async (work: (client: typeof tx) => unknown) => work(tx),
@@ -52,7 +62,7 @@ beforeEach(() => {
 
 describe("API-39 standalone Pending pre-upload", () => {
   it("returns 201 and the full Pending AttachmentDTO", async () => {
-    const res = await upload("/api/attachments").attach("file", PNG, {
+    const res = await upload("/api/users/me/attachments").attach("file", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -80,11 +90,11 @@ describe("API-39 standalone Pending pre-upload", () => {
 
   it("requires a valid Requester context", async () => {
     const res = await request(app)
-      .post("/api/attachments")
+      .post("/api/users/me/attachments")
       .attach("file", PNG, { filename: "vpn-error.png" });
 
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
     expect(prismaMock.attachment.create).not.toHaveBeenCalled();
   });
 });
@@ -93,7 +103,7 @@ describe("API-40 unsupported Attachment extension", () => {
   it.each(["malware.exe", "notes.txt", "archive.zip", "sheet.xlsx"])(
     "refuses %s with 415 and creates nothing",
     async (filename) => {
-      const res = await upload("/api/attachments").attach("file", PNG, { filename });
+      const res = await upload("/api/users/me/attachments").attach("file", PNG, { filename });
 
       expect(res.status).toBe(415);
       expect(res.body.code).toBe("UNSUPPORTED_MEDIA_TYPE");
@@ -108,7 +118,7 @@ describe("API-41 Attachment size boundaries", () => {
     ["4,999,999", MAX_ATTACHMENT_BYTES - 1],
     ["5,000,000", MAX_ATTACHMENT_BYTES],
   ])("accepts a file of exactly %s bytes", async (_label, size) => {
-    const res = await upload("/api/attachments").attach("file", Buffer.alloc(size, 7), {
+    const res = await upload("/api/users/me/attachments").attach("file", Buffer.alloc(size, 7), {
       filename: "large.pdf",
     });
 
@@ -117,7 +127,7 @@ describe("API-41 Attachment size boundaries", () => {
   });
 
   it("refuses 5,000,001 bytes with 413 and creates no usable Attachment", async () => {
-    const res = await upload("/api/attachments").attach(
+    const res = await upload("/api/users/me/attachments").attach(
       "file",
       Buffer.alloc(MAX_ATTACHMENT_BYTES + 1, 7),
       { filename: "too-large.pdf" },
@@ -140,13 +150,13 @@ describe("API-42 MIME derived from the approved extension", () => {
     ["shot.webp", "webp", "image/webp"],
     ["report.pdf", "pdf", "application/pdf"],
   ])("maps %s to %s", async (filename, extension, mimeType) => {
-    const res = await upload("/api/attachments").attach("file", PNG, { filename });
+    const res = await upload("/api/users/me/attachments").attach("file", PNG, { filename });
 
     expect(res.body).toMatchObject({ extension, mimeType });
   });
 
   it("ignores the multipart MIME value the client supplied", async () => {
-    const res = await upload("/api/attachments").attach("file", PNG, {
+    const res = await upload("/api/users/me/attachments").attach("file", PNG, {
       filename: "vpn-error.png",
       contentType: "application/x-msdownload",
     });
@@ -164,7 +174,7 @@ describe("API-43 cleanup is not reachable over HTTP", () => {
   ])("does not expose %s %s", async (method, path) => {
     const res = await request(app)
       [method as "post" | "delete"](path)
-      .set("X-Requester-Id", String(ALICE.id));
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id));
 
     expect(res.status).toBe(404);
   });
@@ -172,7 +182,7 @@ describe("API-43 cleanup is not reachable over HTTP", () => {
 
 describe("API-44 direct upload to an existing owned Ticket", () => {
   it("returns 201 with the Attachment bound to the requested Ticket", async () => {
-    const res = await upload(`/api/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
+    const res = await upload(`/api/users/me/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -183,7 +193,7 @@ describe("API-44 direct upload to an existing owned Ticket", () => {
   });
 
   it("runs the Active count and the insert in one Serializable transaction", async () => {
-    await upload(`/api/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
+    await upload(`/api/users/me/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -197,7 +207,7 @@ describe("API-45 five-Active limit and replacement after removal", () => {
   it("returns 409 at five Active Attachments", async () => {
     tx.attachment.count.mockResolvedValue(5);
 
-    const res = await upload(`/api/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
+    const res = await upload(`/api/users/me/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
       filename: "sixth.png",
     });
 
@@ -209,7 +219,7 @@ describe("API-45 five-Active limit and replacement after removal", () => {
   it("accepts one replacement once a slot is freed by a soft removal", async () => {
     tx.attachment.count.mockResolvedValue(4);
 
-    const res = await upload(`/api/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
+    const res = await upload(`/api/users/me/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
       filename: "replacement.png",
     });
 
@@ -226,7 +236,7 @@ describe("API-46 and API-47 unavailable Ticket targets", () => {
   ])("answers the same 404 for a Ticket that is %s", async (_label, publicId) => {
     tx.ticket.findFirst.mockResolvedValue(null);
 
-    const res = await upload(`/api/tickets/${publicId}/attachments`).attach("file", PNG, {
+    const res = await upload(`/api/users/me/tickets/${publicId}/attachments`).attach("file", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -241,7 +251,7 @@ describe("API-46 and API-47 unavailable Ticket targets", () => {
   });
 
   it("answers 404 for a malformed Ticket identifier without querying", async () => {
-    const res = await upload("/api/tickets/not-a-uuid/attachments").attach("file", PNG, {
+    const res = await upload("/api/users/me/tickets/not-a-uuid/attachments").attach("file", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -250,7 +260,7 @@ describe("API-46 and API-47 unavailable Ticket targets", () => {
   });
 
   it("excludes a logically deleted Ticket through the query predicate", async () => {
-    await upload(`/api/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
+    await upload(`/api/users/me/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -266,7 +276,7 @@ describe("API-48 Attachment metadata lifecycle", () => {
   it("returns 200 for an owned Pending Attachment with a null Ticket public id", async () => {
     prismaMock.attachment.findFirst.mockResolvedValue(attachmentRow({ ticket: null }));
 
-    const res = await get(`/api/attachments/${PENDING_KEY}`);
+    const res = await get(`/api/users/me/attachments/${PENDING_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ attachmentId: PENDING_KEY, ticketPublicId: null });
@@ -277,7 +287,7 @@ describe("API-48 Attachment metadata lifecycle", () => {
       attachmentRow({ storageKey: ACTIVE_KEY, ticketId: 42, ticket: { publicId: TICKET_PUBLIC_ID } }),
     );
 
-    const res = await get(`/api/attachments/${ACTIVE_KEY}`);
+    const res = await get(`/api/users/me/attachments/${ACTIVE_KEY}`);
 
     expect(res.body).toMatchObject({
       attachmentId: ACTIVE_KEY,
@@ -297,7 +307,7 @@ describe("API-48 Attachment metadata lifecycle", () => {
       }),
     );
 
-    const res = await get(`/api/attachments/${REMOVED_KEY}`);
+    const res = await get(`/api/users/me/attachments/${REMOVED_KEY}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ deleted: true, removalReason: "Duplicate document." });
@@ -306,7 +316,7 @@ describe("API-48 Attachment metadata lifecycle", () => {
   it("never selects the stored bytes for a metadata read", async () => {
     prismaMock.attachment.findFirst.mockResolvedValue(attachmentRow({ ticket: null }));
 
-    await get(`/api/attachments/${PENDING_KEY}`);
+    await get(`/api/users/me/attachments/${PENDING_KEY}`);
 
     expect(prismaMock.attachment.findFirst.mock.calls[0][0].omit).toEqual({ data: true });
   });
@@ -317,7 +327,7 @@ describe("API-48 Attachment metadata lifecycle", () => {
   ])("answers the same safe 404 for %s", async (_label, key) => {
     prismaMock.attachment.findFirst.mockResolvedValue(null);
 
-    const res = await get(`/api/attachments/${key}`);
+    const res = await get(`/api/users/me/attachments/${key}`);
 
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("NOT_FOUND");
@@ -342,7 +352,7 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
   ])("serves an owned Attachment through %s as %s", async (route, disposition) => {
     prismaMock.attachment.findFirst.mockResolvedValue(binaryRow());
 
-    const res = await get(`/api/attachments/${ACTIVE_KEY}/${route}`).buffer(true).parse(binaryParser);
+    const res = await get(`/api/users/me/attachments/${ACTIVE_KEY}/${route}`).buffer(true).parse(binaryParser);
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toBe("image/png");
@@ -361,7 +371,7 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
         where.deleted === false ? null : { id: 13 },
     );
 
-    const res = await get(`/api/attachments/${REMOVED_KEY}/${route}`);
+    const res = await get(`/api/users/me/attachments/${REMOVED_KEY}/${route}`);
 
     expect(res.status).toBe(410);
     expect(res.body.code).toBe("GONE");
@@ -373,7 +383,7 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
     async (route) => {
       prismaMock.attachment.findFirst.mockResolvedValue(null);
 
-      const res = await get(`/api/attachments/${UNKNOWN_KEY}/${route}`);
+      const res = await get(`/api/users/me/attachments/${UNKNOWN_KEY}/${route}`);
 
       expect(res.status).toBe(404);
       expect(res.body.code).toBe("NOT_FOUND");
@@ -381,7 +391,7 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
   );
 
   it.each(["preview", "download"])("answers 404 on %s for a malformed identifier", async (route) => {
-    const res = await get(`/api/attachments/not-a-uuid/${route}`);
+    const res = await get(`/api/users/me/attachments/not-a-uuid/${route}`);
 
     expect(res.status).toBe(404);
     expect(prismaMock.attachment.findFirst).not.toHaveBeenCalled();
@@ -390,7 +400,7 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
   it("scopes the binary read to Pending ownership or the owning Ticket", async () => {
     prismaMock.attachment.findFirst.mockResolvedValue(binaryRow());
 
-    await get(`/api/attachments/${ACTIVE_KEY}/preview`).buffer(true).parse(binaryParser);
+    await get(`/api/users/me/attachments/${ACTIVE_KEY}/preview`).buffer(true).parse(binaryParser);
 
     expect(prismaMock.attachment.findFirst.mock.calls[0][0].where).toEqual({
       storageKey: ACTIVE_KEY,
@@ -404,7 +414,7 @@ describe("API-49 and API-50 preview and download lifecycle", () => {
   });
 
   it("does not query an invented per-Requester Pending quota", async () => {
-    const res = await upload("/api/attachments").attach("file", PNG, {
+    const res = await upload("/api/users/me/attachments").attach("file", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -594,7 +604,7 @@ describe("API-69 direct-upload Serializable retry mapping", () => {
   }
 
   function post() {
-    return upload(`/api/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
+    return upload(`/api/users/me/tickets/${TICKET_PUBLIC_ID}/attachments`).attach("file", PNG, {
       filename: "vpn-error.png",
     });
   }
@@ -658,7 +668,7 @@ describe("API-69 direct-upload Serializable retry mapping", () => {
 
 describe("API-70 multipart boundary and binary hardening", () => {
   it("refuses a request with no file part", async () => {
-    const res = await upload("/api/attachments");
+    const res = await upload("/api/users/me/attachments");
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("VALIDATION_ERROR");
@@ -666,7 +676,7 @@ describe("API-70 multipart boundary and binary hardening", () => {
   });
 
   it("refuses a second file part named file", async () => {
-    const res = await upload("/api/attachments")
+    const res = await upload("/api/users/me/attachments")
       .attach("file", PNG, { filename: "first.png" })
       .attach("file", PNG, { filename: "second.png" });
 
@@ -675,7 +685,7 @@ describe("API-70 multipart boundary and binary hardening", () => {
   });
 
   it("refuses a file part under an unexpected field name", async () => {
-    const res = await upload("/api/attachments").attach("document", PNG, {
+    const res = await upload("/api/users/me/attachments").attach("document", PNG, {
       filename: "vpn-error.png",
     });
 
@@ -684,7 +694,7 @@ describe("API-70 multipart boundary and binary hardening", () => {
   });
 
   it("refuses a companion text field alongside the file", async () => {
-    const res = await upload("/api/attachments")
+    const res = await upload("/api/users/me/attachments")
       .field("note", "extra")
       .attach("file", PNG, { filename: "vpn-error.png" });
 
@@ -693,7 +703,7 @@ describe("API-70 multipart boundary and binary hardening", () => {
   });
 
   it("refuses a JSON body on an upload route", async () => {
-    const res = await upload("/api/attachments")
+    const res = await upload("/api/users/me/attachments")
       .set("Content-Type", "application/json")
       .send({ file: "vpn-error.png" });
 
@@ -706,14 +716,14 @@ describe("API-70 multipart boundary and binary hardening", () => {
     ["a Windows path", "C:\\Users\\alice\\vpn-error.png", "vpn-error.png"],
     ["a traversal attempt", "../../etc/passwd.png", "passwd.png"],
   ])("stores only the basename of %s", async (_label, filename, expected) => {
-    const res = await upload("/api/attachments").attach("file", PNG, { filename });
+    const res = await upload("/api/users/me/attachments").attach("file", PNG, { filename });
 
     expect(res.status).toBe(201);
     expect(res.body.originalName).toBe(expected);
   });
 
   it("keeps a Unicode file name intact", async () => {
-    const res = await upload("/api/attachments").attach("file", PNG, {
+    const res = await upload("/api/users/me/attachments").attach("file", PNG, {
       filename: "รายงาน-ปัญหา.png",
     });
 
@@ -722,7 +732,7 @@ describe("API-70 multipart boundary and binary hardening", () => {
   });
 
   it("refuses a file name longer than 255 UTF-8 bytes", async () => {
-    const res = await upload("/api/attachments").attach("file", PNG, {
+    const res = await upload("/api/users/me/attachments").attach("file", PNG, {
       filename: `${"a".repeat(252)}.png`,
     });
 
@@ -739,7 +749,7 @@ describe("API-70 multipart boundary and binary hardening", () => {
       deleted: false,
     });
 
-    const res = await get(`/api/attachments/${ACTIVE_KEY}/download`)
+    const res = await get(`/api/users/me/attachments/${ACTIVE_KEY}/download`)
       .buffer(true)
       .parse(binaryParser);
 
@@ -763,12 +773,12 @@ describe("API-70 multipart boundary and binary hardening", () => {
       deleted: false,
     });
 
-    const res = await get(`/api/attachments/${ACTIVE_KEY}/preview`)
+    const res = await get(`/api/users/me/attachments/${ACTIVE_KEY}/preview`)
       .buffer(true)
       .parse(binaryParser);
 
     const vary = res.headers.vary.split(",").map((value: string) => value.trim());
     expect(vary).toContain("Origin");
-    expect(vary).toContain("X-Requester-Id");
+    expect(vary).not.toContain("X-Requester-Id");
   });
 });

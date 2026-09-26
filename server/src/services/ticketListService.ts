@@ -49,7 +49,7 @@ export interface TicketListItemDTO {
   relatedSystemName: string;
   summary: string;
   requestedPriority: "LOW" | "MEDIUM" | "HIGH";
-  currentStatus: "NEW";
+  currentStatus: "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
   createdAt: string;
 }
 
@@ -79,13 +79,8 @@ export async function listTicketsForRequester(
   query: TicketListQuery,
 ): Promise<TicketListResult> {
   /*
-   * The route reads `req.requesterId`, which is optional on the Express type and
-   * reaches this function through an `as number` cast. Prisma reads `undefined`
-   * in a `where` as "predicate not supplied", so an unresolved Requester would
-   * turn `{ requesterId }` below into `{}` and answer 200 with every Requester's
-   * rows, counts, and pagination metadata -- failing open, silently, with no
-   * error to log. `requireRequesterContext` covers this route today; this makes
-   * a future gap in that cover a loud 500 instead of a scope leak.
+   * The route supplies the numeric User FK derived by authenticated middleware.
+   * A missing/invalid value fails closed before Prisma sees the predicate.
    */
   if (!Number.isSafeInteger(requesterId) || requesterId <= 0) {
     throw new Error("listTicketsForRequester requires a resolved Requester.");

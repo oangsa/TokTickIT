@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
+import { assertLab3TargetEnvironment } from "./server/src/databaseTargetGuard.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -37,25 +38,29 @@ function databaseIdentity(value: string): string {
 
 function requireTestDatabaseUrl(): string {
   if (process.env.NODE_ENV !== "test") {
-    throw new Error("Lab 2 Playwright tests require NODE_ENV=test");
+    throw new Error("Lab Playwright tests require NODE_ENV=test");
   }
 
   const testUrl = process.env.TEST_DATABASE_URL?.trim();
 
   if (!testUrl) {
-    throw new Error("Lab 2 Playwright tests require TEST_DATABASE_URL");
+    throw new Error("Lab Playwright tests require TEST_DATABASE_URL");
   }
 
   const testIdentity = databaseIdentity(testUrl);
   const databaseName = testIdentity.slice(testIdentity.lastIndexOf("/") + 1);
 
   if (
-    !/(^|[_-])lab2([_-]|$)/i.test(databaseName) ||
+    !/(^|[_-])lab(?:2|3)([_-]|$)/i.test(databaseName) ||
     !/(^|[_-])test([_-]|$)/i.test(databaseName)
   ) {
     throw new Error(
-      "TEST_DATABASE_URL database name must identify the dedicated Lab 2 test database",
+      "TEST_DATABASE_URL database name must identify a dedicated Lab 2 or Lab 3 test database",
     );
+  }
+
+  if (process.env.DATABASE_URL === testUrl && process.env.DIRECT_URL === testUrl) {
+    return assertLab3TargetEnvironment();
   }
 
   for (const variableName of ["DATABASE_URL", "DIRECT_URL"] as const) {
@@ -104,12 +109,22 @@ async function runCommand(command: string, arguments_: string[], testUrl: string
 
 export default async function globalSetup(): Promise<void> {
   const testUrl = requireTestDatabaseUrl();
+  const databaseName = databaseIdentity(testUrl).slice(databaseIdentity(testUrl).lastIndexOf("/") + 1);
+  const isLab3 = /(^|[_-])lab3([_-]|$)/i.test(databaseName);
+  const evidenceDirectories = isLab3
+    ? [
+        "docs/lab-03/evidence/screenshots/authentication",
+        "docs/lab-03/evidence/screenshots/staff-queue",
+        "docs/lab-03/evidence/screenshots/staff-ticket-detail",
+        "docs/lab-03/evidence/screenshots/user-management",
+      ]
+    : [
+        "docs/lab-02/evidence/screenshots/create-ticket",
+        "docs/lab-02/evidence/screenshots/my-tickets",
+        "docs/lab-02/evidence/screenshots/ticket-detail",
+      ];
 
-  for (const directory of [
-    "docs/lab-02/evidence/screenshots/create-ticket",
-    "docs/lab-02/evidence/screenshots/my-tickets",
-    "docs/lab-02/evidence/screenshots/ticket-detail",
-  ]) {
+  for (const directory of evidenceDirectories) {
     mkdirSync(resolve(repositoryRoot, directory), { recursive: true });
   }
 

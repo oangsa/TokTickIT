@@ -8,8 +8,8 @@ const DEVELOPMENT_ORIGIN = "http://localhost:5173";
 const EXACT_ORIGIN_PATTERN = /^https?:\/\/[^\s/]+$/;
 
 export const ALLOWED_REQUEST_HEADERS = [
+  "Authorization",
   "Content-Type",
-  "X-Requester-Id",
   "Idempotency-Key",
   "X-Request-Id",
 ];
@@ -26,10 +26,17 @@ export interface CorsEnvironment {
  * the startup-failure case can be tested without mutating the process.
  */
 export function resolveAllowedOrigins(env: CorsEnvironment): string[] {
-  const configured = (env.CORS_ALLOWED_ORIGINS ?? "")
+  const configuredValue = env.CORS_ALLOWED_ORIGINS ?? "";
+  const configuredEntries = configuredValue
     .split(",")
     .map((origin) => origin.trim())
-    .filter((origin) => EXACT_ORIGIN_PATTERN.test(origin));
+    .filter((origin) => origin.length > 0);
+
+  if (configuredEntries.some((origin) => !EXACT_ORIGIN_PATTERN.test(origin))) {
+    throw new Error("CORS_ALLOWED_ORIGINS must contain exact origins only.");
+  }
+
+  const configured = configuredEntries;
 
   if (configured.length > 0) {
     return configured;
@@ -49,5 +56,6 @@ export function createCorsMiddleware(env: CorsEnvironment = process.env): Reques
     origin: resolveAllowedOrigins(env),
     allowedHeaders: ALLOWED_REQUEST_HEADERS,
     exposedHeaders: EXPOSED_RESPONSE_HEADERS,
+    credentials: true,
   });
 }

@@ -1,17 +1,24 @@
-// Prisma schema — datasource and generator are pre-wired.
-// Your DATABASE_URL lives in server/.env (copy it from .env.example) and is
-// read by prisma.config.ts; Prisma 7 no longer takes `url` in this file.
+// Prisma schema — source of truth for the Lab 3 data model.
 
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
-  // The generated files land under src/ and are compiled by tsc, so their
-  // internal imports need the .js extensions Node's ESM loader expects.
   importFileExtension = "js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
+enum SessionStage {
+  PASSWORD_CHANGE_REQUIRED
+  FULL
 }
 
 enum RequestedPriority {
@@ -20,8 +27,21 @@ enum RequestedPriority {
   HIGH
 }
 
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum TicketStatus {
   NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
 }
 
 enum IdempotencyStatus {
@@ -29,22 +49,74 @@ enum IdempotencyStatus {
   COMPLETED
 }
 
-model DevelopmentRequester {
-  id        Int      @id @default(autoincrement()) @map("id")
-  name      String   @map("name") @db.VarChar(100)
-  email     String   @unique(map: "development_requester_email_key") @map("email") @db.VarChar(254)
-  isActive  Boolean  @default(true) @map("is_active")
-  deleted   Boolean  @default(false) @map("deleted")
-  createdBy String   @map("created_by") @db.VarChar(255)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedBy String   @map("updated_by") @db.VarChar(255)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+enum LoginRateLimitScope {
+  EMAIL_IP
+  IP
+}
 
-  tickets            Ticket[]            @relation("RequesterTickets")
+model User {
+  id                 Int      @id @default(autoincrement()) @map("id")
+  publicId           String   @unique(map: "user_public_id_key") @default(uuid()) @map("public_id") @db.Uuid
+  name               String   @map("name") @db.VarChar(100)
+  email              String   @unique(map: "user_email_key") @map("email") @db.Citext
+  role               UserRole @map("role")
+  passwordHash       String   @map("password_hash") @db.VarChar(255)
+  mustChangePassword Boolean  @default(true) @map("must_change_password")
+  isActive           Boolean  @default(true) @map("is_active")
+  deleted            Boolean  @default(false) @map("deleted")
+  createdBy          String   @map("created_by") @db.VarChar(255)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy          String   @map("updated_by") @db.VarChar(255)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  requesterTickets   Ticket[]            @relation("RequesterTickets")
+  ownedTickets       Ticket[]            @relation("TicketOwners")
   attachments        Attachment[]        @relation("AttachmentUploader")
   idempotencyRecords IdempotencyRecord[] @relation("RequesterIdempotencyRecords")
+  sessions           UserSession[]       @relation("UserSessions")
+  publicComments     PublicComment[]     @relation("PublicCommentAuthors")
+  internalNotes      InternalNote[]      @relation("InternalNoteAuthors")
 
-  @@map("development_requester")
+  @@index([role, isActive, deleted], map: "user_role_active_deleted_idx")
+  @@map("user")
+}
+
+model UserSession {
+  id                        String       @id @default(uuid()) @map("id") @db.Uuid
+  userId                    Int          @map("user_id")
+  stage                     SessionStage @map("stage")
+  rememberMe                Boolean      @default(false) @map("remember_me")
+  refreshTokenHash          String       @unique(map: "user_session_refresh_token_hash_key") @map("refresh_token_hash") @db.Char(64)
+  previousRefreshTokenHash  String?      @map("previous_refresh_token_hash") @db.Char(64)
+  previousRefreshValidUntil DateTime?    @map("previous_refresh_valid_until") @db.Timestamptz(3)
+  createdAt                 DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt                DateTime     @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  absoluteExpiresAt         DateTime     @map("absolute_expires_at") @db.Timestamptz(3)
+  revokedAt                 DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  revokeReason              String?      @map("revoke_reason") @db.VarChar(100)
+  userAgent                 String?      @map("user_agent") @db.VarChar(512)
+  ipAddress                 String?      @map("ip_address") @db.VarChar(64)
+
+  user User @relation("UserSessions", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, revokedAt, absoluteExpiresAt], map: "user_session_user_active_idx")
+  @@index([absoluteExpiresAt, id], map: "user_session_expiry_idx")
+  @@index([revokedAt, id], map: "user_session_revoked_idx")
+  @@map("user_session")
+}
+
+model LoginRateLimitBucket {
+  id              Int                 @id @default(autoincrement()) @map("id")
+  scope           LoginRateLimitScope @map("scope")
+  bucketKeyHash   String              @map("bucket_key_hash") @db.Char(64)
+  windowStartedAt DateTime            @map("window_started_at") @db.Timestamptz(3)
+  failureCount    Int                 @default(0) @map("failure_count")
+  blockedUntil    DateTime?           @map("blocked_until") @db.Timestamptz(3)
+  updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([scope, bucketKeyHash], map: "login_rate_limit_scope_key_hash_key")
+  @@index([blockedUntil, windowStartedAt, id], map: "login_rate_limit_cleanup_idx")
+  @@map("login_rate_limit_bucket")
 }
 
 model Category {
@@ -78,31 +150,39 @@ model RelatedSystem {
 }
 
 model Ticket {
-  id                Int               @id @default(autoincrement()) @map("id")
-  publicId          String            @unique(map: "ticket_public_id_key") @map("public_id") @db.Uuid
-  ticketNumber      String            @unique(map: "ticket_ticket_number_key") @map("ticket_number") @db.VarChar(25)
-  requesterId       Int               @map("requester_id")
-  categoryId        Int               @map("category_id")
-  relatedSystemId   Int               @map("related_system_id")
-  summary           String            @map("summary") @db.VarChar(150)
-  requestedPriority RequestedPriority @map("requested_priority")
-  description       String            @map("description") @db.VarChar(2000)
-  currentStatus     TicketStatus      @default(NEW) @map("current_status")
-  deleted           Boolean           @default(false) @map("deleted")
-  createdBy         String            @map("created_by") @db.VarChar(255)
-  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedBy         String            @map("updated_by") @db.VarChar(255)
-  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                             Int               @id @default(autoincrement()) @map("id")
+  publicId                       String            @unique(map: "ticket_public_id_key") @map("public_id") @db.Uuid
+  ticketNumber                   String            @unique(map: "ticket_ticket_number_key") @map("ticket_number") @db.VarChar(25)
+  requesterId                    Int               @map("requester_id")
+  ownerUserId                    Int?              @map("owner_user_id")
+  categoryId                     Int               @map("category_id")
+  relatedSystemId                Int               @map("related_system_id")
+  summary                        String            @map("summary") @db.VarChar(150)
+  requestedPriority              RequestedPriority @map("requested_priority")
+  itPriority                     TicketPriority    @default(LOW) @map("it_priority")
+  description                    String            @map("description") @db.VarChar(2000)
+  currentStatus                  TicketStatus      @default(NEW) @map("current_status")
+  requesterResolutionConfirmedAt DateTime?         @map("requester_resolution_confirmed_at") @db.Timestamptz(3)
+  deleted                        Boolean           @default(false) @map("deleted")
+  createdBy                      String            @map("created_by") @db.VarChar(255)
+  createdAt                      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy                      String            @map("updated_by") @db.VarChar(255)
+  updatedAt                      DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  requester          DevelopmentRequester @relation("RequesterTickets", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  category           Category             @relation("CategoryTickets", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  relatedSystem      RelatedSystem        @relation("RelatedSystemTickets", fields: [relatedSystemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  attachments        Attachment[]         @relation("TicketAttachments")
-  idempotencyRecords IdempotencyRecord[]  @relation("TicketIdempotencyRecords")
+  requester          User                @relation("RequesterTickets", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  owner              User?               @relation("TicketOwners", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category           Category            @relation("CategoryTickets", fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  relatedSystem      RelatedSystem       @relation("RelatedSystemTickets", fields: [relatedSystemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  attachments        Attachment[]        @relation("TicketAttachments")
+  idempotencyRecords IdempotencyRecord[] @relation("TicketIdempotencyRecords")
+  publicComments     PublicComment[]     @relation("TicketPublicComments")
+  internalNotes      InternalNote[]      @relation("TicketInternalNotes")
 
+  @@index([ownerUserId, currentStatus, createdAt], map: "ticket_owner_status_created_idx")
   @@index([categoryId], map: "ticket_category_id_idx")
   @@index([relatedSystemId], map: "ticket_related_system_id_idx")
   @@index([requestedPriority], map: "ticket_requested_priority_idx")
+  @@index([itPriority], map: "ticket_it_priority_idx")
   @@index([currentStatus], map: "ticket_current_status_idx")
   @@index([ticketNumber(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_ticket_number_trgm_idx")
   @@index([summary(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_summary_trgm_idx")
@@ -114,7 +194,7 @@ model Attachment {
   id                    Int      @id @default(autoincrement()) @map("id")
   storageKey            String   @unique(map: "attachment_storage_key_key") @map("storage_key") @db.Uuid
   ticketId              Int?     @map("ticket_id")
-  uploadedByRequesterId Int      @map("uploaded_by_requester_id")
+  uploadedByRequesterId Int      @map("uploaded_by_user_id")
   originalName          String   @map("original_name") @db.VarChar(255)
   extension             String   @map("extension") @db.VarChar(10)
   mimeType              String   @map("mime_type") @db.VarChar(50)
@@ -127,8 +207,8 @@ model Attachment {
   updatedBy             String   @map("updated_by") @db.VarChar(255)
   updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  ticket              Ticket?              @relation("TicketAttachments", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  uploadedByRequester DevelopmentRequester @relation("AttachmentUploader", fields: [uploadedByRequesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  ticket              Ticket? @relation("TicketAttachments", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedByRequester User    @relation("AttachmentUploader", fields: [uploadedByRequesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([ticketId], map: "attachment_ticket_id_idx")
   @@index([uploadedByRequesterId, ticketId], map: "attachment_uploader_ticket_idx")
@@ -150,10 +230,47 @@ model IdempotencyRecord {
   updatedBy           String            @map("updated_by") @db.VarChar(255)
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  requester DevelopmentRequester @relation("RequesterIdempotencyRecords", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  ticket    Ticket?              @relation("TicketIdempotencyRecords", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requester User    @relation("RequesterIdempotencyRecords", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  ticket    Ticket? @relation("TicketIdempotencyRecords", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([requesterId, key], map: "idempotency_record_requester_key_key")
   @@index([expiresAt, id], map: "idempotency_record_expires_at_id_idx")
   @@map("idempotency_record")
+}
+
+model PublicComment {
+  id               Int      @id @default(autoincrement()) @map("id")
+  publicId         String   @unique(map: "public_comment_public_id_key") @default(uuid()) @map("public_id") @db.Uuid
+  ticketId         Int      @map("ticket_id")
+  authorUserId     Int      @map("author_user_id")
+  parentCommentId  Int?     @map("parent_comment_id")
+  replyToCommentId Int?     @map("reply_to_comment_id")
+  content          String   @map("content") @db.VarChar(2000)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket       Ticket          @relation("TicketPublicComments", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  author       User            @relation("PublicCommentAuthors", fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  parent       PublicComment?  @relation("PublicCommentChildren", fields: [parentCommentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  replies      PublicComment[] @relation("PublicCommentChildren")
+  replyTo      PublicComment?  @relation("PublicCommentReplyTargets", fields: [replyToCommentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  replyTargets PublicComment[] @relation("PublicCommentReplyTargets")
+
+  @@index([ticketId, parentCommentId, createdAt, id], map: "public_comment_thread_idx")
+  @@index([replyToCommentId], map: "public_comment_reply_target_idx")
+  @@map("public_comment")
+}
+
+model InternalNote {
+  id           Int      @id @default(autoincrement()) @map("id")
+  publicId     String   @unique(map: "internal_note_public_id_key") @default(uuid()) @map("public_id") @db.Uuid
+  ticketId     Int      @map("ticket_id")
+  authorUserId Int      @map("author_user_id")
+  content      String   @map("content") @db.VarChar(4000)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket Ticket @relation("TicketInternalNotes", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  author User   @relation("InternalNoteAuthors", fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([ticketId, createdAt, id], map: "internal_note_ticket_created_idx")
+  @@map("internal_note")
 }

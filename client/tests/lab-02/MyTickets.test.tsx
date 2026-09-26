@@ -3,10 +3,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 
-import App from "../../src/App.js";
+import App from "../helpers/AuthenticatedRequesterApp.js";
 import { PaginationMetadata } from "../../src/api.js";
-import { REQUESTER_STORAGE_KEY, StoredRequester } from "../../src/requester/requesterStorage.js";
-import { SEARCH_DEBOUNCE_MS } from "../../src/tickets/ticketListQuery.js";
+import { SEARCH_DEBOUNCE_MS, STATUS_OPTIONS } from "../../src/modules/Tickets/ticketListQuery.js";
 import { setViewportWidth } from "../setup.js";
 
 /*
@@ -17,8 +16,8 @@ import { setViewportWidth } from "../setup.js";
  * is read from.
  */
 
-const ALICE: StoredRequester = { id: 1, name: "Alice Example" };
-const BOB: StoredRequester = { id: 2, name: "Bob Example" };
+const ALICE = { id: 3, name: "Alice Example" };
+const BOB = { id: 4, name: "Bob Example" };
 
 function masterRow(id: number, name: string) {
   return {
@@ -114,24 +113,21 @@ function stubApi(list: () => ListResult | Promise<ListResult> = () => DEFAULT_LI
       return { ok: true, status: 200, headers: new Headers(), json: async () => SYSTEMS };
     }
 
-    if (url.includes("/api/requesters")) {
-      return {
-        ok: true,
-        status: 200,
-        headers: new Headers(),
-        json: async () => [
-          { ...masterRow(ALICE.id, ALICE.name), email: "alice@example.com" },
-          { ...masterRow(BOB.id, BOB.name), email: "bob@example.com" },
-        ],
-      };
-    }
-
     /*
      * Ticket Detail, so the navigation cases land on the real page rather than
      * handing the list array to a screen that expects one Ticket.
      */
-    if (/\/api\/tickets\/[^?]/.test(url)) {
+    if (/\/api\/users\/me\/tickets\/[^?]/.test(url)) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => detailTicket() };
+    }
+
+    if (/\/api\/tickets\/[^/]+\/comments/.test(url)) {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "X-Pagination": JSON.stringify({ page: 1, limit: 10, totalItems: 0, totalPages: 0 }) }),
+        json: async () => [],
+      };
     }
 
     const result = await list();
@@ -154,7 +150,7 @@ function stubApi(list: () => ListResult | Promise<ListResult> = () => DEFAULT_LI
 }
 
 function listCalls(calls: StubbedCall[]): StubbedCall[] {
-  return calls.filter((call) => call.url.includes("/api/tickets?"));
+  return calls.filter((call) => call.url.includes("/api/users/me/tickets?"));
 }
 
 function lastListQuery(calls: StubbedCall[]): URLSearchParams {
@@ -162,9 +158,7 @@ function lastListQuery(calls: StubbedCall[]): URLSearchParams {
   return new URLSearchParams(requests[requests.length - 1].url.split("?")[1]);
 }
 
-function renderMyTickets(requester: StoredRequester = ALICE, entry = "/tickets") {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(requester));
-
+function renderMyTickets(_requester = ALICE, entry = "/tickets") {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <App />
@@ -180,8 +174,6 @@ function HistoryBackButton() {
 
 /* Back and Forward change the committed query without the toolbar touching it. */
 function renderMyTicketsWithHistory(entries: string[], initialIndex: number) {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
-
   return render(
     <MemoryRouter initialEntries={entries} initialIndex={initialIndex}>
       <HistoryBackButton />
@@ -266,20 +258,13 @@ describe("UI-15 My Tickets loading and stale-scope prevention", () => {
     expect(await screen.findByText(/Showing 1–10 of 47/)).toBeInTheDocument();
   });
 
-  it("never renders a previous Requester's rows once the Requester changes", async () => {
-    let release: (result: ListResult) => void = () => undefined;
-    stubApi(() => new Promise<ListResult>((resolve) => (release = resolve)));
-
+  it("does not expose a requester switch on the authenticated list", async () => {
+    stubApi();
     renderMyTickets();
 
-    await userEvent.click(screen.getByRole("button", { name: "Change Requester" }));
-
-    /* Alice's answer lands after the switch; it must reach nothing. */
-    await act(async () => {
-      release({ body: [ticket({ ticketNumber: "TKT-20260820-ALICEONLY001" })], pagination: meta() });
-    });
-
-    expect(screen.queryByText("TKT-20260820-ALICEONLY001")).toBeNull();
+    expect(await screen.findByText("TKT-20260820-A81F3C9D7B21")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change Requester" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Development Requester", { exact: true })).not.toBeInTheDocument();
   });
 });
 
@@ -411,7 +396,7 @@ describe("UI-18 My Tickets search debounce and query mapping", () => {
    * the 8 s `AbortSignal.timeout` inside `apiFetch`, which is faked here too.
    */
   function typeSearch(value: string): void {
-    fireEvent.change(screen.getByLabelText("Search"), { target: { value } });
+    fireEvent.change(screen.getByLabelText("Search Tickets"), { target: { value } });
   }
 
   it("waits for 400 ms of inactivity, then sends exactly one search request", async () => {
@@ -465,12 +450,12 @@ describe("UI-18 My Tickets search debounce and query mapping", () => {
     renderMyTicketsWithHistory(["/tickets?search=vpn", "/tickets"], 1);
     await advance(0);
 
-    expect(screen.getByLabelText("Search")).toHaveValue("");
+    expect(screen.getByLabelText("Search Tickets")).toHaveValue("");
 
     fireEvent.click(screen.getByRole("button", { name: "Go back" }));
     await advance(0);
 
-    expect(screen.getByLabelText("Search")).toHaveValue("vpn");
+    expect(screen.getByLabelText("Search Tickets")).toHaveValue("vpn");
     expect(lastListQuery(calls).get("search")).toBe("vpn");
 
     /* Well past the debounce boundary: nothing re-commits an empty search. */
@@ -528,6 +513,11 @@ describe("UI-19 My Tickets filter draft, cancel, reset, and apply", () => {
 
       await userEvent.click(toggle);
       expect(within(dialog).getAllByRole("checkbox").length).toBeGreaterThan(0);
+      if (label === "Status") {
+        expect(within(dialog).getAllByRole("checkbox").map((checkbox) => checkbox.parentElement?.textContent?.trim())).toEqual(
+          [...STATUS_OPTIONS],
+        );
+      }
       await userEvent.click(toggle);
     }
   });
@@ -710,6 +700,22 @@ describe("UI-21 My Tickets sort options", () => {
     expect(screen.getByLabelText("Sort by")).toHaveValue(sort);
     expect(label).toBeTruthy();
   });
+
+  it("does not make display-only name columns issue unsupported sort requests", async () => {
+    const { calls } = stubApi();
+    renderMyTickets();
+    await screen.findByText("TKT-20260820-A81F3C9D7B21");
+
+    const initialRequestCount = listCalls(calls).length;
+    for (const label of ["Category", "Related System"]) {
+      const header = screen.getByRole("columnheader", { name: label });
+      expect(header).not.toHaveAttribute("tabindex");
+      expect(header).not.toHaveAttribute("aria-sort");
+      fireEvent.click(header);
+    }
+
+    expect(listCalls(calls)).toHaveLength(initialRequestCount);
+  });
 });
 
 describe("UI-22 My Tickets pagination and list projection", () => {
@@ -877,7 +883,7 @@ describe("UI-22 My Tickets pagination and list projection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go back" }));
 
     await waitFor(() => expect(lastListQuery(calls).get("search")).toBe("vpn"));
-    expect(screen.getByLabelText("Search")).toHaveValue("vpn");
+    expect(screen.getByLabelText("Search Tickets")).toHaveValue("vpn");
   });
 
   it("offers the five approved page sizes", async () => {
@@ -1075,23 +1081,20 @@ describe("UI-19 and UI-20 the toolbar states its applied filters", () => {
     );
   });
 
-  /*
-   * The label is hidden, not dropped: the magnifier and the placeholder name the
-   * field in place, and the helper text that repeated the placeholder word for
-   * word is gone (ui-spec Sections 13.2, 29.2).
-   */
-  it("names the search field without a visible label or a repeated hint", async () => {
+  /* Shared DataTable keeps the search label visible across list pages. */
+  it("uses the shared visible search label and preserves the input guard", async () => {
     stubApi();
     renderMyTickets();
 
-    const search = (await screen.findByLabelText("Search")) as HTMLInputElement;
+    const search = (await screen.findByLabelText("Search Tickets")) as HTMLInputElement;
 
-    expect(search.labels?.[0]).toHaveClass("visually-hidden");
+    expect(search.labels?.[0]).not.toHaveClass("visually-hidden");
     expect(search).toHaveAttribute("placeholder");
     expect(screen.queryByText(/^Search ticket number/)).toBeNull();
     /* A ticket number is not prose, and no password manager belongs here. */
     expect(search).toHaveAttribute("autocomplete", "off");
     expect(search).toHaveAttribute("spellcheck", "false");
+    expect(search).toHaveAttribute("maxlength", "200");
   });
 });
 

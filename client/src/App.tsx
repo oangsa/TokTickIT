@@ -1,21 +1,31 @@
 import { useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-import { AppShell } from "./components/AppShell.js";
-import CreateTicket from "./pages/CreateTicket.js";
-import ErrorPage from "./pages/ErrorPage.js";
-import MyTickets from "./pages/MyTickets.js";
-import RequesterSelection from "./pages/RequesterSelection.js";
-import RequesterTicketDetail from "./pages/RequesterTicketDetail.js";
+import { AuthProvider, AuthStatus, roleHome, useAuth } from "./auth/AuthProvider.js";
+import { AuthGuard, RoleGuard } from "./auth/guards.js";
 import { NavigationGuardProvider } from "./navigation/NavigationGuard.js";
-import { RequesterGuard } from "./requester/RequesterGuard.js";
-import { RequesterProvider, useRequester } from "./requester/RequesterProvider.js";
+import { AppShell } from "./layouts/AppShell.js";
+import ChangePassword from "./modules/Auth/ChangePassword.js";
+import ErrorPage from "./modules/System/ErrorPage.js";
+import Login from "./modules/Auth/Login.js";
+import UnavailablePage from "./modules/System/UnavailablePage.js";
+import CreateTicket from "./modules/Tickets/Requester/CreateTicket.js";
+import MyTickets from "./modules/Tickets/Requester/MyTickets.js";
+import RequesterTicketDetail from "./modules/Tickets/Requester/RequesterTicketDetail.js";
+import StaffTicketQueue from "./modules/Tickets/Staff/StaffTicketQueue.js";
+import StaffTicketDetail from "./modules/Tickets/Staff/StaffTicketDetail.js";
+import UserManagement from "./modules/Users/UserManagement.js";
+import CreateUser from "./modules/Users/CreateUser.js";
+import EditUser from "./modules/Users/EditUser.js";
+import ViewUser from "./modules/Users/ViewUser.js";
 
-/* `/` resolves against the stored Requester context (ui-spec Section 5.4). */
+/* `/` resolves against the authenticated role after bootstrap. */
 function RootRedirect() {
-  const { requester } = useRequester();
-
-  return <Navigate to={requester === null ? "/requesters" : "/tickets"} replace />;
+  const { status, user } = useAuth();
+  if (status === AuthStatus.BOOTSTRAPPING) return <main id="tt-main" tabIndex={-1} className="tt-bootstrap" aria-busy="true"><div className="tt-bootstrap__panel"><p className="text-center">Loading…</p></div></main>;
+  if (status === AuthStatus.ANONYMOUS || !user) return <Navigate to="/login" replace />;
+  if (status === AuthStatus.PASSWORD_CHANGE_REQUIRED) return <Navigate to="/change-password" replace />;
+  return <Navigate to={roleHome(user.role)} replace />;
 }
 
 function RouteFocusManager() {
@@ -28,11 +38,9 @@ function RouteFocusManager() {
     }
 
     previousPathname.current = pathname;
-    /* An open drawer restores focus to its toggle; otherwise focus the new screen. */
     if (document.activeElement === document.getElementById("tt-menu-toggle")) {
       return;
     }
-
     const main = document.getElementById("tt-main") ??
       document.querySelector<HTMLElement>('main[tabindex="-1"]');
 
@@ -45,32 +53,30 @@ function RouteFocusManager() {
 }
 
 export default function App({ enableHistoryBlocking = false }: { enableHistoryBlocking?: boolean }) {
-  return (
-    <RequesterProvider>
-      <NavigationGuardProvider enableHistoryBlocking={enableHistoryBlocking}>
-        <RouteFocusManager />
-        <Routes>
-          <Route path="/" element={<RootRedirect />} />
-
-          {/* Bootstrap and global error routes render without the requester shell. */}
-          <Route path="/requesters" element={<RequesterSelection />} />
-          <Route path="/error" element={<ErrorPage />} />
-
-          {/*
-            The guard sits outside the shell: the shell displays the selected
-            Requester, so it must not render at all without a context.
-          */}
-          <Route element={<RequesterGuard />}>
-            <Route element={<AppShell />}>
-              <Route path="/tickets" element={<MyTickets />} />
-              <Route path="/tickets/new" element={<CreateTicket />} />
-              <Route path="/tickets/:publicId" element={<RequesterTicketDetail />} />
-            </Route>
-          </Route>
-
-          <Route path="*" element={<Navigate to="/error" replace state={{ status: 404 }} />} />
-        </Routes>
-      </NavigationGuardProvider>
-    </RequesterProvider>
-  );
+  return <AuthProvider><NavigationGuardProvider enableHistoryBlocking={enableHistoryBlocking}><RouteFocusManager /><Routes>
+    <Route path="/" element={<RootRedirect />} />
+    <Route path="/login" element={<Login />} />
+    <Route path="/change-password" element={<ChangePassword />} />
+    <Route path="/error" element={<ErrorPage />} />
+    <Route element={<AuthGuard />}>
+      <Route element={<RoleGuard roles={["REQUESTER"]} />}><Route element={<AppShell />}>
+        <Route path="/tickets" element={<MyTickets />} />
+        <Route path="/tickets/new" element={<CreateTicket />} />
+        <Route path="/tickets/:publicId" element={<RequesterTicketDetail />} />
+      </Route></Route>
+      <Route element={<RoleGuard roles={["IT_STAFF"]} />}><Route element={<AppShell />}>
+        <Route path="/staff/tickets" element={<StaffTicketQueue />} />
+        <Route path="/staff/tickets/:publicId" element={<StaffTicketDetail />} />
+      </Route></Route>
+      <Route element={<RoleGuard roles={["ADMINISTRATOR"]} />}><Route element={<AppShell />}>
+        <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/users/new" element={<CreateUser />} />
+        <Route path="/admin/users/:publicId" element={<ViewUser />} />
+        <Route path="/admin/users/:publicId/edit" element={<EditUser />} />
+        <Route path="/admin/tickets" element={<StaffTicketQueue />} />
+        <Route path="/admin/tickets/:publicId" element={<StaffTicketDetail />} />
+      </Route></Route>
+    </Route>
+    <Route path="*" element={<Navigate to="/error" replace state={{ status: 404 }} />} />
+  </Routes></NavigationGuardProvider></AuthProvider>;
 }

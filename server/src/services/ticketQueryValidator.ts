@@ -38,7 +38,16 @@ export const TICKET_SORT_FIELDS = [
   "relatedSystemId",
 ] as const;
 
-export const TICKET_STATUSES = ["NEW"] as const;
+export const TICKET_STATUSES = [
+  "NEW",
+  "OPEN",
+  "IN_PROGRESS",
+  "WAITING_FOR_REQUESTER",
+  "RESOLVED",
+  "CLOSED",
+  "REOPENED",
+  "CANCELLED",
+] as const;
 
 export const SORT_DIRECTIONS = ["asc", "desc"] as const;
 
@@ -154,7 +163,7 @@ const ISO_DATE_TIME_PATTERN =
  * trip through `Date`, because `Date.UTC(26, 0, 1)` is 1926 -- a four-digit year
  * below 100 would fail a comparison it should pass.
  */
-function isCalendarDate(year: number, month: number, day: number): boolean {
+export function isCalendarDate(year: number, month: number, day: number): boolean {
   if (month < 1 || month > 12 || day < 1) {
     return false;
   }
@@ -564,7 +573,7 @@ function readOrder(query: Record<string, unknown>, details: ErrorDetail[]): Quer
   return [{ field, direction: direction as SortDirection }, tiebreaker];
 }
 
-function readPagingValue(
+export function readPagingValue(
   query: Record<string, unknown>,
   field: "pageNumber" | "pageSize",
   fallback: number,

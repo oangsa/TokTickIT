@@ -3,16 +3,14 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import App from "../../src/App.js";
-import { REQUESTER_STORAGE_KEY } from "../../src/requester/requesterStorage.js";
+import App from "../helpers/AuthenticatedRequesterApp.js";
 import {
   RECOVERY_STORAGE_KEY,
   RecoveryRecord,
   payloadSignature,
-} from "../../src/tickets/createTicketDraft.js";
+} from "../../src/modules/Tickets/createTicketDraft.js";
 
-const ALICE = { id: 1, name: "Alice Johnson" };
-const BOB = { id: 2, name: "Bob Smith" };
+const ALICE = { id: 3, name: "Alice Johnson" };
 
 const CATEGORIES = [
   { id: 4, name: "Network", isActive: true, deleted: false, createdBy: "seed", createdAt: "", updatedBy: "seed", updatedAt: "" },
@@ -56,23 +54,19 @@ interface StubbedResult {
   body: unknown;
 }
 
-/* The two selectable Development Requesters, in the /api/requesters DTO shape. */
-const REQUESTERS = [
-  { ...ALICE, email: "alice.johnson@example.com", isActive: true, deleted: false, createdBy: "seed", createdAt: "", updatedBy: "seed", updatedAt: "" },
-  { ...BOB, email: "bob.smith@example.com", isActive: true, deleted: false, createdBy: "seed", createdAt: "", updatedBy: "seed", updatedAt: "" },
-];
-
 /*
- * Routes by path so the two reference-data loads, the Requester list, and the
- * create call can be arranged independently. `create` returns the response for
- * POST /api/tickets; returning a Promise leaves that request pending, which is
- * how the stale-Requester tests hold a submission open across a switch.
+ * Routes by path so the two reference-data loads and the create call can be
+ * arranged independently. `create` returns the response for POST
+ * /api/users/me/tickets; returning a Promise leaves that request pending.
  */
 function stubApi(create?: () => StubbedResult | Promise<StubbedResult>) {
   const calls: StubbedCall[] = [];
 
   const fetchMock = vi.fn(async (url: string, init?: StubbedCall["init"]) => {
-    calls.push({ url, init });
+    const capturedInit = init === undefined
+      ? undefined
+      : { ...init, headers: Object.fromEntries(new Headers(init.headers).entries()) };
+    calls.push({ url, init: capturedInit });
 
     if (url.includes("/api/categories")) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => CATEGORIES };
@@ -82,16 +76,12 @@ function stubApi(create?: () => StubbedResult | Promise<StubbedResult>) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => SYSTEMS };
     }
 
-    if (url.includes("/api/requesters")) {
-      return { ok: true, status: 200, headers: new Headers(), json: async () => REQUESTERS };
-    }
-
-    if (init?.method !== "POST" && /\/api\/tickets\/[^?]/.test(url)) {
+    if (init?.method !== "POST" && /\/api\/users\/me\/tickets\/[^?]/.test(url)) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => TICKET };
     }
 
     /* My Tickets reads the collection path; the create fall-through must not answer it. */
-    if (init?.method !== "POST" && url.includes("/api/tickets")) {
+    if (init?.method !== "POST" && url.includes("/api/users/me/tickets")) {
       return { ok: true, status: 200, headers: new Headers(), json: async () => [] };
     }
 
@@ -104,12 +94,14 @@ function stubApi(create?: () => StubbedResult | Promise<StubbedResult>) {
 }
 
 function createCalls(calls: StubbedCall[]): StubbedCall[] {
-  return calls.filter((call) => call.url.endsWith("/api/tickets"));
+  return calls.filter((call) => call.url.endsWith("/api/users/me/tickets"));
+}
+
+function header(call: StubbedCall, name: string): string | null {
+  return new Headers(call.init?.headers).get(name);
 }
 
 function renderCreateTicket() {
-  sessionStorage.setItem(REQUESTER_STORAGE_KEY, JSON.stringify(ALICE));
-
   return render(
     <MemoryRouter initialEntries={["/tickets/new"]}>
       <App />
@@ -159,13 +151,14 @@ describe("Create Ticket form", () => {
     expect(calls.some((call) => call.url.includes("/api/related-systems"))).toBe(true);
   });
 
-  it("sends the requester context on both reference-data loads", async () => {
+  it("uses the authenticated bearer on both reference-data loads", async () => {
     const { calls } = stubApi();
     renderCreateTicket();
     await screen.findByLabelText(/^Category/);
 
-    for (const call of calls) {
-      expect(call.init?.headers?.["X-Requester-Id"]).toBe("1");
+    for (const call of calls.filter((candidate) => candidate.url.includes("/api/categories") || candidate.url.includes("/api/related-systems"))) {
+      expect(header(call, "Authorization")).toBe("Bearer test-access-token");
+      expect(header(call, "X-Requester-Id")).toBeNull();
     }
   });
 
@@ -173,23 +166,23 @@ describe("Create Ticket form", () => {
     stubApi();
     renderCreateTicket();
 
-    const ticketNumber = (await screen.findByLabelText("Ticket Number")) as HTMLInputElement;
-    const ticketDate = screen.getByLabelText("Ticket Date") as HTMLInputElement;
+    const ticketNumber = await screen.findByLabelText("Ticket Number");
+    const ticketDate = screen.getByLabelText("Ticket Date");
 
-    expect(ticketNumber.value).toBe("Assigned on submission");
-    expect(ticketNumber.readOnly).toBe(true);
-    expect(ticketDate.value).toBe("Assigned on submission");
-    expect(ticketDate.readOnly).toBe(true);
+    expect(ticketNumber).toHaveTextContent("Assigned on submission");
+    expect(ticketNumber.tagName).toBe("OUTPUT");
+    expect(ticketDate).toHaveTextContent("Assigned on submission");
+    expect(ticketDate.tagName).toBe("OUTPUT");
   });
 
   it("shows the selected Requester as a non-editable control", async () => {
     stubApi();
     renderCreateTicket();
 
-    const requester = (await screen.findByLabelText("Requester")) as HTMLInputElement;
+    const requester = await screen.findByLabelText("Requester");
 
-    expect(requester.value).toBe("Alice Johnson");
-    expect(requester.readOnly).toBe(true);
+    expect(requester).toHaveTextContent("Alice Johnson");
+    expect(requester.tagName).toBe("OUTPUT");
   });
 
   it("shows no pre-creation Current Status, Public ID, or audit controls", async () => {
@@ -311,8 +304,8 @@ describe("Create Ticket validation", () => {
     renderCreateTicket();
     await fillValidForm(user);
 
-    expect(screen.getByText("28 / 150")).toBeDefined();
-    expect(screen.getByText("51 / 2000")).toBeDefined();
+    expect(screen.getByText("28/150")).toBeDefined();
+    expect(screen.getByText("51/2000")).toBeDefined();
   });
 });
 
@@ -329,10 +322,11 @@ describe("Create Ticket submission", () => {
 
     const [call] = createCalls(calls);
     expect(call.init?.method).toBe("POST");
-    expect(call.init?.headers?.["Idempotency-Key"]).toMatch(
+    expect(header(call, "Idempotency-Key")).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
-    expect(call.init?.headers?.["X-Requester-Id"]).toBe("1");
+    expect(header(call, "Authorization")).toBe("Bearer test-access-token");
+    expect(header(call, "X-Requester-Id")).toBeNull();
     expect(JSON.parse(call.init?.body ?? "{}")).toEqual({
       categoryId: 4,
       relatedSystemId: 5,
@@ -531,7 +525,7 @@ describe("Create Ticket failure behaviour", () => {
     await user.click(submitButton());
     await waitFor(() => expect(createCalls(calls)).toHaveLength(3));
 
-    const sent = createCalls(calls).map((call) => call.init?.headers?.["Idempotency-Key"]);
+    const sent = createCalls(calls).map((call) => header(call, "Idempotency-Key"));
     expect(sent[0]).toBe(sent[1]);
     expect(sent[2]).not.toBe(sent[0]);
   });
@@ -572,9 +566,9 @@ describe("Create Ticket failure behaviour", () => {
 
     const stored = JSON.parse(sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? "{}");
     expect(Object.keys(stored).sort()).toEqual(
-      ["idempotencyKey", "keyCreatedAt", "payload", "requesterId"].sort(),
+      ["idempotencyKey", "keyCreatedAt", "payload"].sort(),
     );
-    expect(stored.requesterId).toBe(1);
+    expect(stored).not.toHaveProperty("userPublicId");
     expect(stored.payload.attachmentIds).toEqual([]);
   });
 
@@ -596,24 +590,18 @@ describe("Create Ticket failure behaviour", () => {
 
     await user.click(retry);
     await waitFor(() => expect(createCalls(calls)).toHaveLength(2));
-    expect(createCalls(calls)[0].init?.headers?.["Idempotency-Key"]).toBe(
-      createCalls(calls)[1].init?.headers?.["Idempotency-Key"],
+    expect(header(createCalls(calls)[0], "Idempotency-Key")).toBe(
+      header(createCalls(calls)[1], "Idempotency-Key"),
     );
     expect(await screen.findByRole("heading", { name: TICKET.ticketNumber })).toBeInTheDocument();
   });
 
-  /*
-   * ui-spec Section 12.2 clears the record on a confirmed non-ambiguous
-   * failure. The requester guard rejects before the route runs, so no Ticket
-   * can exist and there is nothing to resume; the 400 must not be mistaken for
-   * an ambiguous 5xx just because it does not arrive as a field error.
-   */
-  it("leaves no recovery record when the context-invalidating 400 rejects the submission", async () => {
+  it("keeps the authenticated form on an ordinary 400 response", async () => {
     const user = userEvent.setup();
     failWith(400, {
       statusCode: 400,
-      code: "REQUESTER_CONTEXT_INVALID",
-      message: "The requester context is invalid.",
+      code: "VALIDATION_ERROR",
+      message: "The request contains invalid values.",
       error: "Bad Request",
     });
     renderCreateTicket();
@@ -621,18 +609,14 @@ describe("Create Ticket failure behaviour", () => {
 
     await user.click(submitButton());
 
-    /* The stored Requester is discarded and the selector takes over. */
-    await screen.findByRole("heading", { name: /Select a Development Requester/i });
-    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBeNull();
+    await screen.findByRole("alert");
     expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Retry Again" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry Again" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Create Ticket" })).toBeInTheDocument();
   });
 
   it("never submits a stored recovery record automatically on load", async () => {
     const record: RecoveryRecord = {
-      requesterId: 1,
       idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
       keyCreatedAt: Date.now(),
       payload: {
@@ -655,7 +639,6 @@ describe("Create Ticket failure behaviour", () => {
   it("retries the unchanged request under the original key when Retry Again is chosen", async () => {
     const user = userEvent.setup();
     const record: RecoveryRecord = {
-      requesterId: 1,
       idempotencyKey: "abc00000-0000-4000-8000-000000000000",
       keyCreatedAt: Date.now(),
       payload: {
@@ -674,16 +657,16 @@ describe("Create Ticket failure behaviour", () => {
     await user.click(await screen.findByRole("button", { name: "Retry Again" }));
     await waitFor(() => expect(createCalls(calls)).toHaveLength(1));
 
-    expect(createCalls(calls)[0].init?.headers?.["Idempotency-Key"]).toBe(record.idempotencyKey);
+    expect(header(createCalls(calls)[0], "Idempotency-Key")).toBe(record.idempotencyKey);
     expect(JSON.parse(createCalls(calls)[0].init?.body ?? "{}")).toEqual(record.payload);
     await waitFor(() => expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull());
   });
 
-  it("discards a recovery record belonging to another Requester", async () => {
+  it("discards legacy recovery records containing requester identity", async () => {
     sessionStorage.setItem(
       RECOVERY_STORAGE_KEY,
       JSON.stringify({
-        requesterId: 99,
+        userPublicId: "70000000-0000-4000-8000-000000000099",
         idempotencyKey: "abc00000-0000-4000-8000-000000000000",
         keyCreatedAt: Date.now(),
         payload: {
@@ -708,7 +691,6 @@ describe("Create Ticket failure behaviour", () => {
     sessionStorage.setItem(
       RECOVERY_STORAGE_KEY,
       JSON.stringify({
-        requesterId: 1,
         idempotencyKey: "abc00000-0000-4000-8000-000000000000",
         keyCreatedAt: Date.now() - 24 * 60 * 60 * 1000,
         payload: {
@@ -741,7 +723,7 @@ describe("Cancel and discard", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    await waitFor(() => expect(screen.queryByLabelText(/^Category/)).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Create Ticket" })).toBeNull());
   });
 
   /*
@@ -790,24 +772,14 @@ describe("Cancel and discard", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
   });
 
-  it("delays Change Requester until the dirty form is discarded", async () => {
+  it("does not render a requester switch on the authenticated form", async () => {
     const user = userEvent.setup();
     stubApi();
     renderCreateTicket();
     await fillValidForm(user);
 
-    await user.click(screen.getByRole("button", { name: "Change Requester" }));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Create Ticket" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Keep editing" }));
-    expect(screen.getByLabelText(/^Summary/)).toHaveValue("Cannot connect to campus VPN");
-
-    await user.click(screen.getByRole("button", { name: "Change Requester" }));
-    await user.click(screen.getByRole("button", { name: "Discard" }));
-
-    expect(await screen.findByRole("heading", { name: /Select a Development Requester/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change Requester" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Development Requester", { exact: true })).not.toBeInTheDocument();
   });
 
   it("keeps the draft unchanged when the user keeps editing", async () => {
@@ -830,7 +802,6 @@ describe("Cancel and discard", () => {
     sessionStorage.setItem(
       RECOVERY_STORAGE_KEY,
       JSON.stringify({
-        requesterId: 1,
         idempotencyKey: "abc00000-0000-4000-8000-000000000000",
         keyCreatedAt: Date.now(),
         payload: {
@@ -909,159 +880,6 @@ describe("Cancel and discard", () => {
 });
 
 
-/*
- * UI-05/UI-08 carried forward from Issue #20: "Requester A data must never
- * render under Requester B."
- *
- * A submission is requester-scoped async work that can outlive the context that
- * started it. Client-side abort is not enough on its own -- the server may
- * already have committed, and the Promise settles either way -- so what is
- * asserted here is that an obsolete completion changes nothing for the current
- * Requester: no navigation, no recovery record written or cleared, no form or
- * error state, no focus move.
- */
-describe("Stale Requester submission completion", () => {
-  const BOB_KEY = "11111111-1111-4111-8111-111111111111";
-
-  interface Deferred {
-    calls: StubbedCall[];
-    settle: (result: StubbedResult) => void;
-    fail: (error: Error) => void;
-  }
-
-  /* Holds POST /api/tickets open until the test decides how it ends. */
-  function pendingCreate(): Deferred {
-    let settle!: (result: StubbedResult) => void;
-    let fail!: (error: Error) => void;
-
-    const pending = new Promise<StubbedResult>((resolve, reject) => {
-      settle = resolve;
-      fail = reject;
-    });
-
-    const { calls } = stubApi(() => pending);
-
-    return { calls, settle, fail };
-  }
-
-  /* Bob's own ambiguous attempt, so an accidental clear or overwrite shows up. */
-  function seedBobRecovery(): RecoveryRecord {
-    const record: RecoveryRecord = {
-      requesterId: BOB.id,
-      idempotencyKey: BOB_KEY,
-      keyCreatedAt: Date.now(),
-      payload: {
-        categoryId: 2,
-        relatedSystemId: 5,
-        summary: "Printer queue is stuck",
-        requestedPriority: "LOW",
-        description: "Jobs stay queued and never reach the printer.",
-        attachmentIds: [],
-      },
-    };
-
-    sessionStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify(record));
-    return record;
-  }
-
-  async function submitAsAliceThenSwitchToBob(
-    user: ReturnType<typeof userEvent.setup>,
-  ): Promise<void> {
-    renderCreateTicket();
-    await fillValidForm(user);
-    await user.click(submitButton());
-
-    /* The POST is in flight and unresolved when the Requester changes. */
-    await waitFor(() => expect(createCalls(stubbedCalls).length).toBe(1));
-
-    await user.click(screen.getByRole("button", { name: "Change Requester" }));
-    await user.click(screen.getByRole("button", { name: "Discard" }));
-    await user.selectOptions(
-      await screen.findByLabelText(/^Development Requester/),
-      String(BOB.id),
-    );
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByRole("heading", { level: 1, name: "My Tickets" });
-  }
-
-  let stubbedCalls: StubbedCall[] = [];
-
-  it("ignores a success that arrives after the Requester was changed", async () => {
-    const user = userEvent.setup();
-    const { calls, settle } = pendingCreate();
-    stubbedCalls = calls;
-
-    await submitAsAliceThenSwitchToBob(user);
-    const bobRecord = seedBobRecovery();
-
-    await act(async () => {
-      settle({ ok: true, status: 201, body: TICKET });
-    });
-
-    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBe(JSON.stringify(BOB));
-    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBe(JSON.stringify(bobRecord));
-    expect(screen.getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Ticket Detail" })).not.toBeInTheDocument();
-    expect(screen.queryByText(TICKET.ticketNumber)).not.toBeInTheDocument();
-    expect(screen.queryByText(TICKET.publicId)).not.toBeInTheDocument();
-  });
-
-  it("writes no previous-Requester recovery record when a stale submission fails ambiguously", async () => {
-    const user = userEvent.setup();
-    const { calls, fail } = pendingCreate();
-    stubbedCalls = calls;
-
-    await submitAsAliceThenSwitchToBob(user);
-    const bobRecord = seedBobRecovery();
-
-    await act(async () => {
-      fail(new Error("Network request failed"));
-    });
-
-    /* Alice's key never reaches storage, and Bob's record is left untouched. */
-    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBe(JSON.stringify(bobRecord));
-    expect(sessionStorage.getItem(REQUESTER_STORAGE_KEY)).toBe(JSON.stringify(BOB));
-    expect(screen.getByRole("heading", { level: 1, name: "My Tickets" })).toBeInTheDocument();
-  });
-
-  it("leaves the current Requester's form untouched when a stale submission is rejected with a 4xx", async () => {
-    const user = userEvent.setup();
-    const { calls, settle } = pendingCreate();
-    stubbedCalls = calls;
-
-    await submitAsAliceThenSwitchToBob(user);
-    const bobRecord = seedBobRecovery();
-
-    /* Bob opens Create Ticket, so a stale field error would be visible here. */
-    await user.click(screen.getByRole("link", { name: "Create Ticket" }));
-    await screen.findByLabelText(/^Category/);
-    const categorySelect = screen.getByLabelText(/^Category/);
-
-    await act(async () => {
-      settle({
-        ok: false,
-        status: 400,
-        body: {
-          statusCode: 400,
-          code: "VALIDATION_ERROR",
-          message: "The request contains invalid values.",
-          error: "Bad Request",
-          details: [{ field: "categoryId", message: "Select an available Category." }],
-        },
-      });
-    });
-
-    expect(sessionStorage.getItem(RECOVERY_STORAGE_KEY)).toBe(JSON.stringify(bobRecord));
-    expect(screen.queryByText("Select an available Category.")).not.toBeInTheDocument();
-    expect((categorySelect as HTMLSelectElement).value).toBe("");
-    expect(document.activeElement).not.toBe(categorySelect);
-    /* Bob's own resumable attempt is still offered. */
-    expect(
-      screen.getByRole("button", { name: "Retry Again" }),
-    ).toBeInTheDocument();
-  });
-});
-
 describe("UI-09 the Ticket Information card (ui-spec 11.3, 20.1)", () => {
   /*
    * The section title moves onto the card header, which is what makes the card a
@@ -1071,6 +889,12 @@ describe("UI-09 the Ticket Information card (ui-spec 11.3, 20.1)", () => {
     stubApi();
     renderCreateTicket();
     await screen.findByLabelText(/^Category/);
+
+    expect(screen.getByRole("link", { name: "Back to My Tickets" })).toHaveAttribute(
+      "href",
+      "/tickets",
+    );
+    expect(screen.getByText("Describe your IT support request.")).toBeInTheDocument();
 
     const heading = screen.getByRole("heading", { name: "Ticket Information" });
 
@@ -1086,8 +910,8 @@ describe("UI-09 the Ticket Information card (ui-spec 11.3, 20.1)", () => {
     stubApi();
     renderCreateTicket();
 
-    expect(await screen.findByLabelText(/^Category/)).toHaveAttribute("name", "category");
-    expect(screen.getByLabelText(/^Related System/)).toHaveAttribute("name", "relatedSystem");
+    expect(await screen.findByLabelText(/^Category/)).toHaveAttribute("name", "categoryId");
+    expect(screen.getByLabelText(/^Related System/)).toHaveAttribute("name", "relatedSystemId");
     expect(screen.getByLabelText(/^Requested Priority/)).toHaveAttribute(
       "name",
       "requestedPriority",

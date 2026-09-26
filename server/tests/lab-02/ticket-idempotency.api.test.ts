@@ -9,6 +9,8 @@ vi.mock("../../src/prisma.js", async () => {
 import {
   ATTACHMENT_A,
   ATTACHMENT_B,
+  ALICE_AUTH,
+  BOB_AUTH,
   KEY,
   VALID_BODY,
   arrangeHappyPath,
@@ -18,13 +20,16 @@ import {
   ticketRow,
   tx,
 } from "./support/ticketPrismaMock.js";
+import { bearerToken, configureRequesterAuth, type RequesterTokens } from "./support/authenticatedRequester.js";
 import { app } from "../../src/app.js";
 import { hashCreateTicketPayload } from "../../src/services/ticketCreateRequest.js";
 
-function post(body: unknown, options: { key?: string; requesterId?: string } = {}) {
+let tokens: RequesterTokens;
+
+function post(body: unknown, options: { key?: string; userId?: number } = {}) {
   const req = request(app)
-    .post("/api/tickets")
-    .set("X-Requester-Id", options.requesterId ?? "3");
+    .post("/api/users/me/tickets")
+    .set("Authorization", bearerToken(tokens, options.userId ?? ALICE_AUTH.id));
 
   if (options.key !== undefined) {
     req.set("Idempotency-Key", options.key);
@@ -50,14 +55,18 @@ function hashOf(overrides: Record<string, unknown> = {}): string {
 
 const NOW = () => new Date();
 
-beforeEach(() => {
+beforeEach(async () => {
   arrangeHappyPath();
+  tokens = await configureRequesterAuth(prismaMock, [ALICE_AUTH, BOB_AUTH]);
 });
 
 // API-12 (BR-18).
 describe("Idempotency-Key validation", () => {
   it("rejects a missing key before any Ticket work", async () => {
-    const res = await request(app).post("/api/tickets").set("X-Requester-Id", "3").send(VALID_BODY);
+    const res = await request(app)
+      .post("/api/users/me/tickets")
+      .set("Authorization", bearerToken(tokens, ALICE_AUTH.id))
+      .send(VALID_BODY);
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("VALIDATION_ERROR");
@@ -205,7 +214,7 @@ describe("key scope", () => {
       deleted: false,
     });
 
-    const res = await post(VALID_BODY, { requesterId: "4" });
+    const res = await post(VALID_BODY, { userId: BOB_AUTH.id });
 
     expect(res.status).toBe(201);
     expect(prismaMock.idempotencyRecord.findUnique).toHaveBeenCalledWith({

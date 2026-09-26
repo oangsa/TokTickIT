@@ -18,11 +18,8 @@ const UUID_PATTERN =
  * middleware already set instead of overwriting it, so no header merging is
  * hand-rolled here.
  *
- * `X-Requester-Id` is deliberately NOT varied here. It is added by the requester
- * guard, which is the only place that knows whether a response is
- * requester-scoped: the bootstrap `GET /api/requesters` returns the same body to
- * every Requester and must not claim to vary by a header it never reads
- * (Section 3.6).
+ * Requester identity comes from authenticated server context. No requester
+ * selector header participates in transport or caching.
  */
 export function transport(req: Request, res: Response, next: NextFunction): void {
   const incoming = req.header("X-Request-Id");

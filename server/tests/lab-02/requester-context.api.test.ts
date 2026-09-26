@@ -2,41 +2,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 
 const prismaMock = vi.hoisted(() => ({
-  developmentRequester: {
-    findMany: vi.fn(),
-    findFirst: vi.fn(),
-    findUnique: vi.fn(),
-  },
+  user: { findUnique: vi.fn() },
+  userSession: { findUnique: vi.fn() },
   category: { findMany: vi.fn() },
 }));
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: () => prismaMock }));
 
 import { app } from "../../src/app.js";
+import {
+  bearerToken,
+  configureRequesterAuth,
+  testUser,
+  type RequesterTokens,
+} from "./support/authenticatedRequester.js";
 
-const ALICE = {
-  id: 1,
-  name: "Alice Johnson",
-  email: "alice.johnson@example.com",
-  isActive: true,
-  deleted: false,
-  createdBy: "seed",
-  createdAt: new Date("2026-08-20T01:00:00.000Z"),
-  updatedBy: "seed",
-  updatedAt: new Date("2026-08-20T01:00:00.000Z"),
-};
+const ALICE = testUser({ id: 1, name: "Alice Johnson", email: "alice.johnson@example.com" });
+let tokens: RequesterTokens;
 
-const REQUESTER_CONTEXT_ENVELOPE = {
-  statusCode: 400,
-  code: "REQUESTER_CONTEXT_INVALID",
-  message: "The requester context is invalid.",
-  error: "Bad Request",
-};
-
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
-  prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);
-  prismaMock.developmentRequester.findFirst.mockResolvedValue(ALICE);
+  tokens = await configureRequesterAuth(prismaMock, [ALICE]);
   prismaMock.category.findMany.mockResolvedValue([]);
 });
 
@@ -44,104 +30,58 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("requester context guard (API-01)", () => {
-  it("lets the bootstrap endpoint through without requester context", async () => {
-    const res = await request(app).get("/api/requesters");
-
-    expect(res.status).toBe(200);
-  });
-
-  it("lets the health check through without requester context", async () => {
+describe("authenticated transport replacement for requester context (API-01)", () => {
+  it("keeps health public without a User session", async () => {
     const res = await request(app).get("/api/health");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: "ok", service: "TokTickIT API" });
+    expect(prismaMock.userSession.findUnique).not.toHaveBeenCalled();
   });
 
-  it("exempts the bootstrap and health routes the way Express routes them", async () => {
-    // Express matches paths case-insensitively and dispatches HEAD to GET
-    // handlers. An exemption that missed either would answer with the
-    // context-invalidating code, and the client would throw away a valid
-    // stored Requester over a URL the router would have served.
+  it("keeps the public health route case-insensitive and HEAD-compatible", async () => {
     const upperHealth = await request(app).get("/api/HEALTH");
-    const upperBootstrap = await request(app).get("/api/Requesters");
-    const headBootstrap = await request(app).head("/api/requesters");
+    const headHealth = await request(app).head("/api/health");
 
     expect(upperHealth.status).toBe(200);
-    expect(upperBootstrap.status).toBe(200);
-    expect(headBootstrap.status).toBe(200);
+    expect(headHealth.status).toBe(200);
   });
 
-  it("rejects a guarded route when the header is missing", async () => {
+  it("rejects a protected route when the bearer token is missing", async () => {
     const res = await request(app).get("/api/categories");
 
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+    expect(prismaMock.category.findMany).not.toHaveBeenCalled();
   });
 
-  it("rejects a non-integer header with REQUESTER_CONTEXT_INVALID", async () => {
-    const res = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
-  });
-
-  it("rejects a decimal header with REQUESTER_CONTEXT_INVALID", async () => {
-    const res = await request(app).get("/api/categories").set("X-Requester-Id", "1.5");
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
-  });
-
-  it("rejects an unsafe integer header with REQUESTER_CONTEXT_INVALID", async () => {
-    const res = await request(app)
-      .get("/api/categories")
-      .set("X-Requester-Id", "99999999999999999999");
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
-  });
-
-  it("rejects zero and negative headers with REQUESTER_CONTEXT_INVALID", async () => {
-    const zero = await request(app).get("/api/categories").set("X-Requester-Id", "0");
-    const negative = await request(app).get("/api/categories").set("X-Requester-Id", "-3");
-
-    for (const res of [zero, negative]) {
-      expect(res.status).toBe(400);
-      expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
-    }
-  });
-
-  it("rejects an unknown, deleted, or inactive Requester with REQUESTER_CONTEXT_INVALID", async () => {
-    // Unknown, `deleted: true`, and `isActive: false` all resolve to `null`
-    // through `findSelectableById`, which is exactly why they are
-    // indistinguishable to the client.
-    prismaMock.developmentRequester.findFirst.mockResolvedValue(null);
-
-    const res = await request(app).get("/api/categories").set("X-Requester-Id", "999");
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual(REQUESTER_CONTEXT_ENVELOPE);
-  });
-
-  it("accepts a valid active Requester and reaches the route", async () => {
+  it("does not treat X-Requester-Id as authentication", async () => {
     const res = await request(app).get("/api/categories").set("X-Requester-Id", "1");
 
-    expect(res.status).toBe(200);
-    expect(prismaMock.category.findMany).toHaveBeenCalled();
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+    expect(res.headers["x-requester-id"]).toBeUndefined();
+    expect(prismaMock.category.findMany).not.toHaveBeenCalled();
   });
 
-  it("carries the same code and generic message on every rejection", async () => {
-    const missing = await request(app).get("/api/categories");
-    const nonInteger = await request(app).get("/api/categories").set("X-Requester-Id", "abc");
-    prismaMock.developmentRequester.findFirst.mockResolvedValue(null);
-    const unknown = await request(app).get("/api/categories").set("X-Requester-Id", "999");
+  it("rejects a malformed bearer token before querying the session", async () => {
+    const res = await request(app)
+      .get("/api/categories")
+      .set("Authorization", "Bearer not-a-jwt");
 
-    for (const res of [missing, nonInteger, unknown]) {
-      expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
-      expect(res.body.message).toBe("The requester context is invalid.");
-      expect(JSON.stringify(res.body)).not.toContain(ALICE.name);
-      expect(JSON.stringify(res.body)).not.toContain(ALICE.email);
-    }
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+    expect(prismaMock.userSession.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("accepts a current authenticated User and reaches the protected route", async () => {
+    const res = await request(app)
+      .get("/api/categories")
+      .set("Authorization", bearerToken(tokens, ALICE.id));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    expect(prismaMock.userSession.findUnique).toHaveBeenCalled();
+    expect(prismaMock.category.findMany).toHaveBeenCalled();
   });
 });

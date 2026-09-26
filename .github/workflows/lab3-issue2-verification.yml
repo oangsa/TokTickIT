@@ -1,0 +1,206 @@
+name: Lab 3 Global Verification
+
+on:
+  pull_request:
+    branches:
+      - main
+      - lab3-staging
+    types: [opened, reopened, synchronize]
+  push:
+    branches:
+      - main
+      - lab3-staging
+      - "feature/**"
+
+permissions:
+  contents: read
+
+env:
+  LAB3_TEST_DATABASE_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_test
+  LAB3_BASELINE_DATABASE_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_baseline
+  LAB3_BASELINE_DIRECT_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_baseline
+  DATABASE_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_baseline
+  DIRECT_URL: postgresql://lab3_test@127.0.0.1:5432/toktickit_lab3_baseline
+  CORS_ALLOWED_ORIGINS: http://localhost:5173
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: toktickit_lab3_baseline
+          POSTGRES_USER: lab3_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lab3_test -d toktickit_lab3_baseline"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci
+
+      - name: Capture normal CI database baselines
+        run: |
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+          test "$DATABASE_URL" = "$LAB3_BASELINE_DATABASE_URL"
+          test "$DIRECT_URL" = "$LAB3_BASELINE_DIRECT_URL"
+          echo "Captured normal CI database baselines before test-target overrides."
+
+      - name: Create dedicated Lab 3 database
+        run: createdb -h 127.0.0.1 -U lab3_test --maintenance-db=toktickit_lab3_baseline toktickit_lab3_test
+
+      - name: Check guarded migration target
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: |
+          set +e
+          status_output="$(npx --no-install prisma migrate status 2>&1)"
+          status_code=$?
+          set -e
+          printf '%s\n' "$status_output"
+
+          printf '%s\n' "$status_output" | grep -Fq 'Datasource "db": PostgreSQL database "toktickit_lab3_test", schema "public" at "127.0.0.1:5432"'
+          if [ "$status_code" -ne 0 ]; then
+            [ "$status_code" -eq 1 ]
+            printf '%s\n' "$status_output" | grep -Fq 'Following migrations have not yet been applied:'
+          fi
+
+      - name: Deploy Lab 3 migrations
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: npx --no-install prisma migrate deploy
+
+      - name: Provision migrated User passwords
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: npm run prisma:provision-migrated-passwords
+
+      - name: Seed Lab 3 database twice
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: |
+          npm run prisma:seed
+          npm run prisma:seed
+
+      - name: Run maintenance cleanup twice
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: |
+          npm run maintenance:cleanup
+          npm run maintenance:cleanup
+
+      - name: Install client dependencies for full browser suite
+        run: npm ci
+        working-directory: client
+
+      - name: Install root E2E dependencies
+        run: npm ci
+        working-directory: .
+
+      - name: Install pinned Playwright Chromium
+        run: npx --no-install playwright install --with-deps chromium
+        working-directory: .
+
+      - name: Generate browser test signing secret
+        run: echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Run all Lab 3 Playwright suites
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+        run: npm run test:e2e
+        working-directory: .
+
+      - name: Upload full Lab 3 Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab3-playwright-report
+          path: |
+            artifacts/lab-03/playwright-report
+            artifacts/lab-03/playwright
+          if-no-files-found: ignore
+
+      - name: Run full server regression suite from Lab 1 through Lab 3
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: npm test
+
+      - name: Build server
+        run: npm run build
+
+  client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci
+
+      - name: Run full client regression suite from Lab 1 through Lab 3
+        run: npm test
+
+      - name: Build client
+        run: npm run build

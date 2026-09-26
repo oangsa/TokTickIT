@@ -3,15 +3,23 @@ import type { NextFunction, Request, Response } from "express";
 export type ErrorCode =
   | "BAD_REQUEST"
   | "VALIDATION_ERROR"
+  | "UNAUTHENTICATED"
+  | "AUTHENTICATION_FAILED"
+  | "ACCESS_TOKEN_EXPIRED"
+  | "SESSION_INVALID"
   | "FORBIDDEN"
+  | "PASSWORD_CHANGE_REQUIRED"
   | "NOT_FOUND"
   | "GONE"
   | "CONFLICT"
+  | "DUPLICATE_EMAIL"
+  | "OWNERSHIP_CONFLICT"
+  | "INVALID_STATUS_TRANSITION"
+  | "RATE_LIMITED"
   | "PAYLOAD_TOO_LARGE"
   | "UNSUPPORTED_MEDIA_TYPE"
   | "INTERNAL_SERVER_ERROR"
-  | "IDEMPOTENCY_CONFLICT"
-  | "REQUESTER_CONTEXT_INVALID";
+  | "IDEMPOTENCY_CONFLICT";
 
 export interface ErrorDetail {
   field: string;
@@ -40,10 +48,35 @@ const ERROR_DEFINITIONS: Record<ErrorCode, ErrorDefinition> = {
     error: "Bad Request",
     message: "The request contains invalid values.",
   },
+  UNAUTHENTICATED: {
+    statusCode: 401,
+    error: "Unauthorized",
+    message: "Authentication is required.",
+  },
+  AUTHENTICATION_FAILED: {
+    statusCode: 401,
+    error: "Unauthorized",
+    message: "Invalid email or password.",
+  },
+  ACCESS_TOKEN_EXPIRED: {
+    statusCode: 401,
+    error: "Unauthorized",
+    message: "The access token has expired.",
+  },
+  SESSION_INVALID: {
+    statusCode: 401,
+    error: "Unauthorized",
+    message: "The authenticated session is invalid.",
+  },
   FORBIDDEN: {
     statusCode: 403,
     error: "Forbidden",
     message: "You do not have access to this resource.",
+  },
+  PASSWORD_CHANGE_REQUIRED: {
+    statusCode: 403,
+    error: "Forbidden",
+    message: "A password change is required before continuing.",
   },
   NOT_FOUND: {
     statusCode: 404,
@@ -54,6 +87,21 @@ const ERROR_DEFINITIONS: Record<ErrorCode, ErrorDefinition> = {
     statusCode: 409,
     error: "Conflict",
     message: "The requested operation conflicts with the current resource state.",
+  },
+  DUPLICATE_EMAIL: {
+    statusCode: 409,
+    error: "Conflict",
+    message: "A User with this email already exists.",
+  },
+  OWNERSHIP_CONFLICT: {
+    statusCode: 409,
+    error: "Conflict",
+    message: "The Ticket ownership changed. Reload the Ticket and try again.",
+  },
+  INVALID_STATUS_TRANSITION: {
+    statusCode: 409,
+    error: "Conflict",
+    message: "The requested Ticket action is not valid in the current status.",
   },
   GONE: { statusCode: 410, error: "Gone", message: "This resource is no longer available." },
   PAYLOAD_TOO_LARGE: {
@@ -76,16 +124,10 @@ const ERROR_DEFINITIONS: Record<ErrorCode, ErrorDefinition> = {
     error: "Conflict",
     message: "The requested operation conflicts with the current resource state.",
   },
-  /*
-   * The one 400 the client is allowed to treat as "discard the stored
-   * Requester" (api-spec Section 3.1). Ordinary BAD_REQUEST/VALIDATION_ERROR
-   * must never carry this code, or a bad form would wipe the session. The
-   * message stays generic: unknown, inactive, and deleted are indistinguishable.
-   */
-  REQUESTER_CONTEXT_INVALID: {
-    statusCode: 400,
-    error: "Bad Request",
-    message: "The requester context is invalid.",
+  RATE_LIMITED: {
+    statusCode: 429,
+    error: "Too Many Requests",
+    message: "Too many login attempts. Try again later.",
   },
 };
 
@@ -172,6 +214,10 @@ export function errorHandler(
 
   const apiError = classify(error);
   res.locals.errorCode = apiError.code;
+
+  if (apiError.code === "RATE_LIMITED") {
+    res.setHeader("Retry-After", "900");
+  }
 
   if (apiError.code === "INTERNAL_SERVER_ERROR") {
     /* Sanitized class name only: no message, no stack, no Prisma metadata. */

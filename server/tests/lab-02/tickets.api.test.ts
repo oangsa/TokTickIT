@@ -9,26 +9,33 @@ vi.mock("../../src/prisma.js", async () => {
 import {
   ATTACHMENT_A,
   ATTACHMENT_B,
+  ALICE_AUTH,
+  BOB_AUTH,
   KEY,
   VALID_BODY,
   arrangeHappyPath,
   attachmentRow,
+  prismaMock,
   ticketRow,
   tx,
 } from "./support/ticketPrismaMock.js";
+import { bearerToken, configureRequesterAuth, type RequesterTokens } from "./support/authenticatedRequester.js";
 import { app } from "../../src/app.js";
 import { TICKET_NUMBER_PATTERN } from "../../src/services/ticketNumber.js";
 
-function post(body: unknown, key = KEY) {
+let tokens: RequesterTokens;
+
+function post(body: unknown, key = KEY, userId = ALICE_AUTH.id) {
   return request(app)
-    .post("/api/tickets")
-    .set("X-Requester-Id", "3")
+    .post("/api/users/me/tickets")
+    .set("Authorization", bearerToken(tokens, userId))
     .set("Idempotency-Key", key)
     .send(body as object);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   arrangeHappyPath();
+  tokens = await configureRequesterAuth(prismaMock, [ALICE_AUTH, BOB_AUTH]);
 });
 
 // API-05 (AC-06, AC-07). The handout's required delivery smoke case.
@@ -47,6 +54,8 @@ describe("POST /api/tickets", () => {
         "currentStatus",
         "deleted",
         "description",
+        "itPriority",
+        "owner",
         "publicId",
         "relatedSystemId",
         "relatedSystemName",
@@ -54,6 +63,8 @@ describe("POST /api/tickets", () => {
         "requesterEmail",
         "requesterId",
         "requesterName",
+        "requesterPublicId",
+        "requesterResolutionConfirmedAt",
         "summary",
         "ticketNumber",
         "updatedAt",
@@ -124,12 +135,12 @@ describe("POST /api/tickets", () => {
 
   it("requires valid requester context", async () => {
     const res = await request(app)
-      .post("/api/tickets")
+      .post("/api/users/me/tickets")
       .set("Idempotency-Key", KEY)
       .send(VALID_BODY);
 
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
     expect(tx.ticket.create).not.toHaveBeenCalled();
   });
 });

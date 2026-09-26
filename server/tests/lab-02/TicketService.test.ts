@@ -5,8 +5,8 @@ import {
   FencedOutError,
   TICKET_NUMBER_ATTEMPTS,
   TicketService,
-  toTicketDTO,
 } from "../../src/services/ticketService.js";
+import { toTicketDTO } from "../../src/services/ticketRepresentation.js";
 import { TICKET_NUMBER_PATTERN } from "../../src/services/ticketNumber.js";
 
 const NOW = new Date("2026-08-20T08:14:32.000Z");
