@@ -6,6 +6,12 @@ This is the canonical Lab 2 AI-use record. It curates ten important prompts
 from the prompt history available in the repository and current session; it is
 not a transcript.
 
+## Lab 4 server regression follow-up (2026-09-30)
+
+| Prompt | What I did with the result |
+|---|---|
+| Run `npm test`; supplied CI log with four PostgreSQL failures. | Reproduced all four failures on the guarded disposable local Lab 3 test database. Updated inherited schema, foreign-key, unique-index, seed, and auth fixtures for approved Lab 4 evolution. Removed the premature `is_system` dependency from migrated-password provisioning; its existing migration credential sentinel excludes SYSTEM. Added a SYSTEM/provisioned-human credential preservation regression. Focused tests passed (11); server/client builds passed. Full server regression passed (72 files, 1,064 tests); details are recorded in the Lab 4 test evidence. No commit or push. |
+
 ## Lab 3 CI regression follow-up (2026-09-25)
 
 | Prompt | What I did with the result |

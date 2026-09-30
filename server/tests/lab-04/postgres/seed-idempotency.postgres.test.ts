@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../../src/generated/prisma/client.js";
+import { provisionMigratedPasswords } from "../../../src/services/migratedPasswordProvisioning.js";
 import {
   assertLab2TestDatabase,
   createTestPrisma,
@@ -42,6 +43,20 @@ describe("Lab 4 seed @issue-78", () => {
 
     expect(first).toEqual({ users: 12, tickets: 8, actions: 4, migratedActions: 2, activities: 4, systemUsers: 1, emptyTicketRequesters: 1 });
     expect(second).toEqual(first);
+  }, 120_000);
+
+  it("leaves SYSTEM and provisioned human credentials unchanged during password provisioning", async () => {
+    await runSeed(target);
+    const before = await prisma.user.findMany({ orderBy: { id: "asc" } });
+    expect(before.filter((user) => user.isSystem)).toHaveLength(1);
+    expect(before.find((user) => user.isSystem)).toMatchObject({
+      isActive: false,
+      mustChangePassword: false,
+      passwordHash: "!system-no-login",
+    });
+
+    expect(await provisionMigratedPasswords(prisma)).toBe(0);
+    expect(await prisma.user.findMany({ orderBy: { id: "asc" } })).toEqual(before);
   }, 120_000);
 
   async function readLogicalCounts() {

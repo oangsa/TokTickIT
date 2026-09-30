@@ -804,3 +804,24 @@ Testing is complete only when:
 - Labs 1–3 regression is green;
 - performance smoke is explicitly recorded as non-SLA;
 - final statuses reflect real results rather than planned assumptions.
+
+
+## Server regression repair evidence (2026-09-30)
+
+Scope: repair the four supplied CI failures on `feature/78-lab4-data-foundation-migration`. No REST endpoint, Prisma schema, migration, or seed behavior was changed.
+
+The inherited Lab 2 schema/seed tests now assert the approved Lab 4 `User.isSystem`, resource-scoped idempotency columns, foreign keys, checks and unique index, plus SYSTEM/Nora/Former Staff seed rows and their audit/deletion state. Lab 3 session fixtures select active non-system Users. Migrated-password provisioning uses the existing unprovisioned credential sentinel without requiring the Lab 4-only column; the SYSTEM sentinel cannot match it and is enforced by the database constraint. New Lab 4 coverage asserts provisioning preserves SYSTEM and already provisioned human records.
+
+All PostgreSQL runs used the guarded disposable local `toktickit_lab3_test` container. `NODE_ENV=test`, `TEST_DATABASE_URL`, `DATABASE_URL`, and `DIRECT_URL` were explicitly set to the test target, with distinct captured baseline targets. Credentials were read privately from the local container and were not printed. The existing suites rebuilt only this disposable test schema.
+
+| Command / check (server commands run from `server/`) | Observed result |
+|---|---|
+| `npm test -- tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/migration-upgrade.postgres.test.ts` before edits | Red: reproduced all four failures; 4 failed, 5 passed. |
+| `npm test -- tests/lab-03/postgres/migration-upgrade.postgres.test.ts` after provisioning fix | Green: 1 passed; legacy human credentials provisioned and verified, repeat provisioning returned zero. |
+| `npm test -- tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/migration-upgrade.postgres.test.ts tests/lab-04/postgres/seed-idempotency.postgres.test.ts` | Final focused run: 11 passed. An intermediate run exposed one additional stale check-count expectation (8 versus 10), corrected with explicit assertions for both new constraints. |
+| `npm test` | 72 files, 1,064 tests passed. |
+| `npm run build` in `server/` | Passed TypeScript build. |
+| `npm run build` in `client/` | Passed TypeScript/Vite build; existing dependency annotation and chunk-size warnings. |
+| `git diff --check` | Passed. |
+
+Existing PostgreSQL concurrent-query deprecation warnings remain. No lint script exists in either application package. Browser E2E and client tests were not run for this backend/test-only repair. No peer review, commit, or push occurred. Changed files were reviewed for scope and secret exposure; no credentials were added.

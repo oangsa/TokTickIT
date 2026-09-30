@@ -120,6 +120,7 @@ const EXPECTED_COLUMNS = {
     role: column(nativeEnum("UserRole")),
     password_hash: column(varchar(255)),
     must_change_password: column(BOOLEAN),
+    is_system: column(BOOLEAN, { defaultPattern: /false/i }),
     is_active: column(BOOLEAN, { defaultPattern: /true/i }),
     deleted: column(BOOLEAN, { defaultPattern: /false/i }),
     ...AUDIT_COLUMNS,
@@ -171,7 +172,10 @@ const EXPECTED_COLUMNS = {
   },
   idempotency_record: {
     id: column(INTEGER, { defaultPattern: /nextval/ }),
-    requester_id: column(INTEGER),
+    user_id: column(INTEGER),
+    method: column(varchar(10)),
+    resource_path: column(varchar(512)),
+    action_taken_id: column(INTEGER, { nullable: true }),
     key: column(UUID),
     request_hash: column(varchar(128)),
     status: column(nativeEnum("IdempotencyStatus")),
@@ -349,7 +353,9 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       attachment_size_data_check: "CHECK",
       attachment_lifecycle_check: "CHECK",
       idempotency_record_pkey: "PRIMARY KEY",
-      idempotency_record_requester_key_key: "UNIQUE",
+      user_system_non_login_check: "CHECK",
+      idempotency_record_method_check: "CHECK",
+      idempotency_record_path_check: "CHECK",
       idempotency_record_request_hash_check: "CHECK",
       idempotency_record_state_check: "CHECK",
     };
@@ -404,10 +410,10 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         confupdtype: "r",
       },
       {
-        conname: "idempotency_record_requester_id_fkey",
+        conname: "idempotency_record_action_taken_id_fkey",
         child_table: "idempotency_record",
-        child_column: "requester_id",
-        parent_table: "\"user\"",
+        child_column: "action_taken_id",
+        parent_table: "action_taken",
         parent_column: "id",
         confdeltype: "r",
         confupdtype: "r",
@@ -417,6 +423,15 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         child_table: "idempotency_record",
         child_column: "ticket_id",
         parent_table: "ticket",
+        parent_column: "id",
+        confdeltype: "r",
+        confupdtype: "r",
+      },
+      {
+        conname: "idempotency_record_user_id_fkey",
+        child_table: "idempotency_record",
+        child_column: "user_id",
+        parent_table: "\"user\"",
         parent_column: "id",
         confdeltype: "r",
         confupdtype: "r",
@@ -465,7 +480,9 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       WHERE contype = 'c'
         AND conrelid IN ('ticket'::regclass, 'attachment'::regclass, 'idempotency_record'::regclass)
     `;
-    expect(checks).toHaveLength(8);
+    expect(checks).toHaveLength(10);
+    expect(checks.find((check) => check.conname === "idempotency_record_method_check")).toBeDefined();
+    expect(checks.find((check) => check.conname === "idempotency_record_path_check")).toBeDefined();
     expect(checks.find((check) => check.conname === "ticket_ticket_number_format_check")?.definition).toContain("TKT-");
     expect(checks.find((check) => check.conname === "attachment_size_data_check")?.definition).toContain("5000000");
     expect(checks.find((check) => check.conname === "idempotency_record_state_check")?.definition).toContain("24:00:00");
@@ -488,6 +505,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       "attachment_pending_created_at_id_idx",
       "attachment_uploader_ticket_idx",
       "idempotency_record_expires_at_id_idx",
+      "idempotency_record_user_method_path_key_key",
       "ticket_ticket_number_trgm_idx",
       "ticket_summary_trgm_idx",
       "ticket_description_trgm_idx",
@@ -518,6 +536,7 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         "(uploaded_by_user_id, ticket_id)",
       ],
       idempotency_record_expires_at_id_idx: ["(expires_at, id)"],
+      idempotency_record_user_method_path_key_key: ["UNIQUE INDEX", "(user_id, method, resource_path, key)"],
     };
     for (const [name, fragments] of Object.entries(expectedIndexFragments)) {
       for (const fragment of fragments) {
@@ -592,6 +611,11 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       isActive: is_active,
     }))).toEqual([
       {
+        email: "system@toktickit.invalid",
+        name: "SYSTEM",
+        isActive: false,
+      },
+      {
         email: "alice.johnson@example.com",
         name: "Alice Johnson",
         isActive: true,
@@ -609,6 +633,11 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
       {
         email: "david.brown@example.com",
         name: "David Brown",
+        isActive: true,
+      },
+      {
+        email: "nora.evans@example.com",
+        name: "Nora Evans",
         isActive: true,
       },
       {
@@ -637,6 +666,11 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
         isActive: false,
       },
       {
+        email: "former.staff@example.com",
+        name: "Former Staff",
+        isActive: true,
+      },
+      {
         email: "morgan.admin@example.com",
         name: "Morgan Admin",
         isActive: true,
@@ -644,9 +678,10 @@ describe.sequential("Lab 2 migration and seed PostgreSQL contract", () => {
     ]);
     for (const rows of Object.values(first)) {
       for (const row of rows) {
-        expect(row.deleted).toBe(false);
-        expect(row.created_by).toBe("seed");
-        expect(row.updated_by).toBe("seed");
+        expect(row.deleted).toBe(row.label === "former.staff@example.com");
+        const auditActor = row.label === "system@toktickit.invalid" ? "migration" : "seed";
+        expect(row.created_by).toBe(auditActor);
+        expect(row.updated_by).toBe(auditActor);
       }
     }
 

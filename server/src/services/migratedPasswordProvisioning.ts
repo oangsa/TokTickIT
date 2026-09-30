@@ -37,11 +37,12 @@ export async function provisionMigratedPasswordsInTransaction(
   tx: Prisma.TransactionClient,
   options: MigratedPasswordProvisioningOptions = {},
 ): Promise<number> {
+  // The migration sentinel selects only unprovisioned human credentials, even
+  // before Lab 4 adds is_system. SYSTEM uses a distinct non-login sentinel.
   const users = await tx.$queryRaw<UnprovisionedUser[]>`
     SELECT id, email::text AS email
     FROM "user"
     WHERE password_hash LIKE ${`${MIGRATED_PASSWORD_UNPROVISIONED_PREFIX}%`}
-      AND is_system = FALSE
     ORDER BY id
     FOR UPDATE
   `;
