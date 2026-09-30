@@ -112,6 +112,7 @@ export async function listUsers(
 
   const where: Prisma.UserWhereInput = {
     deleted: false,
+    isSystem: false,
     AND: [
       ...(searchConditions.length > 0 ? [{ OR: searchConditions }] : []),
       ...filterConditions,
@@ -157,7 +158,7 @@ export async function getUser(prisma: PrismaClient, publicId: string): Promise<U
   }
 
   const user = await prisma.user.findFirst({
-    where: { publicId, deleted: false },
+    where: { publicId, deleted: false, isSystem: false },
   });
 
   if (!user) {
@@ -188,7 +189,7 @@ export async function createUser(
   const isActive = body.isActive !== undefined ? validateIsActive(body.isActive) : true;
 
   const existing = await prisma.user.findFirst({
-    where: { email: { equals: email, mode: "insensitive" } },
+    where: { email: { equals: email, mode: "insensitive" }, isSystem: false },
     select: { id: true },
   });
 
@@ -261,7 +262,7 @@ export async function updateUser(
     return await prisma.$transaction(
       async (tx) => {
         const target = await tx.user.findFirst({
-          where: { publicId: targetPublicId, deleted: false },
+          where: { publicId: targetPublicId, deleted: false, isSystem: false },
         });
 
         if (!target) {
@@ -288,7 +289,7 @@ export async function updateUser(
           const isDeactivating = isActive === false;
           if (isDemoting || isDeactivating) {
             const activeAdmins = await tx.user.count({
-              where: { role: "ADMINISTRATOR", isActive: true, deleted: false },
+              where: { role: "ADMINISTRATOR", isActive: true, deleted: false, isSystem: false },
             });
             if (activeAdmins <= 1) {
               throw new ApiError("CONFLICT", undefined, "The last active Administrator cannot be deactivated or demoted.");
@@ -299,7 +300,7 @@ export async function updateUser(
         // Email duplicate check
         if (email !== undefined && email.toLowerCase() !== target.email.toLowerCase()) {
           const dup = await tx.user.findFirst({
-            where: { email: { equals: email, mode: "insensitive" }, id: { not: target.id } },
+            where: { email: { equals: email, mode: "insensitive" }, id: { not: target.id }, isSystem: false },
             select: { id: true },
           });
           if (dup) {
@@ -386,7 +387,7 @@ export async function resetInitialPassword(
     return await prisma.$transaction(
       async (tx) => {
         const target = await tx.user.findFirst({
-          where: { publicId: targetPublicId, deleted: false },
+          where: { publicId: targetPublicId, deleted: false, isSystem: false },
         });
 
         if (!target) {

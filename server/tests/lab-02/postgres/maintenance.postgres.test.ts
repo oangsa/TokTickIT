@@ -100,8 +100,10 @@ async function createCompletedRecord(
 ): Promise<number> {
   const row = await prisma.idempotencyRecord.create({
     data: {
-      requesterId: fixture.requesterId,
+      userId: fixture.requesterId,
       key: randomUUID(),
+      method: "POST",
+      resourcePath: "/api/users/me/tickets",
       requestHash: "a".repeat(64),
       status: IdempotencyStatus.COMPLETED,
       processingStartedAt: new Date(completedAt.getTime() - 1000),
@@ -270,8 +272,10 @@ describe.sequential("PG-09 expired Idempotency Record cleanup", () => {
   it("never deletes or reclaims a PROCESSING claim, however stale", async () => {
     const claim = await prisma.idempotencyRecord.create({
       data: {
-        requesterId: fixture.requesterId,
+        userId: fixture.requesterId,
         key: randomUUID(),
+        method: "POST",
+        resourcePath: "/api/users/me/tickets",
         requestHash: "b".repeat(64),
         status: IdempotencyStatus.PROCESSING,
         /* Long past the 300-second lease: reclaim is request-time work. */

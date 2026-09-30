@@ -145,12 +145,15 @@ export function attachmentRow(overrides: Record<string, unknown> = {}) {
 export function processingRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: 7,
-    requesterId: 3,
+    userId: 3,
+    method: "POST",
+    resourcePath: "/api/users/me/tickets",
     key: KEY,
     requestHash: "",
     status: "PROCESSING",
     processingStartedAt: new Date(),
     ticketId: null,
+    actionTakenId: null,
     completedAt: null,
     expiresAt: null,
     ...overrides,

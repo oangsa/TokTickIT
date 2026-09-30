@@ -41,6 +41,7 @@ export async function provisionMigratedPasswordsInTransaction(
     SELECT id, email::text AS email
     FROM "user"
     WHERE password_hash LIKE ${`${MIGRATED_PASSWORD_UNPROVISIONED_PREFIX}%`}
+      AND is_system = FALSE
     ORDER BY id
     FOR UPDATE
   `;

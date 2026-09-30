@@ -93,7 +93,7 @@ export class AuthService {
       input.ipAddress,
       now,
       async (tx) => {
-        const user = await tx.user.findUnique({ where: { email } });
+        const user = await tx.user.findUnique({ where: { email, isSystem: false } });
         const passwordMatches = user
           ? await verifyPassword(user.passwordHash, input.password)
           : await verifyPassword(dummyPasswordHash(this.passwordProfile), input.password);
@@ -111,6 +111,7 @@ export class AuthService {
             email: user.email,
             role: user.role,
             isActive: true,
+            isSystem: false,
             deleted: false,
             mustChangePassword: user.mustChangePassword,
             updatedAt: user.updatedAt,
@@ -156,7 +157,7 @@ export class AuthService {
   async refresh(refreshToken: string, now = new Date()): Promise<{ token: AuthTokenDTO; refreshToken: string; persistent: boolean }> {
     try {
       const session = await this.sessions.refresh(refreshToken, now);
-      const user = await this.prisma.user.findUnique({ where: { id: session.session.userId } });
+      const user = await this.prisma.user.findUnique({ where: { id: session.session.userId, isSystem: false } });
       if (!user || !user.isActive || user.deleted) {
         await this.sessions.revokeSession(session.session.id, "user_inactive", now);
         throw new SessionInvalidError();
@@ -189,7 +190,7 @@ export class AuthService {
     if (!session) {
       throw new ApiError("SESSION_INVALID");
     }
-    const user = await this.prisma.user.findUnique({ where: { id: session.userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: session.userId, isSystem: false } });
     if (!user || user.publicId !== userPublicId || !user.isActive || user.deleted) {
       throw new ApiError("SESSION_INVALID");
     }

@@ -1,5 +1,7 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 
+import { canonicalResourcePath } from "./idempotencyRequest.js";
+
 /* api-spec Section 8.5. */
 export const PROCESSING_LEASE_SECONDS = 300;
 
@@ -15,14 +17,18 @@ export type PrismaTransaction = Prisma.TransactionClient;
  */
 export type ClaimResolution =
   | { kind: "OWNED"; recordId: number; processingStartedAt: Date }
-  | { kind: "REPLAY"; ticketId: number }
+  | { kind: "REPLAY_TICKET"; ticketId: number }
+  | { kind: "REPLAY_ACTION"; actionTakenId: number }
   | { kind: "CONFLICT" }
   | { kind: "WAIT" };
 
 export interface ClaimInput {
-  requesterId: number;
+  userId: number;
+  method: string;
+  resourcePath: string;
   key: string;
   requestHash: string;
+  legacyRequestHash?: string;
   actor: string;
   now: Date;
 }
@@ -45,12 +51,20 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
+function matchesRequestHash(storedHash: string, input: ClaimInput): boolean {
+  return storedHash === input.requestHash || storedHash === input.legacyRequestHash;
+}
+
+function acceptedRequestHashes(input: ClaimInput): string[] {
+  return [...new Set([input.requestHash, input.legacyRequestHash].filter((hash): hash is string => hash !== undefined))];
+}
+
 export class IdempotencyService {
   constructor(private readonly prisma: PrismaClient) {}
 
   /*
    * api-spec Section 8.2.1. Resolves, establishes, or atomically reclaims the
-   * unique `(requesterId, key)` claim. It never touches a Ticket or an
+   * unique `(userId, method, resourcePath, key)` claim. It never touches a Ticket or an
    * Attachment: mutation is gated behind an `OWNED` result and the fencing
    * check below.
    *
@@ -70,7 +84,7 @@ export class IdempotencyService {
     }
 
     const record = await this.prisma.idempotencyRecord.findUnique({
-      where: { requesterId_key: { requesterId: input.requesterId, key: input.key } },
+      where: { userId_method_resourcePath_key: this.identity(input) },
     });
 
     if (record === null) {
@@ -90,16 +104,17 @@ export class IdempotencyService {
         return this.resolve(input, attempt + 1);
       }
 
-      if (record.requestHash !== input.requestHash) {
+      if (!matchesRequestHash(record.requestHash, input)) {
         return { kind: "CONFLICT" };
       }
 
-      /* A completed record always carries its ticketId (database CHECK). */
-      return { kind: "REPLAY", ticketId: record.ticketId as number };
+      if (record.ticketId !== null) return { kind: "REPLAY_TICKET", ticketId: record.ticketId };
+      if (record.actionTakenId !== null) return { kind: "REPLAY_ACTION", actionTakenId: record.actionTakenId };
+      throw new Error("Completed idempotency record has no result");
     }
 
     /* PROCESSING. A different payload conflicts whether the claim is fresh or stale. */
-    if (record.requestHash !== input.requestHash) {
+    if (!matchesRequestHash(record.requestHash, input)) {
       return { kind: "CONFLICT" };
     }
 
@@ -114,7 +129,7 @@ export class IdempotencyService {
     try {
       const created = await this.prisma.idempotencyRecord.create({
         data: {
-          requesterId: input.requesterId,
+          ...this.identity(input),
           key: input.key,
           requestHash: input.requestHash,
           status: "PROCESSING",
@@ -134,14 +149,14 @@ export class IdempotencyService {
         throw error;
       }
 
-      /* Another request won the unique `(requesterId, key)` race. */
+      /* Another request won the four-part identity race. */
       return this.resolve(input, attempt + 1);
     }
   }
 
   /*
    * api-spec Section 8.5. One atomic conditional update: the `WHERE` re-checks
-   * status, hash, and staleness, so two concurrent retries cannot both reclaim
+   * identity, status, hash, and staleness, so two concurrent retries cannot both reclaim
    * -- the loser updates zero rows and refetches. The row is updated in place
    * and never deleted, which is what stops a different payload from taking over
    * the key.
@@ -151,13 +166,19 @@ export class IdempotencyService {
 
     const { count } = await this.prisma.idempotencyRecord.updateMany({
       where: {
-        requesterId: input.requesterId,
+        ...this.identity(input),
         key: input.key,
         status: "PROCESSING",
-        requestHash: input.requestHash,
+        requestHash: input.legacyRequestHash === undefined
+          ? input.requestHash
+          : { in: acceptedRequestHashes(input) },
         processingStartedAt: { lte: cutoff },
       },
-      data: { processingStartedAt: input.now, updatedBy: input.actor },
+      data: {
+        processingStartedAt: input.now,
+        updatedBy: input.actor,
+        ...(input.legacyRequestHash === undefined ? {} : { requestHash: input.requestHash }),
+      },
     });
 
     if (count === 0) {
@@ -165,7 +186,7 @@ export class IdempotencyService {
     }
 
     const reclaimed = await this.prisma.idempotencyRecord.findUnique({
-      where: { requesterId_key: { requesterId: input.requesterId, key: input.key } },
+      where: { userId_method_resourcePath_key: this.identity(input) },
     });
 
     if (reclaimed === null) {
@@ -181,7 +202,7 @@ export class IdempotencyService {
 
   /*
    * `IDEMPOTENCY-FENCING-A` (api-spec Section 8.5.1). Takes an exclusive row
-   * lock and verifies all three ownership values. The lock is held until the
+   * lock and verifies the full identity, request hash, and fencing timestamp. The lock is held until the
    * surrounding transaction commits or rolls back, which is what blocks a
    * concurrent stale reclaim while the real owner is mutating.
    *
@@ -190,12 +211,15 @@ export class IdempotencyService {
    */
   async lockAndVerify(
     tx: PrismaTransaction,
-    input: { requesterId: number; key: string; requestHash: string; processingStartedAt: Date },
+    input: Pick<ClaimInput, "userId" | "method" | "resourcePath" | "key" | "requestHash"> & { processingStartedAt: Date },
   ): Promise<boolean> {
+    const identity = this.identity(input);
     const rows = await tx.$queryRaw<{ id: number }[]>`
       SELECT id
       FROM idempotency_record
-      WHERE requester_id = ${input.requesterId}
+      WHERE user_id = ${input.userId}
+        AND method = ${identity.method}
+        AND resource_path = ${identity.resourcePath}
         AND key = ${input.key}::uuid
         AND status = 'PROCESSING'
         AND request_hash = ${input.requestHash}
@@ -209,13 +233,13 @@ export class IdempotencyService {
   /* Section 8.7: `expiresAt = completedAt + 24 hours`. */
   async complete(
     tx: PrismaTransaction,
-    input: { recordId: number; ticketId: number; now: Date; actor: string },
+    input: { recordId: number; result: { ticketId: number } | { actionTakenId: number }; now: Date; actor: string },
   ): Promise<void> {
     await tx.idempotencyRecord.update({
       where: { id: input.recordId },
       data: {
         status: "COMPLETED",
-        ticketId: input.ticketId,
+        ...input.result,
         completedAt: input.now,
         expiresAt: new Date(input.now.getTime() + COMPLETED_RETENTION_HOURS * 3600 * 1000),
         updatedBy: input.actor,
@@ -229,18 +253,22 @@ export class IdempotencyService {
    * key. The `processingStartedAt` predicate makes this safe after a reclaim:
    * an old owner cleaning up cannot delete the new owner's claim.
    */
-  async release(input: {
-    requesterId: number;
-    key: string;
-    processingStartedAt: Date;
-  }): Promise<void> {
+  async release(input: Pick<ClaimInput, "userId" | "method" | "resourcePath" | "key"> & { processingStartedAt: Date }): Promise<void> {
     await this.prisma.idempotencyRecord.deleteMany({
       where: {
-        requesterId: input.requesterId,
-        key: input.key,
+        ...this.identity(input),
         status: "PROCESSING",
         processingStartedAt: input.processingStartedAt,
       },
     });
+  }
+
+  private identity(input: Pick<ClaimInput, "userId" | "method" | "resourcePath" | "key">) {
+    return {
+      userId: input.userId,
+      method: input.method.toUpperCase(),
+      resourcePath: canonicalResourcePath(input.resourcePath),
+      key: input.key,
+    };
   }
 }

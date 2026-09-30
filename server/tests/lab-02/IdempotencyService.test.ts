@@ -9,8 +9,10 @@ import {
 } from "../../src/services/idempotencyService.js";
 import {
   hashCreateTicketPayload,
+  hashLegacyCreateTicketPayload,
   parseCreateTicketRequest,
 } from "../../src/services/ticketCreateRequest.js";
+import { hashIdempotencyRequest } from "../../src/services/idempotencyRequest.js";
 
 const prismaMock = {
   idempotencyRecord: {
@@ -30,17 +32,20 @@ const OTHER_HASH = "b".repeat(64);
 const NOW = new Date("2026-08-20T08:00:00.000Z");
 const STARTED = new Date("2026-08-20T07:55:00.000Z");
 
-const INPUT = { requesterId: 3, key: KEY, requestHash: HASH, actor: "alice@example.com", now: NOW };
+const INPUT = { userId: 3, method: "POST", resourcePath: "/api/users/me/tickets", key: KEY, requestHash: HASH, actor: "alice@example.com", now: NOW };
 
 function processingRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: 7,
-    requesterId: 3,
+    userId: 3,
+    method: "POST",
+    resourcePath: "/api/users/me/tickets",
     key: KEY,
     requestHash: HASH,
     status: "PROCESSING",
     processingStartedAt: STARTED,
     ticketId: null,
+    actionTakenId: null,
     completedAt: null,
     expiresAt: null,
     ...overrides,
@@ -63,6 +68,18 @@ beforeEach(() => {
 
 // UNIT-10 (BR-18-24, AC-11-12, AC-42-43, AC-51-52, AC-65).
 describe("canonical request hashing", () => {
+  it("canonicalizes method, concrete path, and semantic body", () => {
+    expect(hashIdempotencyRequest("post", "/api/tickets/ABCDEF00-0000-4000-8000-000000000001/actions/?trace=1", { expectedVersion: 1, input: { b: 2, a: 1 } })).toBe(
+      hashIdempotencyRequest("POST", "/api/tickets/abcdef00-0000-4000-8000-000000000001/actions", { input: { a: 1, b: 2 }, expectedVersion: 1 }),
+    );
+    expect(hashIdempotencyRequest("POST", "/api/tickets/abcdef00-0000-4000-8000-000000000001/actions", { expectedVersion: 1 })).not.toBe(
+      hashIdempotencyRequest("POST", "/api/tickets/abcdef00-0000-4000-8000-000000000002/actions", { expectedVersion: 1 }),
+    );
+    expect(hashIdempotencyRequest("POST", "/api/tickets/abcdef00-0000-4000-8000-000000000001/complete", { expectedVersion: 1 })).not.toBe(
+      hashIdempotencyRequest("POST", "/api/tickets/abcdef00-0000-4000-8000-000000000001/complete", { expectedVersion: 2 }),
+    );
+  });
+
   function hashOf(body: Record<string, unknown>): string {
     return parseCreateTicketRequest({
       categoryId: 4,
@@ -159,6 +176,12 @@ describe("canonical request hashing", () => {
     });
 
     expect(hashCreateTicketPayload(payload)).toBe(requestHash);
+    expect(hashCreateTicketPayload(payload)).toBe(
+      hashIdempotencyRequest("POST", "/api/users/me/tickets", payload),
+    );
+    expect(hashLegacyCreateTicketPayload(payload)).toBe(
+      "9bb94f65a373c130fa9f8137256557120961dcf714c23788230353ef76397480",
+    );
   });
 });
 
@@ -187,7 +210,9 @@ describe("claim resolution", () => {
     expect(resolution).toEqual({ kind: "OWNED", recordId: 7, processingStartedAt: NOW });
     expect(prismaMock.idempotencyRecord.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        requesterId: 3,
+        userId: 3,
+        method: "POST",
+        resourcePath: "/api/users/me/tickets",
         key: KEY,
         requestHash: HASH,
         status: "PROCESSING",
@@ -216,7 +241,7 @@ describe("claim resolution", () => {
 
     const resolution = await service.resolve(INPUT);
 
-    expect(resolution).toEqual({ kind: "REPLAY", ticketId: 42 });
+    expect(resolution).toEqual({ kind: "REPLAY_TICKET", ticketId: 42 });
   });
 
   it("waits on a fresh same-hash PROCESSING claim", async () => {
@@ -247,7 +272,9 @@ describe("claim resolution", () => {
     expect(resolution).toEqual({ kind: "OWNED", recordId: 7, processingStartedAt: NOW });
     expect(prismaMock.idempotencyRecord.updateMany).toHaveBeenCalledWith({
       where: {
-        requesterId: 3,
+        userId: 3,
+        method: "POST",
+        resourcePath: "/api/users/me/tickets",
         key: KEY,
         status: "PROCESSING",
         requestHash: HASH,
@@ -280,7 +307,18 @@ describe("claim resolution", () => {
   it("replays a completed same-hash claim before its logical expiry", async () => {
     prismaMock.idempotencyRecord.findUnique.mockResolvedValue(completedRecord());
 
-    expect(await service.resolve(INPUT)).toEqual({ kind: "REPLAY", ticketId: 42 });
+    expect(await service.resolve(INPUT)).toEqual({ kind: "REPLAY_TICKET", ticketId: 42 });
+  });
+
+  it("replays a migrated body-only claim when its legacy hash matches", async () => {
+    prismaMock.idempotencyRecord.findUnique.mockResolvedValue(
+      completedRecord({ requestHash: OTHER_HASH }),
+    );
+
+    expect(await service.resolve({ ...INPUT, legacyRequestHash: OTHER_HASH })).toEqual({
+      kind: "REPLAY_TICKET",
+      ticketId: 42,
+    });
   });
 
   it("conflicts on a completed different-hash claim", async () => {
@@ -289,6 +327,23 @@ describe("claim resolution", () => {
     );
 
     expect(await service.resolve(INPUT)).toEqual({ kind: "CONFLICT" });
+  });
+
+  it("normalizes a stale legacy claim hash while reclaiming it", async () => {
+    prismaMock.idempotencyRecord.findUnique
+      .mockResolvedValueOnce(processingRecord({ requestHash: OTHER_HASH }))
+      .mockResolvedValue(processingRecord({ requestHash: HASH, processingStartedAt: NOW }));
+    prismaMock.idempotencyRecord.updateMany.mockResolvedValue({ count: 1 });
+
+    expect(await service.resolve({ ...INPUT, legacyRequestHash: OTHER_HASH })).toEqual({
+      kind: "OWNED",
+      recordId: 7,
+      processingStartedAt: NOW,
+    });
+    expect(prismaMock.idempotencyRecord.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ requestHash: { in: [HASH, OTHER_HASH] } }),
+      data: expect.objectContaining({ requestHash: HASH, processingStartedAt: NOW }),
+    });
   });
 
   it("treats now == expiresAt as expired and re-establishes the claim", async () => {
@@ -313,24 +368,42 @@ describe("claim resolution", () => {
       completedRecord({ expiresAt: new Date(NOW.getTime() + 1) }),
     );
 
-    expect(await service.resolve(INPUT)).toEqual({ kind: "REPLAY", ticketId: 42 });
+    expect(await service.resolve(INPUT)).toEqual({ kind: "REPLAY_TICKET", ticketId: 42 });
     expect(prismaMock.idempotencyRecord.deleteMany).not.toHaveBeenCalled();
   });
 
-  it("scopes the claim to the Requester as well as the key", async () => {
+  it("scopes the claim to the User, method, path, and key", async () => {
     prismaMock.idempotencyRecord.findUnique.mockResolvedValue(null);
     prismaMock.idempotencyRecord.create.mockResolvedValue(processingRecord());
 
-    await service.resolve({ ...INPUT, requesterId: 4 });
+    await service.resolve({ ...INPUT, userId: 4 });
 
     expect(prismaMock.idempotencyRecord.findUnique).toHaveBeenCalledWith({
-      where: { requesterId_key: { requesterId: 4, key: KEY } },
+      where: { userId_method_resourcePath_key: { userId: 4, method: "POST", resourcePath: "/api/users/me/tickets", key: KEY } },
     });
+
+    await service.resolve({ ...INPUT, resourcePath: "/api/tickets/other/actions" });
+    expect(prismaMock.idempotencyRecord.findUnique).toHaveBeenLastCalledWith({
+      where: { userId_method_resourcePath_key: { userId: 3, method: "POST", resourcePath: "/api/tickets/other/actions", key: KEY } },
+    });
+
+    await service.resolve({ ...INPUT, method: "post", resourcePath: "/API/tickets/ABCDEF00-0000-4000-8000-000000000001/actions/?trace=1" });
+    expect(prismaMock.idempotencyRecord.create).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ method: "POST", resourcePath: "/api/tickets/abcdef00-0000-4000-8000-000000000001/actions" }),
+    });
+  });
+
+  it("replays a completed Action result as a typed result", async () => {
+    prismaMock.idempotencyRecord.findUnique.mockResolvedValue(
+      completedRecord({ ticketId: null, actionTakenId: 99 }),
+    );
+
+    expect(await service.resolve(INPUT)).toEqual({ kind: "REPLAY_ACTION", actionTakenId: 99 });
   });
 });
 
 describe("IDEMPOTENCY-FENCING-A", () => {
-  const fencing = { requesterId: 3, key: KEY, requestHash: HASH, processingStartedAt: STARTED };
+  const fencing = { userId: 3, method: "POST", resourcePath: "/api/users/me/tickets", key: KEY, requestHash: HASH, processingStartedAt: STARTED };
 
   it("passes when status, hash, and exact lease all match", async () => {
     const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 7 }]) };
@@ -351,7 +424,7 @@ describe("IDEMPOTENCY-FENCING-A", () => {
 
     const [strings, ...values] = tx.$queryRaw.mock.calls[0];
     expect(strings.join("?")).toContain("FOR UPDATE");
-    expect(values).toEqual([3, KEY, HASH, STARTED]);
+    expect(values).toEqual([3, "POST", "/api/users/me/tickets", KEY, HASH, STARTED]);
   });
 });
 
@@ -361,7 +434,7 @@ describe("completion and release", () => {
 
     await service.complete(tx as never, {
       recordId: 7,
-      ticketId: 42,
+      result: { ticketId: 42 },
       now: NOW,
       actor: "alice@example.com",
     });
@@ -382,12 +455,12 @@ describe("completion and release", () => {
   it("removes only its own PROCESSING claim rather than storing FAILED", async () => {
     prismaMock.idempotencyRecord.deleteMany.mockResolvedValue({ count: 1 });
 
-    await service.release({ requesterId: 3, key: KEY, processingStartedAt: STARTED });
+    await service.release({ userId: 3, method: "POST", resourcePath: "/api/users/me/tickets", key: KEY, processingStartedAt: STARTED });
 
     // The processingStartedAt predicate is what stops an old owner from
     // deleting a claim a stale retry has already reclaimed.
     expect(prismaMock.idempotencyRecord.deleteMany).toHaveBeenCalledWith({
-      where: { requesterId: 3, key: KEY, status: "PROCESSING", processingStartedAt: STARTED },
+      where: { userId: 3, method: "POST", resourcePath: "/api/users/me/tickets", key: KEY, status: "PROCESSING", processingStartedAt: STARTED },
     });
   });
 });

@@ -76,10 +76,12 @@ async function insertIdempotency(
 ): Promise<void> {
   await prisma.$executeRaw`
     INSERT INTO idempotency_record (
-      requester_id, "key", request_hash, status, processing_started_at,
+      user_id, method, resource_path, "key", request_hash, status, processing_started_at,
       ticket_id, completed_at, expires_at, created_by, updated_by
     ) VALUES (
       ${record.requesterId},
+      'POST',
+      '/api/users/me/tickets',
       ${record.key}::uuid,
       ${record.requestHash},
       ${record.status}::"IdempotencyStatus",
@@ -189,7 +191,7 @@ describe.sequential("Lab 2 IdempotencyRecord PostgreSQL contract", () => {
     await expect(
       prisma.idempotencyRecord.update({
         where: {
-          requesterId_key: { requesterId: fixture.requesterId, key },
+          userId_method_resourcePath_key: { userId: fixture.requesterId, method: "POST", resourcePath: "/api/users/me/tickets", key },
         },
         data: {
           status: IdempotencyStatus.COMPLETED,
@@ -368,7 +370,7 @@ describe.sequential("Lab 2 Ticket-create idempotency concurrency", () => {
 
   async function claimFor(key: string) {
     return prisma.idempotencyRecord.findUnique({
-      where: { requesterId_key: { requesterId, key } },
+      where: { userId_method_resourcePath_key: { userId: requesterId, method: "POST", resourcePath: "/api/users/me/tickets", key } },
     });
   }
 
@@ -596,7 +598,9 @@ describe.sequential("Lab 2 Ticket-create idempotency concurrency", () => {
 
     const service = new IdempotencyService(connections[0]);
     const resolution = await service.resolve({
-      requesterId,
+      userId: requesterId,
+      method: "POST",
+      resourcePath: "/api/users/me/tickets",
       key,
       requestHash: hashCreateTicketPayload(body),
       actor: ACTOR,

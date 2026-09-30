@@ -7,7 +7,7 @@ import { TICKET_DTO_INCLUDE, toTicketDTO } from "./ticketRepresentation.js";
 
 export interface TicketOwnerDTO { publicId: string; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }
 export const OWNER_SELECT = { publicId: true, name: true, role: true } as const;
-export const ELIGIBLE_OWNER = { isActive: true, deleted: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } } satisfies Prisma.UserWhereInput;
+export const ELIGIBLE_OWNER = { isActive: true, deleted: false, isSystem: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } } satisfies Prisma.UserWhereInput;
 
 export async function listAssignableUsers(prisma: PrismaClient): Promise<TicketOwnerDTO[]> {
   const users = await prisma.user.findMany({ where: ELIGIBLE_OWNER, select: OWNER_SELECT, orderBy: [{ name: "asc" }, { publicId: "asc" }] });

@@ -550,7 +550,7 @@ describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
      */
     expect(
       await prisma.idempotencyRecord.findUnique({
-        where: { requesterId_key: { requesterId, key } },
+        where: { userId_method_resourcePath_key: { userId: requesterId, method: "POST", resourcePath: "/api/users/me/tickets", key } },
       }),
     ).toBeNull();
   }, 30_000);
@@ -765,7 +765,7 @@ describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
     expect(await prisma.ticket.findMany({ where: { summary } })).toHaveLength(0);
     expect(
       await prisma.idempotencyRecord.findUnique({
-        where: { requesterId_key: { requesterId, key } },
+        where: { userId_method_resourcePath_key: { userId: requesterId, method: "POST", resourcePath: "/api/users/me/tickets", key } },
       }),
     ).toBeNull();
   }, 60_000);
@@ -817,7 +817,7 @@ describe.sequential("Lab 2 Ticket-create transaction rollback", () => {
     expect(bound?.ticketId).toBe(tickets[0].id);
 
     const claim = await prisma.idempotencyRecord.findUnique({
-      where: { requesterId_key: { requesterId, key } },
+      where: { userId_method_resourcePath_key: { userId: requesterId, method: "POST", resourcePath: "/api/users/me/tickets", key } },
     });
     expect(claim?.status).toBe("COMPLETED");
     expect(claim?.ticketId).toBe(tickets[0].id);

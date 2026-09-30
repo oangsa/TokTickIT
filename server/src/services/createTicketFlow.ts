@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { ClaimResolution, IdempotencyService } from "./idempotencyService.js";
 import { FencedOutError, TicketService } from "./ticketService.js";
 import { toTicketDTO, type TicketDTO } from "./ticketRepresentation.js";
-import { CreateTicketPayload, hashCreateTicketPayload } from "./ticketCreateRequest.js";
+import { CreateTicketPayload, hashCreateTicketPayload, hashLegacyCreateTicketPayload } from "./ticketCreateRequest.js";
 
 /*
  * api-spec Section 8.2.1: a same-hash request that meets a fresh PROCESSING
@@ -46,7 +46,7 @@ export interface CreateTicketFlowResult {
  */
 async function resolveClaim(
   idempotency: IdempotencyService,
-  input: { requesterId: number; key: string; requestHash: string; actor: string },
+  input: { userId: number; method: string; resourcePath: string; key: string; requestHash: string; legacyRequestHash?: string; actor: string },
 ): Promise<Exclude<ClaimResolution, { kind: "WAIT" }>> {
   for (let attempt = 0; attempt < WAIT_ATTEMPTS; attempt += 1) {
     const resolution = await idempotency.resolve({ ...input, now: new Date() });
@@ -62,8 +62,8 @@ async function resolveClaim(
 }
 
 /*
- * Steps 5-8 of the Ticket-create processing order. Parsing, canonicalization,
- * and hashing happen in the route; this owns claim ownership, fencing, and the
+ * Steps 5-8 of Ticket creation. Parsing and canonicalization happen at the
+ * route boundary; this owns request hashing, claim ownership, fencing, and the
  * resource transaction.
  *
  * Exported so the PostgreSQL concurrency suites drive the same code path a real
@@ -76,10 +76,14 @@ export async function runCreateTicket(
   const idempotency = new IdempotencyService(prisma);
   const tickets = new TicketService(prisma, idempotency);
   const requestHash = hashCreateTicketPayload(input.payload);
+  const legacyRequestHash = hashLegacyCreateTicketPayload(input.payload);
   const claimInput = {
-    requesterId: input.requesterId,
+    userId: input.requesterId,
+    method: "POST",
+    resourcePath: "/api/users/me/tickets",
     key: input.key,
     requestHash,
+    legacyRequestHash,
     actor: input.actor,
   };
 
@@ -95,7 +99,7 @@ export async function runCreateTicket(
       throw new ApiError("IDEMPOTENCY_CONFLICT");
     }
 
-    if (resolution.kind === "REPLAY") {
+    if (resolution.kind === "REPLAY_TICKET") {
       /*
        * Section 8.3: resolved before any mutable validation, and reconstructed
        * from current state, so Attachments that became Active on the original
@@ -109,6 +113,10 @@ export async function runCreateTicket(
       }
 
       return { status: 200, ticket: toTicketDTO(existing) };
+    }
+
+    if (resolution.kind === "REPLAY_ACTION") {
+      throw new ApiError("INTERNAL_SERVER_ERROR");
     }
 
     try {
@@ -137,8 +145,7 @@ export async function runCreateTicket(
        * deleting a claim another attempt has already reclaimed.
        */
       await idempotency.release({
-        requesterId: input.requesterId,
-        key: input.key,
+        ...claimInput,
         processingStartedAt: resolution.processingStartedAt,
       });
 

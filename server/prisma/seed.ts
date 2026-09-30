@@ -77,11 +77,13 @@ const USERS = [
   { name: "Bob Smith", email: "bob.smith@example.com", role: "REQUESTER" as const, isActive: true },
   { name: "Carol Lee", email: "carol.lee@example.com", role: "REQUESTER" as const, isActive: true },
   { name: "David Brown", email: "david.brown@example.com", role: "REQUESTER" as const, isActive: true },
+  { name: "Nora Evans", email: "nora.evans@example.com", role: "REQUESTER" as const, isActive: true },
   { name: "Eve Wilson", email: "eve.wilson@example.com", role: "REQUESTER" as const, isActive: false },
   { name: "Iris Patel", email: "iris.patel@example.com", role: "IT_STAFF" as const, isActive: true },
   { name: "Jon Bell", email: "jon.bell@example.com", role: "IT_STAFF" as const, isActive: true },
   { name: "Kim Nguyen", email: "kim.nguyen@example.com", role: "IT_STAFF" as const, isActive: true },
   { name: "Lee Carter", email: "lee.carter@example.com", role: "IT_STAFF" as const, isActive: false },
+  { name: "Former Staff", email: "former.staff@example.com", role: "IT_STAFF" as const, isActive: true, deleted: true },
   { name: "Morgan Admin", email: "morgan.admin@example.com", role: "ADMINISTRATOR" as const, isActive: true },
 ];
 
@@ -92,6 +94,15 @@ const TICKETS = [
   { publicId: "10000000-0000-4000-8000-000000000004", ticketNumber: "TKT-20260913-000000000004", email: "david.brown@example.com", category: "Network", system: "Campus Wi-Fi", status: "WAITING_FOR_REQUESTER" as const, priority: "HIGH" as const, summary: "Wi-Fi drops in office", description: "Campus Wi-Fi disconnects repeatedly in the office." },
   { publicId: "10000000-0000-4000-8000-000000000005", ticketNumber: "TKT-20260913-000000000005", email: "alice.johnson@example.com", category: "Software", system: "Learning Management System", status: "RESOLVED" as const, priority: "MEDIUM" as const, summary: "Course page will not load", description: "The course page remains blank after signing in." },
   { publicId: "10000000-0000-4000-8000-000000000006", ticketNumber: "TKT-20260913-000000000006", email: "bob.smith@example.com", category: "Hardware", system: "Printer", status: "CLOSED" as const, priority: "LOW" as const, summary: "Printer queue stuck", description: "The shared printer queue stopped processing jobs." },
+  { publicId: "10000000-0000-4000-8000-000000000007", ticketNumber: "TKT-20260913-000000000007", email: "carol.lee@example.com", category: "Network", system: "Campus Wi-Fi", status: "REOPENED" as const, priority: "HIGH" as const, summary: "Wi-Fi issue returned", description: "The previously resolved Wi-Fi issue returned." },
+  { publicId: "10000000-0000-4000-8000-000000000008", ticketNumber: "TKT-20260913-000000000008", email: "david.brown@example.com", category: "Account and Access", system: "Email", status: "CANCELLED" as const, priority: "MEDIUM" as const, summary: "Cancelled access request", description: "Requester no longer needs the access change." },
+];
+
+const ACTIONS = [
+  { publicId: "40000000-0000-4000-8000-000000000001", ticketPublicId: TICKETS[1]!.publicId, creatorEmail: "iris.patel@example.com", assignedEmail: "iris.patel@example.com", status: "PLANNED" as const, description: "Review reported laptop fan noise", followUpRequired: false },
+  { publicId: "40000000-0000-4000-8000-000000000002", ticketPublicId: TICKETS[2]!.publicId, creatorEmail: "jon.bell@example.com", assignedEmail: "jon.bell@example.com", status: "IN_PROGRESS" as const, description: "Inspect email search indexing", followUpRequired: true, followUpNote: "Check search latency after reindex completes.", startedAt: new Date("2026-09-19T10:00:00.000Z") },
+  { publicId: "40000000-0000-4000-8000-000000000003", ticketPublicId: TICKETS[3]!.publicId, creatorEmail: "iris.patel@example.com", assignedEmail: "jon.bell@example.com", status: "COMPLETED" as const, description: "Replace Wi-Fi access point", result: "Access point replaced and connection verified.", followUpRequired: false, startedAt: new Date("2026-09-18T08:00:00.000Z"), completedAt: new Date("2026-09-18T09:00:00.000Z"), performedEmail: "jon.bell@example.com" },
+  { publicId: "40000000-0000-4000-8000-000000000004", ticketPublicId: TICKETS[2]!.publicId, creatorEmail: "jon.bell@example.com", assignedEmail: null, status: "CANCELLED" as const, description: "Cancel duplicate indexing check", followUpRequired: false, cancellationReason: "Duplicate work item.", cancelledAt: new Date("2026-09-19T11:00:00.000Z") },
 ];
 
 async function upsertUser(
@@ -124,7 +135,7 @@ async function upsertUser(
       passwordHash,
       mustChangePassword: true,
       isActive: input.isActive,
-      deleted: false,
+      deleted: "deleted" in input ? input.deleted : false,
       createdBy: "seed",
       updatedBy: "seed",
     },
@@ -165,7 +176,7 @@ async function main(): Promise<void> {
     const systems = new Map(
       (await prisma.relatedSystem.findMany({ where: { name: { in: RELATED_SYSTEMS } } })).map((row) => [row.name, row.id]),
     );
-    const staff = [...users.values()].filter((user) => user.role === "IT_STAFF" && user.isActive);
+    const staff = [...users.values()].filter((user) => user.role === "IT_STAFF" && user.isActive && !user.deleted && !user.isSystem);
 
     const tickets = new Map<string, Awaited<ReturnType<typeof prisma.ticket.upsert>>>();
     for (const [index, input] of TICKETS.entries()) {
@@ -175,7 +186,7 @@ async function main(): Promise<void> {
       if (!requester || !categoryId || !relatedSystemId) {
         throw new Error("Seed reference data is incomplete");
       }
-      const ownerUserId = input.status === "NEW" || input.status === "CLOSED"
+      const ownerUserId = input.status === "NEW" || input.status === "CLOSED" || input.status === "CANCELLED"
         ? null
         : staff[index % staff.length]?.id ?? null;
       tickets.set(input.publicId, await prisma.ticket.upsert({
@@ -198,6 +209,89 @@ async function main(): Promise<void> {
           updatedBy: requester.email,
         },
       }));
+    }
+
+    const systemUser = await prisma.user.findFirst({ where: { isSystem: true } });
+    if (!systemUser) throw new Error("SYSTEM User is missing; deploy Lab 4 migrations before seeding");
+
+    for (const input of ACTIONS) {
+      const ticket = tickets.get(input.ticketPublicId);
+      const creator = users.get(input.creatorEmail);
+      const assignedTo = input.assignedEmail ? users.get(input.assignedEmail) : null;
+      const performer = input.performedEmail ? users.get(input.performedEmail) : null;
+      if (!ticket || !creator || (input.assignedEmail && !assignedTo) || (input.performedEmail && !performer)) {
+        throw new Error("Seed Action reference data is incomplete");
+      }
+      const action = await prisma.actionTaken.upsert({
+        where: { publicId: input.publicId },
+        update: {},
+        create: {
+          publicId: input.publicId,
+          ticketId: ticket.id,
+          creatorUserId: creator.id,
+          assignedToUserId: assignedTo?.id ?? null,
+          performedByUserId: performer?.id ?? null,
+          status: input.status,
+          description: input.description,
+          result: "result" in input ? input.result : null,
+          followUpRequired: input.followUpRequired,
+          followUpNote: "followUpNote" in input ? input.followUpNote : null,
+          cancellationReason: "cancellationReason" in input ? input.cancellationReason : null,
+          startedAt: "startedAt" in input ? input.startedAt : null,
+          completedAt: "completedAt" in input ? input.completedAt : null,
+          cancelledAt: "cancelledAt" in input ? input.cancelledAt : null,
+          createdBy: creator.email,
+          updatedBy: creator.email,
+        },
+      });
+      const activityType = input.status === "COMPLETED"
+        ? "ACTION_COMPLETED"
+        : input.status === "IN_PROGRESS"
+          ? "ACTION_STARTED"
+          : input.status === "CANCELLED"
+            ? "ACTION_CANCELLED"
+            : "ACTION_CREATED";
+      const activity = await prisma.ticketActivity.upsert({
+        where: { publicId: `50000000-0000-4000-8000-${input.publicId.slice(-12)}` },
+        update: {},
+        create: {
+          publicId: `50000000-0000-4000-8000-${input.publicId.slice(-12)}`,
+          ticketId: ticket.id,
+          performedByUserId: performer?.id ?? creator.id,
+          action: activityType,
+          createdBy: creator.email,
+          updatedBy: creator.email,
+        },
+      });
+      await prisma.actionTakenActivity.upsert({
+        where: { ticketActivityId: activity.id },
+        update: {},
+        create: { ticketActivityId: activity.id, actionTakenId: action.id },
+      });
+    }
+
+    for (const input of TICKETS.filter(({ status }) => status === "RESOLVED" || status === "CLOSED")) {
+      const ticket = tickets.get(input.publicId);
+      if (!ticket) throw new Error("Seed migrated Action Ticket is missing");
+      const existingMigrated = await prisma.actionTaken.findFirst({ where: { ticketId: ticket.id, isMigrated: true }, select: { id: true } });
+      if (!existingMigrated) {
+        await prisma.actionTaken.create({
+          data: {
+            publicId: `60000000-0000-4000-8000-${input.publicId.slice(-12)}`,
+            ticketId: ticket.id,
+            creatorUserId: systemUser.id,
+            status: "COMPLETED",
+            description: "Migrated historical completion. Original work details and performer were not recorded.",
+            result: "Seeded historical context only; this Action does not prove new work.",
+            followUpRequired: false,
+            isMigrated: true,
+            createdAt: ticket.updatedAt,
+            completedAt: ticket.updatedAt,
+            createdBy: "seed-migration",
+            updatedBy: "seed-migration",
+          },
+        });
+      }
     }
 
     const firstTicket = tickets.get(TICKETS[0]?.publicId as string);
