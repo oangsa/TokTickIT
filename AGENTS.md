@@ -1,5 +1,7 @@
 ## 1. Project constraints
 
+**Default engineering workflow: TDD. For behavior changes, write or update the failing test first, implement the minimum change required to pass it, then refactor while keeping the tests green.**
+
 This project has a fixed technology stack. Do not substitute frameworks,
 libraries, databases, ORMs, or architectural styles unless the assignment
 specification explicitly changes them.
@@ -821,10 +823,54 @@ documentation
 Do not claim a feature is complete when only one required layer has been
 implemented.
 
-### Testing expectations
+### TDD / Testing Workflow
 
-Every behavior change should have appropriate automated validation when the
-repository supports it.
+Use TDD by default for implementation work: new features, business rules, API
+behavior, validation, state transitions, permissions, and edge cases. Complete
+one small Red → Green → Refactor cycle before starting the next behavior.
+
+1. Identify the specification-backed behavior and public interface under test
+   (for example, a REST endpoint, user interaction, or exported domain function).
+   Reuse established test boundaries; clarify unresolved behavior before coding.
+2. **Red:** write or update one focused test before changing production code.
+   Run it and confirm it fails because the behavior is missing or incorrect.
+   Compilation errors, broken fixtures, or unavailable services do not establish
+   a valid red result; resolve those blockers first.
+3. **Green:** make the smallest in-scope production change that passes the test.
+   Run the relevant tests and confirm they pass.
+4. **Refactor:** clean up the implementation and/or tests within scope without
+   changing behavior. Rerun affected tests and keep them green.
+
+Do not implement behavior before its test or finish the implementation and then
+add tests merely to confirm existing code. If strict test-first development is
+genuinely impractical, document why in the work summary; this does not excuse
+leaving reasonably testable behavior untested.
+
+For bug fixes, first create or update a regression test that reproduces the bug.
+Confirm it fails before the fix and passes afterward. Keep it permanently unless
+there is a strong documented reason to remove it.
+
+Test observable contracts: public APIs, service behavior, UI behavior, and
+database effects. Derive expected results from the specification or independent
+examples. Avoid coupling tests to private functions or internal details unless
+necessary. Mock external boundaries where appropriate, but never mock the
+behavior being tested.
+
+For behavior-preserving refactors, establish passing coverage before editing
+and keep it passing. Documentation-only and formatting-only changes do not
+require artificial failing tests. If a required test cannot run, report the
+blocker and missing red/green evidence; do not claim the TDD cycle completed.
+
+In the final work summary, identify tests added or changed, behavior verified,
+validation commands run, and observed red/green and final pass/fail results.
+Preserve the existing test stack and database safety rules.
+
+### Test coverage
+
+Features and bug fixes are incomplete without appropriate automated coverage.
+Cover applicable happy paths, validation failures, authorization/ownership rules,
+boundary conditions, state transitions, duplicate/idempotent requests, error
+handling, regressions, and important specification edge cases.
 
 Use:
 
@@ -836,26 +882,23 @@ Use:
 Do not:
 
 - delete valid failing tests
-- weaken assertions solely to obtain a pass
-- skip failing tests without explanation
-- mock away the behavior being tested
+- remove assertions, loosen expectations, change expected behavior, skip tests,
+  or disable tests solely to make a failing implementation pass
 - call production services from automated tests
 - use real credentials
 - claim tests passed when they were not run
 
+If an existing test conflicts with an updated requirement, verify the requirement,
+update the test intentionally, and document the reason.
 When a current-lab specification intentionally changes behavior inherited from
 an earlier lab, update the affected earlier-lab tests in the same change.
 Preserve tests that remain valid and evolve only stale fixtures, routes,
 assertions, or setup so earlier-lab coverage remains equivalent or stronger;
 do not leave those tests stale or exclude them from CI.
 
-After fixing a defect:
-
-1. add or update a regression test when appropriate
-2. rerun the originally failing test
-3. rerun the affected test suite
-
-Run focused tests first, then broader checks.
+Preserve existing tests as the regression safety net and do not break unrelated
+behavior. For shared component or service changes, also run tests for likely
+affected consumers.
 
 A successful TypeScript compilation alone is not sufficient evidence that a
 behavior works.
@@ -866,11 +909,14 @@ Use the commands defined by the repository's actual `package.json` files.
 
 Do not assume script names without inspecting them.
 
-At minimum, before completing substantial work, run applicable commands for:
+During Red/Green, run the specific test file or smallest useful test set. Once
+implementation is stable, run the broader affected suite. Before completing
+implementation work, run the repository's required applicable commands for:
 
 ```text
 type checking
 tests
+linting
 frontend build
 backend build/type check
 ```
