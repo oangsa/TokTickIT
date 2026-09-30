@@ -239,13 +239,14 @@ interface ActionTakenListItemDTO {
   assignedTo: UserSummaryDTO | null;
   performedBy: ActionTakenDTO["performedBy"];
   followUpRequired: boolean;
+  isMigrated: boolean;
   createdAt: string;
   updatedAt: string;
   version: number;
 }
 ```
 
-The list may omit large Result/Follow-Up/Attachment fields; they remain searchable where explicitly approved by the validator.
+Both Staff/Admin and Requester Action collections include `isMigrated` so migrated historical rows can be labeled consistently. The list may omit large Result/Follow-Up/Attachment fields; they remain searchable where explicitly approved by the validator.
 
 ### 4.5 ActivityDTO
 
@@ -262,6 +263,7 @@ type TicketActivityType =
   | "INFORMATION_REQUESTED"
   | "TICKET_RESUMED"
   | "TICKET_MARKED_RESOLVED"
+  | "REQUESTER_RESOLUTION_CONFIRMED"
   | "TICKET_CLOSED"
   | "TICKET_CANCELLED"
   | "TICKET_REOPENED"
@@ -474,7 +476,7 @@ category
 UI category mapping:
 
 ```text
-Ticket Workflow -> Ticket lifecycle Activity enum subset
+Ticket Workflow -> Ticket lifecycle Activity enum subset plus REQUESTER_RESOLUTION_CONFIRMED
 Assignment      -> Ticket/Action assignment enum subset
 Priority        -> IT_PRIORITY_CHANGED
 Actions Taken   -> ACTION_* subset
@@ -1262,12 +1264,14 @@ start-work               -> TICKET_STARTED_WORK
 request-information      -> INFORMATION_REQUESTED
 resume-work              -> TICKET_RESUMED
 mark-resolved            -> TICKET_MARKED_RESOLVED
+requester looks-resolved -> REQUESTER_RESOLUTION_CONFIRMED
 close                    -> TICKET_CLOSED
 cancel                   -> TICKET_CANCELLED
 requester reopen         -> TICKET_REOPENED
 ```
 
 Public Comment creation during Request Information remains its existing durable record; it is not duplicated as a separate generic comment Activity.
+Requester `looks-resolved` records `requesterResolutionConfirmedAt` and appends exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity in the same transaction, with the authenticated Requester as actor. Either both commit or neither commits. Ticket status remains `RESOLVED`; an idempotent repeat without a Ticket change does not append another Activity. The event has no arbitrary JSON metadata or additional typed child row. Only Staff/Admin can read it through Ticket Activity.
 
 ## 17. Idempotency Contract
 

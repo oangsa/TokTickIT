@@ -1036,6 +1036,8 @@ Bob started Action "Inspect network port".
 
 The API returns typed data; UI constructs readable text. Do not store presentation sentences in the DB as the sole audit representation.
 
+For `REQUESTER_RESOLUTION_CONFIRMED`, render a narrative such as `<Requester name> confirmed the problem appears resolved.` This is a Requester confirmation, not a formal Ticket status change. Staff/Admin see it in Ticket Activity; Requesters still do not see the internal timeline. The event appears under Ticket Workflow filtering.
+
 ### 16.3 Category filter
 
 Small filter:

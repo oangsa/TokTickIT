@@ -311,6 +311,7 @@ TICKET_STARTED_WORK
 INFORMATION_REQUESTED
 TICKET_RESUMED
 TICKET_MARKED_RESOLVED
+REQUESTER_RESOLUTION_CONFIRMED
 TICKET_CLOSED
 TICKET_CANCELLED
 TICKET_REOPENED
@@ -331,7 +332,7 @@ ACTION_CANCELLED
 - **BR-70** `ActionTakenActivity` stores the related `actionTakenId`; for Action assignment events it additionally stores `previousAssignedToUserId?` and `assignedToUserId?`.
 - **BR-71** Normal Action field edits append `ACTION_UPDATED` but do not store a full before/after copy of every field.
 - **BR-72** Public Comments, Internal Notes, and Attachments remain their own durable records and are not duplicated as Activity rows merely because they were created/read.
-- **BR-73** Every Activity required by a mutation is inserted inside the same transaction as the mutation; if either part fails, neither commits.
+- **BR-73** Every Activity required by a mutation is inserted inside the same transaction as the mutation; if either part fails, neither commits. Requester `looks-resolved` updates `requesterResolutionConfirmedAt` and inserts one `REQUESTER_RESOLUTION_CONFIRMED` Activity with the authenticated Requester as actor in that same transaction. This event records confirmation of an already-resolved Ticket, not a status transition; it needs no typed detail child row. An idempotent repeat that leaves the Ticket unchanged adds no second Activity.
 - **BR-74** Staff/Admin may retrieve Activity for accessible Tickets; Requesters are forbidden from Activity endpoints.
 
 ### 5.8 Idempotency and concurrency
@@ -399,17 +400,19 @@ ACTION_CANCELLED
 
 ### 5.12 Migration, SYSTEM user, and seed
 
-- **BR-121** Schema migration preserves all existing Users, Tickets, Attachments, Idempotency records, Public Comments, and Internal Notes.
+- **BR-121** Schema migration, including failed/interrupted attempts and recovery, preserves all existing Users, Tickets, Attachments, Idempotency records, Public Comments, and Internal Notes. A failed migration stops deployment before schema-dependent application code is considered deployed; never use destructive `prisma migrate reset` against the preserved Lab 3 database.
 - **BR-122** User receives `isSystem Boolean @default(false)`; normal authentication, User Management, assignable lookup, and human-facing user lists exclude `isSystem=true`.
-- **BR-123** Migration/seed provides exactly one identifiable internal SYSTEM User with no usable login path, `isActive=false`, `mustChangePassword=false`, `isSystem=true`, and a non-usable/synthetic credential hash.
-- **BR-124** Every legacy Ticket receives one `MIGRATED_TICKET_SNAPSHOT` Activity written by the SYSTEM User at migration execution time.
+- **BR-123** Migration/seed provides exactly one identifiable internal SYSTEM User with no usable login path, `isActive=false`, `mustChangePassword=false`, `isSystem=true`, and a non-usable/synthetic credential hash. A PostgreSQL partial unique constraint on `isSystem=true` prevents a second SYSTEM User.
+- **BR-124** Every legacy Ticket receives exactly one `MIGRATED_TICKET_SNAPSHOT` Activity written by the SYSTEM User at migration execution time, including after recovery/retry. A PostgreSQL partial unique constraint on `(ticketId)` for that Activity type prevents duplicate snapshots.
 - **BR-125** The snapshot records only known current state—current owner, current Ticket status, and current IT Priority—using normalized child rows; it does not fabricate prior actors, timestamps, or transitions.
-- **BR-126** Existing `RESOLVED` and `CLOSED` Tickets receive exactly one synthetic `COMPLETED` Action as visible historical/migration context; it is never proof of new work and never satisfies BR-52.
+- **BR-126** Existing `RESOLVED` and `CLOSED` Tickets receive exactly one synthetic `COMPLETED` Action as visible historical/migration context, including after recovery/retry; other legacy statuses receive none. A PostgreSQL partial unique constraint on `(ticketId)` for `isMigrated=true` prevents a second synthetic Action. It is never proof of new work and never satisfies BR-52.
 - **BR-127** Synthetic Action `createdAt` and `completedAt` use the legacy Ticket's `updatedAt` as the best available historical approximation and are marked `isMigrated=true`; resolution checks exclude these Actions.
 - **BR-128** Synthetic Action `assignedToUserId` and `performedByUserId` remain null because historical assignment/performer is unknown.
 - **BR-129** Migration wording must visibly identify the record as migrated/system-generated and must not claim a person performed work that was never recorded.
 - **BR-130** `CANCELLED` legacy Tickets do not receive a synthetic Completed Action.
 - **BR-131** Seed is idempotent and demonstrates zero/one/multiple Actions, all major Ticket statuses/priorities, assigned/unassigned ownership, eligible/ineligible Users, and zero/non-zero Dashboard states.
+
+**Failed migration recovery procedure (BR-121, BR-123–BR-127):** Stop rollout and retain the verified pre-migration backup/restore point. With the repository's guarded target environment, set `DIRECT_URL` to the intended database and run read-only `prisma migrate status`; confirm its reported datasource, inspect the failed entry and logs in `_prisma_migrations`, and inspect actual schema/data before changing migration state. For a transactionally rolled-back migration with no partial schema/data effects, fix the cause in the approved migration, mark the failed attempt rolled back with Prisma's supported `prisma migrate resolve --rolled-back <migration-name>`, then run guarded `prisma migrate deploy` again. If partial effects exist, first reconcile them against the approved migration using a reviewed, non-destructive forward repair; mark the migration applied with `prisma migrate resolve --applied <migration-name>` only after every schema and backfill effect has been verified. If safe reconciliation cannot be proven, restore the verified pre-migration backup/restore point and rerun the corrected approved migration. Never mark an incomplete migration applied, edit an already successfully applied migration, or use `prisma migrate reset` on preserved data. Repeat the duplicate-safe backfill/seed only after schema state is sound; identify migration rows by stable legacy Ticket identity and enforce one SYSTEM User, one snapshot per legacy Ticket, and one synthetic migrated Completed Action per eligible legacy Ticket. Verify legacy row preservation and the resolution exclusion after recovery.
 
 ## 6. Data Model Increment
 
@@ -709,7 +712,7 @@ Key decisions:
 - **AC-21** Mark Resolved fails when no non-migrated Completed Action exists, including Tickets with only migrated Completed Actions.
 - **AC-22** Mark Resolved fails while any Planned or In-Progress Action exists.
 - **AC-23** Mark Resolved succeeds when at least one non-migrated Action is Completed and none are Planned/In Progress; Cancelled Actions do not block, and migrated Completed Actions do not count as new work.
-- **AC-24** Requester resolution confirmation remains advisory; Close still requires confirmation and owner authority.
+- **AC-24** Requester resolution confirmation remains advisory: it records the confirmation timestamp and exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity atomically without changing Ticket status; Close still requires confirmation and current Ticket Owner authority.
 - **AC-25** Administrator can Claim, change IT Priority, Cancel, and perform Action work like IT Staff while owner-only Ticket lifecycle actions remain owner-only.
 - **AC-26** Requester Dashboard counts only authenticated Requester's Tickets and matches BR-86–BR-90.
 - **AC-27** Requester recent list is bounded/deterministic, size input 1–20 is honored, UI size state is URL-addressable, and card/list drill-downs preserve ownership.
@@ -719,8 +722,8 @@ Key decisions:
 - **AC-31** Dashboard API accepts list-size integers 1–20 and rejects invalid values; UI exposes 5/10/20 without making those three values an API-only constraint.
 - **AC-32** Dashboard auto-refreshes every 30 seconds with manual Refresh, ignores ticks/manual refresh during active requests without aborting them, pauses while hidden, and revalidates on visibility return. Scoped <=30-second successful cache renders immediately; stale cache may render during immediate revalidation. Cache is isolated by User/role/query and exists only in memory; HTTP remains no-store. Success replaces DTO/Last Updated; initial failure shows ErrorState/Retry and background failure retains data with warning/Retry, without re-skeletoning or a persistent "Refreshing..." indicator.
 - **AC-33** Action assignee uses reusable definition-driven global Lookup integrated with CommonForm and a DataTable Select row action. User lookup supports name/email search, name/email/role sorting, pagination and X-Pagination under existing query conventions, fixed Staff/Admin eligibility, safe invalid-query/load failure recovery, keyboard/focus/disabled/field-error states, and separate confirmed Unassign; backend rejects stale/ineligible targets.
-- **AC-34** Migration preserves legacy data and backfills each legacy `RESOLVED`/`CLOSED` Ticket with exactly one visible migrated Completed Action using approved timestamps; that Action is excluded from the resolution gate.
-- **AC-35** Migration creates truthful SYSTEM-authored Ticket snapshot Activity without fabricated history; repeated seed does not duplicate logical seed data.
+- **AC-34** Successful migration and recovery after a failed/interrupted attempt preserve all Lab 3 rows and backfill each legacy `RESOLVED`/`CLOSED` Ticket with exactly one visible `isMigrated=true` Completed Action using approved timestamps; ineligible legacy Tickets receive none, and migrated Actions remain excluded from the resolution gate after retry.
+- **AC-35** Successful migration and recovery create exactly one internal SYSTEM User and one truthful SYSTEM-authored Ticket snapshot Activity per legacy Ticket without fabricated history or retry duplicates; repeated seed does not duplicate logical seed data.
 - **AC-36** Major Lab 4 screens satisfy Zen Green, keyboard/focus, semantic/non-color state, and responsive requirements at required desktop/tablet/mobile viewports.
 - **AC-37** Complete Labs 1–3 regression and the Lab 4 large-data bounded-query performance smoke pass before release.
 - **AC-38** For a legacy `RESOLVED` Ticket with a migrated Completed Action, Requester reopen succeeds, Mark Resolved is rejected, and Mark Resolved succeeds only after a real non-migrated Action completes.
@@ -752,7 +755,7 @@ Every AC is mapped to planned tests/evidence in `tests.md`.
 
 Lab 4 is complete only when all of the following are true:
 
-- committed migration upgrades the real Lab 3 schema without destructive reset or data loss;
+- committed migration upgrades the real Lab 3 schema without destructive reset or data loss, and its documented failed/interrupted recovery is rehearsed against representative legacy data;
 - migration/backfill rules in BR-121–BR-130 pass against representative legacy data;
 - migrated Completed Actions remain visible but never satisfy the resolution gate, including after a legacy Ticket is reopened;
 - idempotent seed can run repeatedly without duplicate logical seed rows;

@@ -280,7 +280,7 @@ Manual/visual checklist supplements those assertions.
 | UNIT-06 | BR-101; AC-31 | Dashboard size parser. | Omitted ->5; integers 1..20 accepted; 0,21,decimal,array/object/non-number rejected. | `DashboardQueryValidator.test.ts` | Not Run |
 | UNIT-07 | FR-14; AC-03 | Action query search/filter/sort/page validator. | Only approved fields/operators/types pass; default newest-first order is injected. | `ActionTakenQueryValidator.test.ts` | Not Run |
 | UNIT-08 | BR-113–120; AC-06, AC-33 | Assignable-user eligibility. | SYSTEM, inactive, deleted, and Requester users are excluded; active non-deleted Staff/Admin remain eligible. | `staffTicketReadService.test.ts` | Not Run |
-| UNIT-09 | BR-65–72; AC-20 | Activity typed DTO mapping. | Correct typed detail is emitted per event without raw internal/JSON metadata. | `ActivityRepresentation.test.ts` | Not Run |
+| UNIT-09 | BR-65–72; AC-20, AC-24 | Activity typed DTO mapping. | Correct typed detail is emitted per event; `REQUESTER_RESOLUTION_CONFIRMED` has Requester actor and no invented status transition or child detail; no raw internal/JSON metadata. | `ActivityRepresentation.test.ts` | Not Run |
 | UNIT-10 | BR-76–80; AC-14–16, AC-39 | Canonical Action idempotency identity/hash construction. | Hash includes method, concrete canonical resource path, normalized semantic body, and expectedVersion where applicable; equal semantics hash equally. | `ActionTakenService.test.ts` | Not Run |
 | UNIT-11 | FR-51; BR-115; AC-33 | Assignable-user query validator using existing collection grammar. | name/email search, role/EQUAL filter, name/email/role sorts, defaults/bounds and publicId tie-break; unsupported keys/fields/operators/types rejected. | `AssignableUserQueryValidator.test.ts` | Not Run |
 
@@ -290,7 +290,7 @@ Manual/visual checklist supplements those assertions.
 |---|---|---|---|---|---|
 | API-01 | FR-04–05; AC-01 | Staff/Admin valid Action create, role guard, PLANNED default, server fields, first 201/replay 200. | Correct Action under correct Ticket; no client-controlled performer/date/status. | `actions-taken.api.test.ts` | Not Run |
 | API-02 | BR-05–11; AC-02 | Action create/edit/complete/cancel field validation including Attachment Notes and Follow-Up invariant. | Safe `400 VALIDATION_ERROR` details; no mutation on invalid body. | `actions-taken.api.test.ts` | Not Run |
-| API-03 | FR-14; AC-03, AC-34 | Action list query search/filter/sort/paging and `X-Pagination`. | Bounded projection, deterministic order, invalid query safe 400; migrated historical Action remains in normal reads with `isMigrated=true`. | `actions-taken.api.test.ts` | Not Run |
+| API-03 | FR-02, FR-14; AC-03, AC-34 | Staff/Admin and Requester Action list query search/filter/sort/paging and `X-Pagination`. | Bounded projection includes `isMigrated` for both audiences; migrated historical Action appears in normal list responses with `isMigrated=true`; deterministic order and invalid-query safe 400. | `actions-taken.api.test.ts` | Not Run |
 | API-04 | FR-02–03; AC-04 | Requester owned Action list/detail vs cross-owner/cross-parent. | Own 200; unavailable/cross-owner indistinguishable 404. | `actions-taken.api.test.ts` | Not Run |
 | API-05 | FR-03; AC-05 | Requester direct calls to every Action mutation/Activity endpoint. | Mutation/Activity access forbidden; no state change. | `actions-taken.api.test.ts` | Not Run |
 | API-06 | FR-07, FR-50, FR-52; AC-06 | Assign/reassign/unassign valid and invalid targets. | Valid 200; inactive/deleted/Requester/SYSTEM -> field validation; stale -> conflict. | `actions-taken.api.test.ts` | Not Run |
@@ -301,9 +301,9 @@ Manual/visual checklist supplements those assertions.
 | API-11 | FR-54–55; AC-14–15 | Action-create same-scope replay vs different payload. | Same actor/method/concrete path/key and request replays; changed semantic request -> IDEMPOTENCY_CONFLICT. | `actions-taken.api.test.ts` | Not Run |
 | API-12 | FR-54; AC-16 | Start/Complete/Cancel repeat with same idempotency key. | Prior logical result replayed; no second mutation requested. | `actions-taken.api.test.ts` | Not Run |
 | API-13 | FR-15–18; AC-17–18 | Existing Attachment eligibility for Action associations. | Existing Active same-Ticket Attachment accepted; Pending, removed/deleted, or cross-Ticket Attachment rejected; no Staff upload route exists. | `action-attachments.api.test.ts` | Not Run |
-| API-14 | FR-19–24; AC-20 | Ticket/Action Activity retrieval, paging, category filter, Requester prohibition. | Staff/Admin 200 bounded history; Requester forbidden. | `ticket-activity.api.test.ts` | Not Run |
+| API-14 | FR-19–24; AC-20, AC-24 | Ticket/Action Activity retrieval, paging, category filter, Requester prohibition. | Staff/Admin 200 bounded history includes `REQUESTER_RESOLUTION_CONFIRMED` when present; Requester forbidden. | `ticket-activity.api.test.ts` | Not Run |
 | API-15 | FR-25–27; AC-21–23, AC-38 | Mark Resolved API gate cases, including migrated-only work after reopen. | Migrated Completed Action alone -> INVALID_STATUS_TRANSITION; a real non-migrated Completed Action with no open work permits resolve. | `ticket-workflow.api.test.ts` | Not Run |
-| API-16 | FR-28–30; AC-24–25 | Requester confirmation/Close + Admin parity/owner-only lifecycle matrix. | Advisory confirmation remains; Admin new Staff-parity operations work; owner-only stays owner-only. | `ticket-workflow.api.test.ts` | Not Run |
+| API-16 | FR-19, FR-28–30; BR-56, BR-65, BR-73; AC-19, AC-24–25 | Requester confirmation/Close + Admin parity/owner-only lifecycle matrix. | `looks-resolved` records confirmation timestamp and exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity by Requester while status remains `RESOLVED`; repeat adds none; Close requires confirmation and current Ticket Owner; Admin parity and owner-only rules hold. | `ticket-workflow.api.test.ts` | Not Run |
 | API-17 | FR-31–35; AC-26–27 | Requester Dashboard role/ownership/shape/size validation. | Own data only; exact metrics/list shape; 1..20 bound. | `requester-dashboard.api.test.ts` | Not Run |
 | API-18 | FR-36–41; AC-28–31 | Staff/Admin Dashboard role, metric/list shape, size validation. | Both roles receive same shape; Requester forbidden; invalid bounds rejected. | `staff-dashboard.api.test.ts` | Not Run |
 | API-19 | FR-48–52; AC-06, AC-33 | Queryable assignable-user role/eligibility and DTO contract. | Staff/Admin 200 with publicId/name/email/role; Requester 403; inactive, deleted, Requester, SYSTEM rows excluded before count/paging; client filters cannot widen eligibility. | `assignable-users.api.test.ts` | Not Run |
@@ -317,7 +317,7 @@ Manual/visual checklist supplements those assertions.
 | ID | Requirement / AC | What It Tests | Expected Result | File | Final |
 |---|---|---|---|---|---|
 | PG-01 | Data model; AC-01 | Real schema constraints/relations for ActionTaken and creator/assignee/performer. | Valid rows commit; invalid FK/status/check combinations fail safely. | `schema-contract.postgres.test.ts` | Not Run |
-| PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing rows preserved; system user/snapshots/backfilled Actions created as specified and migrated Actions remain visible but do not count toward resolution. | `migration-upgrade.postgres.test.ts` | Not Run |
+| PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing Users, Tickets, Attachments, Public Comments, Internal Notes, and Idempotency records preserved; exactly one SYSTEM User, one snapshot per legacy Ticket, one synthetic `isMigrated=true` Completed Action per eligible legacy `RESOLVED`/`CLOSED` Ticket, none for ineligible Tickets; migrated Actions remain visible but do not count toward resolution. | `migration-upgrade.postgres.test.ts` | Not Run |
 | PG-03 | BR-24–33; AC-08–11 | Real Action lifecycle timestamps/version/terminal behavior. | Committed DB state matches lifecycle contract. | `action-lifecycle.postgres.test.ts` | Not Run |
 | PG-04 | BR-34–39; AC-06 | Assignment eligibility/version in real DB. | Valid assign/reassign/unassign commits; invalid target no state change. | `action-lifecycle.postgres.test.ts` | Not Run |
 | PG-05 | BR-53, BR-75–83; AC-12 | Two connections update same Action version concurrently. | At most one wins current version; loser cannot overwrite. | `action-concurrency.postgres.test.ts` | Not Run |
@@ -325,10 +325,10 @@ Manual/visual checklist supplements those assertions.
 | PG-07 | BR-75–83; AC-14–15, AC-39 | Persistent Action-create identity `(actor, method, concrete path, key)` and replay/conflict. | One result per exact scope; path-specific replay/conflict remains correct after reconnect. | `action-idempotency.postgres.test.ts` | Not Run |
 | PG-08 | BR-75–83; AC-16 | Concurrent/repeated lifecycle idempotency. | One lifecycle transition and one Activity; completed replay stable. | `action-idempotency.postgres.test.ts` | Not Run |
 | PG-09 | BR-40–49; AC-17–18 | ActionTakenAttachment uniqueness, existing Active same-Ticket rules, cancellation preservation. | Eligible join rows persist; duplicates, unavailable, and cross-Ticket Attachments are rejected; terminal history preserved. | `action-attachments.postgres.test.ts` | Not Run |
-| PG-10 | BR-63–74; AC-19–20 | Business mutation + Activity atomic commit/rollback; append-only shape. | Forced Activity failure rolls back mutation; normal mutation creates exactly expected Activity. | `ticket-activity.postgres.test.ts` | Not Run |
+| PG-10 | BR-63–74; AC-19–20, AC-24 | Business mutation + Activity atomic commit/rollback, including Requester resolution confirmation. | Forced Activity failure rolls back confirmation timestamp update; successful `looks-resolved` creates exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity with authenticated Requester actor; other normal mutations create exactly expected Activity. | `ticket-activity.postgres.test.ts` | Not Run |
 | PG-11 | BR-52–55; AC-21–23 | Resolution gate under real data and concurrent Action changes. | Only non-migrated Completed Actions satisfy the gate; no Ticket resolves from an inconsistent/open Action set. | `ticket-resolution.postgres.test.ts` | Not Run |
 | PG-12 | BR-84–102; AC-26–30 | Dashboard counts/lists vs direct DB queries in one repeatable-read snapshot. | DTO metrics exactly match DB truth; concurrent writes do not mix snapshots. | `dashboards.postgres.test.ts` | Not Run |
-| PG-13 | BR-121–130; AC-34 | Migration backfill idempotence / repeated deployment expectations on fixtures. | No duplicate migrated Action/snapshot for same legacy Ticket. | `migration-upgrade.postgres.test.ts` | Not Run |
+| PG-13 | BR-121–130; AC-34–35 | Fail or interrupt migration/backfill on representative Lab 3 fixture, verify rollout stops, apply documented state recovery, then retry deployment/backfill; repeat completed deployment. | Schema-dependent rollout stops on failure; recovery completes; all representative legacy User, Ticket, Attachment, Public Comment, Internal Note, and Idempotency rows survive; exactly one SYSTEM User and one snapshot per legacy Ticket; exactly one synthetic `COMPLETED`, `isMigrated=true` Action per eligible legacy `RESOLVED`/`CLOSED` Ticket and none for ineligible Tickets; no retry duplicates; migrated Actions remain excluded from resolution gate. | `migration-upgrade.postgres.test.ts` | Not Run |
 | PG-14 | BR-131; AC-35 | Seed run twice. | Second run does not duplicate logical seed Users/Tickets/Actions/Activity. | `seed-idempotency.postgres.test.ts` | Not Run |
 | PG-15 | BR-52, BR-127; AC-38 | Legacy RESOLVED Ticket is migrated with one completed synthetic Action; Requester reopens; resolve is rejected; a real non-migrated Action is completed; resolve then succeeds. | Reopen succeeds; migrated-only resolve returns `INVALID_STATUS_TRANSITION`; resolve succeeds after non-migrated completion. | `ticket-resolution.postgres.test.ts` | Not Run |
 | PG-16 | BR-76–83; AC-39 | Same actor/key/body against two Ticket paths and two Action paths. | Distinct concrete paths persist and replay only their own resource results. | `action-idempotency.postgres.test.ts` | Not Run |
@@ -342,7 +342,7 @@ Manual/visual checklist supplements those assertions.
 | UI-03 | FR-07, FR-48–52; AC-06, AC-33 | Assign/Reassign through global User Lookup and separate confirmed Unassign. | Select row action sends eligible User through assignee mutation; no fake Unassigned row; Unassign has separate confirmation; stale/ineligible response is recoverable. | `ActionAssigneeSelection.test.tsx` | Not Run |
 | UI-04 | FR-08–11; AC-07–11, AC-34 | Action Detail lifecycle controls and migrated historical context. | Start disabled unassigned; Start confirm; Complete/Cancel modals; terminal controls hidden; migrated record indicator remains visible. | `ActionDetail.test.tsx` | Not Run |
 | UI-05 | AC-12 | Action edit stale conflict preservation. | Entered values remain; Reload latest offered; no silent discard. | `ActionForm.test.tsx` | Not Run |
-| UI-06 | AC-20 | Activity timeline rendering/filter/oldest-first Action history/Load More. | Typed events render readable narrative; Requester Activity absent. | `ActivityTimeline.test.tsx` | Not Run |
+| UI-06 | BR-65; AC-20, AC-24 | Activity timeline rendering/filter/oldest-first Action history/Load More. | Typed events, including `REQUESTER_RESOLUTION_CONFIRMED`, render readable confirmation narrative without implying Ticket status change; Requester Activity absent. | `ActivityTimeline.test.tsx` | Not Run |
 | UI-07 | AC-21–25 | Ticket workflow controls + resolution feedback + Admin parity presentation. | Controls reflect current role/owner/status; backend error produces Refresh -> retry path. | `TicketWorkflow.test.tsx` | Not Run |
 | UI-08 | AC-26–27, AC-31 | Requester Dashboard cards, recent table, URL size, mobile quick action conditions. | Correct labels/links/state; 5/10/20 query changes URL/request. | `RequesterDashboard.test.tsx` | Not Run |
 | UI-09 | AC-28–31 | Staff/Admin Dashboard metrics, three compact DataTables, role-aware links. | Shared component renders both roles with correct destinations/columns. | `StaffDashboard.test.tsx` | Not Run |
@@ -370,7 +370,7 @@ Manual/visual checklist supplements those assertions.
 | ID | Requirement / AC | Flow | Expected Result | File | Final |
 |---|---|---|---|---|---|
 | E2E-01 | AC-01, AC-04, AC-06, AC-08–10, AC-17, AC-19–20 | Staff claims/open Ticket -> create Action -> select assignee -> assignee starts with confirm -> edit -> associate existing eligible Attachment and enter Attachment Notes -> complete -> inspect Action/Ticket Activity -> Requester views Action read-only. | Full integrated Action workflow succeeds with correct permissions/history; no upload is added. | `actions-taken-flow.spec.ts` | Not Run |
-| E2E-02 | AC-21–25 | Open Action -> Mark Resolved rejected -> complete/cancel remaining work with >=1 non-migrated Completed Action -> Mark Resolved succeeds -> Requester Looks Resolved -> owner closes; exercise Administrator parity and owner-only rule. | Final Ticket lifecycle and gates work end-to-end; PG-15 covers the migrated legacy reopen sequence. | `ticket-resolution.spec.ts` | Not Run |
+| E2E-02 | AC-19, AC-21–25 | Open Action -> Mark Resolved rejected -> complete/cancel remaining work with >=1 non-migrated Completed Action -> Mark Resolved succeeds -> Requester Looks Resolved -> owner closes; Staff/Admin inspects Activity; exercise Administrator parity and owner-only rule. | Requester confirmation appears as `REQUESTER_RESOLUTION_CONFIRMED` with readable advisory narrative in Staff/Admin Activity; final Ticket lifecycle and gates work end-to-end; PG-15 covers migrated legacy reopen sequence. | `ticket-resolution.spec.ts` | Not Run |
 | E2E-03 | AC-26–32 | Seed known role data -> Requester Dashboard counts/drill-down -> Staff Dashboard counts/My Actions/recent/urgent -> Administrator shared Dashboard -> size choices -> automatic 30-second refresh and manual Refresh -> remount/visibility revalidation -> recoverable refresh failure. | Cards/lists match seeded DB records and drill-down filters; refreshed DTO/time update, cache/visibility remain single-flight, and failure retains last good data. | `dashboards.spec.ts` | Not Run |
 
 ## 12. Migration / Data / Repository Evidence
@@ -378,7 +378,7 @@ Manual/visual checklist supplements those assertions.
 | ID | Requirement / AC | Evidence | Expected Result | Final |
 |---|---|---|---|---|
 | DATA-01 | AC-34–35 | Inspect committed Prisma migration SQL/schema diff. | In-place additive/evolutionary migration; no destructive reset; restrictive FKs/indexes/checks documented. | Not Run |
-| DATA-02 | AC-34 | Migration rehearsal from representative Lab 3 DB backup/fixture. | Existing User/Ticket/Attachment/Comment/Note data preserved; backfill counts explained. | Not Run |
+| DATA-02 | AC-34–35 | Rehearse documented failed/interrupted migration recovery on representative Lab 3 DB backup/fixture, including target preflight, failed-state inspection, correction or verified backup restore, and retry. | Legacy User/Ticket/Attachment/Public Comment/Internal Note/Idempotency rows preserved; exactly-once SYSTEM User, snapshot, and eligible synthetic Action counts explained; ineligible Tickets have none; `isMigrated=true` Actions remain excluded from resolution. | Not Run |
 | DATA-03 | AC-35 | Run seed twice and record logical counts. | Same logical seed state after second run. | Not Run |
 | DATA-04 | AC-37 | Final release documentation inspection. | README plus completed `docs/lab-04/reviewer.md` and handout-required `docs/lab-04/ai-use.md` are accurate and contain no placeholder review results; owned by Final Hardening and Release. | Not Run |
 
@@ -469,7 +469,7 @@ Critical preserved areas:
 | AC-21 | UNIT-04, API-15, PG-11, E2E-02 |
 | AC-22 | UNIT-04, API-15, PG-11, E2E-02 |
 | AC-23 | UNIT-04, API-15, PG-11, E2E-02 |
-| AC-24 | API-16, E2E-02 |
+| AC-24 | UNIT-09, API-14, API-16, PG-10, UI-06, E2E-02 |
 | AC-25 | API-16, UI-07, E2E-02 |
 | AC-26 | API-17, PG-12, E2E-03 |
 | AC-27 | API-17, UI-08, E2E-03 |
@@ -480,7 +480,7 @@ Critical preserved areas:
 | AC-32 | API-23, UI-10–11, UI-14–16, E2E-03 |
 | AC-33 | UNIT-08, UNIT-11, API-19, API-22, UI-03, UI-12, UI-17–18 |
 | AC-34 | API-03, UI-04, PG-02, PG-13, DATA-01–02 |
-| AC-35 | PG-02, PG-14, DATA-03 |
+| AC-35 | PG-02, PG-13–14, DATA-02–03 |
 | AC-36 | UI-12–13, RESP-01–03, VIS-01 |
 | AC-37 | PERF-01, REG-01–03, DATA-04 |
 | AC-38 | API-15, PG-15 |
@@ -612,7 +612,7 @@ Reuse the same actor/key/payload against two Ticket UUIDs and two Action UUIDs. 
 
 Activity tests use unique marker actors/action descriptions so events cannot be mistaken.
 
-Only approved meaningful Ticket/Action mutations and migration snapshots produce TicketActivity. Tests reject duplicated Comments/Internal Notes or Attachment Notes, HTTP request logs, security telemetry, and unrelated generic events.
+Only approved meaningful Ticket/Action mutations and migration snapshots produce TicketActivity. Requester `looks-resolved` is a Ticket mutation with `REQUESTER_RESOLUTION_CONFIRMED` Activity; a repeat with no Ticket change adds none. Tests reject duplicated Comments/Internal Notes or Attachment Notes, HTTP request logs, security telemetry, and unrelated generic events.
 
 Prove:
 
