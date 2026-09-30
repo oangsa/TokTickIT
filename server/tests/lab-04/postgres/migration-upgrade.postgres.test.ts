@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -8,6 +10,7 @@ import { PrismaClient } from "../../../src/generated/prisma/client.js";
 import { assertLab3TargetEnvironment } from "../../../src/databaseTargetGuard.js";
 
 const migrationRoot = fileURLToPath(new URL("../../../prisma/migrations/", import.meta.url));
+const serverRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const migrations = [
   "20260808064543_add_category",
   "20260822000000_lab2_data_model",
@@ -61,15 +64,70 @@ describe("Lab 4 migration upgrade @issue-78", () => {
 
   afterAll(async () => prisma?.$disconnect());
 
-  it("preserves Lab 3 rows and backfills truthful snapshots and eligible Actions", async () => {
+  it.each(["transaction rollback", "Prisma failed-migration recovery"])("preserves Lab 3 rows and backfills truthful snapshots and eligible Actions after %s", async (recovery) => {
     const schemaName = `lab4_upgrade_${Date.now()}_${process.pid}`;
-      const schema = quoteIdentifier(schemaName);
+    const schema = quoteIdentifier(schemaName);
     const scopedUrl = new URL(assertLab3TargetEnvironment());
     scopedUrl.searchParams.set("schema", schemaName);
     const scoped = new PrismaClient({ adapter: new PrismaPg({ connectionString: scopedUrl.toString() }) });
+    let rehearsalRoot: string | undefined;
+    const lab4Migration = migrations.at(-1)!;
+    const approvedSql = readFileSync(`${migrationRoot}${lab4Migration}/migration.sql`, "utf8");
+
+    async function runPrisma(arguments_: string[]) {
+      const env = {
+        ...process.env,
+        TEST_DATABASE_URL: scopedUrl.toString(),
+        DATABASE_URL: scopedUrl.toString(),
+        DIRECT_URL: scopedUrl.toString(),
+      };
+      assertLab3TargetEnvironment(env);
+      return new Promise<{ code: number; output: string }>((resolve) => {
+        execFile("npx", ["--no-install", "prisma", ...arguments_, "--config", `${rehearsalRoot}/prisma.config.ts`], {
+          cwd: serverRoot, env, timeout: 30_000, maxBuffer: 2 * 1024 * 1024,
+        }, (error, stdout, stderr) => resolve({
+          code: error ? (typeof error.code === "number" ? error.code : -1) : 0,
+          output: `${stdout}\n${stderr}`.replace(/postgres(?:ql)?:\/\/[^\s'"`]+/gi, "<DATABASE_URL>"),
+        }));
+      });
+    }
+
+    // Full fixture row snapshots verify data, bytes, timestamps and relationships.
+    async function legacyRows(upgraded = false) {
+      const rows: Record<string, unknown> = {};
+      for (const table of ["user", "ticket", "attachment", "public_comment", "internal_note", "idempotency_record"]) {
+        let value = "to_jsonb(legacy)";
+        if (upgraded && table === "user") value += " - 'is_system'";
+        if (upgraded && table === "idempotency_record") {
+          value = "(to_jsonb(legacy) - 'user_id' - 'method' - 'resource_path' - 'action_taken_id') || jsonb_build_object('requester_id', legacy.user_id)";
+        }
+        rows[table] = await scoped.$queryRawUnsafe(
+          `SELECT ${value} AS row FROM ${schema}.${quoteIdentifier(table)} AS legacy ${table === "user" ? "WHERE id IN (13, 14)" : ""} ORDER BY id`,
+        );
+      }
+      return rows;
+    }
 
     try {
       await prisma.$executeRawUnsafe(`CREATE SCHEMA ${schema}`);
+      if (recovery === "Prisma failed-migration recovery") {
+        // Only disposable copies are faulted; committed/applied SQL stays intact.
+        rehearsalRoot = mkdtempSync(`${serverRoot}.lab4-recovery-`);
+        cpSync(`${serverRoot}prisma/schema.prisma`, `${rehearsalRoot}/schema.prisma`);
+        cpSync(`${migrationRoot}migration_lock.toml`, `${rehearsalRoot}/migrations/migration_lock.toml`, { recursive: true });
+        for (const migration of migrations.slice(0, -1)) {
+          cpSync(`${migrationRoot}${migration}`, `${rehearsalRoot}/migrations/${migration}`, { recursive: true });
+        }
+        writeFileSync(`${rehearsalRoot}/prisma.config.ts`, `import { defineConfig, env } from "prisma/config";
+export default defineConfig({ schema: "schema.prisma", migrations: { path: "migrations" }, datasource: { url: env("DIRECT_URL") } });
+`);
+        const preflight = await runPrisma(["migrate", "status"]);
+        expect(preflight.code).toBe(1); // Pending migrations, not a connection failure.
+        expect(preflight.output).toContain(`database "${decodeURIComponent(scopedUrl.pathname.slice(1))}"`);
+        expect(preflight.output).toContain(`schema "${schemaName}"`);
+        expect(preflight.output).toContain(`${scopedUrl.hostname}:${scopedUrl.port || "5432"}`);
+        expect(preflight.output).toContain("have not yet been applied");
+      }
       for (const migration of migrations.slice(0, -1)) {
         await scoped.$transaction(async (tx) => {
           await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${schema}, public`);
@@ -77,6 +135,16 @@ describe("Lab 4 migration upgrade @issue-78", () => {
             await tx.$executeRawUnsafe(statement);
           }
         });
+      }
+      if (rehearsalRoot) {
+        // Baseline the verified Lab 3 fixture. Its extension operator classes
+        // live in public, so historical SQL uses the same search path as above.
+        for (const migration of migrations.slice(0, -1)) {
+          const baseline = await runPrisma(["migrate", "resolve", "--applied", migration]);
+          expect(baseline.code, baseline.output).toBe(0);
+        }
+        const baselineStatus = await runPrisma(["migrate", "status"]);
+        expect(baselineStatus.code, baselineStatus.output).toBe(0);
       }
 
       await scoped.$transaction(async (tx) => {
@@ -116,22 +184,84 @@ describe("Lab 4 migration upgrade @issue-78", () => {
         comments: 1n, comment_relation: 1n, notes: 1n, note_relation: 1n,
         idem: 2n, idem_ticket_relation: 1n,
       });
+      const backupFixture = await legacyRows();
 
-      const lab4Statements = statements(readFileSync(`${migrationRoot}${migrations.at(-1)}/migration.sql`, "utf8"));
-      const interruptionPoint = lab4Statements.findIndex((statement) => statement.startsWith("CREATE TABLE action_taken_attachment"));
-      await expect(scoped.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${schema}, public`);
-        for (const statement of lab4Statements.slice(0, interruptionPoint)) await tx.$executeRawUnsafe(statement);
-        throw new Error("simulated deployment interruption");
-      })).rejects.toThrow("simulated deployment interruption");
+      const lab4Statements = statements(approvedSql);
+      if (rehearsalRoot) {
+        const rehearsalSql = `${rehearsalRoot}/migrations/${lab4Migration}/migration.sql`;
+        cpSync(`${migrationRoot}${lab4Migration}`, `${rehearsalRoot}/migrations/${lab4Migration}`, { recursive: true });
+        expect(approvedSql).toMatch(/COMMIT;\s*$/);
+        // End the transaction before raising the rehearsal error so Prisma can
+        // persist failure logs instead of trying to write in an aborted transaction.
+        writeFileSync(rehearsalSql, approvedSql.replace(/COMMIT;\s*$/, "ROLLBACK; -- rehearsal interruption discards schema and backfill\nSELECT 1 / 0; -- Prisma must record this failed deployment\n"));
+        const failed = await runPrisma(["migrate", "deploy"]);
+        expect(failed.code).toBe(1);
+        expect(failed.output).toContain("P3018");
+        expect(failed.output).toContain("division by zero");
+
+        const failedStatus = await runPrisma(["migrate", "status"]);
+        expect(failedStatus.code).toBe(1);
+        expect(failedStatus.output).toContain(`schema "${schemaName}"`);
+        expect(failedStatus.output).toContain("failed");
+        expect(failedStatus.output).toContain(lab4Migration);
+        const attempts = await scoped.$queryRawUnsafe<Array<{ finished_at: Date | null; rolled_back_at: Date | null; logs: string }>>(
+          `SELECT finished_at, rolled_back_at, logs FROM ${schema}._prisma_migrations WHERE migration_name = '${lab4Migration}'`,
+        );
+        expect(attempts).toHaveLength(1);
+        expect(attempts[0]).toMatchObject({ finished_at: null, rolled_back_at: null });
+        expect(attempts[0]!.logs).toContain("division by zero");
+
+        // Rollout must remain blocked even when the SQL copy is corrected.
+        writeFileSync(rehearsalSql, approvedSql);
+        const blocked = await runPrisma(["migrate", "deploy"]);
+        expect(blocked.code).toBe(1);
+        expect(blocked.output).toContain("P3009");
+        expect(await legacyRows()).toEqual(backupFixture);
+      } else {
+        const interruptionPoint = lab4Statements.findIndex((statement) => statement.startsWith("CREATE TABLE action_taken_attachment"));
+        await expect(scoped.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${schema}, public`);
+          for (const statement of lab4Statements.slice(0, interruptionPoint)) await tx.$executeRawUnsafe(statement);
+          throw new Error("simulated deployment interruption");
+        })).rejects.toThrow("simulated deployment interruption");
+      }
       const rolledBack = await scoped.$queryRawUnsafe<Array<{ action_table: string | null; system_column: string | null }>>(
         `SELECT to_regclass('"${schemaName}".action_taken')::text AS action_table, (SELECT column_name FROM information_schema.columns WHERE table_schema = '${schemaName}' AND table_name = 'user' AND column_name = 'is_system') AS system_column`,
       );
       expect(rolledBack).toEqual([{ action_table: null, system_column: null }]);
+      if (rehearsalRoot) {
+        const schemaEffects = await scoped.$queryRawUnsafe<Array<{ name: string }>>(
+          `SELECT table_name AS name FROM information_schema.tables WHERE table_schema = '${schemaName}' AND table_name IN ('action_taken', 'action_taken_attachment', 'ticket_activity', 'ticket_assignment_activity', 'ticket_status_activity', 'ticket_priority_activity', 'action_taken_activity')
+           UNION ALL SELECT typname AS name FROM pg_type JOIN pg_namespace ON pg_namespace.oid = pg_type.typnamespace WHERE nspname = '${schemaName}' AND typname IN ('ActionTakenStatus', 'TicketActivityType')
+           UNION ALL SELECT column_name AS name FROM information_schema.columns WHERE table_schema = '${schemaName}' AND table_name = 'idempotency_record' AND column_name IN ('user_id', 'method', 'resource_path', 'action_taken_id')`,
+        );
+        expect(schemaEffects).toEqual([]);
+        const resolved = await runPrisma(["migrate", "resolve", "--rolled-back", lab4Migration]);
+        expect(resolved.code, resolved.output).toBe(0);
+        const recovered = await runPrisma(["migrate", "deploy"]);
+        expect(recovered.code, recovered.output).toBe(0);
+        expect(recovered.output).toContain("successfully applied");
+        const status = await runPrisma(["migrate", "status"]);
+        expect(status.code, status.output).toBe(0);
+        expect(status.output).toContain("Database schema is up to date");
+        const successfulRows = await scoped.$queryRawUnsafe<Array<{ checksum: string; finished_at: Date | null; rolled_back_at: Date | null }>>(
+          `SELECT checksum, finished_at, rolled_back_at FROM ${schema}._prisma_migrations WHERE migration_name = '${lab4Migration}' ORDER BY started_at`,
+        );
+        expect(successfulRows).toHaveLength(2);
+        expect(successfulRows[0]!.finished_at).toBeNull();
+        expect(successfulRows[0]!.rolled_back_at).toBeInstanceOf(Date);
+        expect(successfulRows[1]!.finished_at).toBeInstanceOf(Date);
+        expect(successfulRows[1]!.rolled_back_at).toBeNull();
+        expect(successfulRows[1]!.checksum).toBe(createHash("sha256").update(approvedSql).digest("hex"));
+        const repeated = await runPrisma(["migrate", "deploy"]);
+        expect(repeated.code, repeated.output).toBe(0);
+        expect(repeated.output).toContain("No pending migrations");
+        expect(await scoped.$queryRawUnsafe(`SELECT checksum, finished_at, rolled_back_at FROM ${schema}._prisma_migrations WHERE migration_name = '${lab4Migration}' ORDER BY started_at`)).toEqual(successfulRows);
+      }
 
       await scoped.$transaction(async (tx) => {
         await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${schema}, public`);
-        for (const statement of lab4Statements) {
+        for (const statement of rehearsalRoot ? [] : lab4Statements) {
           await tx.$executeRawUnsafe(statement);
         }
 
@@ -170,6 +300,10 @@ describe("Lab 4 migration upgrade @issue-78", () => {
           `SELECT ticket_id, creator_user_id, status::text AS status, description, result, is_migrated, assigned_to_user_id, performed_by_user_id, created_at, completed_at FROM ${schema}.action_taken ORDER BY ticket_id`,
         );
         expect(actions).toHaveLength(2);
+        const [resolutionEvidence] = await tx.$queryRawUnsafe<Array<{ count: bigint }>>(
+          `SELECT count(*) FROM ${schema}.action_taken WHERE status = 'COMPLETED' AND is_migrated = FALSE`,
+        );
+        expect(resolutionEvidence!.count).toBe(0n);
         expect(actions.map((row) => row.ticket_id)).toEqual([21, 22]);
         for (const action of actions) {
           expect(action).toMatchObject({
@@ -206,9 +340,17 @@ describe("Lab 4 migration upgrade @issue-78", () => {
           ticket_public_id: "21000000-0000-4000-8000-000000000001",
         }]);
       });
+      expect(await legacyRows(true)).toEqual(backupFixture);
     } finally {
-      await scoped.$disconnect();
-      await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      try {
+        await scoped.$disconnect();
+      } finally {
+        try {
+          await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+        } finally {
+          if (rehearsalRoot) rmSync(rehearsalRoot, { recursive: true, force: true });
+        }
+      }
     }
   }, 120_000);
 });
