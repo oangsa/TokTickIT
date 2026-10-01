@@ -12,6 +12,7 @@ import { assertLab3TargetEnvironment } from "../../../src/databaseTargetGuard.js
 const migrationRoot = fileURLToPath(new URL("../../../prisma/migrations/", import.meta.url));
 const serverRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const detailMigration = "20261001000000_lab4_activity_detail_constraints";
+const claimDetailMigration = "20261001010000_lab4_claim_activity_details";
 const migrations = [
   "20260808064543_add_category",
   "20260822000000_lab2_data_model",
@@ -240,6 +241,7 @@ export default defineConfig({ schema: "schema.prisma", migrations: { path: "migr
         const resolved = await runPrisma(["migrate", "resolve", "--rolled-back", lab4Migration]);
         expect(resolved.code, resolved.output).toBe(0);
         cpSync(`${migrationRoot}${detailMigration}`, `${rehearsalRoot}/migrations/${detailMigration}`, { recursive: true });
+        cpSync(`${migrationRoot}${claimDetailMigration}`, `${rehearsalRoot}/migrations/${claimDetailMigration}`, { recursive: true });
         const recovered = await runPrisma(["migrate", "deploy"]);
         expect(recovered.code, recovered.output).toBe(0);
         expect(recovered.output).toContain("successfully applied");
@@ -268,8 +270,10 @@ export default defineConfig({ schema: "schema.prisma", migrations: { path: "migr
         }
 
         if (!rehearsalRoot) {
-          for (const statement of statements(readFileSync(`${migrationRoot}${detailMigration}/migration.sql`, "utf8"))) {
-            await tx.$executeRawUnsafe(statement);
+          for (const migration of [detailMigration, claimDetailMigration]) {
+            for (const statement of statements(readFileSync(`${migrationRoot}${migration}/migration.sql`, "utf8"))) {
+              await tx.$executeRawUnsafe(statement);
+            }
           }
         }
 

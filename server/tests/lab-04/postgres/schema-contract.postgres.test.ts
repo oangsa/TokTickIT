@@ -160,6 +160,56 @@ describe("Lab 4 PostgreSQL schema @issue-78", () => {
     const assignmentDetail = { create: { previousAssignedToUserId: null, assignedToUserId: creator.id } };
     const actionDetail = { create: { actionTakenId: action.id } };
 
+    // Frozen API §16.3: Claim may also record NEW -> OPEN on its assignment Activity.
+    const assignmentOnly = await prisma.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.TICKET_ASSIGNED, assignment: assignmentDetail },
+      include: { assignment: true, status: true },
+    });
+    expect(assignmentOnly.assignment).toMatchObject({ assignedToUserId: creator.id });
+    expect(assignmentOnly.status).toBeNull();
+    const claim = await prisma.$transaction(async (tx) => {
+      const activity = await tx.ticketActivity.create({
+        data: { ...activityBase, action: TicketActivityType.TICKET_ASSIGNED, assignment: assignmentDetail,
+          status: { create: { previousStatus: TicketStatus.NEW, status: TicketStatus.OPEN } } },
+        include: { assignment: true, status: true },
+      });
+      await tx.$executeRaw`SET CONSTRAINTS ALL IMMEDIATE`;
+      return activity;
+    });
+    expect(claim.assignment).toMatchObject({ assignedToUserId: creator.id });
+    expect(claim.status).toMatchObject({ previousStatus: TicketStatus.NEW, status: TicketStatus.OPEN });
+
+    for (const transition of [
+      { previousStatus: TicketStatus.RESOLVED, status: TicketStatus.CLOSED },
+      { previousStatus: TicketStatus.NEW, status: TicketStatus.CLOSED },
+      { previousStatus: TicketStatus.OPEN, status: TicketStatus.OPEN },
+      { previousStatus: null, status: TicketStatus.OPEN },
+    ]) {
+      await expectInvalidDetails((tx) => tx.ticketActivity.create({
+        data: { ...activityBase, action: TicketActivityType.TICKET_ASSIGNED,
+          assignment: assignmentDetail, status: { create: transition } },
+      }));
+    }
+    const claimStatus = { create: { previousStatus: TicketStatus.NEW, status: TicketStatus.OPEN } };
+    await expectInvalidDetails((tx) => tx.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.TICKET_ASSIGNED, status: claimStatus },
+    }));
+    for (const activityType of [TicketActivityType.TICKET_REASSIGNED, TicketActivityType.TICKET_UNASSIGNED]) {
+      await expectInvalidDetails((tx) => tx.ticketActivity.create({
+        data: { ...activityBase, action: activityType, status: claimStatus },
+      }));
+      await expectInvalidDetails((tx) => tx.ticketActivity.create({
+        data: { ...activityBase, action: activityType, assignment: assignmentDetail, status: claimStatus },
+      }));
+    }
+    await expectInvalidDetails((tx) => tx.ticketStatusActivity.update({
+      where: { ticketActivityId: claim.id }, data: { status: TicketStatus.CLOSED },
+    }));
+    await expectInvalidDetails((tx) => tx.ticketAssignmentActivity.delete({ where: { ticketActivityId: claim.id } }));
+    await expectInvalidDetails((tx) => tx.ticketActivity.update({
+      where: { id: claim.id }, data: { action: TicketActivityType.TICKET_REASSIGNED },
+    }));
+
     await expectInvalidDetails((tx) => tx.ticketActivity.create({
       data: { ...activityBase, action: TicketActivityType.IT_PRIORITY_CHANGED,
         priority: { create: { previousPriority: null, priority: TicketPriority.HIGH } } },
@@ -174,7 +224,7 @@ describe("Lab 4 PostgreSQL schema @issue-78", () => {
       data: { ...activityBase, action: TicketActivityType.REQUESTER_RESOLUTION_CONFIRMED, assignment: assignmentDetail },
     }));
 
-    // Every normal enum accepts exactly its specified detail family and rejects omission.
+    // Every normal enum requires its specified detail family; Claim status is optional above.
     const detailFamilies = [
       { actions: [TicketActivityType.TICKET_ASSIGNED, TicketActivityType.TICKET_REASSIGNED, TicketActivityType.TICKET_UNASSIGNED], detail: { assignment: assignmentDetail } },
       { actions: [TicketActivityType.TICKET_STARTED_WORK, TicketActivityType.INFORMATION_REQUESTED, TicketActivityType.TICKET_RESUMED, TicketActivityType.TICKET_MARKED_RESOLVED, TicketActivityType.TICKET_CLOSED, TicketActivityType.TICKET_CANCELLED, TicketActivityType.TICKET_REOPENED], detail: { status: statusDetail } },

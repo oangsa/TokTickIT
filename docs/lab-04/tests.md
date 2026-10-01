@@ -316,7 +316,7 @@ Manual/visual checklist supplements those assertions.
 
 | ID | Requirement / AC | What It Tests | Expected Result | File | Final |
 |---|---|---|---|---|---|
-| PG-01 | Data model; AC-01 | Real schema constraints/relations for ActionTaken and creator/assignee/performer. | Valid rows commit; invalid FK/status/check combinations fail safely. Typed child families match every Activity enum; required children cannot be omitted, deleted, or moved away; non-snapshot status/priority previous values cannot be null. Parent and children may be assembled in one transaction. | `schema-contract.postgres.test.ts` | Pass |
+| PG-01 | Data model; AC-01 | Real schema constraints/relations for ActionTaken and creator/assignee/performer. | Valid rows commit; invalid FK/status/check combinations fail safely. Typed child families match every Activity enum; TICKET_ASSIGNED requires assignment and permits only optional NEW -> OPEN status, while reassignment/unassignment remain assignment-only; required children cannot be omitted, deleted, or moved away; non-snapshot status/priority previous values cannot be null. Parent and children may be assembled in one transaction. | `schema-contract.postgres.test.ts` | Pass |
 | PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing Users, Tickets, Attachments, Public Comments, Internal Notes, and Idempotency records preserved; exactly one SYSTEM User, one snapshot per legacy Ticket, one synthetic `isMigrated=true` Completed Action per eligible legacy `RESOLVED`/`CLOSED` Ticket, none for ineligible Tickets; migrated Actions persist with the `isMigrated=true` marker required by the later resolution gate. Workflow exclusion is proved by #81 (API-15, PG-11, PG-15, E2E-02). | `migration-upgrade.postgres.test.ts` | Pass |
 | PG-03 | BR-24–33; AC-08–11 | Real Action lifecycle timestamps/version/terminal behavior. | Committed DB state matches lifecycle contract. | `action-lifecycle.postgres.test.ts` | Not Run |
 | PG-04 | BR-34–39; AC-06 | Assignment eligibility/version in real DB. | Valid assign/reassign/unassign commits; invalid target no state change. | `action-lifecycle.postgres.test.ts` | Not Run |
@@ -895,3 +895,27 @@ Observed validation on the guarded disposable `toktickit_lab3_test` target at `1
 - Issue #78 and PR #85 bodies updated and read back exactly; the PR explicitly identifies these fixes as local/uncommitted pending publication and peer review.
 
 No lint scripts exist. Client tests/browser E2E were not run: this change affects database constraints and seed, without frontend or REST endpoint changes. No shared database migration, commit, push, Issue closure, or peer-review approval is claimed. The Issue/PR synchronization distinguishes current published head from these locally validated, uncommitted fixes.
+
+### PR #85 Claim contract correction at published head `e1044525`
+
+The original typed Activity constraint fixes are published at `e10445254774e3e0659ffbc9b1b157d244d75bb7` (`fix: enforce typed Activity database constraints`); the preceding review follow-up records its historical pre-publication state. Its reported 3 PostgreSQL files / 5 tests and 72 server files / 1,065 tests apply to that published head. At validation time, the Claim correction below remained a separate local, uncommitted follow-up.
+
+Frozen API §16.3 is unchanged. Additive migration `20261001010000_lab4_claim_activity_details` replaces only the validator function and revalidates existing Activity rows atomically. Applied migrations/checksums, deferred triggers, Prisma fields, restrictive relationships, and legacy data are preserved. Required status and allowed status are separate checks: `TICKET_ASSIGNED` still requires assignment and permits status only with `previousStatus=NEW` and `status=OPEN`; reassignment/unassignment remain assignment-only. No REST endpoint or frontend behavior was implemented here; #81 retains workflow ownership.
+
+PG-01 now verifies assignment-only and assignment plus `NEW -> OPEN` commit; `RESOLVED -> CLOSED`, `NEW -> CLOSED`, `OPEN -> OPEN`, and null previous status reject on `TICKET_ASSIGNED`. Status-only assignment, reassignment/unassignment with status (with or without assignment), invalid updates to a Claim status, deletion of its required assignment, and changing its parent to reassignment also reject. Both upgrade/recovery rehearsals include the new forward migration.
+
+TDD evidence: assignment-only committed before the fix, disproving a general assignment/FK failure. The paired Claim regression failed before production changes; Prisma initially masked the deferred commit error. `SET CONSTRAINTS ALL IMMEDIATE` exposed PostgreSQL `23514` with `Activity typed details must match its action and include required previous state`. After the forward migration, the focused test passed; expanded rejection checks then passed without further production changes.
+
+Observed local follow-up validation, with privately captured baseline identities and matching TEST_DATABASE_URL/DATABASE_URL/DIRECT_URL overrides on guarded disposable `127.0.0.1:55433/toktickit_lab3_test`:
+
+- Focused Red: `npm test -- tests/lab-04/postgres/schema-contract.postgres.test.ts`, 1 test failed on the approved Claim shape.
+- Focused Green: same command, 1 test passed.
+- `npm test -- tests/lab-04/postgres`: 3 files / 5 tests passed, including both recovery rehearsals and seed reruns.
+- Full server `npm test`: 72 files / 1,065 tests passed, including inherited PostgreSQL suites.
+- Server `npm run build`: passed TypeScript compilation.
+- Client `npm run build`: passed TypeScript/Vite build; existing annotation/chunk-size warnings remain.
+- Guarded `npx --no-install prisma migrate status`: seven migrations; local schema up to date.
+- PR #85 and Issue #78 evidence bodies were updated and read back exactly; at validation time, published head was `e1044525`. Original typed Activity fixes awaited peer review; this separate local Claim correction awaited publication and peer review.
+- `git diff --check`: passed; changed files and the new migration inspected for secret exposure and data preservation.
+
+No lint scripts exist. Client tests/browser E2E were not run for this database-only correction. At validation-record time, no shared database deployment, commit, push, Issue closure, or peer-review approval was claimed. The Claim correction was later committed as `fix: allow Claim Activity status details` and pushed to `feature/78-lab4-data-foundation-migration` at the user's request. PR #85 peer review and #78 closure remain pending; no shared database deployment occurred.
