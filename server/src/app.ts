@@ -5,6 +5,7 @@ import { requireFullSession, requireRole } from "./middleware/authentication.js"
 import { createCorsMiddleware } from "./middleware/cors.js";
 import { requestLog } from "./middleware/requestLog.js";
 import { transport } from "./middleware/transport.js";
+import { actionsTakenRouter } from "./routes/actionsTaken.js";
 import { authRouter } from "./routes/auth.js";
 import { attachmentsRouter } from "./routes/attachments.js";
 import { adminUsersRouter } from "./routes/adminUsers.js";
@@ -46,6 +47,7 @@ app.use("/api", requireFullSession());
 // ---------------------------------------------------------------------------
 app.use("/api", referenceDataRouter);
 app.use("/api", createStaffTicketsRouter(writePublicCommentForWorkflow));
+app.use("/api", actionsTakenRouter);
 app.use("/api", commentsRouter);
 app.use("/api", internalNotesRouter);
 app.use("/api/admin", adminUsersRouter);

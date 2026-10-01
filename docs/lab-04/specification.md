@@ -255,10 +255,10 @@ The following Lab 3 rules are intentionally superseded:
 
 ### 5.4 Action edit and assignment
 
-- **BR-34** While non-terminal, creator, current assignee, or Ticket Owner may edit Description, Result, Follow-Up state/note, Attachment Notes, and attachment associations.
+- **BR-34** While non-terminal, creator, current assignee, or Ticket Owner may edit Description, Result, Follow-Up state/note, Attachment Notes, and attachment associations. Owner clarification (2026-10-01): PATCH requires the full required editable body and complete desired attachment-ID set, preserving omitted optional Result/Attachment Notes; see API §8.2.
 - **BR-35** Assignment mutation is separate from generic edit.
 - **BR-36** Any authenticated IT Staff or Administrator with access to the Ticket may assign, reassign, or unassign a non-terminal Action.
-- **BR-37** Assignment mutation uses `expectedVersion`, increments Action `version`, and records corresponding Activity.
+- **BR-37** Assignment mutation uses `expectedVersion`, increments Action `version`, and records corresponding Activity. Owner clarification (2026-10-01): an already-current assignee, including null to null, returns the unchanged DTO with no version increment or Activity; the expected-version check and terminal-state prohibition still apply. Eligibility is revalidated for an actual assignment change.
 - **BR-38** Unassign sets `assignedToUserId=null`; it does not change Action lifecycle status.
 - **BR-39** Generic Action edit does not silently change assignment.
 

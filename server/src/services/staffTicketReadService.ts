@@ -1,7 +1,8 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { ApiError } from "../http/errors.js";
 import { buildPaginationMetadata } from "../http/pagination.js";
-import { buildFilter, buildOrderBy } from "./queryBuilder.js";
+import { parseAssignableUserQuery } from "./assignableUserQueryValidator.js";
+import { buildFilter, buildOrderBy, buildWhere } from "./queryBuilder.js";
 import { PUBLIC_ID_PATTERN, type StaffQueueQuery } from "./staffQueueQueryValidator.js";
 import { TICKET_DTO_INCLUDE, toTicketDTO } from "./ticketRepresentation.js";
 
@@ -9,9 +10,18 @@ export interface TicketOwnerDTO { publicId: string; name: string; role: "IT_STAF
 export const OWNER_SELECT = { publicId: true, name: true, role: true } as const;
 export const ELIGIBLE_OWNER = { isActive: true, deleted: false, isSystem: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } } satisfies Prisma.UserWhereInput;
 
-export async function listAssignableUsers(prisma: PrismaClient): Promise<TicketOwnerDTO[]> {
-  const users = await prisma.user.findMany({ where: ELIGIBLE_OWNER, select: OWNER_SELECT, orderBy: [{ name: "asc" }, { publicId: "asc" }] });
-  return users.map((user) => ({ ...user, role: user.role as TicketOwnerDTO["role"] }));
+export interface UserSummaryDTO extends TicketOwnerDTO { email: string }
+export const USER_SUMMARY_SELECT = { ...OWNER_SELECT, email: true } as const;
+
+export async function listAssignableUsers(prisma: PrismaClient, query = parseAssignableUserQuery({})) {
+  const where = buildWhere({ base: [ELIGIBLE_OWNER], search: query.search, filters: query.filters }) as Prisma.UserWhereInput;
+  return prisma.$transaction(async (tx) => {
+    const totalItems = await tx.user.count({ where });
+    const skip = (query.pageNumber - 1) * query.pageSize;
+    const rows = skip < totalItems ? await tx.user.findMany({ where, select: USER_SUMMARY_SELECT, orderBy: buildOrderBy(query.order), skip, take: query.pageSize }) : [];
+    const items: UserSummaryDTO[] = rows.map((user) => ({ publicId: user.publicId, name: user.name, email: user.email, role: user.role as UserSummaryDTO["role"] }));
+    return { items, pagination: buildPaginationMetadata(query.pageNumber, query.pageSize, totalItems) };
+  }, { isolationLevel: "RepeatableRead" });
 }
 
 export async function findStaffTicket(prisma: PrismaClient, publicId: string) {

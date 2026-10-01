@@ -735,6 +735,8 @@ Role must still be `IT_STAFF` or `ADMINISTRATOR`.
 
 Assignment cannot be changed through this endpoint.
 
+Owner clarification (2026-10-01): edit requires the full required editable body: `description`, `followUpRequired`, the desired complete `attachmentIds` set, and `expectedVersion`; `followUpNote` is required when Follow-Up is true and normalizes to null otherwise. Omitted optional `result` and `attachmentNotes` preserve their stored values. Explicit null clears either optional field; blank Attachment Notes normalize to null, while a supplied textual Result must be nonblank.
+
 On success:
 
 - server normalizes/validates fields;
@@ -793,6 +795,8 @@ IT_STAFF | ADMINISTRATOR
 ```
 
 Any Staff/Admin with access to the Ticket may perform this mutation; Ticket ownership is not required.
+
+Owner clarification (2026-10-01): requesting the already-current assignee (including null to null) returns the unchanged DTO, without version increment or Activity. The normal `expectedVersion` check still applies; stale requests return `409 CONFLICT`, and terminal Actions remain immutable. Target eligibility is revalidated when assignment actually changes; a no-op does not assign an ineligible User.
 
 Eligibility:
 
