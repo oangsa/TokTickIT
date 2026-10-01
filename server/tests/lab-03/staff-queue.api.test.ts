@@ -113,7 +113,7 @@ describe("API-40–45 Queue and assignable Users @issue-5", () => {
     expect(mock.ticket.count).not.toHaveBeenCalled();
     expect(mock.ticket.findMany).not.toHaveBeenCalled();
   });
-  it("lookup selects only eligible Users, includes zero-Ticket Users, and exposes no account details", async () => {
+  it("lookup selects only eligible Users, includes zero-Ticket Users, and exposes only approved lookup fields", async () => {
     const response = await request(app).get("/api/users/assignable").set("Authorization", bearerToken(tokens, STAFF.id));
     expect(response.status).toBe(200);
     expect(response.body).toEqual([{ publicId: STAFF.publicId, name: STAFF.name, email: STAFF.email, role: STAFF.role }]);
