@@ -670,7 +670,7 @@ Use fake timers, controlled successful-response timestamps, deferred request com
 
 The final seven-Issue decomposition and dependency chain are in `specification.md` §14. GitHub Issues #77–#83 own this contract and implementation plan. #77 owns contract review, traceability, and freeze; #78 owns data foundation/migration; #79 owns Actions backend/API; #80 owns Actions UI/global Lookup; #81 owns Ticket workflow/resolution; #82 owns Dashboards; #83 owns final hardening, regression, and release evidence. Do not combine #78/#79 or split #83.
 
-Each requirement and planned test has exactly one primary implementation Issue. Cross-layer contributors may add related coverage under their own Issue without changing primary ownership.
+Each FR/BR has one primary implementation Issue; each AC and complete planned test has one primary acceptance/delivery owner. Cross-layer contributors supply scoped evidence without duplicating primary ownership. Complete cross-phase AC-34–35 and PG-02/PG-13/DATA-02 belong to #83; #78 retains their foundation implementation/evidence contributions.
 
 #### Primary FR / BR ownership
 
@@ -687,14 +687,14 @@ Each requirement and planned test has exactly one primary implementation Issue. 
 
 | Primary Issue | AC |
 |---|---|
-| #78 | AC-34–35 |
+| #78 | Foundation contributions to AC-34–35; complete acceptance owned by #83 |
 | #79 | AC-01–20, AC-39 |
 | #80 | AC-33 |
 | #81 | AC-21–25, AC-38 |
 | #82 | AC-26–32 |
-| #83 | AC-36–37 |
+| #83 | AC-34–37 |
 
-Frozen rows PG-02, PG-13 and DATA-02 include actual exclusion of migrated Actions from resolution. Migration/data checks and the persistent `isMigrated` marker provide partial evidence only. These complete rows remain Blocked pending downstream #81 resolution-gate evidence (API-15, PG-11, PG-15, E2E-02); foundation execution alone does not complete AC-34 or these #78-owned acceptance rows.
+Frozen rows PG-02, PG-13 and DATA-02 include actual exclusion of migrated Actions from resolution. Migration/data checks and the persistent `isMigrated` marker provide partial evidence only. These complete rows remain Blocked pending downstream #81 resolution-gate evidence (API-15, PG-11, PG-15, E2E-02); foundation execution alone does not complete AC-34 or these complete acceptance rows, now owned by #83 under the approved amendment below.
 
 The exact AC-to-test mapping remains in §15. Final integration ownership for E2E-01 belongs to #83 after #80 Action UI and #81 workflow Activity are ready.
 
@@ -702,12 +702,12 @@ The exact AC-to-test mapping remains in §15. Final integration ownership for E2
 
 | Primary Issue | Planned Test IDs |
 |---|---|
-| #78 | PG-01, PG-02, PG-13, PG-14, DATA-01, DATA-02, DATA-03 |
+| #78 | PG-01, PG-14, DATA-01, DATA-03; migration/recovery contributions to PG-02, PG-13, DATA-02 |
 | #79 | UNIT-01, UNIT-02, UNIT-03, UNIT-07, UNIT-08, UNIT-09, UNIT-10, UNIT-11, API-01–14, API-19–22, PG-03–10, PG-16 |
 | #80 | UI-01–06, UI-12, UI-17–18, RESP-03 |
 | #81 | UNIT-04, API-15–16, PG-11, PG-15, UI-07, E2E-02 |
 | #82 | UNIT-05–06, API-17–18, API-23, PG-12, UI-08–11, UI-14–16, RESP-01–02, E2E-03 |
-| #83 | UI-13, VIS-01, E2E-01, DATA-04, PERF-01, REG-01–03 |
+| #83 | PG-02, PG-13, DATA-02, UI-13, VIS-01, E2E-01, DATA-04, PERF-01, REG-01–03 |
 
 PG-10 is owned by #79 for Action mutations; #81 contributes Ticket mutation cases. All test results remain `Not Run` until actually executed. Final release records remain `docs/lab-04/reviewer.md` and the handout-specific `docs/lab-04/ai-use.md`; screenshots remain under `artifacts/lab-04/screenshots/`. Contract review does not populate implementation, release, or test execution evidence.
 
@@ -925,3 +925,13 @@ No lint scripts exist. Client tests/browser E2E were not run for this database-o
 PG-02, PG-13, and DATA-02 retain their complete frozen expected behavior, including actual exclusion of migrated Actions from resolution; Final is **Blocked** pending #81 integration evidence. Earlier foundation-only Pass interpretations are superseded, without weakening the frozen contract or changing migration/recovery implementation.
 
 Fresh local evidence for the exact reviewed SHA is recorded in [verification-2b560e49.md](verification-2b560e49.md): Lab 4 PostgreSQL 3 files / 5 tests passed; full server 72 files / 1,065 tests passed; both builds, guarded seven-migration status before/after tests, and documentation checks passed. Saved sanitized logs are local artifacts, not published GitHub CI evidence. At evidence-collection time, no commit, push, remote Issue/PR update, shared database deployment, or peer-review approval occurred. The subsequent user prompt authorized commit and push of this documentation-only follow-up; it does not complete the Blocked rows or establish an independently witnessed CI result.
+
+## 24. PR #85 acceptance ownership amendment (2026-10-01)
+
+The repository owner explicitly directed in the PR #85 follow-up: “move ownership to something else, make the dependencies ownership as clean as possible”. This amendment assigns complete AC-34–35 and PG-02, PG-13, DATA-02 acceptance to #83 final integration, where all contributing layers are available. #78 retains foundation implementation and migration/recovery evidence; #79 contributes API-03 visibility; #80 contributes UI-04 historical display; #81 implements resolution exclusion and supplies API-15, PG-11, PG-15, E2E-02 proof. FR/BR implementation ownership and all frozen expected behavior remain unchanged.
+
+The primary #77 -> #78 -> #79 -> #80 -> #81 -> #82 -> #83 dependency chain is unchanged. #78 may close after its foundation deliverables, PG-01/PG-14/DATA-01/DATA-03 and the migration/recovery portions of PG-02/PG-13/DATA-02 pass, with peer review. That closure does not complete AC-34–35 or mark the three complete rows Pass. #83 owns their final integrated execution/reconciliation and acceptance; complete PG-02/PG-13/DATA-02 remain Blocked until their full frozen expectations are verified, including downstream runtime exclusion. No Issue closure, product acceptance, or peer-review approval is recorded by this amendment.
+
+### Independent CI and remaining publication gate
+
+Successful [CI run 36823311846](https://github.com/oangsa/TokTickIT/actions/runs/36823311846) at `eb65745edb8c9cbccc5effccd25adca544f4573e` provides independently inspectable full-server, Lab 4 PostgreSQL, build, and guarded migration deployment evidence. See [verification-2b560e49.md](verification-2b560e49.md) for exact job links and limitations. Prepared workflow steps add committed-diff whitespace and final guarded migration-status output; the user authorized commit/push, and their CI execution awaits publication. Complete PG-02/PG-13/DATA-02 remain Blocked. Local raw archive remains unpublished as requested.
