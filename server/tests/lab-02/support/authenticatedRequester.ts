@@ -14,6 +14,7 @@ export interface AuthTestUser {
   mustChangePassword: false;
   isActive: true;
   deleted: false;
+  isSystem: false;
   createdBy: string;
   createdAt: Date;
   updatedBy: string;
@@ -38,7 +39,7 @@ interface AuthTestSession {
 }
 
 interface AuthPrismaMock {
-  user?: { findUnique: Mock };
+  user?: { findUnique: Mock; findFirst?: Mock };
   userSession?: { findUnique: Mock };
   [key: string]: unknown;
 }
@@ -59,6 +60,7 @@ export function testUser(input: { id: number; name: string; email: string }): Au
     mustChangePassword: false,
     isActive: true,
     deleted: false,
+    isSystem: false,
     createdBy: "test",
     createdAt: timestamp,
     updatedBy: "test",
@@ -68,6 +70,8 @@ export function testUser(input: { id: number; name: string; email: string }): Au
 
 function ensureAuthModels(prisma: AuthPrismaMock): asserts prisma is Required<AuthPrismaMock> {
   prisma.user ??= { findUnique: vi.fn() };
+  prisma.user.findUnique ??= vi.fn();
+  prisma.user.findFirst ??= vi.fn();
   prisma.userSession ??= { findUnique: vi.fn() };
 }
 
@@ -88,13 +92,24 @@ export async function configureRequesterAuth(
   const now = new Date();
 
   prisma.user.findUnique.mockImplementation(({ where }: { where: Record<string, unknown> }) => {
-    if (typeof where.id === "number") return Promise.resolve(usersById.get(where.id) ?? null);
+    if (typeof where.id === "number") {
+      const user = usersById.get(where.id) ?? null;
+      return Promise.resolve(user && (where.isSystem === undefined || user.isSystem === where.isSystem) ? user : null);
+    }
     if (typeof where.publicId === "string") {
-      return Promise.resolve(usersByPublicId.get(where.publicId) ?? null);
+      const user = usersByPublicId.get(where.publicId) ?? null;
+      return Promise.resolve(user && (where.isSystem === undefined || user.isSystem === where.isSystem) ? user : null);
     }
     if (typeof where.email === "string") {
-      return Promise.resolve(usersByEmail.get(where.email.toLowerCase()) ?? null);
+      const user = usersByEmail.get(where.email.toLowerCase()) ?? null;
+      return Promise.resolve(user && (where.isSystem === undefined || user.isSystem === where.isSystem) ? user : null);
     }
+    return Promise.resolve(null);
+  });
+  prisma.user.findFirst?.mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+    if (where.isSystem !== false) return Promise.resolve(null);
+    if (typeof where.id === "number") return Promise.resolve(usersById.get(where.id) ?? null);
+    if (typeof where.publicId === "string") return Promise.resolve(usersByPublicId.get(where.publicId) ?? null);
     return Promise.resolve(null);
   });
   prisma.userSession.findUnique.mockImplementation(({ where }: { where: Record<string, unknown> }) =>

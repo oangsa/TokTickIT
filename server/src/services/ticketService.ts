@@ -189,7 +189,9 @@ export class TicketService {
   async create(input: CreateTicketInput): Promise<TicketDTO> {
     const ticketId = await this.prisma.$transaction(async (tx) => {
       const owns = await this.idempotency.lockAndVerify(tx, {
-        requesterId: input.requesterId,
+        userId: input.requesterId,
+        method: "POST",
+        resourcePath: "/api/users/me/tickets",
         key: input.key,
         requestHash: input.requestHash,
         processingStartedAt: input.processingStartedAt,
@@ -229,7 +231,7 @@ export class TicketService {
 
       await this.idempotency.complete(tx, {
         recordId: input.recordId,
-        ticketId: ticket.id,
+        result: { ticketId: ticket.id },
         now: input.now,
         actor: input.actor,
       });

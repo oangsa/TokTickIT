@@ -525,6 +525,8 @@ ActionTakenActivity
 
 An Activity may have the child rows appropriate to its enum. Normal services enforce the enum/detail pairing and database checks should prevent impossible orphan child rows.
 
+Database constraints validate the complete representation at transaction commit: `TICKET_ASSIGNED` requires `TicketAssignmentActivity` and permits an optional `TicketStatusActivity` only with `previousStatus=NEW` and `status=OPEN`, as defined by frozen API §16.3 for Claim. `TICKET_REASSIGNED` and `TICKET_UNASSIGNED` require only `TicketAssignmentActivity`; IT Priority changes require only `TicketPriorityActivity`; Ticket status transitions require only `TicketStatusActivity`; all `ACTION_*` events require only `ActionTakenActivity`. `MIGRATED_TICKET_SNAPSHOT` requires assignment, status, and priority children. `REQUESTER_RESOLUTION_CONFIRMED` requires no typed child. Other child families are rejected. Non-snapshot status/priority children require non-null previous values. Services insert the parent and required children in the same transaction; deferred constraint triggers allow this assembly and reject invalid inserts, updates, deletes, and child moves.
+
 ### 6.5 User increment
 
 ```text
@@ -817,3 +819,9 @@ The final approved plan contains exactly seven Issues. These numbers are plannin
 ```
 
 Implementation may overlap when dependencies are stable, but this remains the primary planning/dependency structure. Keep #2 and #3 separate; keep #7 as one Issue. The contract phase does not create implementation or populate reviewer, AI-use, screenshot, or test-result evidence.
+
+### 14.2 PR #85 acceptance ownership decision
+
+The repository owner explicitly directed in the PR #85 follow-up: “move ownership to something else, make the dependencies ownership as clean as possible”. This amendment assigns complete AC-34–35 and PG-02, PG-13, DATA-02 acceptance to #83 final integration, where all contributing layers are available. #78 retains foundation implementation and migration/recovery evidence; #79 contributes API-03 visibility; #80 contributes UI-04 historical display; #81 implements resolution exclusion and supplies API-15, PG-11, PG-15, E2E-02 proof. FR/BR implementation ownership and all frozen expected behavior remain unchanged.
+
+The primary #77 -> #78 -> #79 -> #80 -> #81 -> #82 -> #83 dependency chain is unchanged. #78 may close after its foundation deliverables, PG-01/PG-14/DATA-01/DATA-03 and the migration/recovery portions of PG-02/PG-13/DATA-02 pass, with peer review. That closure does not complete AC-34–35 or mark the three complete rows Pass. #83 owns their final integrated execution/reconciliation and acceptance; complete PG-02/PG-13/DATA-02 remain Blocked until their full frozen expectations are verified, including downstream runtime exclusion. No Issue closure, product acceptance, or peer-review approval is recorded by this amendment.

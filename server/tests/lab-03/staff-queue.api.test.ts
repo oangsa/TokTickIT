@@ -116,7 +116,7 @@ describe("API-40–45 Queue and assignable Users @issue-5", () => {
     const response = await request(app).get("/api/users/assignable").set("Authorization", bearerToken(tokens, STAFF.id));
     expect(response.status).toBe(200);
     expect(response.body).toEqual([{ publicId: STAFF.publicId, name: STAFF.name, role: STAFF.role }]);
-    expect(mock.user.findMany).toHaveBeenCalledWith({ where: { isActive: true, deleted: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } }, select: { publicId: true, name: true, role: true }, orderBy: [{ name: "asc" }, { publicId: "asc" }] });
+    expect(mock.user.findMany).toHaveBeenCalledWith({ where: { isActive: true, deleted: false, isSystem: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } }, select: { publicId: true, name: true, role: true }, orderBy: [{ name: "asc" }, { publicId: "asc" }] });
     expect(mock.ticket.findMany).not.toHaveBeenCalled();
   });
 });

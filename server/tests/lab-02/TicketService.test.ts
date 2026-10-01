@@ -168,7 +168,9 @@ describe("TicketService.create", () => {
     await service.create(baseInput());
 
     expect(idempotency.lockAndVerify).toHaveBeenCalledWith(tx, {
-      requesterId: 3,
+      userId: 3,
+      method: "POST",
+      resourcePath: "/api/users/me/tickets",
       key: KEY,
       requestHash: HASH,
       processingStartedAt: STARTED,

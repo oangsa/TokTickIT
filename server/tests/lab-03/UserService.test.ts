@@ -7,6 +7,7 @@ import {
   updateUser,
 } from "../../src/services/userService.js";
 import { actor, ADMIN, REQUESTER, STAFF } from "./support/staffFixture.js";
+import { parseUserListQuery } from "../../src/services/userQueryValidator.js";
 
 const OTHER_ADMIN = {
   id: 15,
@@ -42,6 +43,16 @@ describe("UNIT-15 UserService @issue-6", () => {
       },
       $transaction: vi.fn((fn: any) => fn(mockPrisma)),
     };
+  });
+
+  it("keeps SYSTEM out of User Management count and rows", async () => {
+    mockPrisma.user.count.mockResolvedValue(0);
+
+    await listUsers(mockPrisma, parseUserListQuery({}));
+
+    expect(mockPrisma.user.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({ isSystem: false }),
+    });
   });
 
   describe("Create User", () => {

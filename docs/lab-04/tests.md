@@ -316,8 +316,8 @@ Manual/visual checklist supplements those assertions.
 
 | ID | Requirement / AC | What It Tests | Expected Result | File | Final |
 |---|---|---|---|---|---|
-| PG-01 | Data model; AC-01 | Real schema constraints/relations for ActionTaken and creator/assignee/performer. | Valid rows commit; invalid FK/status/check combinations fail safely. | `schema-contract.postgres.test.ts` | Not Run |
-| PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing Users, Tickets, Attachments, Public Comments, Internal Notes, and Idempotency records preserved; exactly one SYSTEM User, one snapshot per legacy Ticket, one synthetic `isMigrated=true` Completed Action per eligible legacy `RESOLVED`/`CLOSED` Ticket, none for ineligible Tickets; migrated Actions remain visible but do not count toward resolution. | `migration-upgrade.postgres.test.ts` | Not Run |
+| PG-01 | Data model; AC-01 | Real schema constraints/relations for ActionTaken and creator/assignee/performer. | Valid rows commit; invalid FK/status/check combinations fail safely. Typed child families match every Activity enum; TICKET_ASSIGNED requires assignment and permits only optional NEW -> OPEN status, while reassignment/unassignment remain assignment-only; required children cannot be omitted, deleted, or moved away; non-snapshot status/priority previous values cannot be null. Parent and children may be assembled in one transaction. | `schema-contract.postgres.test.ts` | Pass |
+| PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing Users, Tickets, Attachments, Public Comments, Internal Notes, and Idempotency records preserved; exactly one SYSTEM User, one snapshot per legacy Ticket, one synthetic `isMigrated=true` Completed Action per eligible legacy `RESOLVED`/`CLOSED` Ticket, none for ineligible Tickets; migrated Actions remain visible but do not count toward resolution. | `migration-upgrade.postgres.test.ts` | Blocked |
 | PG-03 | BR-24–33; AC-08–11 | Real Action lifecycle timestamps/version/terminal behavior. | Committed DB state matches lifecycle contract. | `action-lifecycle.postgres.test.ts` | Not Run |
 | PG-04 | BR-34–39; AC-06 | Assignment eligibility/version in real DB. | Valid assign/reassign/unassign commits; invalid target no state change. | `action-lifecycle.postgres.test.ts` | Not Run |
 | PG-05 | BR-53, BR-75–83; AC-12 | Two connections update same Action version concurrently. | At most one wins current version; loser cannot overwrite. | `action-concurrency.postgres.test.ts` | Not Run |
@@ -328,8 +328,8 @@ Manual/visual checklist supplements those assertions.
 | PG-10 | BR-63–74; AC-19–20, AC-24 | Business mutation + Activity atomic commit/rollback, including Requester resolution confirmation. | Forced Activity failure rolls back confirmation timestamp update; successful `looks-resolved` creates exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity with authenticated Requester actor; other normal mutations create exactly expected Activity. | `ticket-activity.postgres.test.ts` | Not Run |
 | PG-11 | BR-52–55; AC-21–23 | Resolution gate under real data and concurrent Action changes. | Only non-migrated Completed Actions satisfy the gate; no Ticket resolves from an inconsistent/open Action set. | `ticket-resolution.postgres.test.ts` | Not Run |
 | PG-12 | BR-84–102; AC-26–30 | Dashboard counts/lists vs direct DB queries in one repeatable-read snapshot. | DTO metrics exactly match DB truth; concurrent writes do not mix snapshots. | `dashboards.postgres.test.ts` | Not Run |
-| PG-13 | BR-121–130; AC-34–35 | Fail or interrupt migration/backfill on representative Lab 3 fixture, verify rollout stops, apply documented state recovery, then retry deployment/backfill; repeat completed deployment. | Schema-dependent rollout stops on failure; recovery completes; all representative legacy User, Ticket, Attachment, Public Comment, Internal Note, and Idempotency rows survive; exactly one SYSTEM User and one snapshot per legacy Ticket; exactly one synthetic `COMPLETED`, `isMigrated=true` Action per eligible legacy `RESOLVED`/`CLOSED` Ticket and none for ineligible Tickets; no retry duplicates; migrated Actions remain excluded from resolution gate. | `migration-upgrade.postgres.test.ts` | Not Run |
-| PG-14 | BR-131; AC-35 | Seed run twice. | Second run does not duplicate logical seed Users/Tickets/Actions/Activity. | `seed-idempotency.postgres.test.ts` | Not Run |
+| PG-13 | BR-121–130; AC-34–35 | Fail or interrupt migration/backfill on representative Lab 3 fixture, verify rollout stops, apply documented state recovery, then retry deployment/backfill; repeat completed deployment. | Schema-dependent rollout stops on failure; recovery completes; all representative legacy User, Ticket, Attachment, Public Comment, Internal Note, and Idempotency rows survive; exactly one SYSTEM User and one snapshot per legacy Ticket; exactly one synthetic `COMPLETED`, `isMigrated=true` Action per eligible legacy `RESOLVED`/`CLOSED` Ticket and none for ineligible Tickets; no retry duplicates; migrated Actions remain excluded from resolution gate. | `migration-upgrade.postgres.test.ts` | Blocked |
+| PG-14 | BR-131; AC-35 | Seed run twice. | Second run does not duplicate logical seed Users/Tickets/Actions/Activity. | `seed-idempotency.postgres.test.ts` | Pass |
 | PG-15 | BR-52, BR-127; AC-38 | Legacy RESOLVED Ticket is migrated with one completed synthetic Action; Requester reopens; resolve is rejected; a real non-migrated Action is completed; resolve then succeeds. | Reopen succeeds; migrated-only resolve returns `INVALID_STATUS_TRANSITION`; resolve succeeds after non-migrated completion. | `ticket-resolution.postgres.test.ts` | Not Run |
 | PG-16 | BR-76–83; AC-39 | Same actor/key/body against two Ticket paths and two Action paths. | Distinct concrete paths persist and replay only their own resource results. | `action-idempotency.postgres.test.ts` | Not Run |
 
@@ -377,9 +377,9 @@ Manual/visual checklist supplements those assertions.
 
 | ID | Requirement / AC | Evidence | Expected Result | Final |
 |---|---|---|---|---|
-| DATA-01 | AC-34–35 | Inspect committed Prisma migration SQL/schema diff. | In-place additive/evolutionary migration; no destructive reset; restrictive FKs/indexes/checks documented. | Not Run |
-| DATA-02 | AC-34–35 | Rehearse documented failed/interrupted migration recovery on representative Lab 3 DB backup/fixture, including target preflight, failed-state inspection, correction or verified backup restore, and retry. | Legacy User/Ticket/Attachment/Public Comment/Internal Note/Idempotency rows preserved; exactly-once SYSTEM User, snapshot, and eligible synthetic Action counts explained; ineligible Tickets have none; `isMigrated=true` Actions remain excluded from resolution. | Not Run |
-| DATA-03 | AC-35 | Run seed twice and record logical counts. | Same logical seed state after second run. | Not Run |
+| DATA-01 | AC-34–35 | Inspect committed Prisma migration SQL/schema diff. | In-place additive/evolutionary migration; no destructive reset; restrictive FKs/indexes/checks documented. | Pass |
+| DATA-02 | AC-34–35 | Rehearse documented failed/interrupted migration recovery on representative Lab 3 DB backup/fixture, including target preflight, failed-state inspection, correction or verified backup restore, and retry. | Legacy User/Ticket/Attachment/Public Comment/Internal Note/Idempotency rows preserved; exactly-once SYSTEM User, snapshot, and eligible synthetic Action counts explained; ineligible Tickets have none; `isMigrated=true` Actions remain excluded from resolution. | Blocked |
+| DATA-03 | AC-35 | Run seed twice and record logical counts. | Same logical seed state after second run. | Pass |
 | DATA-04 | AC-37 | Final release documentation inspection. | README plus completed `docs/lab-04/reviewer.md` and handout-required `docs/lab-04/ai-use.md` are accurate and contain no placeholder review results; owned by Final Hardening and Release. | Not Run |
 
 ## 13. Performance Smoke
@@ -670,7 +670,7 @@ Use fake timers, controlled successful-response timestamps, deferred request com
 
 The final seven-Issue decomposition and dependency chain are in `specification.md` §14. GitHub Issues #77–#83 own this contract and implementation plan. #77 owns contract review, traceability, and freeze; #78 owns data foundation/migration; #79 owns Actions backend/API; #80 owns Actions UI/global Lookup; #81 owns Ticket workflow/resolution; #82 owns Dashboards; #83 owns final hardening, regression, and release evidence. Do not combine #78/#79 or split #83.
 
-Each requirement and planned test has exactly one primary implementation Issue. Cross-layer contributors may add related coverage under their own Issue without changing primary ownership.
+Each FR/BR has one primary implementation Issue; each AC and complete planned test has one primary acceptance/delivery owner. Cross-layer contributors supply scoped evidence without duplicating primary ownership. Complete cross-phase AC-34–35 and PG-02/PG-13/DATA-02 belong to #83; #78 retains their foundation implementation/evidence contributions.
 
 #### Primary FR / BR ownership
 
@@ -687,12 +687,14 @@ Each requirement and planned test has exactly one primary implementation Issue. 
 
 | Primary Issue | AC |
 |---|---|
-| #78 | AC-34–35 |
+| #78 | Foundation contributions to AC-34–35; complete acceptance owned by #83 |
 | #79 | AC-01–20, AC-39 |
 | #80 | AC-33 |
 | #81 | AC-21–25, AC-38 |
 | #82 | AC-26–32 |
-| #83 | AC-36–37 |
+| #83 | AC-34–37 |
+
+Frozen rows PG-02, PG-13 and DATA-02 include actual exclusion of migrated Actions from resolution. Migration/data checks and the persistent `isMigrated` marker provide partial evidence only. These complete rows remain Blocked pending downstream #81 resolution-gate evidence (API-15, PG-11, PG-15, E2E-02); foundation execution alone does not complete AC-34 or these complete acceptance rows, now owned by #83 under the approved amendment below.
 
 The exact AC-to-test mapping remains in §15. Final integration ownership for E2E-01 belongs to #83 after #80 Action UI and #81 workflow Activity are ready.
 
@@ -700,12 +702,12 @@ The exact AC-to-test mapping remains in §15. Final integration ownership for E2
 
 | Primary Issue | Planned Test IDs |
 |---|---|
-| #78 | PG-01, PG-02, PG-13, PG-14, DATA-01, DATA-02, DATA-03 |
+| #78 | PG-01, PG-14, DATA-01, DATA-03; migration/recovery contributions to PG-02, PG-13, DATA-02 |
 | #79 | UNIT-01, UNIT-02, UNIT-03, UNIT-07, UNIT-08, UNIT-09, UNIT-10, UNIT-11, API-01–14, API-19–22, PG-03–10, PG-16 |
 | #80 | UI-01–06, UI-12, UI-17–18, RESP-03 |
 | #81 | UNIT-04, API-15–16, PG-11, PG-15, UI-07, E2E-02 |
 | #82 | UNIT-05–06, API-17–18, API-23, PG-12, UI-08–11, UI-14–16, RESP-01–02, E2E-03 |
-| #83 | UI-13, VIS-01, E2E-01, DATA-04, PERF-01, REG-01–03 |
+| #83 | PG-02, PG-13, DATA-02, UI-13, VIS-01, E2E-01, DATA-04, PERF-01, REG-01–03 |
 
 PG-10 is owned by #79 for Action mutations; #81 contributes Ticket mutation cases. All test results remain `Not Run` until actually executed. Final release records remain `docs/lab-04/reviewer.md` and the handout-specific `docs/lab-04/ai-use.md`; screenshots remain under `artifacts/lab-04/screenshots/`. Contract review does not populate implementation, release, or test execution evidence.
 
@@ -804,3 +806,132 @@ Testing is complete only when:
 - Labs 1–3 regression is green;
 - performance smoke is explicitly recorded as non-SLA;
 - final statuses reflect real results rather than planned assumptions.
+
+
+## Server regression repair evidence (2026-09-30)
+
+Scope: repair the four supplied CI failures on `feature/78-lab4-data-foundation-migration`. No REST endpoint, Prisma schema, migration, or seed behavior was changed.
+
+The inherited Lab 2 schema/seed tests now assert the approved Lab 4 `User.isSystem`, resource-scoped idempotency columns, foreign keys, checks and unique index, plus SYSTEM/Nora/Former Staff seed rows and their audit/deletion state. Lab 3 session fixtures select active non-system Users. Migrated-password provisioning uses the existing unprovisioned credential sentinel without requiring the Lab 4-only column; the SYSTEM sentinel cannot match it and is enforced by the database constraint. New Lab 4 coverage asserts provisioning preserves SYSTEM and already provisioned human records.
+
+All PostgreSQL runs used the guarded disposable local `toktickit_lab3_test` container. `NODE_ENV=test`, `TEST_DATABASE_URL`, `DATABASE_URL`, and `DIRECT_URL` were explicitly set to the test target, with distinct captured baseline targets. Credentials were read privately from the local container and were not printed. The existing suites rebuilt only this disposable test schema.
+
+| Command / check (server commands run from `server/`) | Observed result |
+|---|---|
+| `npm test -- tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/migration-upgrade.postgres.test.ts` before edits | Red: reproduced all four failures; 4 failed, 5 passed. |
+| `npm test -- tests/lab-03/postgres/migration-upgrade.postgres.test.ts` after provisioning fix | Green: 1 passed; legacy human credentials provisioned and verified, repeat provisioning returned zero. |
+| `npm test -- tests/lab-02/postgres/migration-upgrade.postgres.test.ts tests/lab-03/postgres/auth-session.postgres.test.ts tests/lab-03/postgres/migration-upgrade.postgres.test.ts tests/lab-04/postgres/seed-idempotency.postgres.test.ts` | Final focused run: 11 passed. An intermediate run exposed one additional stale check-count expectation (8 versus 10), corrected with explicit assertions for both new constraints. |
+| `npm test` | 72 files, 1,064 tests passed. |
+| `npm run build` in `server/` | Passed TypeScript build. |
+| `npm run build` in `client/` | Passed TypeScript/Vite build; existing dependency annotation and chunk-size warnings. |
+| `git diff --check` | Passed. |
+
+Existing PostgreSQL concurrent-query deprecation warnings remain. No lint script exists in either application package. Browser E2E and client tests were not run for this backend/test-only repair. No peer review, commit, or push occurred. Changed files were reviewed for scope and secret exposure; no credentials were added.
+
+## Issue #78 review follow-up evidence (2026-09-30)
+
+The original transaction-interruption/rollback and repeated-backfill case remains. A second case in `migration-upgrade.postgres.test.ts` rehearses the supported Prisma recovery procedure through the installed CLI, with no mocked migration commands. Both cases reuse the representative legacy fixture and the same preservation/backfill assertions.
+
+### Target, failure, inspection and recovery
+
+All database commands use `NODE_ENV=test`, captured baseline targets, and explicit matching `TEST_DATABASE_URL`, `DATABASE_URL`, and `DIRECT_URL` overrides. The target guard runs before each Prisma command. The target is the disposable local `toktickit_lab3_test` database at `localhost:55433`; the recovery case creates a unique `lab4_upgrade_<run>_<pid>` schema. Credentials and full connection strings are omitted from this evidence. A temporary config reads only the explicit `DIRECT_URL` and points to disposable migration copies; it cannot fall back to the shared development database.
+
+1. Read-only `npx --no-install prisma migrate status --config <rehearsal-config>` reports the expected database, host/port and unique schema. Exit 1 is checked as pending migrations, rather than a connection failure.
+2. Apply the committed historical SQL to construct the Lab 3 fixture using its established schema/public search path, then baseline those four verified migrations with Prisma `migrate resolve --applied`. This is fixture setup, not recovery of an incomplete migration. Status returns 0 before adding the Lab 4 migration copy. Historical extension operator classes reside in `public`; deploying that historical chain using only Prisma's isolated schema search path failed during setup. No historical migration was edited.
+3. Retain complete synthetic legacy row snapshots as the verified pre-migration fixture reference: two Users, four Tickets (`RESOLVED`, `CLOSED`, `CANCELLED`, `OPEN`), one Attachment with its bytes, one Public Comment, one Internal Note, and two Idempotency claims (`COMPLETED`, `PROCESSING`).
+4. In the disposable Lab 4 SQL copy only, replace the final `COMMIT` with `ROLLBACK; SELECT 1 / 0;`. Prisma executes the whole migration, including schema/backfill, rolls it back and reports exit 1 / `P3018` / `division by zero`. An earlier fault raised inside the still-open transaction produced `current transaction is aborted` instead; ending the transaction before the deliberate error allows this engine version to persist useful failure logs. The committed migration is never changed.
+5. Run read-only status again: exit 1, expected schema, and the failed Lab 4 migration name. Inspect its real `_prisma_migrations` entry: exactly one attempt, `finished_at=NULL`, `rolled_back_at=NULL`, and logs containing `division by zero`.
+6. Restore the temporary SQL copy byte-for-byte from the approved committed migration. Deployment still exits 1 / `P3009`, proving a corrected file alone cannot bypass failed migration state. All legacy row snapshots remain unchanged. Inspect actual schema/data: no Lab 4 tables, enum types, `is_system`, or generalized idempotency columns survived. No partial effects need repair or a backup restore.
+7. Run guarded `npx --no-install prisma migrate resolve --rolled-back 20260930000000_lab4_data_foundation --config <rehearsal-config>`, then `prisma migrate deploy`: both exit 0. Status returns 0 / `Database schema is up to date`. The failed attempt now has a rollback timestamp; a second attempt has a finish timestamp and a SHA-256 checksum matching the approved committed SQL.
+8. Repeat `migrate deploy`: exit 0 / `No pending migrations`; both migration-state rows remain unchanged. Replay the committed duplicate-safe snapshot/child/synthetic-Action backfill statements. Counts and legacy data remain unchanged. Cleanup removes only the generated test schema and temporary migration copies; no database reset is used in the rehearsal.
+
+Recovered counts: exactly one non-login SYSTEM User; four SYSTEM-authored snapshots with null previous state and the known current owner/status/priority; exactly two synthetic `COMPLETED`, `is_migrated=true` Actions on the legacy `RESOLVED`/`CLOSED` Tickets, with null assignee/performer and legacy `updated_at` timestamps. `CANCELLED`/`OPEN` Tickets have no synthetic Action. Full legacy row comparisons preserve bytes, timestamps, relationships, and Idempotency claims after normalizing the approved requester/user column rename. The stored Action rows are visible, and the explicit SQL predicate `status = 'COMPLETED' AND is_migrated = FALSE` returns zero.
+
+### Final-state reconciliation and scope limit
+
+PG-01 is **Pass**: the real schema contract test executed. PG-14 and DATA-03 are **Pass**: the seed ran twice and logical counts stayed at 12 human Users, 8 Tickets, 4 explicitly seeded Actions, 2 migrated Actions, 4 explicitly seeded Activity rows, 1 SYSTEM User, and 1 empty-ticket Requester. Explicitly seeded counts are separate from migration snapshot totals.
+
+DATA-01 is **Pass** after inspection of the committed Prisma schema diff and Lab 4 SQL: one transaction adds the Action/Activity structures and `is_system`, renames the existing idempotency actor column in place and replaces its old constraints with resource-scoped constraints/indexes. Existing entities and binary data are retained. Restrictive foreign keys, same-Ticket triggers, SYSTEM non-login/singleton checks, and partial unique indexes for one migrated Action/snapshot per Ticket are present. No preserved-data reset, destructive table/column drop, or applied migration rewrite was introduced.
+
+PG-02, PG-13 and DATA-02 are **Blocked** under their original frozen expectations. Migration, preservation, exactly-once backfill, real Prisma recovery, repeated deployment/backfill, and persistence of `isMigrated=true` passed as partial checks. The SQL predicate/data marker assertion does not prove REST resolution behavior. Actual migrated-Action exclusion still requires #81 integration evidence (API-15, PG-11, PG-15, E2E-02), which remains Not Run. No full Pass or completion of these acceptance rows is claimed. Other planned rows retain their previous state.
+
+The Lab 4 follow-up section was removed from historical `docs/lab-02/ai-use.md`; this prompt and its results belong only in `docs/lab-04/ai-use.md`.
+
+### Commands and observed results
+
+This is test/documentation work with no production behavior change. No artificial failing production test was added. Initial rehearsal failures were fixture/engine diagnostics, not valid TDD Red evidence. The focused recovery case subsequently passed through the real failed-state/recovery sequence above.
+
+| Command / check | Observed result |
+|---|---|
+| Guarded `npm test -- tests/lab-04/postgres/migration-upgrade.postgres.test.ts` from `server/` | 1 file, 2 tests passed: original rollback case and real Prisma recovery case. |
+| Guarded `npm test -- tests/lab-04/postgres` from `server/` | 3 files, 5 tests passed. |
+| Guarded `npm test` from `server/` | 72 files, 1,065 tests passed, including the added recovery case and inherited Labs 1–3 coverage. |
+| `npm run build` from `server/` | Passed TypeScript build, including the rehearsal test. |
+| `npm run build` from `client/` | Passed TypeScript/Vite build; existing dependency annotation and chunk-size warnings. |
+| `git diff --check` | Passed. Changed files inspected for scope and secret exposure. |
+| `git diff dae5116 -- docs/lab-02/ai-use.md` | Empty: historical pre-Lab-4 AI-use restored exactly. |
+
+No lint script exists in either package. Client tests and browser E2E were not run for this test/documentation-only follow-up. Existing PostgreSQL concurrent-query and Vite annotation/chunk-size warnings remain. Before publication, PR #85 validation was reconciled to distinguish the prior published-head evidence (72 files / 1,064 tests) from the locally validated follow-up (72 files / 1,065 tests); its unconditional `Closes #78` was removed at that time pending resolution-gate evidence. A later review follow-up separated foundation and workflow proof, but that interpretation is superseded below: the frozen acceptance rows still require resolution exclusion. The subsequent user prompt authorized commit and push of this follow-up. No Issue closure or peer-review approval is claimed.
+
+
+## 22. PR #85 Typed Activity Constraints and Acceptance Evidence
+
+The review follow-up at `5e3c84f` treated PG-02, PG-13, and DATA-02 as foundation-only Pass rows. Review B-01 at `2b560e49` identified that interpretation as a frozen-contract contradiction. Their original expectations are restored and their complete Final states are Blocked. Foundation evidence covers legacy data/relationships, exactly one SYSTEM User and snapshot per legacy Ticket, exactly one eligible synthetic Action and none for ineligible Tickets, historical timestamps/null actors, persistent `isMigrated=true`, and duplicate-safe recovery/redeployment/backfill. Actual migrated-only Mark Resolved rejection still requires downstream #81 integration evidence through API-15, PG-11, PG-15, and E2E-02. Those workflow rows remain Not Run; no contract amendment, full AC-34 acceptance, or Issue closure is claimed.
+
+New forward migration `20261001000000_lab4_activity_detail_constraints` adds deferred database constraint triggers on TicketActivity and all four typed child tables. It validates enum/detail pairing and required children, restricts null previous status/priority to migration snapshots, and checks updates/deletes/moves as well as inserts. It validates all existing Activity rows atomically and fails without deleting invalid legacy data. Existing applied migrations are unchanged. Cross-table cardinality cannot be expressed by Prisma models or a single-table CHECK; SQL constraint triggers enforce it without changing Prisma fields or generated Client output. Seed Activity parent/detail upserts now share a transaction. Both upgrade/recovery cases apply the new migration before duplicate-safe backfill replay.
+
+PG-01 adds valid cases for every normal Activity enum and negative cases for every required child family, each missing snapshot child, mismatched Action/Ticket children, null non-snapshot previous values, parent enum updates, child deletion/movement, and previous-value updates. It accepts migration snapshots with null previous state and Requester confirmation without a child. Separate parent/child statements commit successfully inside one transaction. A missing-detail standalone append fails at commit and leaves no parent row.
+
+TDD evidence: before production changes, the focused `TICKET_CLOSED` + null previous status regression failed because the invalid nested insert committed. After the new migration it passed. Broader checks exposed this Prisma adapter's masked deferred-commit error (`Transaction already closed: A rollback cannot be executed on a committed transaction.`); negative tests force `SET CONSTRAINTS ALL IMMEDIATE` inside the transaction to assert the actual database constraint message. A separate commit rejection plus absent-row assertion verifies durable rollback. The exact invalid row from the Red run was removed only from the disposable local test fixture. The recovery rehearsal initially exposed Prisma status reporting pending follow-up migrations before the failed-migration message; the follow-up copy is introduced after failed-state inspection so the original P3018/P3009 proof remains intact.
+
+Observed validation on the guarded disposable `toktickit_lab3_test` target at `127.0.0.1:55433`, with explicit matching TEST_DATABASE_URL/DATABASE_URL/DIRECT_URL overrides:
+
+- `npm test -- tests/lab-04/postgres`: 3 files / 5 tests passed, including expanded PG-01, both recovery cases, and seed reruns.
+- Full server `npm test`: 72 files / 1,065 tests passed, including inherited Labs 1–3 PostgreSQL coverage.
+- Server `npm run build`: passed TypeScript compilation.
+- Client `npm run build`: passed TypeScript/Vite build; existing annotation/chunk-size warnings remain.
+- Final guarded `npx --no-install prisma migrate status`: six migrations; local schema up to date after inherited fixture resets. Final focused rerun with privately captured actual baseline identities also passed (3 files / 5 tests).
+- `git diff --check`: passed. In-scope diffs and the new migration were inspected for secrets and data preservation.
+- Issue #78 and PR #85 bodies updated and read back exactly; the PR explicitly identifies these fixes as local/uncommitted pending publication and peer review.
+
+No lint scripts exist. Client tests/browser E2E were not run: this change affects database constraints and seed, without frontend or REST endpoint changes. No shared database migration, commit, push, Issue closure, or peer-review approval is claimed. The Issue/PR synchronization distinguishes current published head from these locally validated, uncommitted fixes.
+
+### PR #85 Claim contract correction at published head `e1044525`
+
+The original typed Activity constraint fixes are published at `e10445254774e3e0659ffbc9b1b157d244d75bb7` (`fix: enforce typed Activity database constraints`); the preceding review follow-up records its historical pre-publication state. Its reported 3 PostgreSQL files / 5 tests and 72 server files / 1,065 tests apply to that published head. At validation time, the Claim correction below remained a separate local, uncommitted follow-up.
+
+Frozen API §16.3 is unchanged. Additive migration `20261001010000_lab4_claim_activity_details` replaces only the validator function and revalidates existing Activity rows atomically. Applied migrations/checksums, deferred triggers, Prisma fields, restrictive relationships, and legacy data are preserved. Required status and allowed status are separate checks: `TICKET_ASSIGNED` still requires assignment and permits status only with `previousStatus=NEW` and `status=OPEN`; reassignment/unassignment remain assignment-only. No REST endpoint or frontend behavior was implemented here; #81 retains workflow ownership.
+
+PG-01 now verifies assignment-only and assignment plus `NEW -> OPEN` commit; `RESOLVED -> CLOSED`, `NEW -> CLOSED`, `OPEN -> OPEN`, and null previous status reject on `TICKET_ASSIGNED`. Status-only assignment, reassignment/unassignment with status (with or without assignment), invalid updates to a Claim status, deletion of its required assignment, and changing its parent to reassignment also reject. Both upgrade/recovery rehearsals include the new forward migration.
+
+TDD evidence: assignment-only committed before the fix, disproving a general assignment/FK failure. The paired Claim regression failed before production changes; Prisma initially masked the deferred commit error. `SET CONSTRAINTS ALL IMMEDIATE` exposed PostgreSQL `23514` with `Activity typed details must match its action and include required previous state`. After the forward migration, the focused test passed; expanded rejection checks then passed without further production changes.
+
+Observed local follow-up validation, with privately captured baseline identities and matching TEST_DATABASE_URL/DATABASE_URL/DIRECT_URL overrides on guarded disposable `127.0.0.1:55433/toktickit_lab3_test`:
+
+- Focused Red: `npm test -- tests/lab-04/postgres/schema-contract.postgres.test.ts`, 1 test failed on the approved Claim shape.
+- Focused Green: same command, 1 test passed.
+- `npm test -- tests/lab-04/postgres`: 3 files / 5 tests passed, including both recovery rehearsals and seed reruns.
+- Full server `npm test`: 72 files / 1,065 tests passed, including inherited PostgreSQL suites.
+- Server `npm run build`: passed TypeScript compilation.
+- Client `npm run build`: passed TypeScript/Vite build; existing annotation/chunk-size warnings remain.
+- Guarded `npx --no-install prisma migrate status`: seven migrations; local schema up to date.
+- PR #85 and Issue #78 evidence bodies were updated and read back exactly; at validation time, published head was `e1044525`. Original typed Activity fixes awaited peer review; this separate local Claim correction awaited publication and peer review.
+- `git diff --check`: passed; changed files and the new migration inspected for secret exposure and data preservation.
+
+No lint scripts exist. Client tests/browser E2E were not run for this database-only correction. At validation-record time, no shared database deployment, commit, push, Issue closure, or peer-review approval was claimed. The Claim correction was later committed as `fix: allow Claim Activity status details` and pushed to `feature/78-lab4-data-foundation-migration` at the user's request. PR #85 peer review and #78 closure remain pending; no shared database deployment occurred.
+
+## 23. PR #85 B-01/B-02 correction at `2b560e49` (2026-10-01)
+
+PG-02, PG-13, and DATA-02 retain their complete frozen expected behavior, including actual exclusion of migrated Actions from resolution; Final is **Blocked** pending #81 integration evidence. Earlier foundation-only Pass interpretations are superseded, without weakening the frozen contract or changing migration/recovery implementation.
+
+Fresh local evidence for the exact reviewed SHA is recorded in [verification-2b560e49.md](verification-2b560e49.md): Lab 4 PostgreSQL 3 files / 5 tests passed; full server 72 files / 1,065 tests passed; both builds, guarded seven-migration status before/after tests, and documentation checks passed. Saved sanitized logs are local artifacts, not published GitHub CI evidence. At evidence-collection time, no commit, push, remote Issue/PR update, shared database deployment, or peer-review approval occurred. The subsequent user prompt authorized commit and push of this documentation-only follow-up; it does not complete the Blocked rows or establish an independently witnessed CI result.
+
+## 24. PR #85 acceptance ownership amendment (2026-10-01)
+
+The repository owner explicitly directed in the PR #85 follow-up: “move ownership to something else, make the dependencies ownership as clean as possible”. This amendment assigns complete AC-34–35 and PG-02, PG-13, DATA-02 acceptance to #83 final integration, where all contributing layers are available. #78 retains foundation implementation and migration/recovery evidence; #79 contributes API-03 visibility; #80 contributes UI-04 historical display; #81 implements resolution exclusion and supplies API-15, PG-11, PG-15, E2E-02 proof. FR/BR implementation ownership and all frozen expected behavior remain unchanged.
+
+The primary #77 -> #78 -> #79 -> #80 -> #81 -> #82 -> #83 dependency chain is unchanged. #78 may close after its foundation deliverables, PG-01/PG-14/DATA-01/DATA-03 and the migration/recovery portions of PG-02/PG-13/DATA-02 pass, with peer review. That closure does not complete AC-34–35 or mark the three complete rows Pass. #83 owns their final integrated execution/reconciliation and acceptance; complete PG-02/PG-13/DATA-02 remain Blocked until their full frozen expectations are verified, including downstream runtime exclusion. No Issue closure, product acceptance, or peer-review approval is recorded by this amendment.
+
+### Independent CI and remaining publication gate
+
+Successful [CI run 36823311846](https://github.com/oangsa/TokTickIT/actions/runs/36823311846) at `eb65745edb8c9cbccc5effccd25adca544f4573e` provides independently inspectable full-server, Lab 4 PostgreSQL, build, and guarded migration deployment evidence. See [verification-2b560e49.md](verification-2b560e49.md) for exact job links and limitations. Prepared workflow steps add committed-diff whitespace and final guarded migration-status output; the user authorized commit/push, and their CI execution awaits publication. Complete PG-02/PG-13/DATA-02 remain Blocked. Local raw archive remains unpublished as requested.

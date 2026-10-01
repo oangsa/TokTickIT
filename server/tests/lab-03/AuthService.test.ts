@@ -14,6 +14,7 @@ const USER = {
   name: "Alice Johnson",
   email: "alice@example.com",
   role: "REQUESTER" as const,
+  isSystem: false,
   isActive: true,
   deleted: false,
   updatedAt: new Date("2026-09-13T00:00:00.000Z"),
@@ -21,7 +22,8 @@ const USER = {
 
 interface AuthFakePrisma {
   user: {
-    findUnique: () => Promise<Record<string, unknown> | null>;
+    findFirst: (args: { where: Record<string, unknown> }) => Promise<Record<string, unknown> | null>;
+    findUnique: (args: { where: Record<string, unknown> }) => Promise<Record<string, unknown> | null>;
     update: (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown> | null>;
     updateMany: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<{ count: number }>;
   };
@@ -43,9 +45,21 @@ interface AuthFakePrisma {
 function fakePrisma(user: Record<string, unknown>, passwordHash: string) {
   let currentUser: Record<string, unknown> | null = { ...user, passwordHash };
   let currentSession: Record<string, unknown> | null = null;
+  const userLookups: Record<string, unknown>[] = [];
   const prisma: AuthFakePrisma = {
     user: {
-      findUnique: async () => currentUser,
+      findFirst: async ({ where }) => {
+        userLookups.push(where);
+        return currentUser && Object.entries(where).every(([key, value]) => currentUser?.[key] === value)
+          ? currentUser
+          : null;
+      },
+      findUnique: async ({ where }) => {
+        userLookups.push(where);
+        return currentUser && Object.entries(where).every(([key, value]) => currentUser?.[key] === value)
+          ? currentUser
+          : null;
+      },
       update: async ({ data }: { data: Record<string, unknown> }) => {
         currentUser = { ...(currentUser as Record<string, unknown>), ...data };
         return currentUser;
@@ -90,6 +104,7 @@ function fakePrisma(user: Record<string, unknown>, passwordHash: string) {
     prisma,
     getUser: () => currentUser,
     getSession: () => currentSession,
+    getUserLookups: () => userLookups,
   };
 }
 
@@ -115,6 +130,25 @@ describe("UNIT-06 AuthService @issue-2", () => {
       stage: "PASSWORD_CHANGE_REQUIRED",
       rememberMe: false,
     });
+    expect(fake.getUserLookups()[0]).toEqual({ email: "alice@example.com", isSystem: false });
+  });
+
+  it("rejects SYSTEM as a login identity even when its password hash is valid", async () => {
+    process.env.JWT_SECRET = randomBytes(32).toString("base64url");
+    const password = generateInitialPassword();
+    const fake = fakePrisma(
+      { ...USER, isSystem: true },
+      await hashPassword(password, TEST_ARGON2_PROFILE),
+    );
+
+    await expect(new AuthService(fake.prisma as never, TEST_ARGON2_PROFILE).login({
+      email: USER.email,
+      password,
+      rememberMe: false,
+      ipAddress: "127.0.0.1",
+    })).rejects.toMatchObject({ code: "AUTHENTICATION_FAILED" });
+    expect(fake.getUserLookups()[0]).toEqual({ email: USER.email, isSystem: false });
+    expect(fake.getSession()).toBeNull();
   });
 
   it("derives context stage from the loaded UserSession instead of caller input", async () => {
@@ -168,6 +202,7 @@ describe("UNIT-06 AuthService @issue-2", () => {
   it("uses dummy verification and the same safe failure for unknown users", async () => {
     const fake = fakePrisma(USER, await hashPassword(generateInitialPassword(), TEST_ARGON2_PROFILE));
     fake.prisma.user.findUnique = async () => null;
+    fake.prisma.user.findFirst = async () => null;
     const service = new AuthService(fake.prisma as never, TEST_ARGON2_PROFILE);
     const verifySpy = vi.spyOn(argon2, "verify");
     const wrongPassword = generateInitialPassword();
