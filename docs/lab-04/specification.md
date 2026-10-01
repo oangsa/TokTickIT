@@ -262,7 +262,7 @@ The following Lab 3 rules are intentionally superseded:
 - **BR-38** Unassign sets `assignedToUserId=null`; it does not change Action lifecycle status.
 - **BR-39** Generic Action edit does not silently change assignment.
 
-Owner clarification (2026-10-01): preserve existing Action assignments, including terminal Actions, and historical User references when a referenced User later becomes assignment-ineligible. Referenced User summaries may contain current `REQUESTER`, `IT_STAFF`, or `ADMINISTRATOR` role. Eligibility changes alone do not change Action state/version/audit fields or append Action assignment Activity. New assign/reassign targets remain active, non-deleted, non-system Staff/Admin only; existing assignment is not authority for an ineligible User to bypass current authentication/role checks.
+Owner clarification (2026-10-01): preserve existing Action assignments, including terminal Actions, and historical User references when a referenced User later becomes assignment-ineligible. Referenced User summaries, including a completed Action's `performedBy`, may contain current `REQUESTER`, `IT_STAFF`, or `ADMINISTRATOR` role. The performer identity recorded at completion remains unchanged after later demotion. Eligibility changes alone do not change Action state/version/audit fields or append Action assignment Activity. New assign/reassign targets remain active, non-deleted, non-system Staff/Admin only; existing assignment is not authority for an ineligible User to bypass current authentication/role checks.
 
 ### 5.5 Attachment integration
 
@@ -785,6 +785,8 @@ Lab 4 is complete only when all of the following are true:
 - `specification.md`, `api-spec.md`, `ui-spec.md`, and `tests.md` remain mutually consistent with the final implementation.
 
 ## 14. Final Seven-Issue Decomposition
+
+PG-10 closure rule (PR #86 follow-up, 2026-10-01): #79 may close after its owned Action-mutation atomicity contribution and other #79 deliverables/checks pass, with required peer review. The shared PG-10 row remains Blocked globally until #81 supplies and passes the Requester confirmation/Ticket-workflow contribution: confirmation timestamp mutation, authenticated `REQUESTER_RESOLUTION_CONFIRMED` Activity, rollback on Activity append failure, and repeat confirmation without duplicate Activity. #81 proceeds downstream of #79 without requiring full PG-10 to pass before #79 closes. Frozen expected behavior and test ownership remain unchanged; this rule does not record actual Issue closure or review approval.
 
 The final approved plan contains exactly seven Issues. These numbers are planning positions, not newly created GitHub Issue numbers. Feature work enters `lab4-staging` through the existing scoped feature-branch/peer-review workflow.
 

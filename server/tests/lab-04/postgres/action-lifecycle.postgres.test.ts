@@ -10,6 +10,42 @@ import { listTicketActivity } from "../../../src/services/ticketActivityService.
 let database: ActionDatabase;
 beforeAll(async () => { database = await actionDatabase(); }, 120_000);
 afterAll(async () => database?.close());
+it("PG-03 completed Action preserves performer identity and current role after real User demotion", async () => {
+  const { first, service, staff, other, admin, requester } = database;
+  const user = await first.user.create({ data: { name: "Historical performer", email: `performer-${randomUUID()}@example.test`, role: "IT_STAFF", passwordHash: "unusable-synthetic-fixture", createdBy: "test", updatedBy: "test" } });
+  const performer = { userId: user.id, userPublicId: user.publicId, email: user.email, role: user.role };
+  const ticket = await database.ticket();
+  const created = (await database.create(ticket.publicId, user.publicId)).action;
+  await service.lifecycle(performer, ticket.publicId, created.publicId, "start", { expectedVersion: 1 }, randomUUID());
+  const completed = (await service.lifecycle(performer, ticket.publicId, created.publicId, "complete", { expectedVersion: 2, result: "Verified repair", followUpRequired: false }, randomUUID())).action;
+  expect(completed).toMatchObject({ status: "COMPLETED", version: 3, performedBy: { publicId: user.publicId, name: user.name, role: "IT_STAFF" } });
+  const planned = (await database.create(ticket.publicId, user.publicId)).action;
+  const before = await first.actionTaken.findMany({ where: { ticketId: ticket.id }, orderBy: { id: "asc" } });
+  expect(before.find((action) => action.publicId === completed.publicId)?.performedByUserId).toBe(user.id);
+  const historyBefore = await first.ticketActivity.findMany({ where: { ticketId: ticket.id }, orderBy: { id: "asc" }, include: { actionTaken: true } });
+
+  const updatedUser = await updateUser(first, admin, user.publicId, { role: "REQUESTER" });
+  const summary = { publicId: user.publicId, name: user.name, role: "REQUESTER" };
+  for (const actor of [other, requester]) {
+    expect(await service.detail(actor, ticket.publicId, completed.publicId)).toMatchObject({ status: "COMPLETED", version: 3, performedBy: summary, completedAt: completed.completedAt });
+    const listed = await service.list(actor, ticket.publicId, {});
+    expect(listed.items.find((action) => action.publicId === completed.publicId)).toMatchObject({ status: "COMPLETED", version: 3, performedBy: summary });
+  }
+  const history = await listTicketActivity(first, other, ticket.publicId, {}, completed.publicId);
+  expect(history.items.find((item) => item.action === "ACTION_COMPLETED")?.performedBy).toMatchObject(summary);
+  const demoted = { ...performer, role: updatedUser.role };
+  const { assignedToUserPublicId: _assignee, ...editable } = createBody;
+  await expect(service.create(demoted, ticket.publicId, createBody, randomUUID())).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(service.edit(demoted, ticket.publicId, planned.publicId, { ...editable, expectedVersion: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(service.assign(demoted, ticket.publicId, planned.publicId, { expectedVersion: 1, assignedToUserPublicId: staff.userPublicId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  for (const operation of ["start", "complete", "cancel"] as const) {
+    const body = operation === "complete" ? { expectedVersion: 1, result: "Denied", followUpRequired: false } : operation === "cancel" ? { expectedVersion: 1, cancellationReason: "Denied" } : { expectedVersion: 1 };
+    await expect(service.lifecycle(demoted, ticket.publicId, planned.publicId, operation, body, randomUUID())).rejects.toMatchObject({ code: "FORBIDDEN" });
+  }
+  expect((await listAssignableUsers(first, parseAssignableUserQuery({ search: user.email, searchFields: "email" }))).items).toEqual([]);
+  expect(await first.actionTaken.findMany({ where: { ticketId: ticket.id }, orderBy: { id: "asc" } })).toEqual(before);
+  expect(await first.ticketActivity.findMany({ where: { ticketId: ticket.id }, orderBy: { id: "asc" }, include: { actionTaken: true } })).toEqual(historyBefore);
+});
 it.each([{ role: "REQUESTER" }, { isActive: false }] as const)("PG-04 real User transition preserves Action assignments and historical references %#", async (change) => {
   const { first, service, staff, other, admin, requester } = database;
   const user = await first.user.create({ data: { name: "Referenced assignee", email: `reference-${randomUUID()}@example.test`, role: "IT_STAFF", passwordHash: "unusable-synthetic-fixture", createdBy: "test", updatedBy: "test" } });

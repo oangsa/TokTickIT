@@ -178,7 +178,7 @@ interface AssignableUserDTO extends UserSummaryDTO {
 
 SYSTEM users and Requesters are never returned by assignable-user DTOs.
 
-Owner clarification (2026-10-01): existing Action assignments and historical User references survive later assignment ineligibility. Referenced summaries retain public identity and show current role, including `REQUESTER`; they are not filtered by current assignment eligibility. A User role/eligibility change alone does not mutate an Action, increment its version, or append Action assignment Activity. New assign/reassign targets still require active, non-deleted, non-system Staff/Admin. Existing no-op and terminal rules remain authoritative.
+Owner clarification (2026-10-01): existing Action assignments and historical User references, including `ActionTakenDTO.performedBy`, survive later assignment ineligibility. Referenced summaries retain public identity and show current role, including `REQUESTER`; they are not filtered by current assignment eligibility. A User role/eligibility change alone does not mutate an Action, increment its version, or append Action assignment Activity. New assign/reassign targets still require active, non-deleted, non-system Staff/Admin. Existing no-op and terminal rules remain authoritative.
 
 ### 4.2 Attachment summary
 
@@ -211,7 +211,7 @@ interface ActionTakenDTO {
   performedBy: {
     publicId: string;
     name: string;
-    role: "IT_STAFF" | "ADMINISTRATOR";
+    role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
   } | null;
 
   attachments: Attachment[];

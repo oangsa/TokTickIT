@@ -709,7 +709,7 @@ The exact AC-to-test mapping remains in §15. Final integration ownership for E2
 | #82 | UNIT-05–06, API-17–18, API-23, PG-12, UI-08–11, UI-14–16, RESP-01–02, E2E-03 |
 | #83 | PG-02, PG-13, DATA-02, UI-13, VIS-01, E2E-01, DATA-04, PERF-01, REG-01–03 |
 
-PG-10 is owned by #79 for Action mutations; #81 contributes Ticket mutation cases. All test results remain `Not Run` until actually executed. Final release records remain `docs/lab-04/reviewer.md` and the handout-specific `docs/lab-04/ai-use.md`; screenshots remain under `artifacts/lab-04/screenshots/`. Contract review does not populate implementation, release, or test execution evidence.
+PG-10 is owned by #79 for Action mutations; #81 contributes Ticket mutation cases. #79 may close when its owned Action contribution and other scoped deliverables/checks pass, with required peer review; the complete shared PG-10 row remains Blocked until #81 passes Requester confirmation/Ticket-workflow cases. Full PG-10 is not a prerequisite for #79 closure or downstream #81 work. All test results remain `Not Run` until actually executed. Final release records remain `docs/lab-04/reviewer.md` and the handout-specific `docs/lab-04/ai-use.md`; screenshots remain under `artifacts/lab-04/screenshots/`. Contract review does not populate implementation, release, or test execution evidence.
 
 ## 21. Responsive / Visual Checklist
 
@@ -1089,3 +1089,32 @@ PostgreSQL runs used the same verified disposable target and guarded explicit ov
 Final follow-up gate: full server regression (including guarded PostgreSQL), both builds, diff whitespace and scoped secret inspection passed. Issue #79 and PR #86 distinguish the 1,326-test unpublished local result from published-head/historical evidence; referenced-user policy is resolved, and complete PG-10/acceptance closure still awaits #81.
 
 Publication authorization (2026-10-01): the owner instructed “commit and push” for these reviewed fixes. The execution results above apply to the unchanged source/tests being published; local/unpublished wording records the earlier validation checkpoint. Publication does not complete PG-10 or authorize merge/Issue closure. Published commit identity is recorded in PR #86 and Issue #79.
+
+### PR #86 completed performer contract correction (2026-10-01)
+
+Follow-up to reviewed head `86918d799c16e1e8b76836f7d3181eae947a7236`: `ActionTakenDTO.performedBy.role` now includes REQUESTER alongside IT_STAFF and ADMINISTRATOR. List DTOs reuse this performer contract. Existing service representation and inferred TypeScript DTOs already emit the persisted current role, so no application, Prisma schema, or assignment-eligibility change was needed.
+
+The permanent PG-03 regression in `action-lifecycle.postgres.test.ts` creates a synthetic Staff User, starts and completes an assigned Action as that User, verifies the recorded performer FK, then performs an actual Administrator demotion through User management. Staff and owning Requester detail/list reads preserve performer identity with current REQUESTER role. Completion Activity also preserves identity/current role. Full persisted Action rows (including version/status/timestamps/audit fields) and typed Activity history remain equal to their pre-demotion values. Create, edit, assignment and every lifecycle mutation reject the demoted actor with FORBIDDEN; assignable lookup excludes the User. Existing assignment/history regressions remain intact.
+
+Test-first evidence: the new regression was written and run before the contract edit and passed (one test; six deliberately unselected tests). This is a documentation-contract correction of already-correct runtime behavior, so no valid missing-behavior Red or runtime Red/Green cycle is claimed. The final full run executed all seven lifecycle tests without skips.
+
+Observed local validation using the existing guarded runner with captured baseline targets and explicit matching TEST_DATABASE_URL/DATABASE_URL/DIRECT_URL overrides:
+
+```text
+server: npm test -- tests/lab-04/postgres/action-lifecycle.postgres.test.ts -t 'completed Action preserves performer'
+1 test passed before contract edit
+server: npm test
+87 files / 1,327 tests passed, including action-lifecycle.postgres.test.ts: 7 tests
+server: npm run build
+passed (TypeScript)
+client: npm run build
+passed (TypeScript + Vite)
+git diff --check
+passed
+```
+
+Read-only migration status before tests confirmed seven current migrations on disposable `localhost:55433/toktickit_lab3_test`; Docker inspection confirmed the container is running with no persistent mounts. Sanitized local logs: `/tmp/lab4-performer-status.log`, `/tmp/lab4-performer-before.log`, `/tmp/lab4-performer-full.log`. Evidence is local, not independently reproduced GitHub CI. Existing PostgreSQL driver deprecation and Vite annotation/chunk warnings remain; neither application package defines a lint script. Client component/browser suites were not run because no frontend behavior changed.
+
+Closure clarification supersedes earlier prose that made complete PG-10 a #79 closure prerequisite: #79 may close after its owned Action atomicity contribution and other scoped deliverables/checks pass, with required peer review. Complete PG-10 stays Blocked until #81 passes the confirmation timestamp, Activity append/rollback and duplicate-suppression cases. Specification §14 and test ownership §20 record the same rule. No GitHub Issue/PR text edits, Issue closure, peer-review approval, commit, push, merge or release acceptance are claimed by this local follow-up.
+
+Publication authorization (2026-10-01): the owner subsequently instructed “commit and push” for this five-file performer contract follow-up. Source/tests are unchanged from the validation above; earlier local/unpublished wording records the pre-publication checkpoint. Publication does not complete shared PG-10 or authorize Issue closure, merge or peer-review approval.
