@@ -251,22 +251,24 @@ async function main(): Promise<void> {
           : input.status === "CANCELLED"
             ? "ACTION_CANCELLED"
             : "ACTION_CREATED";
-      const activity = await prisma.ticketActivity.upsert({
-        where: { publicId: `50000000-0000-4000-8000-${input.publicId.slice(-12)}` },
-        update: {},
-        create: {
-          publicId: `50000000-0000-4000-8000-${input.publicId.slice(-12)}`,
-          ticketId: ticket.id,
-          performedByUserId: performer?.id ?? creator.id,
-          action: activityType,
-          createdBy: creator.email,
-          updatedBy: creator.email,
-        },
-      });
-      await prisma.actionTakenActivity.upsert({
-        where: { ticketActivityId: activity.id },
-        update: {},
-        create: { ticketActivityId: activity.id, actionTakenId: action.id },
+      await prisma.$transaction(async (tx) => {
+        const activity = await tx.ticketActivity.upsert({
+          where: { publicId: `50000000-0000-4000-8000-${input.publicId.slice(-12)}` },
+          update: {},
+          create: {
+            publicId: `50000000-0000-4000-8000-${input.publicId.slice(-12)}`,
+            ticketId: ticket.id,
+            performedByUserId: performer?.id ?? creator.id,
+            action: activityType,
+            createdBy: creator.email,
+            updatedBy: creator.email,
+          },
+        });
+        await tx.actionTakenActivity.upsert({
+          where: { ticketActivityId: activity.id },
+          update: {},
+          create: { ticketActivityId: activity.id, actionTakenId: action.id },
+        });
       });
     }
 

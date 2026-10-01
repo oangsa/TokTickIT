@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ActionTakenStatus, TicketActivityType, TicketPriority, TicketStatus } from "../../../src/generated/prisma/enums.js";
-import { PrismaClient } from "../../../src/generated/prisma/client.js";
+import { PrismaClient, type Prisma } from "../../../src/generated/prisma/client.js";
 import { assertLab2TestDatabase, createRequesterUser, createTestPrisma, deployMigrations, type TestDatabaseTarget } from "../../lab-02/postgres/testDatabase.js";
 
 describe("Lab 4 PostgreSQL schema @issue-78", () => {
@@ -22,6 +22,13 @@ describe("Lab 4 PostgreSQL schema @issue-78", () => {
   afterAll(async () => prisma?.$disconnect());
 
   it("persists typed Action/Activity relations and scopes idempotency by concrete resource", async () => {
+    async function expectInvalidDetails(write: (tx: Prisma.TransactionClient) => Promise<unknown>) {
+      await expect(prisma.$transaction(async (tx) => {
+        await write(tx);
+        await tx.$executeRaw`SET CONSTRAINTS ALL IMMEDIATE`;
+      })).rejects.toThrow("Activity typed details must match its action and include required previous state");
+    }
+
     const suffix = randomUUID();
     const requester = await createRequesterUser(prisma, { name: "Schema Requester", email: `schema-${suffix}@example.test` });
     const creator = await createStaff(`creator-${suffix}@example.test`);
@@ -107,6 +114,14 @@ describe("Lab 4 PostgreSQL schema @issue-78", () => {
       data: { actionTakenId: action.id, attachmentId: otherAttachment.id, createdBy: creator.email, updatedBy: creator.email },
     })).rejects.toBeDefined();
 
+    await expectInvalidDetails((tx) => tx.ticketActivity.create({
+      data: {
+        ticketId: ticket.id, performedByUserId: creator.id,
+        action: TicketActivityType.TICKET_CLOSED, createdBy: "test", updatedBy: "test",
+        status: { create: { previousStatus: null, status: TicketStatus.CLOSED } },
+      },
+    }));
+
     const systemUser = await prisma.user.findFirstOrThrow({ where: { isSystem: true } });
     await expect(prisma.user.update({ where: { id: systemUser.id }, data: { isActive: true } })).rejects.toBeDefined();
     const snapshot = await prisma.ticketActivity.create({
@@ -118,43 +133,108 @@ describe("Lab 4 PostgreSQL schema @issue-78", () => {
         updatedBy: "test",
         status: { create: { previousStatus: null, status: TicketStatus.OPEN } },
         priority: { create: { previousPriority: null, priority: TicketPriority.HIGH } },
+        assignment: { create: { previousAssignedToUserId: null, assignedToUserId: creator.id } },
       },
     });
     expect(snapshot.performedByUserId).toBe(systemUser.id);
-    await prisma.ticketAssignmentActivity.create({
-      data: { ticketActivityId: snapshot.id, previousAssignedToUserId: null, assignedToUserId: creator.id },
-    });
-
     const actionActivity = await prisma.ticketActivity.create({
       data: {
-        ticketId: ticket.id,
-        performedByUserId: performer.id,
-        action: TicketActivityType.ACTION_COMPLETED,
-        createdBy: performer.email,
-        updatedBy: performer.email,
+        ticketId: ticket.id, performedByUserId: performer.id,
+        action: TicketActivityType.ACTION_COMPLETED, createdBy: performer.email, updatedBy: performer.email,
+        actionTaken: { create: { actionTakenId: action.id } },
       },
     });
-    const crossTicketActivity = await prisma.ticketActivity.create({
+    await expect(prisma.ticketActivity.create({
       data: {
-        ticketId: otherTicket.id,
-        performedByUserId: performer.id,
-        action: TicketActivityType.ACTION_COMPLETED,
-        createdBy: performer.email,
-        updatedBy: performer.email,
+        ticketId: otherTicket.id, performedByUserId: performer.id,
+        action: TicketActivityType.ACTION_COMPLETED, createdBy: performer.email, updatedBy: performer.email,
+        actionTaken: { create: { actionTakenId: action.id } },
       },
+    })).rejects.toBeDefined();
+
+    const activityBase = {
+      ticketId: ticket.id, performedByUserId: creator.id, createdBy: "test", updatedBy: "test",
+    };
+    const statusDetail = { create: { previousStatus: TicketStatus.RESOLVED, status: TicketStatus.CLOSED } };
+    const priorityDetail = { create: { previousPriority: TicketPriority.MEDIUM, priority: TicketPriority.HIGH } };
+    const assignmentDetail = { create: { previousAssignedToUserId: null, assignedToUserId: creator.id } };
+    const actionDetail = { create: { actionTakenId: action.id } };
+
+    await expectInvalidDetails((tx) => tx.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.IT_PRIORITY_CHANGED,
+        priority: { create: { previousPriority: null, priority: TicketPriority.HIGH } } },
+    }));
+    await expectInvalidDetails((tx) => tx.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.ACTION_COMPLETED, actionTaken: actionDetail, status: statusDetail },
+    }));
+    await expectInvalidDetails((tx) => tx.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.TICKET_CLOSED, status: statusDetail, actionTaken: actionDetail },
+    }));
+    await expectInvalidDetails((tx) => tx.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.REQUESTER_RESOLUTION_CONFIRMED, assignment: assignmentDetail },
+    }));
+
+    // Every normal enum accepts exactly its specified detail family and rejects omission.
+    const detailFamilies = [
+      { actions: [TicketActivityType.TICKET_ASSIGNED, TicketActivityType.TICKET_REASSIGNED, TicketActivityType.TICKET_UNASSIGNED], detail: { assignment: assignmentDetail } },
+      { actions: [TicketActivityType.TICKET_STARTED_WORK, TicketActivityType.INFORMATION_REQUESTED, TicketActivityType.TICKET_RESUMED, TicketActivityType.TICKET_MARKED_RESOLVED, TicketActivityType.TICKET_CLOSED, TicketActivityType.TICKET_CANCELLED, TicketActivityType.TICKET_REOPENED], detail: { status: statusDetail } },
+      { actions: [TicketActivityType.IT_PRIORITY_CHANGED], detail: { priority: priorityDetail } },
+      { actions: [TicketActivityType.ACTION_CREATED, TicketActivityType.ACTION_UPDATED, TicketActivityType.ACTION_ASSIGNED, TicketActivityType.ACTION_REASSIGNED, TicketActivityType.ACTION_UNASSIGNED, TicketActivityType.ACTION_STARTED, TicketActivityType.ACTION_COMPLETED, TicketActivityType.ACTION_CANCELLED], detail: { actionTaken: actionDetail } },
+    ];
+    for (const { actions, detail } of detailFamilies) {
+      for (const activityType of actions) {
+        await expectInvalidDetails((tx) => tx.ticketActivity.create({ data: { ...activityBase, action: activityType } }));
+        const valid = await prisma.ticketActivity.create({ data: { ...activityBase, action: activityType, ...detail } });
+        expect(valid.action).toBe(activityType);
+      }
+    }
+    const confirmation = await prisma.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.REQUESTER_RESOLUTION_CONFIRMED },
     });
-    try {
-      await expect(prisma.actionTakenActivity.create({
-        data: { ticketActivityId: crossTicketActivity.id, actionTakenId: action.id },
-      })).rejects.toBeDefined();
-    } finally {
-      await prisma.actionTakenActivity.deleteMany({ where: { ticketActivityId: crossTicketActivity.id } });
-      await prisma.ticketActivity.delete({ where: { id: crossTicketActivity.id } });
+    expect(confirmation.action).toBe(TicketActivityType.REQUESTER_RESOLUTION_CONFIRMED);
+    for (const detail of [
+      { status: { create: { previousStatus: null, status: TicketStatus.OPEN } }, priority: { create: { previousPriority: null, priority: TicketPriority.HIGH } } },
+      { assignment: assignmentDetail, priority: { create: { previousPriority: null, priority: TicketPriority.HIGH } } },
+      { assignment: assignmentDetail, status: { create: { previousStatus: null, status: TicketStatus.OPEN } } },
+    ]) {
+      await expectInvalidDetails((tx) => tx.ticketActivity.create({
+        data: { ...activityBase, ticketId: otherTicket.id, action: TicketActivityType.MIGRATED_TICKET_SNAPSHOT, ...detail },
+      }));
     }
 
-    await prisma.actionTakenActivity.create({
-      data: { ticketActivityId: actionActivity.id, actionTakenId: action.id },
+    // Updates, deletes, and moves cannot invalidate an already valid representation.
+    await expectInvalidDetails((tx) => tx.ticketActivity.update({
+      where: { id: actionActivity.id }, data: { action: TicketActivityType.TICKET_CLOSED },
+    }));
+    await expectInvalidDetails((tx) => tx.actionTakenActivity.delete({ where: { ticketActivityId: actionActivity.id } }));
+    await expectInvalidDetails((tx) => tx.ticketStatusActivity.update({
+      where: { ticketActivityId: snapshot.id }, data: { ticketActivityId: confirmation.id },
+    }));
+    const normalStatus = await prisma.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.TICKET_CLOSED, status: statusDetail },
     });
+    await expectInvalidDetails((tx) => tx.ticketStatusActivity.update({
+      where: { ticketActivityId: normalStatus.id }, data: { previousStatus: null },
+    }));
+    const normalPriority = await prisma.ticketActivity.create({
+      data: { ...activityBase, action: TicketActivityType.IT_PRIORITY_CHANGED, priority: priorityDetail },
+    });
+    await expectInvalidDetails((tx) => tx.ticketPriorityActivity.update({
+      where: { ticketActivityId: normalPriority.id }, data: { previousPriority: null },
+    }));
+
+    const invalidPublicId = randomUUID();
+    await expect(prisma.ticketActivity.create({
+      data: { ...activityBase, publicId: invalidPublicId, action: TicketActivityType.ACTION_COMPLETED },
+    })).rejects.toBeDefined();
+    expect(await prisma.ticketActivity.findUnique({ where: { publicId: invalidPublicId } })).toBeNull();
+
+    // Separate statements may assemble valid children before commit (as migration does).
+    await prisma.$transaction(async (tx) => {
+      const parent = await tx.ticketActivity.create({ data: { ...activityBase, action: TicketActivityType.ACTION_STARTED } });
+      await tx.actionTakenActivity.create({ data: { ticketActivityId: parent.id, actionTakenId: action.id } });
+    });
+    expect(await prisma.actionTakenActivity.findUnique({ where: { ticketActivityId: actionActivity.id } })).not.toBeNull();
 
     await expect(prisma.actionTaken.create({
       data: {

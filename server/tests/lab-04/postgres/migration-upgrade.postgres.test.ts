@@ -11,6 +11,7 @@ import { assertLab3TargetEnvironment } from "../../../src/databaseTargetGuard.js
 
 const migrationRoot = fileURLToPath(new URL("../../../prisma/migrations/", import.meta.url));
 const serverRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const detailMigration = "20261001000000_lab4_activity_detail_constraints";
 const migrations = [
   "20260808064543_add_category",
   "20260822000000_lab2_data_model",
@@ -238,6 +239,7 @@ export default defineConfig({ schema: "schema.prisma", migrations: { path: "migr
         expect(schemaEffects).toEqual([]);
         const resolved = await runPrisma(["migrate", "resolve", "--rolled-back", lab4Migration]);
         expect(resolved.code, resolved.output).toBe(0);
+        cpSync(`${migrationRoot}${detailMigration}`, `${rehearsalRoot}/migrations/${detailMigration}`, { recursive: true });
         const recovered = await runPrisma(["migrate", "deploy"]);
         expect(recovered.code, recovered.output).toBe(0);
         expect(recovered.output).toContain("successfully applied");
@@ -263,6 +265,12 @@ export default defineConfig({ schema: "schema.prisma", migrations: { path: "migr
         await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${schema}, public`);
         for (const statement of rehearsalRoot ? [] : lab4Statements) {
           await tx.$executeRawUnsafe(statement);
+        }
+
+        if (!rehearsalRoot) {
+          for (const statement of statements(readFileSync(`${migrationRoot}${detailMigration}/migration.sql`, "utf8"))) {
+            await tx.$executeRawUnsafe(statement);
+          }
         }
 
         const backfillStatements = lab4Statements.filter((statement) =>
@@ -300,10 +308,10 @@ export default defineConfig({ schema: "schema.prisma", migrations: { path: "migr
           `SELECT ticket_id, creator_user_id, status::text AS status, description, result, is_migrated, assigned_to_user_id, performed_by_user_id, created_at, completed_at FROM ${schema}.action_taken ORDER BY ticket_id`,
         );
         expect(actions).toHaveLength(2);
-        const [resolutionEvidence] = await tx.$queryRawUnsafe<Array<{ count: bigint }>>(
+        const [nonMigratedCompletions] = await tx.$queryRawUnsafe<Array<{ count: bigint }>>(
           `SELECT count(*) FROM ${schema}.action_taken WHERE status = 'COMPLETED' AND is_migrated = FALSE`,
         );
-        expect(resolutionEvidence!.count).toBe(0n);
+        expect(nonMigratedCompletions!.count).toBe(0n);
         expect(actions.map((row) => row.ticket_id)).toEqual([21, 22]);
         for (const action of actions) {
           expect(action).toMatchObject({

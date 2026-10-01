@@ -525,6 +525,8 @@ ActionTakenActivity
 
 An Activity may have the child rows appropriate to its enum. Normal services enforce the enum/detail pairing and database checks should prevent impossible orphan child rows.
 
+Database constraints validate the complete representation at transaction commit: Ticket assignment events require only `TicketAssignmentActivity`; IT Priority changes require only `TicketPriorityActivity`; Ticket status transitions require only `TicketStatusActivity`; all `ACTION_*` events require only `ActionTakenActivity`. `MIGRATED_TICKET_SNAPSHOT` requires assignment, status, and priority children. `REQUESTER_RESOLUTION_CONFIRMED` requires no typed child. Other child families are rejected. Non-snapshot status/priority children require non-null previous values. Services insert the parent and required children in the same transaction; deferred constraint triggers allow this assembly and reject invalid inserts, updates, deletes, and child moves.
+
 ### 6.5 User increment
 
 ```text
