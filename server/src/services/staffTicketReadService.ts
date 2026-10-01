@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient, UserRole } from "../generated/prisma/client.js";
 import { ApiError } from "../http/errors.js";
 import { buildPaginationMetadata } from "../http/pagination.js";
 import { parseAssignableUserQuery } from "./assignableUserQueryValidator.js";
@@ -10,7 +10,8 @@ export interface TicketOwnerDTO { publicId: string; name: string; role: "IT_STAF
 export const OWNER_SELECT = { publicId: true, name: true, role: true } as const;
 export const ELIGIBLE_OWNER = { isActive: true, deleted: false, isSystem: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } } satisfies Prisma.UserWhereInput;
 
-export interface UserSummaryDTO extends TicketOwnerDTO { email: string }
+export interface UserSummaryDTO extends Omit<TicketOwnerDTO, "role"> { email: string; role: UserRole }
+export interface AssignableUserDTO extends UserSummaryDTO { role: TicketOwnerDTO["role"] }
 export const USER_SUMMARY_SELECT = { ...OWNER_SELECT, email: true } as const;
 
 export async function listAssignableUsers(prisma: PrismaClient, query = parseAssignableUserQuery({})) {
@@ -19,7 +20,7 @@ export async function listAssignableUsers(prisma: PrismaClient, query = parseAss
     const totalItems = await tx.user.count({ where });
     const skip = (query.pageNumber - 1) * query.pageSize;
     const rows = skip < totalItems ? await tx.user.findMany({ where, select: USER_SUMMARY_SELECT, orderBy: buildOrderBy(query.order), skip, take: query.pageSize }) : [];
-    const items: UserSummaryDTO[] = rows.map((user) => ({ publicId: user.publicId, name: user.name, email: user.email, role: user.role as UserSummaryDTO["role"] }));
+    const items: AssignableUserDTO[] = rows.map((user) => ({ publicId: user.publicId, name: user.name, email: user.email, role: user.role as AssignableUserDTO["role"] }));
     return { items, pagination: buildPaginationMetadata(query.pageNumber, query.pageSize, totalItems) };
   }, { isolationLevel: "RepeatableRead" });
 }

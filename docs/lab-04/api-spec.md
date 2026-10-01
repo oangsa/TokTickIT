@@ -168,11 +168,17 @@ interface UserSummaryDTO {
   publicId: string;
   name: string;
   email: string;
+  role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+}
+
+interface AssignableUserDTO extends UserSummaryDTO {
   role: "IT_STAFF" | "ADMINISTRATOR";
 }
 ```
 
 SYSTEM users and Requesters are never returned by assignable-user DTOs.
+
+Owner clarification (2026-10-01): existing Action assignments and historical User references survive later assignment ineligibility. Referenced summaries retain public identity and show current role, including `REQUESTER`; they are not filtered by current assignment eligibility. A User role/eligibility change alone does not mutate an Action, increment its version, or append Action assignment Activity. New assign/reassign targets still require active, non-deleted, non-system Staff/Admin. Existing no-op and terminal rules remain authoritative.
 
 ### 4.2 Attachment summary
 
@@ -1179,7 +1185,7 @@ Success:
 
 ```text
 200 OK
-UserSummaryDTO[]
+AssignableUserDTO[]
 X-Pagination: {"pageNumber":1,"pageSize":10,"totalItems":2,"totalPages":1,"hasPreviousPage":false,"hasNextPage":false}
 ```
 

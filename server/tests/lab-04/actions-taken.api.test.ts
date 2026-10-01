@@ -331,3 +331,20 @@ it("Authentication required on new Action routes", async () => {
   expect((await request(app).get(`/api/tickets/${TICKET_ID}/actions`)).status).toBe(401);
   expect((await request(app).post(`/api/tickets/${TICKET_ID}/actions`).send(createBody)).status).toBe(401);
 });
+it.each([
+  { code: "P2034" },
+  { meta: { code: "40P01" } },
+  { meta: { driverAdapterError: { cause: { originalCode: "40P01" } } } },
+  { cause: { cause: { kind: "TransactionWriteConflict" } } },
+  new Error("TransactionDeadlock"),
+])("Action transaction conflicts return safe 409 without retry %#", async (error) => {
+  mock.$transaction.mockRejectedValueOnce(error);
+  const response = await request(app).patch(`/api/tickets/${TICKET_ID}/actions/${ACTION_ID}/assignee`)
+    .set("Authorization", bearerToken(tokens, ADMIN.id))
+    .send({ expectedVersion: 1, assignedToUserPublicId: STAFF.publicId });
+  expect(response.status).toBe(409);
+  expect(response.body).toEqual({ statusCode: 409, error: "Conflict", code: "CONFLICT", message: "The requested operation conflicts with the current resource state." });
+  expect(mock.$transaction).toHaveBeenCalledTimes(1);
+  expect(mock.actionTaken.updateMany).not.toHaveBeenCalled();
+  expect(mock.ticketActivity.create).not.toHaveBeenCalled();
+});

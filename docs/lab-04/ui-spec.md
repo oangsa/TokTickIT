@@ -733,6 +733,8 @@ After Refresh, if mutation is valid again, user may try again. If terminal, form
 
 Action assignee is the first use of the reusable global Lookup infrastructure in §12. It uses the reusable User definition backed by queryable `GET /api/users/assignable`; pages do not own bespoke modal/fetch/pagination wiring.
 
+Owner clarification (2026-10-01): Action detail/list and Activity retain referenced Users after later assignment ineligibility, including a current `REQUESTER` role. Render their supplied identity; do not show a persisted assignment as Unassigned or hide historical references based on current role. Lookup still contains only eligible active, non-deleted, non-system Staff/Admin; reference visibility does not grant mutation permission or make the User selectable for a new assignment.
+
 LookupModal composes the existing TokTickIT DataTable with columns:
 
 ```text

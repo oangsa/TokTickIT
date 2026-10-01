@@ -262,6 +262,8 @@ The following Lab 3 rules are intentionally superseded:
 - **BR-38** Unassign sets `assignedToUserId=null`; it does not change Action lifecycle status.
 - **BR-39** Generic Action edit does not silently change assignment.
 
+Owner clarification (2026-10-01): preserve existing Action assignments, including terminal Actions, and historical User references when a referenced User later becomes assignment-ineligible. Referenced User summaries may contain current `REQUESTER`, `IT_STAFF`, or `ADMINISTRATOR` role. Eligibility changes alone do not change Action state/version/audit fields or append Action assignment Activity. New assign/reassign targets remain active, non-deleted, non-system Staff/Admin only; existing assignment is not authority for an ineligible User to bypass current authentication/role checks.
+
 ### 5.5 Attachment integration
 
 - **BR-40** Existing `Attachment` continues to store binary data; no Action-specific binary table is created.

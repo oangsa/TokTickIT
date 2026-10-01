@@ -11,6 +11,7 @@ import { invalidField, PUBLIC_ID_PATTERN, record } from "./staffQueueQueryValida
 import { ELIGIBLE_OWNER } from "./staffTicketReadService.js";
 import { FencedOutError } from "./ticketService.js";
 import type { TicketActor } from "./ticketWorkflowService.js";
+import { isTransactionConflict } from "./transactionConflict.js";
 
 type Transaction = Prisma.TransactionClient;
 export function normalizedText(value: unknown, field: string, max = 2000, nullable = false, blankToNull = false): string | null {
@@ -83,7 +84,7 @@ export class ActionTakenService {
   private async write<T>(callback: (tx: Transaction) => Promise<T>): Promise<T> {
     try { return await this.prisma.$transaction(callback); }
     catch (error) {
-      if (record(error) && (error.code === "P2034" || (record(error.meta) && ["40001", "40P01"].includes(String(error.meta.code))))) throw new ApiError("CONFLICT");
+      if (isTransactionConflict(error)) throw new ApiError("CONFLICT");
       throw error;
     }
   }

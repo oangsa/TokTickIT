@@ -5,9 +5,49 @@ import { listAssignableUsers } from "../../../src/services/staffTicketReadServic
 import { parseAssignableUserQuery } from "../../../src/services/assignableUserQueryValidator.js";
 import { actionDatabase, type ActionDatabase } from "../support/actionDatabase.js";
 import { createBody } from "../support/actionFixture.js";
+import { updateUser } from "../../../src/services/userService.js";
+import { listTicketActivity } from "../../../src/services/ticketActivityService.js";
 let database: ActionDatabase;
 beforeAll(async () => { database = await actionDatabase(); }, 120_000);
 afterAll(async () => database?.close());
+it.each([{ role: "REQUESTER" }, { isActive: false }] as const)("PG-04 real User transition preserves Action assignments and historical references %#", async (change) => {
+  const { first, service, staff, other, admin, requester } = database;
+  const user = await first.user.create({ data: { name: "Referenced assignee", email: `reference-${randomUUID()}@example.test`, role: "IT_STAFF", passwordHash: "unusable-synthetic-fixture", createdBy: "test", updatedBy: "test" } });
+  const ticket = await database.ticket();
+  const planned = (await database.create(ticket.publicId, null)).action;
+  const assigned = await service.assign(staff, ticket.publicId, planned.publicId, { expectedVersion: 1, assignedToUserPublicId: user.publicId });
+  const terminal = (await database.create(ticket.publicId, user.publicId)).action;
+  await service.lifecycle(staff, ticket.publicId, terminal.publicId, "cancel", { expectedVersion: 1, cancellationReason: "Historical assignment fixture" }, randomUUID());
+  const before = await first.actionTaken.findMany({ where: { ticketId: ticket.id }, orderBy: { id: "asc" } });
+  const activityCount = await first.ticketActivity.count({ where: { ticketId: ticket.id } });
+
+  const updatedUser = await updateUser(first, admin, user.publicId, change);
+  const summary = { publicId: user.publicId, name: user.name, email: user.email, role: updatedUser.role };
+  expect(await first.actionTaken.findMany({ where: { ticketId: ticket.id }, orderBy: { id: "asc" } })).toEqual(before);
+  expect(await first.ticketActivity.count({ where: { ticketId: ticket.id } })).toBe(activityCount);
+  for (const actor of [other, requester]) {
+    expect((await service.detail(actor, ticket.publicId, assigned.publicId)).assignedTo).toEqual(summary);
+    expect((await service.detail(actor, ticket.publicId, terminal.publicId)).assignedTo).toEqual(summary);
+    expect((await service.list(actor, ticket.publicId, {})).items.every((item) => item.assignedTo?.publicId === user.publicId && item.assignedTo.role === updatedUser.role)).toBe(true);
+  }
+  const history = await listTicketActivity(first, other, ticket.publicId, {}, assigned.publicId);
+  expect(history.items.find((item) => item.action === "ACTION_ASSIGNED")?.actionTaken?.assignedTo).toEqual(summary);
+  await expect(service.lifecycle(other, ticket.publicId, assigned.publicId, "start", { expectedVersion: assigned.version }, randomUUID())).rejects.toMatchObject({ code: "FORBIDDEN" });
+  const noOp = await service.assign(other, ticket.publicId, assigned.publicId, { expectedVersion: assigned.version, assignedToUserPublicId: user.publicId });
+  expect(noOp).toMatchObject({ version: assigned.version, assignedTo: summary });
+  expect(await first.ticketActivity.count({ where: { ticketId: ticket.id } })).toBe(activityCount);
+
+  const lookup = await listAssignableUsers(first, parseAssignableUserQuery({ search: user.email, searchFields: "email" }));
+  expect(lookup.items).toEqual([]);
+  expect(lookup.pagination.totalItems).toBe(0);
+  const unassigned = (await database.create(ticket.publicId, null)).action;
+  await expect(service.assign(other, ticket.publicId, unassigned.publicId, { expectedVersion: 1, assignedToUserPublicId: user.publicId })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  await expect(database.create(ticket.publicId, user.publicId)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  const reassigned = await service.assign(other, ticket.publicId, assigned.publicId, { expectedVersion: assigned.version, assignedToUserPublicId: admin.userPublicId });
+  expect(reassigned).toMatchObject({ version: assigned.version + 1, assignedTo: { publicId: admin.userPublicId } });
+  const reassignmentHistory = await listTicketActivity(first, other, ticket.publicId, {}, assigned.publicId);
+  expect(reassignmentHistory.items.find((item) => item.action === "ACTION_REASSIGNED")?.actionTaken?.previousAssignedTo).toEqual(summary);
+});
 it("PG-03 persists server lifecycle fields, version, performer, immutable terminals and stale writes", async () => {
   const { first, service, staff, other, admin } = database;
   const ticket = await database.ticket("OPEN", admin.userId);

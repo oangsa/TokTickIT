@@ -15,7 +15,7 @@ export const ACTION_DETAIL_INCLUDE = {
 export type ActionDetailRow = Prisma.ActionTakenGetPayload<{ include: typeof ACTION_DETAIL_INCLUDE }>;
 type ActionListRow = Prisma.ActionTakenGetPayload<{ select: typeof ACTION_LIST_SELECT }>;
 export function toUserSummary(user: ActionListRow["assignedTo"]): UserSummaryDTO | null {
-  return user && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? { publicId: user.publicId, name: user.name, email: user.email, role: user.role } : null;
+  return user ? { publicId: user.publicId, name: user.name, email: user.email, role: user.role } : null;
 }
 export function toActionListDTO(row: ActionListRow) {
   return { publicId: row.publicId, ticketPublicId: row.ticket.publicId, status: row.status, description: row.description,

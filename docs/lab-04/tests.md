@@ -319,13 +319,13 @@ Manual/visual checklist supplements those assertions.
 | PG-01 | Data model; AC-01 | Real schema constraints/relations for ActionTaken and creator/assignee/performer. | Valid rows commit; invalid FK/status/check combinations fail safely. Typed child families match every Activity enum; TICKET_ASSIGNED requires assignment and permits only optional NEW -> OPEN status, while reassignment/unassignment remain assignment-only; required children cannot be omitted, deleted, or moved away; non-snapshot status/priority previous values cannot be null. Parent and children may be assembled in one transaction. | `schema-contract.postgres.test.ts` | Pass |
 | PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing Users, Tickets, Attachments, Public Comments, Internal Notes, and Idempotency records preserved; exactly one SYSTEM User, one snapshot per legacy Ticket, one synthetic `isMigrated=true` Completed Action per eligible legacy `RESOLVED`/`CLOSED` Ticket, none for ineligible Tickets; migrated Actions remain visible but do not count toward resolution. | `migration-upgrade.postgres.test.ts` | Blocked |
 | PG-03 | BR-24–33; AC-08–11 | Real Action lifecycle timestamps/version/terminal behavior. | Committed DB state matches lifecycle contract. | `action-lifecycle.postgres.test.ts` | Pass |
-| PG-04 | BR-34–39; AC-06 | Assignment eligibility/version in real DB. | Valid assign/reassign/unassign commits; invalid target no state change. | `action-lifecycle.postgres.test.ts` | Pass |
+| PG-04 | BR-34–39; AC-06 | Assignment eligibility/version in real DB. | Valid assign/reassign/unassign commits; invalid target no state change. Real User demotion/deactivation preserves planned/terminal assignments and current/previous Activity references; lookup/new assignments exclude the ineligible User; Start authority remains consistent. | `action-lifecycle.postgres.test.ts` | Pass |
 | PG-05 | BR-53, BR-75–83; AC-12 | Two connections update same Action version concurrently. | At most one wins current version; loser cannot overwrite. | `action-concurrency.postgres.test.ts` | Pass |
 | PG-06 | BR-36–37; AC-13 | Concurrent reassignment with same expectedVersion. | Exactly one assignment commit; Activity matches committed winner. | `action-concurrency.postgres.test.ts` | Pass |
 | PG-07 | BR-75–83; AC-14–15, AC-39 | Persistent Action-create identity `(actor, method, concrete path, key)` and replay/conflict. | One result per exact scope; path-specific replay/conflict remains correct after reconnect. | `action-idempotency.postgres.test.ts` | Pass |
 | PG-08 | BR-75–83; AC-16 | Concurrent/repeated lifecycle idempotency. | One lifecycle transition and one Activity; completed replay stable. | `action-idempotency.postgres.test.ts` | Pass |
 | PG-09 | BR-40–49; AC-17–18 | ActionTakenAttachment uniqueness, existing Active same-Ticket rules, cancellation preservation. | Eligible join rows persist; duplicates, unavailable, and cross-Ticket Attachments are rejected; terminal history preserved. | `action-attachments.postgres.test.ts` | Pass |
-| PG-10 | BR-63–74; AC-19–20, AC-24 | Business mutation + Activity atomic commit/rollback, including Requester resolution confirmation. | Forced Activity failure rolls back confirmation timestamp update; successful `looks-resolved` creates exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity with authenticated Requester actor; other normal mutations create exactly expected Activity. | `ticket-activity.postgres.test.ts` | Pass |
+| PG-10 | BR-63–74; AC-19–20, AC-24 | Business mutation + Activity atomic commit/rollback, including Requester resolution confirmation. | Forced Activity failure rolls back confirmation timestamp update; successful `looks-resolved` creates exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity with authenticated Requester actor; other normal mutations create exactly expected Activity. | `ticket-activity.postgres.test.ts` | Blocked |
 | PG-11 | BR-52–55; AC-21–23 | Resolution gate under real data and concurrent Action changes. | Only non-migrated Completed Actions satisfy the gate; no Ticket resolves from an inconsistent/open Action set. | `ticket-resolution.postgres.test.ts` | Not Run |
 | PG-12 | BR-84–102; AC-26–30 | Dashboard counts/lists vs direct DB queries in one repeatable-read snapshot. | DTO metrics exactly match DB truth; concurrent writes do not mix snapshots. | `dashboards.postgres.test.ts` | Not Run |
 | PG-13 | BR-121–130; AC-34–35 | Fail or interrupt migration/backfill on representative Lab 3 fixture, verify rollout stops, apply documented state recovery, then retry deployment/backfill; repeat completed deployment. | Schema-dependent rollout stops on failure; recovery completes; all representative legacy User, Ticket, Attachment, Public Comment, Internal Note, and Idempotency rows survive; exactly one SYSTEM User and one snapshot per legacy Ticket; exactly one synthetic `COMPLETED`, `isMigrated=true` Action per eligible legacy `RESOLVED`/`CLOSED` Ticket and none for ineligible Tickets; no retry duplicates; migrated Actions remain excluded from resolution gate. | `migration-upgrade.postgres.test.ts` | Blocked |
@@ -956,13 +956,13 @@ npm test -- tests/lab-04
 
 Test database is the verified running disposable local `toktickit_lab3_test` container at `127.0.0.1:55433`, with no persistent mounts; credentials/full URLs are omitted. Read-only Prisma status reported seven migrations and an up-to-date datasource before tests. No shared database migration or write occurred. New fixtures add only synthetic data to the disposable target; existing inherited test suites retain their guarded setup/reset behavior.
 
-Evidence includes all UNIT/API/PG rows owned by #79: actor/direct-call and state matrices; Unicode/code-point boundaries and client-owned-field rejection; safe cross-owner/cross-parent/malformed 404; exact bounded DTOs/no-store/X-Pagination; typed Activity/category/chronological paging; fixed lookup eligibility before count/page; actual Pending/removed/deleted/cross-Ticket evidence rejection, unique joins and multiple-Action sharing; preserved retained joins and cancellation associations; persistent concrete-resource/actor idempotency isolation, concurrent replay, PROCESSING recovery and expiry; version races with distinct pg_backend_pid values and exactly one winner/Activity. No stale user mutation is silently retried.
+Evidence includes the UNIT/API rows and Action portions of PG rows owned by #79: actor/direct-call and state matrices; Unicode/code-point boundaries and client-owned-field rejection; safe cross-owner/cross-parent/malformed 404; exact bounded DTOs/no-store/X-Pagination; typed Activity/category/chronological paging; fixed lookup eligibility before count/page; actual Pending/removed/deleted/cross-Ticket evidence rejection, unique joins and multiple-Action sharing; preserved retained joins and cancellation associations; persistent concrete-resource/actor idempotency isolation, concurrent replay, PROCESSING recovery and expiry; version races with distinct pg_backend_pid values and exactly one winner/Activity. No stale user mutation is silently retried.
 
 PG-10 injects actual foreign-key failures through Prisma query extensions after real business/join writes or after Activity append at idempotency completion. Independent DB assertions verify full Action row equality, restored joins, unchanged Activity counts, absent completed claims, and successful same-key retry. Real DB failures cover Create, edit, assignment, Start/Complete/Cancel. Mutation, joins, typed Activity and idempotency completion commit together; technical requestLog remains separate.
 
-Only executed #79 rows become Pass. Complete cross-phase PG-02/PG-13/DATA-02 retain their prior Blocked state; downstream #80/#81/#82/#83 test rows remain unchanged. PG-10 Ticket-workflow contribution remains #81 scope. No full browser, final release, peer-review, Issue closure, commit, push, or independently witnessed CI result is claimed.
+Only fully executed #79 rows become Pass. Complete PG-10 remains Blocked: the #79 Action mutation contribution passed, but #81 Requester confirmation atomicity/repeat behavior has not been executed. The direct REQUESTER_RESOLUTION_CONFIRMED insert proves representation/filtering only, not the looks-resolved workflow or timestamp rollback. Complete cross-phase PG-02/PG-13/DATA-02 retain their prior Blocked state; downstream #80/#81/#82/#83 test rows remain unchanged. PG-10 Ticket-workflow contribution remains #81 scope. No full browser, final release, peer-review, Issue closure, commit, push, or independently witnessed CI result is claimed.
 
-### Final #79 validation and limits
+### Historical #79 validation before authorization precedence follow-up
 
 All commands below ran from `server/`; database commands used the guarded disposable target and private baseline capture described above. API tests ran with permission for local ephemeral Supertest ports. Unit/API boundaries do not use production data or credentials.
 
@@ -1018,3 +1018,74 @@ The first lifecycle-specific name filter matched no tests and supplied no Red ev
 Final regression execution supplied all 59 non-PostgreSQL `*.test.ts` files under `tests/lab-02`, `tests/lab-03` and `tests/lab-04` to `npm test --`: 1,178 tests passed. This includes authentication, Ticket-create replay and Requester Attachment regression. PostgreSQL execution used the five explicit #79 files recorded above, with captured baseline URLs and matching `TEST_DATABASE_URL`, `DATABASE_URL` and `DIRECT_URL` overrides. Read-only Prisma status verified seven current migrations on the running disposable `127.0.0.1:55433/toktickit_lab3_test` target with no persistent mounts. No schema reset or shared database write occurred.
 
 `npm run build` passed in both `server/` and `client/`; server build was rerun after the terminal correction. Neither package defines a lint script; `git diff --check` passed. Existing pg concurrent-query deprecation and Vite build warnings remain. Full server PostgreSQL regression, client component tests and browser E2E were not rerun for this correction. Prior evidence remains historical, not a new full-suite claim. This follow-up changes only the Action service, its API regressions and these Lab 4 evidence/AI-use records; all pre-existing uncommitted work remains. No commit, push, Issue/PR change or final-release acceptance is claimed.
+
+
+### PR #86 scrutiny remediation (2026-10-01, local unpublished changes)
+
+Complete PG-10 is Blocked pending #81, with frozen expected behavior and ownership preserved. The #79 Action atomicity contribution passed; direct confirmation Activity insertion does not exercise the Requester looks-resolved timestamp mutation, append failure rollback, or duplicate suppression.
+
+Action, User management, and Attachment services now share transaction-conflict classification for P2034, SQLSTATE 40001/40P01, and nested Prisma/driver cause/meta/driverAdapterError forms. Business ApiError outcomes are preserved. Action/User writes return safe CONFLICT without silent retry; Attachment retains its existing bounded retry policy.
+
+Permanent regression additions: five Action API error-shape cases and two real PostgreSQL Action-assignment versus User demotion/deactivation races. Database race gates wrap actual service queries and observe a real User-lock wait before allowing User management to attempt its Ticket write. Before the fix, both Action transactions leaked Prisma P2010; after the fix, both return ApiError CONFLICT/409. Assertions verify the winning User transition and owner cleanup, unchanged Action version/assignee/status, and no incorrect assignment Activity. The five API cases observed three 500 responses before the fix (two supported flat forms already passed); all five now return the exact safe 409 envelope with one transaction attempt. Initial sandbox EPERM and incorrect envelope fixture expectations were corrected before recording valid Red evidence.
+
+Executed from server/ using the existing guarded runner with privately captured baseline URLs, explicit matching TEST_DATABASE_URL/DATABASE_URL/DIRECT_URL, and the verified disposable 127.0.0.1:55433/toktickit_lab3_test container without persistent mounts:
+
+```text
+npx prisma migrate status
+7 migrations; local disposable datasource current
+
+npm test -- tests/lab-04/actions-taken.api.test.ts -t 'Action transaction conflicts'
+Red: 3 failed / 2 passed; Green included in focused run below
+
+npm test -- tests/lab-04/postgres/action-concurrency.postgres.test.ts -t 'racing User'
+Red: 2 failed with raw P2010; Green included in focused run below
+
+npm test -- tests/lab-04/postgres/action-concurrency.postgres.test.ts tests/lab-04/actions-taken.api.test.ts tests/lab-02/AttachmentService.test.ts tests/lab-03/users-admin.api.test.ts
+4 files / 204 tests passed
+
+npm test
+87 files / 1,324 tests passed before referenced-user correction
+
+npm run build (server/)
+Passed TypeScript build
+
+npm run build (client/)
+Passed TypeScript/Vite build
+
+git diff --check
+Passed
+```
+
+The conflict-only full server result is local unpublished evidence; published PR head remains 57a68565e41c6115c5c74a58f349fbfe69698c84. Historical 87-file/1,309-test evidence predates the authorization-precedence follow-up; published-head follow-up evidence is 59 non-PostgreSQL files/1,178 tests plus five #79 PostgreSQL files/17 tests. Issue #79 and PR #86 were synchronized, including Blocked PG-10 and outstanding DoD; automatic closure was removed pending complete acceptance.
+
+At this first remediation checkpoint, the referenced-user DTO policy awaited owner clarification. The owner subsequently approved preserving assignments/history and representing REQUESTER references; the follow-up below records implementation and validation. No commit/push/merge, peer-review approval, client component/browser run, or final-release acceptance is claimed. Existing PostgreSQL driver deprecation and Vite annotation/chunk warnings remain; neither package defines a lint command.
+
+
+### PR #86 approved referenced-user correction (2026-10-01)
+
+The owner explicitly approved preserving existing Action assignments and historical references when a User becomes assignment-ineligible. UserSummaryDTO now permits REQUESTER/IT_STAFF/ADMINISTRATOR; the shared Action/Activity mapper emits every existing referenced User with current role. AssignableUserDTO retains Staff/Admin-only typing and the unchanged active, non-deleted, non-system eligibility predicate. No Action cleanup or version/Activity side effects were added to User management. Specification, API, UI and PG-04 contracts record the approval; current client code has no Action/Activity consumer requiring a change.
+
+Two permanent PostgreSQL regressions perform actual Administrator User updates: Staff-to-Requester demotion and deactivation. They verify full persisted Action rows and Activity counts remain unchanged, planned and cancelled detail/list representations preserve identity for Staff and Requester reads, assignment and reassignment Activity retain current/previous User summaries, unrelated Staff Start remains forbidden, same-assignee no-op returns unchanged version/history, ineligible lookup/count is empty, and new create/assign rejects the User while a valid reassignment succeeds. Demotion failed before the mapper correction with null assignedTo versus expected referenced User; deactivation already passed. Both pass afterward.
+
+```text
+npm test -- tests/lab-04/postgres/action-lifecycle.postgres.test.ts -t 'real User transition'
+Red: 1 failed / 1 passed
+
+npm test -- tests/lab-04/postgres/action-lifecycle.postgres.test.ts tests/lab-04/ActivityRepresentation.test.ts tests/lab-04/actions-taken.api.test.ts tests/lab-04/ticket-activity.api.test.ts tests/lab-04/assignable-users.api.test.ts
+Green: 5 files / 146 tests passed
+
+npm test
+Final local source: 87 files / 1,326 tests passed
+
+npm run build (server/)
+Passed TypeScript build
+
+npm run build (client/)
+Passed TypeScript/Vite build
+```
+
+PostgreSQL runs used the same verified disposable target and guarded explicit overrides recorded above. Complete PG-10 remains Blocked pending #81; these regressions prove referenced-user consistency, not Requester confirmation atomicity. No commit, push, merge, peer-review approval or browser/final-release acceptance is claimed.
+
+Final follow-up gate: full server regression (including guarded PostgreSQL), both builds, diff whitespace and scoped secret inspection passed. Issue #79 and PR #86 distinguish the 1,326-test unpublished local result from published-head/historical evidence; referenced-user policy is resolved, and complete PG-10/acceptance closure still awaits #81.
+
+Publication authorization (2026-10-01): the owner instructed “commit and push” for these reviewed fixes. The execution results above apply to the unchanged source/tests being published; local/unpublished wording records the earlier validation checkpoint. Publication does not complete PG-10 or authorize merge/Issue closure. Published commit identity is recorded in PR #86 and Issue #79.
