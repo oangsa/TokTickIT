@@ -8,6 +8,7 @@ import {
   removalReasonError,
   resolveUploadName,
 } from "./attachmentRules.js";
+import { isTransactionConflict } from "./transactionConflict.js";
 import { MAX_ATTACHMENTS } from "./ticketCreateRequest.js";
 import { toAttachmentDTO, type AttachmentDTO } from "./ticketRepresentation.js";
 
@@ -21,24 +22,6 @@ const TRANSACTION_ATTEMPTS = 3;
  * a sleep duration -- so this number can change without changing behavior.
  */
 const RETRY_DELAY_MS = 20;
-
-/*
- * PostgreSQL serialization failure (`40001`) and deadlock (`40P01`).
- *
- * One failure wears several names on the way up. Prisma raises `P2034` when it
- * recognises the class; the pg driver adapter raises a `DriverAdapterError`
- * whose message is only `TransactionWriteConflict` and whose SQLSTATE is buried
- * in `cause.originalCode`. Matching just one spelling means a losing upload
- * escapes as a 500 instead of retrying into its 409, which is what the
- * concurrent PostgreSQL test caught.
- */
-const TRANSIENT_CODES = new Set([
-  "P2034",
-  "40001",
-  "40P01",
-  "TransactionWriteConflict",
-  "TransactionDeadlock",
-]);
 
 /*
  * The public Attachment identifier (api-spec Section 12.1). Matched before the
@@ -106,50 +89,6 @@ interface ValidatedFile {
   data: Uint8Array<ArrayBuffer>;
 }
 
-/*
- * Collects every code-shaped value on an error and everything it wraps. The
- * nesting is the driver adapter's, not ours: the SQLSTATE that decides whether a
- * failure is retryable sits two levels down, under a different property name
- * than the one Prisma's own errors use.
- */
-function walkErrorCodes(error: unknown, seen = new Set<unknown>()): string[] {
-  if (typeof error !== "object" || error === null || seen.has(error)) {
-    return [];
-  }
-
-  seen.add(error);
-
-  const source = error as {
-    code?: unknown;
-    originalCode?: unknown;
-    kind?: unknown;
-    cause?: unknown;
-    meta?: unknown;
-    driverAdapterError?: unknown;
-  };
-
-  const codes = [source.code, source.originalCode, source.kind].filter(
-    (value): value is string => typeof value === "string",
-  );
-
-  return [
-    ...codes,
-    ...walkErrorCodes(source.cause, seen),
-    ...walkErrorCodes(source.meta, seen),
-    ...walkErrorCodes(source.driverAdapterError, seen),
-  ];
-}
-
-/*
- * Only a genuine serialization/deadlock failure is transient. Anything else --
- * including every `ApiError` the callback throws for a business outcome -- must
- * surface on the first attempt, because retrying a 404 or a 409 would only
- * produce the same answer three times (api-spec Section 11.5).
- */
-function isTransientConflict(error: unknown): boolean {
-  return walkErrorCodes(error).some((code) => TRANSIENT_CODES.has(code));
-}
-
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -182,7 +121,7 @@ async function runTransactionWithRetry<T>(
         throw error;
       }
 
-      if (attempt >= TRANSACTION_ATTEMPTS || !isTransientConflict(error)) {
+      if (attempt >= TRANSACTION_ATTEMPTS || !isTransactionConflict(error)) {
         throw error;
       }
 

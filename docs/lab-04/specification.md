@@ -255,12 +255,14 @@ The following Lab 3 rules are intentionally superseded:
 
 ### 5.4 Action edit and assignment
 
-- **BR-34** While non-terminal, creator, current assignee, or Ticket Owner may edit Description, Result, Follow-Up state/note, Attachment Notes, and attachment associations.
+- **BR-34** While non-terminal, creator, current assignee, or Ticket Owner may edit Description, Result, Follow-Up state/note, Attachment Notes, and attachment associations. Owner clarification (2026-10-01): PATCH requires the full required editable body and complete desired attachment-ID set, preserving omitted optional Result/Attachment Notes; see API §8.2.
 - **BR-35** Assignment mutation is separate from generic edit.
 - **BR-36** Any authenticated IT Staff or Administrator with access to the Ticket may assign, reassign, or unassign a non-terminal Action.
-- **BR-37** Assignment mutation uses `expectedVersion`, increments Action `version`, and records corresponding Activity.
+- **BR-37** Assignment mutation uses `expectedVersion`, increments Action `version`, and records corresponding Activity. Owner clarification (2026-10-01): an already-current assignee, including null to null, returns the unchanged DTO with no version increment or Activity; the expected-version check and terminal-state prohibition still apply. Eligibility is revalidated for an actual assignment change.
 - **BR-38** Unassign sets `assignedToUserId=null`; it does not change Action lifecycle status.
 - **BR-39** Generic Action edit does not silently change assignment.
+
+Owner clarification (2026-10-01): preserve existing Action assignments, including terminal Actions, and historical User references when a referenced User later becomes assignment-ineligible. Referenced User summaries, including a completed Action's `performedBy`, may contain current `REQUESTER`, `IT_STAFF`, or `ADMINISTRATOR` role. The performer identity recorded at completion remains unchanged after later demotion. Eligibility changes alone do not change Action state/version/audit fields or append Action assignment Activity. New assign/reassign targets remain active, non-deleted, non-system Staff/Admin only; existing assignment is not authority for an ineligible User to bypass current authentication/role checks.
 
 ### 5.5 Attachment integration
 
@@ -784,13 +786,15 @@ Lab 4 is complete only when all of the following are true:
 
 ## 14. Final Seven-Issue Decomposition
 
+PG-10 ownership (PR #86 follow-up, 2026-10-01): #81 owns the complete PostgreSQL acceptance row and its final Pass/Fail/Blocked status. #79 supplies only partial Action-mutation + Activity atomicity evidence; PG-10 is not a #79 global acceptance or closure requirement. #81 combines that contribution with the complete frozen Requester confirmation/Ticket-workflow scenario: confirmation timestamp mutation, authenticated `REQUESTER_RESOLUTION_CONFIRMED` Activity, rollback on Activity append failure, repeat confirmation without duplicate Activity, and append-only typed Activity shape. Expected behavior and the primary dependency chain remain unchanged.
+
 The final approved plan contains exactly seven Issues. These numbers are planning positions, not newly created GitHub Issue numbers. Feature work enters `lab4-staging` through the existing scoped feature-branch/peer-review workflow.
 
 1. **Sprint 4 Engineering Contract** — `specification.md`, `api-spec.md`, `ui-spec.md`, `tests.md`, and FR/BR/AC/Test contract freeze.
 2. **Lab 4 Data Foundation & Migration** — ActionTaken, ActionTakenAttachment, normalized TicketActivity tables, SYSTEM User, IdempotencyRecord evolution, migration/backfill, seed, and migration/PG tests.
-3. **Actions Taken Backend & REST API** — Action list/detail/create/edit, assignment, Start/Complete/Cancel, Action concurrency/idempotency, existing Attachment association, Requester read-only Action APIs, Activity APIs/writes, queryable assignable-user API, and backend/API/PG tests.
+3. **Actions Taken Backend & REST API** — Action list/detail/create/edit, assignment, Start/Complete/Cancel, Action concurrency/idempotency, existing Attachment association, Requester read-only Action APIs, Activity APIs/writes, queryable assignable-user API, and backend/API/PG tests; partial Action-mutation atomicity evidence for #81-owned PG-10.
 4. **Actions Taken UI & Global Lookup** — Actions Taken DataTable, Create/Edit modal, Action Detail, global Lookup abstraction, DataTable-backed Lookup, assign/reassign/unassign UI, existing Attachment association UI, Activity timelines, and component/responsive/accessibility tests.
-5. **Final Ticket Workflow & Resolution Rules** — non-migrated completed-work resolution gate, final Ticket transition matrix, Admin operational parity, owner-only lifecycle actions, Requester confirmation, workflow Activity, authorization/concurrency tests, and ticket-resolution E2E.
+5. **Final Ticket Workflow & Resolution Rules** — non-migrated completed-work resolution gate, final Ticket transition matrix, Admin operational parity, owner-only lifecycle actions, Requester confirmation, workflow Activity, authorization/concurrency tests, and ticket-resolution E2E; complete PG-10 execution and final status ownership.
 6. **Role Dashboards** — Requester and Staff/Admin Dashboards, exact backend calculations, drill-down, URL list sizes, auto-refresh every 30 seconds, manual Refresh, hidden-tab behavior, single-flight behavior, 30-second in-memory cache, and Dashboard API/PG/UI/E2E tests.
 7. **Final Hardening, Regression & Release Verification** — Labs 1–4 regression, final PG suite, E2E, accessibility, responsive evidence under `artifacts/lab-04/screenshots/`, performance smoke, README, `docs/lab-04/reviewer.md`, `docs/lab-04/ai-use.md`, AC → Test → Evidence reconciliation, and release integration/readiness.
 

@@ -168,11 +168,17 @@ interface UserSummaryDTO {
   publicId: string;
   name: string;
   email: string;
+  role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+}
+
+interface AssignableUserDTO extends UserSummaryDTO {
   role: "IT_STAFF" | "ADMINISTRATOR";
 }
 ```
 
 SYSTEM users and Requesters are never returned by assignable-user DTOs.
+
+Owner clarification (2026-10-01): existing Action assignments and historical User references, including `ActionTakenDTO.performedBy`, survive later assignment ineligibility. Referenced summaries retain public identity and show current role, including `REQUESTER`; they are not filtered by current assignment eligibility. A User role/eligibility change alone does not mutate an Action, increment its version, or append Action assignment Activity. New assign/reassign targets still require active, non-deleted, non-system Staff/Admin. Existing no-op and terminal rules remain authoritative.
 
 ### 4.2 Attachment summary
 
@@ -205,7 +211,7 @@ interface ActionTakenDTO {
   performedBy: {
     publicId: string;
     name: string;
-    role: "IT_STAFF" | "ADMINISTRATOR";
+    role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
   } | null;
 
   attachments: Attachment[];
@@ -735,6 +741,8 @@ Role must still be `IT_STAFF` or `ADMINISTRATOR`.
 
 Assignment cannot be changed through this endpoint.
 
+Owner clarification (2026-10-01): edit requires the full required editable body: `description`, `followUpRequired`, the desired complete `attachmentIds` set, and `expectedVersion`; `followUpNote` is required when Follow-Up is true and normalizes to null otherwise. Omitted optional `result` and `attachmentNotes` preserve their stored values. Explicit null clears either optional field; blank Attachment Notes normalize to null, while a supplied textual Result must be nonblank.
+
 On success:
 
 - server normalizes/validates fields;
@@ -793,6 +801,8 @@ IT_STAFF | ADMINISTRATOR
 ```
 
 Any Staff/Admin with access to the Ticket may perform this mutation; Ticket ownership is not required.
+
+Owner clarification (2026-10-01): requesting the already-current assignee (including null to null) returns the unchanged DTO, without version increment or Activity. The normal `expectedVersion` check still applies; stale requests return `409 CONFLICT`, and terminal Actions remain immutable. Target eligibility is revalidated when assignment actually changes; a no-op does not assign an ineligible User.
 
 Eligibility:
 
@@ -1175,7 +1185,7 @@ Success:
 
 ```text
 200 OK
-UserSummaryDTO[]
+AssignableUserDTO[]
 X-Pagination: {"pageNumber":1,"pageSize":10,"totalItems":2,"totalPages":1,"hasPreviousPage":false,"hasNextPage":false}
 ```
 

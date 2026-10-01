@@ -14,6 +14,7 @@ export type ErrorCode =
   | "CONFLICT"
   | "DUPLICATE_EMAIL"
   | "OWNERSHIP_CONFLICT"
+  | "INVALID_ACTION_TRANSITION"
   | "INVALID_STATUS_TRANSITION"
   | "RATE_LIMITED"
   | "PAYLOAD_TOO_LARGE"
@@ -98,6 +99,7 @@ const ERROR_DEFINITIONS: Record<ErrorCode, ErrorDefinition> = {
     error: "Conflict",
     message: "The Ticket ownership changed. Reload the Ticket and try again.",
   },
+  INVALID_ACTION_TRANSITION: { statusCode: 409, error: "Conflict", message: "The requested Action Taken operation is not valid in the current state." },
   INVALID_STATUS_TRANSITION: {
     statusCode: 409,
     error: "Conflict",

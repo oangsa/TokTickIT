@@ -6,6 +6,7 @@ import { requireRole } from "../middleware/authentication.js";
 import { getPrisma } from "../prisma.js";
 import { AttachmentService } from "../services/attachmentService.js";
 import { findStaffTicket, listAssignableUsers, listStaffTickets } from "../services/staffTicketReadService.js";
+import { parseAssignableUserQuery } from "../services/assignableUserQueryValidator.js";
 import { parseStaffQueueQuery } from "../services/staffQueueQueryValidator.js";
 import { mutateStaffTicket, type PublicCommentWriter, type TicketMutation } from "../services/ticketWorkflowService.js";
 
@@ -13,8 +14,12 @@ import { mutateStaffTicket, type PublicCommentWriter, type TicketMutation } from
 export function createStaffTicketsRouter(writePublicComment?: PublicCommentWriter) {
   const router = Router();
   const guard = requireRole("IT_STAFF", "ADMINISTRATOR");
-  router.get("/users/assignable", guard, async (_req, res, next) => {
-    try { res.json(await listAssignableUsers(getPrisma())); } catch (error) { next(error); }
+  router.get("/users/assignable", guard, async (req, res, next) => {
+    try {
+      const result = await listAssignableUsers(getPrisma(), parseAssignableUserQuery(req.query));
+      setPaginationHeader(res, result.pagination);
+      res.json(result.items);
+    } catch (error) { next(error); }
   });
   router.get("/tickets", guard, async (req, res, next) => {
     try {

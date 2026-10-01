@@ -9,6 +9,7 @@ import {
 } from "./passwordService.js";
 import { PUBLIC_ID_PATTERN, invalidField, record } from "./staffQueueQueryValidator.js";
 import type { TicketActor } from "./ticketWorkflowService.js";
+import { isTransactionConflict } from "./transactionConflict.js";
 import type { UserListQuery } from "./userQueryValidator.js";
 
 export interface UserDTO {
@@ -356,7 +357,7 @@ export async function updateUser(
       { isolationLevel: "Serializable" },
     );
   } catch (error: unknown) {
-    if (isSerializationConflict(error)) {
+    if (isTransactionConflict(error)) {
       throw new ApiError("CONFLICT");
     }
     if (record(error) && error.code === "P2002") {
@@ -413,46 +414,9 @@ export async function resetInitialPassword(
       { isolationLevel: "Serializable" },
     );
   } catch (error: unknown) {
-    if (isSerializationConflict(error)) {
+    if (isTransactionConflict(error)) {
       throw new ApiError("CONFLICT");
     }
     throw error;
   }
-}
-
-const TRANSIENT_CODES = new Set([
-  "P2034",
-  "40001",
-  "40P01",
-  "TransactionWriteConflict",
-  "TransactionDeadlock",
-]);
-
-function isSerializationConflict(error: unknown): boolean {
-  if (typeof error === "object" && error !== null) {
-    const err = error as { message?: unknown; name?: unknown; code?: unknown; cause?: unknown };
-    if (
-      typeof err.message === "string" &&
-      (err.message.includes("TransactionWriteConflict") ||
-        err.message.includes("TransactionDeadlock"))
-    ) {
-      return true;
-    }
-    if (typeof err.code === "string" && TRANSIENT_CODES.has(err.code)) {
-      return true;
-    }
-    if (typeof err.cause === "object" && err.cause !== null) {
-      const cause = err.cause as { code?: unknown; originalCode?: unknown; message?: unknown };
-      if (typeof cause.code === "string" && TRANSIENT_CODES.has(cause.code)) return true;
-      if (typeof cause.originalCode === "string" && TRANSIENT_CODES.has(cause.originalCode)) return true;
-      if (
-        typeof cause.message === "string" &&
-        (cause.message.includes("TransactionWriteConflict") ||
-          cause.message.includes("TransactionDeadlock"))
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
