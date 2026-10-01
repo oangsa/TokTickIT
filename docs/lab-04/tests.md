@@ -703,13 +703,13 @@ The exact AC-to-test mapping remains in §15. Final integration ownership for E2
 | Primary Issue | Planned Test IDs |
 |---|---|
 | #78 | PG-01, PG-14, DATA-01, DATA-03; migration/recovery contributions to PG-02, PG-13, DATA-02 |
-| #79 | UNIT-01, UNIT-02, UNIT-03, UNIT-07, UNIT-08, UNIT-09, UNIT-10, UNIT-11, API-01–14, API-19–22, PG-03–10, PG-16 |
+| #79 | UNIT-01, UNIT-02, UNIT-03, UNIT-07, UNIT-08, UNIT-09, UNIT-10, UNIT-11, API-01–14, API-19–22, PG-03–09, PG-16; partial Action atomicity evidence for #81-owned PG-10 |
 | #80 | UI-01–06, UI-12, UI-17–18, RESP-03 |
-| #81 | UNIT-04, API-15–16, PG-11, PG-15, UI-07, E2E-02 |
+| #81 | UNIT-04, API-15–16, PG-10–11, PG-15, UI-07, E2E-02 |
 | #82 | UNIT-05–06, API-17–18, API-23, PG-12, UI-08–11, UI-14–16, RESP-01–02, E2E-03 |
 | #83 | PG-02, PG-13, DATA-02, UI-13, VIS-01, E2E-01, DATA-04, PERF-01, REG-01–03 |
 
-PG-10 is owned by #79 for Action mutations; #81 contributes Ticket mutation cases. #79 may close when its owned Action contribution and other scoped deliverables/checks pass, with required peer review; the complete shared PG-10 row remains Blocked until #81 passes Requester confirmation/Ticket-workflow cases. Full PG-10 is not a prerequisite for #79 closure or downstream #81 work. All test results remain `Not Run` until actually executed. Final release records remain `docs/lab-04/reviewer.md` and the handout-specific `docs/lab-04/ai-use.md`; screenshots remain under `artifacts/lab-04/screenshots/`. Contract review does not populate implementation, release, or test execution evidence.
+PG-10 is owned globally by #81, which executes the complete frozen scenario and records its final Pass/Fail/Blocked status. #79 retains passed Action-mutation + Activity atomicity evidence as a partial contribution only; it does not own a PG-10 acceptance row or final status, and PG-10 is not a #79 closure requirement. #81 combines that contribution with Requester confirmation timestamp + authenticated Activity atomicity, rollback on append failure, exactly one confirmation Activity, repeat confirmation without duplicates, and append-only typed Activity shape. The global row remains Blocked until the complete scenario passes. All test results remain `Not Run` until actually executed. Final release records remain `docs/lab-04/reviewer.md` and the handout-specific `docs/lab-04/ai-use.md`; screenshots remain under `artifacts/lab-04/screenshots/`. Contract review does not populate implementation, release, or test execution evidence.
 
 ## 21. Responsive / Visual Checklist
 
@@ -1115,6 +1115,19 @@ passed
 
 Read-only migration status before tests confirmed seven current migrations on disposable `localhost:55433/toktickit_lab3_test`; Docker inspection confirmed the container is running with no persistent mounts. Sanitized local logs: `/tmp/lab4-performer-status.log`, `/tmp/lab4-performer-before.log`, `/tmp/lab4-performer-full.log`. Evidence is local, not independently reproduced GitHub CI. Existing PostgreSQL driver deprecation and Vite annotation/chunk warnings remain; neither application package defines a lint script. Client component/browser suites were not run because no frontend behavior changed.
 
-Closure clarification supersedes earlier prose that made complete PG-10 a #79 closure prerequisite: #79 may close after its owned Action atomicity contribution and other scoped deliverables/checks pass, with required peer review. Complete PG-10 stays Blocked until #81 passes the confirmation timestamp, Activity append/rollback and duplicate-suppression cases. Specification §14 and test ownership §20 record the same rule. No GitHub Issue/PR text edits, Issue closure, peer-review approval, commit, push, merge or release acceptance are claimed by this local follow-up.
+Ownership clarification: §20 and specification §14 now assign the complete PG-10 row/status to #81. #79's passed Action atomicity checks are partial evidence, not a PG-10 acceptance or closure requirement. This replaces the earlier shared-row closure workaround. No Issue closure or peer-review approval is recorded.
 
 Publication authorization (2026-10-01): the owner subsequently instructed “commit and push” for this five-file performer contract follow-up. Source/tests are unchanged from the validation above; earlier local/unpublished wording records the pre-publication checkpoint. Publication does not complete shared PG-10 or authorize Issue closure, merge or peer-review approval.
+
+
+### PR #86 PG-10 ownership and living evidence cleanup (2026-10-01)
+
+This ownership decision supersedes earlier shared-row ownership and #79 closure-prerequisite prose in the historical checkpoints above. #81 owns complete PG-10 execution and its final Pass/Fail/Blocked state; the global row remains Blocked pending its Requester confirmation/Ticket-workflow cases. #79 has no global PG-10 acceptance row. Its Action mutation + typed Activity + joins + idempotency rollback checks passed as partial evidence in `ticket-activity.postgres.test.ts`, recorded above. Direct confirmation Activity insertion remains representation/filtering evidence only.
+
+PG-10's frozen table row, expected behavior, AC mapping and scenario requirements are unchanged. #81 must combine the Action contribution with confirmation timestamp mutation and authenticated `REQUESTER_RESOLUTION_CONFIRMED` Activity, rollback on Activity append failure, exactly one confirmation Activity, repeat confirmation without duplicate Activity, and append-only typed Activity shape.
+
+Living Issue #79, Issue #81 and PR #86 summaries are reconciled to this ownership model and omit current-head metadata. Their latest application validation is repository-recorded guarded local evidence from the performer correction: 87 files / 1,327 server tests and both builds passed. This documentation-only cleanup does not rerun application tests/builds or claim independent product CI, a TDD Red/Green cycle, peer-review acceptance, Issue closure, commit, push or merge. Local contract/evidence edits await publication.
+
+Cleanup verification: exact GitHub body read-back matched all three prepared summaries; Issue #79 has no PG-10 acceptance row, Issue #81 has the owned Blocked row, and all three omit current-head metadata. Local executable assertions confirmed every frozen PostgreSQL table row (including PG-10 and its Final state) is byte-for-byte unchanged, updated #79/#81 planned ownership, and removal of the specification closure workaround. `git diff --check` passed. No source, test, REST, Prisma, dependency or database changes.
+
+Publication authorization (2026-10-01): the owner subsequently instructed “commit and push” for this three-file ownership/evidence cleanup. Earlier uncommitted/publication-pending wording records the pre-publication checkpoint. The unchanged application validation remains recorded local evidence; this publication does not complete #81-owned PG-10 or authorize Issue closure, merge or peer-review approval.
