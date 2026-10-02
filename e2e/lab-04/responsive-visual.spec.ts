@@ -13,6 +13,8 @@ async function stub(page: Page, role: "IT_STAFF" | "ADMINISTRATOR" | "REQUESTER"
     let data: unknown; let collection = false;
     if (url.pathname === "/api/auth/refresh") data = { accessToken: "synthetic-ui-token", expiresIn: 600 };
     else if (url.pathname === "/api/auth/me") data = { ...staff, role, isActive: true, mustChangePassword: false, sessionStage: "FULL" };
+    else if (url.pathname === "/api/users/me/dashboard") data = { metrics: { activeTickets: 8, waitingForRequester: 2, resolvedTickets: 3, closedTickets: 12 }, recentTickets: [ticket] };
+    else if (url.pathname === "/api/dashboard") data = { metrics: { unassignedTickets: 4, myAssignedTickets: 3, inProgressTickets: 2, waitingForRequester: 1, highPriorityTickets: 5 }, myActions: [{ ...action, ticketNumber: ticket.ticketNumber, activityAt: action.createdAt }], recentTickets: [{ ...ticket, itPriority: "HIGH" }], urgentTickets: [{ ...ticket, itPriority: "HIGH" }] };
     else if (url.pathname === "/api/users/assignable") { data = [staff, other]; collection = true; }
     else if (url.pathname.endsWith("/actions/filter-users")) { data = [{ publicId: other.publicId, name: "Former Staff", role: "REQUESTER" }]; collection = true; }
     else if (url.pathname.endsWith("/activity")) {
@@ -113,5 +115,73 @@ for (const viewport of widths) for (const role of ["IT_STAFF", "ADMINISTRATOR", 
       await expect(page.getByRole("button", { name: /^(Edit|Reassign|Unassign|Start|Complete|Cancel Action)$/ })).toHaveCount(0);
       expect(observed.writes).toEqual([]); expect(observed.activityReads).toEqual([]);
     }
+  });
+}
+
+for (const viewport of widths) for (const role of ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const) {
+  test(`${role === "REQUESTER" ? "RESP-01" : "RESP-02"} ${role} Dashboard loading ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await stub(page, role);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const endpoint = role === "REQUESTER" ? "/api/users/me/dashboard" : "/api/dashboard";
+    await page.route(`http://127.0.0.1:3000${endpoint}?**`, async (route) => {
+      await pending;
+      await route.fallback();
+    });
+    try {
+      await page.goto("/dashboard");
+      const loading = page.getByRole("status", { name: "Loading Dashboard" });
+      await expect(loading).toBeVisible();
+      const metrics = loading.getByRole("group", { name: "Dashboard metrics" });
+      await expect(metrics.locator(".card")).toHaveCount(role === "REQUESTER" ? 4 : 5);
+      for (const title of role === "REQUESTER" ? ["Recently Updated"] : ["My Actions Taken", "Recently Updated Tickets", "Urgent Tickets"]) {
+        const table = loading.getByRole("region", { name: title, exact: true });
+        await expect(table).toBeVisible();
+        if (viewport.width === 1440) {
+          await expect(table.getByRole("table", { name: title })).toBeVisible();
+          await expect(table.locator("tbody tr")).toHaveCount(5);
+        } else await expect(table.locator(".d-xl-none > div")).toHaveCount(5);
+      }
+      await expect(page.getByRole("button", { name: "Refresh", exact: true })).toBeDisabled();
+      await noPageOverflow(page);
+      await screenshot(page, "dashboard-loading", `${role.toLowerCase()}-${viewport.width}x${viewport.height}`);
+    } finally { release(); }
+    await expect(page.getByRole("link", { name: role === "REQUESTER" ? "Active Tickets: 8. View tickets" : "Unassigned: 4. View tickets" })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Loading Dashboard" })).toHaveCount(0);
+  });
+
+  test(`${role === "REQUESTER" ? "RESP-01" : "RESP-02"} ${role} Dashboard ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await stub(page, role);
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+    const label = role === "REQUESTER" ? "Active Tickets: 8. View tickets" : "Unassigned: 4. View tickets";
+    await expect(page.getByRole("link", { name: label })).toBeVisible();
+    await expect(page.getByRole("searchbox")).toHaveCount(0);
+    await expect(page.getByLabel("Recently Updated" + (role === "REQUESTER" ? "" : " Tickets") + " list size")).toBeVisible();
+    await noPageOverflow(page);
+    if (role === "REQUESTER") {
+      const quick = page.getByRole("region", { name: "Quick Actions" });
+      if (viewport.width === 390) await expect(quick).toBeVisible(); else await expect(quick).not.toBeVisible();
+      // Measure all layout offsets in one browser turn; page-enter transforms do not alter layout.
+      const positions = await page.getByRole("link", { name: /\. View tickets$/ }).evaluateAll((links) => links.map((link) => ({ top: link.parentElement!.offsetTop, height: link.parentElement!.offsetHeight })));
+      if (viewport.width === 390) expect(positions[1].top).toBeGreaterThan(positions[0].top + positions[0].height);
+      if (viewport.width === 1440) expect(new Set(positions.map((position) => position.top)).size).toBe(1);
+    }
+    await screenshot(page, role === "REQUESTER" ? "requester-dashboard" : role === "IT_STAFF" ? "staff-dashboard" : "admin-dashboard", `${role.toLowerCase()}-${viewport.width}x${viewport.height}`);
+    for (const title of role === "REQUESTER" ? ["Recently Updated"] : ["My Actions Taken", "Recently Updated Tickets", "Urgent Tickets"]) {
+      await page.getByRole("heading", { name: title, exact: true }).scrollIntoViewIfNeeded();
+      await noPageOverflow(page);
+      await screenshot(page, "dashboard-tables", `${role.toLowerCase()}-${viewport.width}x${viewport.height}-${title.replaceAll(" ", "-").toLowerCase()}`);
+    }
+    const endpoint = role === "REQUESTER" ? "/api/users/me/dashboard" : "/api/dashboard";
+    const zero = role === "REQUESTER" ? { metrics: { activeTickets: 0, waitingForRequester: 0, resolvedTickets: 0, closedTickets: 0 }, recentTickets: [] } : { metrics: { unassignedTickets: 0, myAssignedTickets: 0, inProgressTickets: 0, waitingForRequester: 0, highPriorityTickets: 0 }, myActions: [], recentTickets: [], urgentTickets: [] };
+    await page.route(`http://127.0.0.1:3000${endpoint}?**`, (route) => route.fulfill({ status: 200, headers: { ...CORS, "Cache-Control": "no-store" }, json: zero }));
+    await page.reload();
+    await expect(page.getByRole("link", { name: role === "REQUESTER" ? "Active Tickets: 0. View tickets" : "Unassigned: 0. View tickets" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No recent tickets", exact: true }).first()).toBeAttached();
+    await noPageOverflow(page);
+    await screenshot(page, "dashboard-zero", `${role.toLowerCase()}-${viewport.width}x${viewport.height}`);
   });
 }

@@ -33,7 +33,7 @@ describe("Issue 3 safe auth errors", () => {
     await screen.findByText("Staff");
     await user.click(screen.getByRole("button", { name: "Open forbidden page" }));
     expect(await screen.findByText("403")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/staff/tickets");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/dashboard");
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 });

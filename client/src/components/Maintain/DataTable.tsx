@@ -149,6 +149,8 @@ export interface IDataTableProps<T extends object = Record<string, unknown>> {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
 
+  showToolbar?: boolean;
+
   // Layout & Styling
   containerClassName?: string;
 
@@ -231,6 +233,7 @@ export function DataTable<T extends object>({
   createButtonAriaLabel,
   cardClassName,
   cardTitle,
+  showToolbar = true,
   cardActions,
 
   fetchData,
@@ -745,7 +748,7 @@ export function DataTable<T extends object>({
 
       <Card className={cardClassName} title={cardTitle} actions={cardActions}>
         {/* Unified Toolbar matching Tickets layout: row g-3 mb-3 align-items-end */}
-        <div className="row g-3 mb-3 align-items-end">
+        {showToolbar && <div className="row g-3 mb-3 align-items-end">
           <div className="col-12 col-lg">
             <form
               onSubmit={(e) => {
@@ -808,7 +811,7 @@ export function DataTable<T extends object>({
               </select>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Active Filter Chips & Clear Filters row */}
         {(resolvedChips.length > 0 || isSearchActive) && (

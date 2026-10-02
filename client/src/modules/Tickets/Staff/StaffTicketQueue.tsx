@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye } from "lucide-react";
 import { ApiResponseError, readPaginationHeader, type MasterDataItem } from "../../../api.js";
 import { useAuth } from "../../../auth/AuthProvider.js";
@@ -53,7 +53,20 @@ export default function StaffTicketQueue() {
   const detailPath = user?.role === "ADMINISTRATOR" ? "/admin/tickets" : "/staff/tickets";
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState<QueueFilter[]>(DEFAULT_QUEUE_FILTERS);
+  const [urlParams, setUrlParams] = useSearchParams();
+  const rawFilters = urlParams.get("filters");
+  let filters: QueueFilter[] = DEFAULT_QUEUE_FILTERS;
+  if (rawFilters !== null) {
+    try {
+      const parsed: unknown = JSON.parse(rawFilters);
+      if (Array.isArray(parsed) && parsed.every((entry) => typeof entry === "object" && entry !== null && typeof entry.field === "string" && typeof entry.condition === "string")) filters = parsed;
+    } catch { /* The default Queue remains available for a malformed browser URL. */ }
+  }
+  function setFilters(next: QueueFilter[]) {
+    const params = new URLSearchParams(urlParams);
+    params.set("filters", JSON.stringify(next));
+    setUrlParams(params);
+  }
   const [draft, setDraft] = useState<QueueFilter[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [sort, setSort] = useState("");

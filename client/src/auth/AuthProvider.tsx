@@ -61,10 +61,8 @@ function validUser(value: unknown): value is CurrentUserDTO {
   return typeof candidate.publicId === "string" && typeof candidate.name === "string" && typeof candidate.email === "string" && candidate.isActive === true && typeof candidate.mustChangePassword === "boolean" && (candidate.role === "REQUESTER" || candidate.role === "IT_STAFF" || candidate.role === "ADMINISTRATOR") && (candidate.sessionStage === "FULL" || candidate.sessionStage === "PASSWORD_CHANGE_REQUIRED");
 }
 
-function roleHome(role: UserRole): string {
-  if (role === "REQUESTER") return "/tickets";
-  if (role === "IT_STAFF") return "/staff/tickets";
-  return "/admin/users";
+function roleHome(_role: UserRole): string {
+  return "/dashboard";
 }
 
 export { roleHome };

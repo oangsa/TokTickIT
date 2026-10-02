@@ -23,7 +23,7 @@ describe("Issue 3 Login", () => {
     await user.type(screen.getByLabelText("Password *"), "Password1!");
     await user.click(screen.getByLabelText("Remember me"));
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { name: "My Tickets" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
     const loginCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("/api/auth/login"));
     expect(JSON.parse(String((loginCall?.[1] as RequestInit).body))).toEqual({ email: "alice@example.com", password: "Password1!", rememberMe: true });
   });

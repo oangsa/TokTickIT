@@ -172,7 +172,8 @@ test("E2E-04 Requester reopen clears Staff ownership and returns Ticket to queue
     await page.getByLabel("Email *").fill(fixture.requester.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
     await page.goto(`/tickets/${ticket.publicId}`);
     await page.getByRole("button", { name: "Problem Still Exists" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Reopen Ticket" }).click();
@@ -228,7 +229,8 @@ test("E2E-06 Requester sees Public Comments, can reply, and AC-28 waiting status
     await page.getByLabel("Email *").fill(fixture.requester.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
 
     await page.goto(`/tickets/${ticket.publicId}`);
     await expect(page.getByRole("heading", { name: ticket.ticketNumber })).toBeVisible();
@@ -290,7 +292,8 @@ test("E2E-06 Cross-Requester access returns safe 404 @issue-6", async ({ page })
     await page.getByLabel("Email *").fill(fixture.requester.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
 
     // Attempt to navigate to a nonexistent or non-owned ticket
     await page.goto("/tickets/00000000-0000-0000-0000-000000000000");

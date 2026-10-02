@@ -56,7 +56,8 @@ for (const administrator of [false, true]) test(`E2E-02 ${administrator ? "Admin
     const requester = await requesterContext.newPage();
     await requester.goto("/login"); await requester.getByLabel("Email *", { exact: true }).fill(fixture.requester.email);
     await requester.getByLabel("Password *", { exact: true }).fill(fixture.password);
-    await requester.getByRole("button", { name: "Sign in", exact: true }).click(); await expect(requester).toHaveURL(/\/tickets$/);
+    await requester.getByRole("button", { name: "Sign in", exact: true }).click(); await expect(requester).toHaveURL(/\/dashboard$/);
+    await requester.goto("/tickets");
     await requester.goto(`/tickets/${ticket.publicId}`);
     await requester.getByRole("button", { name: "Problem appears resolved", exact: true }).click();
     await expect(requester.getByRole("button", { name: "Resolution confirmed", exact: true })).toBeDisabled();

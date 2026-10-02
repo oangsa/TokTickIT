@@ -159,7 +159,8 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page,
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
     // Requester role lands on /tickets
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
   } finally {
     // Clean up created target user
     await fixture.prisma.userSession.deleteMany({ where: { user: { email: targetEmail } } });
@@ -226,7 +227,8 @@ test("E2E-05 concurrent Administrator deactivation preserves last active Adminis
     await otherPage.getByLabel("Email *").fill(secondAdmin.email);
     await otherPage.getByLabel("Password *").fill(fixture.password);
     await otherPage.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(otherPage).toHaveURL(/\/admin\/users$/);
+    await expect(otherPage).toHaveURL(/\/dashboard$/);
+    await otherPage.goto("/admin/users");
     await page.goto(`/admin/users/${secondAdmin.publicId}/edit`);
     await otherPage.goto(`/admin/users/${fixture.admin.publicId}/edit`);
     await expect(page.getByLabel("Active", { exact: true })).toBeChecked();
@@ -281,7 +283,8 @@ test("E2E-06 Non-Administrator roles cannot access User Management @issue-6", as
     await page.getByLabel("Email *").fill(fixture.requester.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
 
     await page.goto("/admin/users");
     await expect(page).toHaveURL(/\/error$/);
@@ -293,7 +296,8 @@ test("E2E-06 Non-Administrator roles cannot access User Management @issue-6", as
     await page.getByLabel("Email *").fill(fixture.staff.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/staff\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/staff/tickets");
 
     await page.goto("/admin/users");
     await expect(page).toHaveURL(/\/error$/);

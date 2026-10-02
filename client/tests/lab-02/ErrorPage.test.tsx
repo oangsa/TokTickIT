@@ -107,12 +107,12 @@ describe("UI-31 and UI-35 global error page", () => {
   it("sends Back to the authenticated role home", async () => {
     await renderErrorVia({ status: 404 });
 
-    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/dashboard");
   });
 
   it("ignores a caller-supplied backPath rather than following it", async () => {
     await renderErrorVia({ status: 404, backPath: "https://evil.example/" });
 
-    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/dashboard");
   });
 });
