@@ -74,3 +74,12 @@ Only supplied prompts and observed results from this session were added; histori
 | Accept the amended #80/Lab 4 read contract: creatorPublicId and bounded Ticket-scoped filter-users reads only; no mutation authorization, assignment eligibility, schema/migration or Ticket-workflow changes. | Recorded explicit owner acceptance in specification.md, scoped feature evidence and PR #87/Issue #80 review-basis summaries, resolving the contract-basis blocker. Retained the exception's exact limits and separate peer-review/#83 integration gates. Continued documentation publication under existing commit/push authorization; no production changes, application test/build rerun, merge or Issue closure. |
 
 Only supplied prompts and observed work are recorded; prior records remain unchanged.
+
+## Issue #80 B-01 browser evidence — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Approve with catch: reviewer cannot independently verify B-01 Lab 4 screenshots, keyboard/focus and real-server Action integration. | Downloaded exact-head CI logs/report and verified Lab 4 responsive and real-server smoke already passed despite Lab 3 labels; confirmed zero Lab 4 screenshot attachments. Added screenshot/focus/real-server report attachments and a clearly named workflow artifact without application behavior changes. Baseline responsive passed nine; final guarded browser run passed ten with one deliberate #83 skip; parsed 89 accessible image attachments. Both application builds/TypeScript checks, YAML/artifact-path validation and whitespace passed. New screenshot publication remains pending commit/push and new-head CI artifact verification. No merge, Issue closure or #83 acceptance claimed. |
+| Approve commit/push and verification of the new CI artifact. | Authorized publication of the six reviewed evidence/tooling files on the existing #80 feature branch. Reused the completed local browser/build checks, reviewed staging scope and whitespace, and retained the separate new-head CI artifact verification gate. Earlier pending-publication wording records the pre-publication checkpoint; no merge, Issue closure or #83 acceptance authorized. |
+
+Only this supplied prompt and observed work were added; existing historical records remain intact.

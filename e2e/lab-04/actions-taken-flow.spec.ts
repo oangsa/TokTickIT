@@ -33,6 +33,7 @@ test("Action UI integrates with real frozen APIs: create, start, complete, Reque
     await expect(page.getByText("Synthetic completed result", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
     await expect(page.getByText("completed an Action.", { exact: false })).toBeVisible();
+    await test.info().attach("real-server-completed-action-staff", { body: await page.screenshot(), contentType: "image/png" });
     const context = await page.context().browser()!.newContext({ baseURL: "http://127.0.0.1:5173" });
     const requester = await context.newPage();
     try {
@@ -46,6 +47,7 @@ test("Action UI integrates with real frozen APIs: create, start, complete, Reque
       await expect(requester.getByRole("button", { name: "Preview synthetic-evidence.txt" })).toBeVisible();
       await expect(requester.getByRole("heading", { name: "Activity", exact: true })).toHaveCount(0);
       await expect(requester.getByRole("button", { name: /^(Edit|Assign|Reassign|Unassign|Start|Complete|Cancel)$/ })).toHaveCount(0);
+      await test.info().attach("real-server-completed-action-requester-read-only", { body: await requester.screenshot(), contentType: "image/png" });
     } finally { await context.close(); }
   } finally {
     // Append-only audit records intentionally remain on the guarded disposable target.

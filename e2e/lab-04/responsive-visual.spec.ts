@@ -33,7 +33,9 @@ async function stub(page: Page, role: "IT_STAFF" | "ADMINISTRATOR" | "REQUESTER"
 async function screenshot(page: Page, section: string, name: string) {
   const directory = `artifacts/lab-04/screenshots/${section}`;
   await mkdir(directory, { recursive: true });
-  await page.screenshot({ path: `${directory}/${name}.png`, fullPage: false });
+  const path = `${directory}/${name}.png`;
+  await page.screenshot({ path, fullPage: false });
+  await test.info().attach(`${section}/${name}`, { path, contentType: "image/png" });
 }
 async function noPageOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -59,6 +61,7 @@ for (const viewport of widths) for (const role of ["IT_STAFF", "ADMINISTRATOR", 
       await lookup.getByRole("button", { name: "Select Former Staff", exact: true }).filter({ visible: true }).click();
       await expect(filters.getByLabel(label, { exact: true })).toHaveValue("Former Staff");
       await expect(trigger).toBeFocused();
+      await screenshot(page, "keyboard-focus", `${name}-${label === "Assigned To" ? "assigned-to" : "performed-by"}-restored`);
     }
     await noPageOverflow(page); await screenshot(page, "action-filters", name);
     await filters.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -86,7 +89,9 @@ for (const viewport of widths) for (const role of ["IT_STAFF", "ADMINISTRATOR", 
       await noPageOverflow(page); await screenshot(page, "assignee-selection", name);
       await page.keyboard.press("Shift+Tab");
       await expect(lookup.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+      await screenshot(page, "keyboard-focus", `${name}-lookup-shift-tab`);
       await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
+      await screenshot(page, "keyboard-focus", `${name}-lookup-escape-restored`);
       await form.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.getByRole("button", { name: "Discard Changes", exact: true }).click();
       await page.getByRole("link", { name: "View Inspect port", exact: true }).filter({ visible: true }).first().click();
