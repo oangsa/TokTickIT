@@ -64,3 +64,12 @@ Lab 4 compatibility maintenance: inherited Lab 2 AttachmentSection tests retain 
 | Commit and push. | Authorized publication of the nine reviewed Role-sort follow-up files on feature/80-actions-taken-ui-global-lookup. Reused completed client (414 tests), guarded server (1,346 tests) and both build results; checked the full diff, explicit staging scope, whitespace and secret exposure. Earlier uncommitted wording records the pre-publication checkpoint. No new application run, merge, Issue closure or final release acceptance claimed. |
 
 Only supplied prompts and observed results from this session were added; historical records remain intact.
+
+## Issue #80 PR #87 review-basis/evidence synchronization — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| PR #87 scrutiny review: fix-then-ship; resolve historical frontend-only versus amended read-contract basis and synchronize stale PR/Issue evidence. | Requested explicit owner acceptance of the narrow read exception rather than treating the feature branch's amendment as self-approval. Independently updated and fetched back PR #87/Issue #80 evidence summaries to recorded 414 client, 1,346 guarded server and 173 focused API results. Inspected successful production-head GitHub CI logs: 414 client and 1,346 server tests, both builds, and 80 Lab 3 browser cases passed / 1 skipped. Distinguished CI from local focused/historical browser evidence; retained #83 integration ownership and open PR/Issue states. No production changes, new tests, local application rerun, commit/push, merge, Issue closure or peer-review acceptance. Contract acceptance remains pending; detailed observations are in evidence/issue-80.md. |
+| Commit and push. | Authorized publication of the two reviewed Lab 4 evidence/AI-use documentation files on the existing #80 feature branch. Reused the independently inspected production-head CI and recorded local evidence; checked whitespace, the full diff, explicit staging scope and secret patterns. No production behavior changed or application checks rerun. Earlier uncommitted wording records the pre-publication checkpoint; publication does not approve the pending read-contract basis, merge the PR or close the Issue. |
+
+Only supplied prompts and observed work are recorded; prior records remain unchanged.
