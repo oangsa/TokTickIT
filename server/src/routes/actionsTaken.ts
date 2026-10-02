@@ -22,6 +22,13 @@ for (const [path, guard] of [["/tickets/:ticketPublicId/actions", staff], ["/use
       res.json(result.items);
     } catch (error) { next(error); }
   });
+  actionsTakenRouter.get(`${path}/filter-users`, guard, async (req, res, next) => {
+    try {
+      const result = await new ActionTakenService(getPrisma()).filterUsers(req.auth!, req.params.ticketPublicId, req.query);
+      setPaginationHeader(res, result.pagination);
+      res.json(result.items);
+    } catch (error) { next(error); }
+  });
   actionsTakenRouter.get(`${path}/:actionPublicId`, guard, async (req, res, next) => {
     try { res.json(await new ActionTakenService(getPrisma()).detail(req.auth!, req.params.ticketPublicId, req.params.actionPublicId)); }
     catch (error) { next(error); }

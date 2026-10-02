@@ -1,6 +1,9 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
+import { fetchCollection } from "../../../collections/fetchCollection.js";
+import { ActionsTaken } from "../../Actions/ActionsTaken.js";
+import { ActivityTimeline } from "../../Actions/ActivityTimeline.js";
 import { ApiResponseError } from "../../../api.js";
 import { useAuth } from "../../../auth/AuthProvider.js";
 import { useAuthenticatedApi } from "../../../auth/useAuthenticatedApi.js";
@@ -70,6 +73,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [actionRevision, setActionRevision] = useState(0);
   const [reloadCount, setReloadCount] = useState(0);
   const [activeTab, setActiveTab] = useState<"comments" | "notes">("comments");
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
@@ -100,7 +104,17 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     setLookupOpen(true); setLookupError(false); setOwnerPublicId(ticket?.owner?.publicId ?? "");
     const current = generation.current;
     try {
-      const users = await callApi<TicketOwnerDTO[]>("/api/users/assignable");
+      const users: TicketOwnerDTO[] = [];
+      let page = 1;
+      let more = true;
+      while (more) {
+        const query = new URLSearchParams({ sort: "name:asc", pageNumber: String(page), pageSize: "100" });
+        const result = await fetchCollection<TicketOwnerDTO>(callApi, `/api/users/assignable?${query}`);
+        if (current !== generation.current) return;
+        users.push(...result.data);
+        page++;
+        more = Boolean(result.hasNext && page <= (result.totalPages ?? 0));
+      }
       if (current === generation.current) setOwners(users);
     } catch { if (current === generation.current) setLookupError(true); }
   }
@@ -256,6 +270,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
           </ul>
         )}
       </Card>
+      <ActionsTaken key={ticket.publicId} ticket={ticket} onChanged={() => setActionRevision((value) => value + 1)} />
       <Card title="Communication">
         {communicationSlot ? (
           communicationSlot(ticket, reload)
@@ -302,6 +317,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
           </div>
         )}
       </Card>
+      <ActivityTimeline key={`activity-${ticket.publicId}`} ticketPublicId={ticket.publicId} refreshTrigger={`${ticket.updatedAt}-${reloadCount}-${actionRevision}`} />
     </div>
     <AttachmentPreviewModal target={preview} onClose={() => setPreview(null)} basePath={`${basePath}/attachments`} />
     <Modal open={lookupOpen} title="Choose Ticket Owner" onClose={() => !busy && setLookupOpen(false)} footer={<><Button onClick={() => setLookupOpen(false)}>Cancel</Button><Button variant="primary" disabled={lookupError || busy || terminal || ownerPublicId === (ticket.owner?.publicId ?? "")} onClick={saveOwner}>Apply Owner</Button></>}>

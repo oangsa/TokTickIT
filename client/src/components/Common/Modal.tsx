@@ -14,6 +14,16 @@ interface ModalProps {
   closeLabel?: string;
 }
 
+const openDialogs: HTMLElement[] = [];
+function isolateDialogs() {
+  for (const dialog of openDialogs) {
+    const covered = dialog !== openDialogs.at(-1);
+    dialog.toggleAttribute("inert", covered);
+    if (covered) dialog.setAttribute("aria-hidden", "true");
+    else dialog.removeAttribute("aria-hidden");
+  }
+}
+
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -46,6 +56,8 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
     }
 
     invokerRef.current = document.activeElement;
+    const dialog = dialogRef.current;
+    if (dialog) { openDialogs.push(dialog); isolateDialogs(); }
 
     /*
      * Focus the dialog itself, not its first focusable control. That control is
@@ -65,6 +77,7 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
     document.body.style.overflow = "hidden";
 
     return () => {
+      if (dialog) { const index = openDialogs.indexOf(dialog); if (index >= 0) openDialogs.splice(index, 1); isolateDialogs(); }
       document.body.style.overflow = previousOverflow;
       (invokerRef.current as HTMLElement | null)?.focus?.();
     };
@@ -85,6 +98,7 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (openDialogs.at(-1) !== dialogRef.current) return;
     if (event.key === "Escape") {
       /*
        * The shell's mobile drawer listens for Escape on `document`, and this
@@ -141,7 +155,7 @@ export function Modal({ open, title, onClose, children, footer, size, closeLabel
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className={["modal-dialog", "modal-dialog-centered", size ? `modal-${size}` : null]
+          className={["modal-dialog", "modal-dialog-centered", "modal-dialog-scrollable", size ? `modal-${size}` : null]
             .filter(Boolean)
             .join(" ")}
         >

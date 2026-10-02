@@ -1,9 +1,11 @@
 import type { Ticket } from "../../../api.js";
 import { Chip, type ChipProps, type ChipVariant } from "../../../components/Common/Chip.js";
 
-export type StatusValue = Ticket["currentStatus"];
+export type StatusValue = Ticket["currentStatus"] | "PLANNED" | "COMPLETED";
 
 const STATUS_VARIANT: Record<StatusValue, ChipVariant> = {
+  PLANNED: "subtle",
+  COMPLETED: "secondary",
   NEW: "subtle",
   OPEN: "subtle",
   IN_PROGRESS: "secondary",

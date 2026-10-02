@@ -188,10 +188,71 @@ it.each(["/api", "/api/users/me"])("API-03 %s migrated list bounded and query va
   mock.actionTaken.findMany.mockResolvedValue([actionRow({ isMigrated: true, status: "COMPLETED" })]);
   const user = prefix.endsWith("me") ? REQUESTER : STAFF;
   const response = await request(app).get(`${prefix}/tickets/${TICKET_ID}/actions`).set("Authorization", bearerToken(tokens, user.id));
-  expect(response.body[0]).toMatchObject({ isMigrated: true, status: "COMPLETED" });
-  expect(Object.keys(response.body[0]).sort()).toEqual(["publicId", "ticketPublicId", "status", "description", "assignedTo", "performedBy", "followUpRequired", "isMigrated", "createdAt", "updatedAt", "version"].sort());
+  expect(response.body[0]).toMatchObject({ isMigrated: true, status: "COMPLETED", creatorPublicId: STAFF.publicId });
+  expect(Object.keys(response.body[0]).sort()).toEqual(["publicId", "ticketPublicId", "creatorPublicId", "status", "description", "assignedTo", "performedBy", "followUpRequired", "isMigrated", "createdAt", "updatedAt", "version"].sort());
   const invalid = await request(app).get(`${prefix}/tickets/${TICKET_ID}/actions?sort=creator:asc`).set("Authorization", bearerToken(tokens, user.id));
   expect(invalid.status).toBe(400);
+});
+
+it.each(["/api", "/api/users/me"])("%s historical Action filter users are distinct, bounded and safe", async (prefix) => {
+  const user = prefix.endsWith("me") ? REQUESTER : STAFF;
+  mock.user.count.mockResolvedValue(12);
+  mock.user.findMany.mockResolvedValue([{ ...ADMIN, isActive: false, deleted: true, role: "REQUESTER" }]);
+  for (const reference of ["assignedTo", "performedBy"]) {
+    const response = await request(app).get(`${prefix}/tickets/${TICKET_ID}/actions/filter-users?reference=${reference}&pageNumber=2&pageSize=10&search=Admin&searchFields=name&sort=name:asc`).set("Authorization", bearerToken(tokens, user.id));
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([{ publicId: ADMIN.publicId, name: ADMIN.name, role: "REQUESTER" }]);
+    expect(JSON.parse(response.headers["x-pagination"])).toMatchObject({ totalItems: 12, pageNumber: 2, pageSize: 10 });
+    expect(mock.user.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { AND: [{ [reference === "assignedTo" ? "assignedActions" : "performedActions"]: { some: { ticketId: 31 } } }, { OR: [{ name: { contains: "Admin", mode: "insensitive" } }] }] },
+      select: { publicId: true, name: true, role: true }, skip: 10, take: 10,
+      orderBy: [{ name: "asc" }, { publicId: "asc" }],
+    }));
+  }
+});
+
+it.each([undefined, "creator", ["assignedTo", "performedBy"]])("invalid filter-user reference %s is rejected", async (reference) => {
+  const response = await request(app).get(`/api/tickets/${TICKET_ID}/actions/filter-users`).query({ reference }).set("Authorization", bearerToken(tokens, STAFF.id));
+  expect(response.status).toBe(400); expect(response.body.details[0].field).toBe("reference");
+  expect(mock.user.count).not.toHaveBeenCalled();
+});
+it.each(["/api", "/api/users/me"])("%s historical-user Role sorting accepts both directions with publicId ASC tie-break", async (prefix) => {
+  const user = prefix.endsWith("me") ? REQUESTER : ADMIN;
+  mock.user.count.mockResolvedValue(1);
+  mock.user.findMany.mockResolvedValue([STAFF]);
+  for (const reference of ["assignedTo", "performedBy"]) for (const direction of ["asc", "desc"]) {
+    const response = await request(app).get(`${prefix}/tickets/${TICKET_ID}/actions/filter-users`).query({ reference, sort: `role:${direction}` }).set("Authorization", bearerToken(tokens, user.id));
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([{ publicId: STAFF.publicId, name: STAFF.name, role: STAFF.role }]);
+    expect(mock.user.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ orderBy: [{ role: direction }, { publicId: "asc" }] }));
+  }
+});
+it("historical-user invalid sort explains only its approved name/role fields", async () => {
+  const response = await request(app).get(`/api/tickets/${TICKET_ID}/actions/filter-users`).query({ reference: "assignedTo", sort: "email:asc" }).set("Authorization", bearerToken(tokens, STAFF.id));
+  expect(response.status).toBe(400);
+  expect(response.body.details).toEqual([{ field: "sort", message: "sort must use an approved field (name, role) with asc or desc." }]);
+  expect(mock.user.count).not.toHaveBeenCalled();
+});
+it.each(["pageSize=101", "pageNumber=1.5", "searchFields=email", "sort=email:asc", "searchFields=role", "unknown=true", "filters=bad"])("historical-user query rejects %s", async (query) => {
+  const response = await request(app).get(`/api/tickets/${TICKET_ID}/actions/filter-users?reference=assignedTo&${query}`).set("Authorization", bearerToken(tokens, STAFF.id));
+  expect(response.status).toBe(400); expect(response.body.code).toBe("VALIDATION_ERROR");
+  expect(mock.user.count).not.toHaveBeenCalled();
+});
+it("historical-user routes enforce authentication, role and Ticket ownership before reading users", async () => {
+  const base = `/tickets/${TICKET_ID}/actions/filter-users?reference=assignedTo`;
+  expect((await request(app).get(`/api${base}`)).status).toBe(401);
+  expect((await request(app).get(`/api${base}`).set("Authorization", bearerToken(tokens, REQUESTER.id))).status).toBe(403);
+  expect((await request(app).get(`/api/users/me${base}`).set("Authorization", bearerToken(tokens, STAFF.id))).status).toBe(403);
+  mock.ticket.findFirst.mockResolvedValue(null);
+  expect((await request(app).get(`/api/users/me${base}`).set("Authorization", bearerToken(tokens, REQUESTER.id))).status).toBe(404);
+  expect(mock.ticket.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: { publicId: TICKET_ID, deleted: false, requesterId: REQUESTER.id } }));
+  expect(mock.user.count).not.toHaveBeenCalled();
+});
+it("historical-user empty page is bounded and does not scan Actions", async () => {
+  mock.user.count.mockResolvedValue(0);
+  const response = await request(app).get(`/api/tickets/${TICKET_ID}/actions/filter-users?reference=performedBy&pageNumber=9`).set("Authorization", bearerToken(tokens, ADMIN.id));
+  expect(response.status).toBe(200); expect(response.body).toEqual([]);
+  expect(mock.user.findMany).not.toHaveBeenCalled(); expect(mock.actionTaken.findMany).not.toHaveBeenCalled();
 });
 it.each(["creator", "assignee", "owner", "admin-owner", "unrelated-staff", "unrelated-admin"])("actor matrix %s obeys every Action authority", async (kind) => {
   const { testUser } = await import("../lab-02/support/authenticatedRequester.js");

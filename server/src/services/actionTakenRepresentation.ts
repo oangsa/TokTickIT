@@ -3,7 +3,7 @@ import { toAttachmentDTO } from "./ticketRepresentation.js";
 import { USER_SUMMARY_SELECT, type UserSummaryDTO } from "./staffTicketReadService.js";
 
 export const ACTION_LIST_SELECT = {
-  publicId: true, ticket: { select: { publicId: true } }, status: true, description: true,
+  publicId: true, ticket: { select: { publicId: true } }, creator: { select: { publicId: true } }, status: true, description: true,
   assignedTo: { select: USER_SUMMARY_SELECT }, performedBy: { select: { publicId: true, name: true, role: true } },
   followUpRequired: true, isMigrated: true, createdAt: true, updatedAt: true, version: true,
 } satisfies Prisma.ActionTakenSelect;
@@ -18,7 +18,7 @@ export function toUserSummary(user: ActionListRow["assignedTo"]): UserSummaryDTO
   return user ? { publicId: user.publicId, name: user.name, email: user.email, role: user.role } : null;
 }
 export function toActionListDTO(row: ActionListRow) {
-  return { publicId: row.publicId, ticketPublicId: row.ticket.publicId, status: row.status, description: row.description,
+  return { publicId: row.publicId, ticketPublicId: row.ticket.publicId, creatorPublicId: row.creator.publicId, status: row.status, description: row.description,
     assignedTo: toUserSummary(row.assignedTo), performedBy: row.performedBy ? { publicId: row.performedBy.publicId, name: row.performedBy.name, role: row.performedBy.role } : null,
     followUpRequired: row.followUpRequired, isMigrated: row.isMigrated, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), version: row.version };
 }

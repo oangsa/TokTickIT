@@ -1,5 +1,5 @@
-import { Eye, EyeOff, Search } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
 import {
   FormProvider,
   type FieldErrors,
@@ -7,6 +7,7 @@ import {
   type Path,
 } from "react-hook-form";
 
+import { LookupField } from "../Lookup/LookupField.js";
 import { Card } from "../Card.js";
 import { Button } from "../Button.js";
 import { IconButton } from "../IconButton.js";
@@ -103,7 +104,8 @@ function FieldRenderer<TValues extends FieldValues>({
   const isFieldDisabled = isFormDisabled || Boolean(field.disabled);
   const showRequired = !isView && Boolean(field.required);
 
-  const id = `field-${String(field.name).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const instanceId = useId().replace(/:/g, "");
+  const id = `field-${String(field.name).replace(/[^a-zA-Z0-9_-]/g, "-")}-${instanceId}`;
   const error = isView ? undefined : fieldError(form.formState.errors, field.name);
   const helperText = isView ? undefined : ([field.description, field.helpText].filter(Boolean).join(" ") || undefined);
   const descriptionId = `${id}-description`;
@@ -214,8 +216,7 @@ function FieldRenderer<TValues extends FieldValues>({
     control = <textarea className={`form-control${error ? " is-invalid" : ""}`} rows={field.rows ?? 4} placeholder={field.placeholder} maxLength={field.enforceMaxLength === false ? undefined : field.maxLength} {...common} {...registered} />;
   } else if (field.type === "lookup") {
     const lookup = field as LookupFormField<TValues>;
-    const lookupLabel = lookup.lookupLabel ?? `Lookup ${field.label}`;
-    control = <div className="input-group"><input className={`form-control${error ? " is-invalid" : ""}`} readOnly {...common} {...registered} /><IconButton className="btn-outline-secondary flex-shrink-0" label={lookupLabel} title={lookupLabel} disabled={isFieldDisabled} onClick={() => lookup.onLookup?.(field.name)}><Search size={16} aria-hidden="true" focusable="false" /></IconButton></div>;
+    control = <LookupField {...common} name={registered.name} ref={registered.ref} onBlur={() => void registered.onBlur({ target: { name: registered.name } })} label={field.label} value={String(value ?? "")} displayValue={lookup.displayName ? String(form.watch(lookup.displayName) ?? "") : lookup.displayValue} definition={lookup.definition} clearable={lookup.clearable} invalid={Boolean(error)} describedBy={describedBy} onChange={(next, text) => { form.setValue(field.name, next as never, { shouldDirty: true, shouldValidate: Boolean(error) }); if (lookup.displayName) form.setValue(lookup.displayName, text as never, { shouldDirty: true }); }} />;
   } else if (field.type === "attachment") {
     control = <input className={`form-control${error ? " is-invalid" : ""}`} type="file" accept={field.accept} multiple={field.multiple} {...common} {...registered} />;
   } else {

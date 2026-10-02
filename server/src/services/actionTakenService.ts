@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { ApiError } from "../http/errors.js";
 import { buildPaginationMetadata } from "../http/pagination.js";
 import { parseActionQuery } from "./actionTakenQueryValidator.js";
+import { parseAssignableUserQuery } from "./assignableUserQueryValidator.js";
 import { ACTION_DETAIL_INCLUDE, ACTION_LIST_SELECT, toActionDTO, toActionListDTO, type ActionTakenDTO } from "./actionTakenRepresentation.js";
 import { WAIT_ATTEMPTS, WAIT_POLL_MS } from "./createTicketFlow.js";
 import { hashIdempotencyRequest } from "./idempotencyRequest.js";
@@ -118,6 +119,22 @@ export class ActionTakenService {
       const skip = (query.pageNumber - 1) * query.pageSize;
       const rows = skip < totalItems ? await tx.actionTaken.findMany({ where, select: ACTION_LIST_SELECT, orderBy: buildOrderBy(query.order), skip, take: query.pageSize }) : [];
       return { items: rows.map(toActionListDTO), pagination: buildPaginationMetadata(query.pageNumber, query.pageSize, totalItems) };
+    }, { isolationLevel: "RepeatableRead" });
+  }
+  async filterUsers(actor: TicketActor, ticketPublicId: string, input: unknown) {
+    if (!record(input)) invalidField("query");
+    const { reference, ...parameters } = input;
+    if (reference !== "assignedTo" && reference !== "performedBy") invalidField("reference");
+    const query = parseAssignableUserQuery(parameters, ["name", "role"]);
+    if (parameters.searchFields !== undefined && parameters.searchFields !== "name") invalidField("searchFields");
+    return this.prisma.$transaction(async (tx) => {
+      const ticket = await this.ticket(tx, actor, ticketPublicId);
+      const relation = reference === "assignedTo" ? "assignedActions" : "performedActions";
+      const where = buildWhere({ base: [{ [relation]: { some: { ticketId: ticket.id } } }], search: query.search, filters: query.filters }) as Prisma.UserWhereInput;
+      const totalItems = await tx.user.count({ where });
+      const skip = (query.pageNumber - 1) * query.pageSize;
+      const items = skip < totalItems ? await tx.user.findMany({ where, select: { publicId: true, name: true, role: true }, orderBy: buildOrderBy(query.order), skip, take: query.pageSize }) : [];
+      return { items: items.map(({ publicId, name, role }) => ({ publicId, name, role })), pagination: buildPaginationMetadata(query.pageNumber, query.pageSize, totalItems) };
     }, { isolationLevel: "RepeatableRead" });
   }
   private async mutable(tx: Transaction, actor: TicketActor, ticketPublicId: string, actionPublicId: string) {

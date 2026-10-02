@@ -190,6 +190,7 @@ Existing Attachment DTO and uploader ownership remain authoritative. Lab 4 does 
 interface ActionTakenDTO {
   publicId: string;
   ticketPublicId: string;
+  creatorPublicId: string;
 
   status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 
@@ -240,6 +241,7 @@ Action collection endpoints return a bounded list projection rather than the ful
 interface ActionTakenListItemDTO {
   publicId: string;
   ticketPublicId: string;
+  creatorPublicId: string;
   status: ActionTakenDTO["status"];
   description: string;
   assignedTo: UserSummaryDTO | null;
@@ -583,6 +585,21 @@ Success:
 200 OK
 X-Pagination: ...
 ```
+
+### 7.1.1 Issue #80 / PR #87 contract follow-up — 2026-10-02
+
+The supplied fix request approves two additive corrections to the #79 read contract. Action list/detail DTOs expose `creatorPublicId`, allowing the UI to determine creator Edit visibility without per-row detail requests. Mutation authorization remains authoritative on the backend.
+
+```http
+GET /api/tickets/:ticketPublicId/actions/filter-users
+GET /api/users/me/tickets/:ticketPublicId/actions/filter-users
+```
+
+Staff/Admin use the first route; Requesters use the second route for their own non-deleted Tickets only. Missing, malformed, deleted or cross-owner Tickets return safe `404 NOT_FOUND`; authentication and existing route role guards apply. This static route precedes the Action UUID detail route.
+
+Required query: `reference=assignedTo|performedBy`. Return distinct Users referenced by that relation anywhere in the Ticket's Actions, independent of the currently loaded Action page, Action filters and current assignment eligibility. Historical inactive, deleted, demoted and SYSTEM references remain discoverable; unrelated Users and other Tickets' references are excluded. Null references use the existing Unassigned/Unknown filters, never fake Lookup rows.
+
+Response is a direct array of `{ publicId, name, role }` with validated `X-Pagination`. No email, credentials, internal IDs, account-management fields or Activity are exposed. Existing bounded User collection grammar applies: name-only search (`searchFields=name`, max 200 characters), name/role sort with stable publicId ASC tie-break, optional role/EQUAL filter for any of the three roles, pageNumber >=1, pageSize 1..100 (default 10). Unsupported keys, references, search fields, sorts and operators return `400 VALIDATION_ERROR`. Count and selected User page use one repeatable-read snapshot, with a relation `some` predicate; no Action-page scan or N+1 fetch. Assignment Lookup remains `/api/users/assignable` with its original eligibility policy.
 
 ### 7.2 Create Action
 
