@@ -138,3 +138,11 @@ The owner subsequently authorized commit and push of this nine-file follow-up on
 - Diff whitespace and credential-pattern checks found no issues. Remote feature HEAD matched local pre-commit `762e11d`.
 
 Logs: `/tmp/88-push-server.log`, `/tmp/88-push-client.log`, `/tmp/88-push-server-build.log`, `/tmp/88-push-client-build.log`, `/tmp/88-push-e2e.log`, `/tmp/88-push-migration-status.log`. Prior Red/Green evidence remains above; no new implementation cycle is claimed. Earlier unpublished/no-commit statements describe previous checkpoints. Commit/push outcome is reported after execution; no merge, live Issue edit, independent CI, peer-review approval or #83 acceptance is claimed.
+
+## Published-head evidence synchronization — 2026-10-02
+
+The supplied scrutiny review requested synchronization of the living Issue and PR evidence after audit-fix publication. Read-only GitHub metadata confirmed PR #88 at `2b5bbd040343f55500dff660c3d7f48d87e62483` with 36 changed paths. The historical 28-file implementation checkpoint expanded to 31 paths during the Lab 3 fixture/evidence follow-up; the published nine-file owner-cleanup audit follow-up added five paths, yielding 36. Earlier local/unpublished statements above describe historical checkpoints.
+
+Updated [Issue #81](https://github.com/oangsa/TokTickIT/issues/81) to record the published audit fix and distinguish historical checkpoints. Updated [PR #88](https://github.com/oangsa/TokTickIT/pull/88) to the recorded publication validation: server 90 files / 1,433 tests, client 35 files / 429 tests, browser 22 passed across E2E-02 and affected User/Staff/Requester flows, both builds passed, and `git diff --check` passed. These remain guarded local results. No head-SHA line was added to the PR description. Both live bodies still matched the preparation baseline before editing; exact body read-back verified both updates and the unchanged 36-path head afterward.
+
+GitHub now reports successful `server` and `client` checks on this head, unlike the supplied review snapshot. Their logs were not inspected in this task, so no independent CI test counts or runtime coverage are claimed. All #83-owned acceptance states remain unchanged. This task changed evidence only; no application tests/builds were rerun, and no new Red/Green cycle, commit, push, merge, Issue closure or peer-review acceptance is claimed.

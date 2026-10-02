@@ -113,3 +113,9 @@ Only the supplied prompt and observed work were added; existing historical recor
 | Prompt | Use of result |
 |---|---|
 | Commit and push. | Authorized committing and pushing the nine-file PR #88 owner-cleanup audit follow-up on `feature/81-ticket-workflow-resolution`. Reviewed the existing diff, preserved production code, and reran publication checks; results are recorded in `evidence/issue-81.md`. No new implementation Red cycle, merge, Issue closure, peer-review acceptance or #83 status promotion is claimed. |
+
+### Published-head evidence synchronization — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Supplied PR #88 scrutiny verdict: synchronize Issue #81 publication state and PR validation counts while preserving historical checkpoints and guarded local evidence wording. | Verified the published head and 36 paths; updated Issue #81 to distinguish historical 28/31-path checkpoints from the published audit follow-up, and PR #88 to recorded 1,433 server / 429 client / 22 browser results with both builds and whitespace checks. Verified unchanged bodies before editing and exact read-back afterward. Current GitHub metadata now reports successful server/client checks; their logs were not inspected or used for test-count claims. Preserved #83 ownership. Documentation-only task; no application rerun, commit, push, merge, closure or peer-review acceptance. |
