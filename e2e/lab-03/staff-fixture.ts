@@ -22,7 +22,7 @@ export async function createStaffFixture(count = 1) {
     tickets.push(await prisma.ticket.create({ data: { publicId: randomUUID(), ticketNumber: `TKT-20260916-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`, requesterId: requester.id, categoryId: category.id, relatedSystemId: system.id, summary: index === 0 ? "VPN disconnects after login" : `Support request ${index + 1}`, description: "Synthetic workflow fixture for Staff Queue verification.", requestedPriority: "MEDIUM", itPriority: index % 2 ? "MEDIUM" : "HIGH", currentStatus: "NEW", createdBy: "issue5-e2e", updatedBy: "issue5-e2e" } }));
   }
   return {
-    prisma, staff, requester, admin, password, tickets, category,
+    prisma, staff, requester, admin, password, tickets, category, suffix,
     async dispose() {
       const ids = tickets.map((ticket) => ticket.id);
       if (await prisma.ticketActivity.count({ where: { ticketId: { in: ids } } }) > 0) {

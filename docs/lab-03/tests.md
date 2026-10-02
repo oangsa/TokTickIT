@@ -1489,3 +1489,18 @@ Verification used the guarded disposable `toktickit_lab3_test` PostgreSQL 16 tar
 | `npm run build` in `client/` | TypeScript and Vite passed; exit 0. Existing Zod annotation and bundle-size warnings; exit 0. |
 
 GitHub's two prior Global Verification runs passed at `c556d37` before this local diff. No final-head CI result is claimed. PR #69 has a subsequent recorded approval; PR #75 remains changes requested, and PRs #72–#74 show no recorded reviews. DATA-11 remains blocked until review disposition and final-head/staging verification are recorded. Earlier compatibility-only statement above reflects its historical run, not this later complete browser execution.
+
+
+## E2E-05 duplicate-name regression (2026-10-02)
+
+Workflow fixtures deliberately retain audit-linked users on the guarded disposable target. Names therefore repeat across runs, and broad name searches can fill the default ten-row page before the current fixture appears. The golden-path test now creates another fixture with identical names as permanent regression coverage. Name-search assertions accept collections; email searches and the shared UUID suffix isolate the current fixture, while exact-name assertions are scoped to its public-ID rows. The suffix search must return exactly three users and exclude the other fixture. Role filtering and all account-management checks remain covered. No application, REST, schema, or audit-cleanup behavior changed.
+
+Verification used the existing disposable Lab 3 PostgreSQL container with captured baseline URLs and explicit guarded test overrides; credentials were not logged.
+
+- Red: `npm run test:e2e -- e2e/lab-03/user-administration.spec.ts -g 'golden path'` failed at the original name locator with ten matching cells after adding the duplicate-name fixture.
+- Green: the same command passed (1 test).
+- Broader regression: `npm run test:e2e -- e2e/lab-03/user-administration.spec.ts e2e/lab-03/staff-ticket-flow.spec.ts` passed (16 tests).
+- Final name-search coverage: `npm run test:e2e -- e2e/lab-03/user-administration.spec.ts` passed (4 tests).
+- `npm run build` in both `client/` and `server/` passed, including their TypeScript checks. Client build emitted dependency annotation and chunk-size warnings.
+- Additional strict E2E check: `server/node_modules/.bin/tsc --noEmit --target ES2022 --module ES2022 --moduleResolution bundler --esModuleInterop --skipLibCheck --strict --typeRoots server/node_modules/@types e2e/lab-03/staff-fixture.ts e2e/lab-03/user-administration.spec.ts` failed with six TS7034/TS7005 implicit-any diagnostics for existing `users` and `tickets` arrays. Running the same strict flags against a temporary copy of the committed fixture reproduced all six; this unrelated typing issue remains unchanged.
+- Full client/server unit/API and full Lab 3 browser suites were not rerun for this test-only change. No lint script is defined in the inspected packages. No commit or push.
