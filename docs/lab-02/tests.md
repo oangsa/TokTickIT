@@ -2973,3 +2973,29 @@ The Attachment staff-binary lookup and Ticket representation moved within `serve
 - `npm run build` in `server/` and `client/`: passed.
 
 An earlier full-server test attempt without explicit test overrides entered PostgreSQL suites while the local test target was unavailable and Lab 3 explicit overrides were absent; 23 suite hooks failed. It is not evidence of a full database-backed pass. The focused guarded PostgreSQL run above used only the disposable target, and its container was removed after the run.
+
+## Lab 4 inherited Lab 2 responsive CI follow-up (2026-10-03)
+
+CI reported that the mobile Create Ticket layout assertion failed at 390x844.
+The failure could not be reproduced locally: the exact case passed, passed ten
+repeats, and passed in its normal viewport order within the full responsive
+spec. The referenced CI screenshot/error-context/trace artifacts were not
+present in the workspace, so the CI-only condition remains unexplained. No
+application or test source changed.
+
+The authorized disposable Lab 3 tmpfs Docker target was `toktickit_lab3_test`
+at `127.0.0.1:55433`. Read-only Prisma status named that target and reported
+seven unapplied migrations before Playwright global setup applied migrations
+and seeded it. Docker Compose recreated its existing Lab 3 test container; the
+separate Lab 2 orphan container was left untouched.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Focused mobile Create Ticket | `npm run test:e2e -- e2e/lab-02/responsive-visual.spec.ts -g 'Create Ticket at 390x844'` | **Pass** — 1/1. |
+| Repeated mobile Create Ticket | `npm run test:e2e -- e2e/lab-02/responsive-visual.spec.ts -g 'Create Ticket at 390x844' --repeat-each=10` | **Pass** — 10/10. |
+| Full responsive visual spec | `npm run test:e2e -- e2e/lab-02/responsive-visual.spec.ts` | **Pass** — 9/9 across `1440x900`, `820x1180`, and `390x844`. |
+
+The passing responsive run refreshed only
+`create-ticket/390x844.png` and `create-ticket/390x844-attachments.png` as
+current mobile Create Ticket evidence. Playwright emitted the existing
+`NO_COLOR`/`FORCE_COLOR` warning; no test failed.
