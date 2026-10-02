@@ -14,6 +14,7 @@ async function stub(page: Page, role: "IT_STAFF" | "ADMINISTRATOR" | "REQUESTER"
     if (url.pathname === "/api/auth/refresh") data = { accessToken: "synthetic-ui-token", expiresIn: 600 };
     else if (url.pathname === "/api/auth/me") data = { ...staff, role, isActive: true, mustChangePassword: false, sessionStage: "FULL" };
     else if (url.pathname === "/api/users/assignable") { data = [staff, other]; collection = true; }
+    else if (url.pathname.endsWith("/actions/filter-users")) { data = [{ publicId: other.publicId, name: "Former Staff", role: "REQUESTER" }]; collection = true; }
     else if (url.pathname.endsWith("/activity")) {
       activityReads.push(url.pathname); collection = true;
       data = [{ publicId: "event-1", ticketPublicId: ticket.publicId, action: "ACTION_CREATED", performedBy: { ...staff, isSystem: false }, actionTaken: { publicId: action.publicId, previousAssignedTo: null, assignedTo: staff }, createdAt: action.createdAt }];
@@ -48,6 +49,19 @@ for (const viewport of widths) for (const role of ["IT_STAFF", "ADMINISTRATOR", 
     await expect(page.getByText("Inspect port", { exact: true }).filter({ visible: true }).first()).toBeVisible();
     await page.getByRole("heading", { name: "Actions Taken", exact: true }).scrollIntoViewIfNeeded();
     await noPageOverflow(page); await screenshot(page, "actions-taken", name);
+    await page.getByRole("button", { name: /^Filters/ }).first().click();
+    const filters = page.getByRole("dialog", { name: "Filter Actions", exact: true });
+    for (const label of ["Assigned To", "Performed By"]) {
+      const trigger = filters.getByRole("button", { name: `Lookup ${label}`, exact: true });
+      await trigger.click();
+      const lookup = page.getByRole("dialog", { name: `Select ${label}`, exact: true });
+      await expect(lookup.getByText("Requester", { exact: true }).filter({ visible: true })).toBeVisible();
+      await lookup.getByRole("button", { name: "Select Former Staff", exact: true }).filter({ visible: true }).click();
+      await expect(filters.getByLabel(label, { exact: true })).toHaveValue("Former Staff");
+      await expect(trigger).toBeFocused();
+    }
+    await noPageOverflow(page); await screenshot(page, "action-filters", name);
+    await filters.getByRole("button", { name: "Cancel", exact: true }).click();
     if (role !== "REQUESTER") {
       await page.getByRole("heading", { name: "Activity", exact: true }).scrollIntoViewIfNeeded();
       await screenshot(page, "ticket-activity", `${name}-ticket-history`);

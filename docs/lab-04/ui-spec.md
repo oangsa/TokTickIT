@@ -593,7 +593,7 @@ Follow-Up Required
 Created Date
 ```
 
-The implementation reuses existing filter components and commits only validated query expressions.
+The implementation reuses existing filter components and commits only validated query expressions. The approved PR #87 follow-up uses the shared Lookup for Assigned To/Performed By on every role, backed by the bounded Ticket-scoped referenced-user collection in API §7.1.1. Values cover all Action pages and historical references, independently of assignment eligibility. Name/role are displayed without User Management data. Edit visibility uses list `creatorPublicId`, current assignee and Ticket Owner; no detail requests are issued to render a list page.
 
 ### 8.5 Sort
 

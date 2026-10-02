@@ -384,6 +384,12 @@ async function stubStaffDetailWithCommunication(page: Page): Promise<void> {
     }
 
     const url = new URL(request.url());
+    if (["actions", "activity"].some((resource) => url.pathname === `/api/tickets/${STAFF_TICKETS[0].publicId}/${resource}`)) {
+      await fulfillAuth(route, 200, [], {
+        "X-Pagination": JSON.stringify({ pageNumber: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false }),
+      });
+      return;
+    }
     if (url.pathname === "/api/auth/refresh") {
       await fulfillAuth(route, 200, { accessToken: "e2e-memory-token", expiresIn: 600 });
       return;
@@ -621,7 +627,10 @@ for (const viewport of VIEWPORTS) {
 
     // Switch to Internal Notes tab
     await page.getByRole("tab", { name: "Internal Notes" }).click();
-    await expect(page.getByRole("alert")).toContainText("Visible only to IT Staff and Administrators");
+    await expect(page.getByRole("alert").filter({ hasText: "Visible only to IT Staff and Administrators" })).toBeVisible();
+    await expect(page.getByText("No actions recorded yet", { exact: true })).toBeVisible();
+    await expect(page.getByText("Actions could not be loaded. Please retry.")).toHaveCount(0);
+    await expect(page.getByText("Activity could not be loaded.")).toHaveCount(0);
     await expect(page.getByText("Checked RADIUS server logs")).toBeVisible();
     await assertNoHorizontalOverflow(page);
     await page.screenshot({ animations: "disabled",

@@ -14,7 +14,7 @@ import { ticketDateTime } from "../Tickets/ticketDate.js";
 import { ActionFilters, EMPTY_ACTION_FILTERS, actionFilterExpressions, type ActionFilterValues } from "./ActionFilters.js";
 import { ActionForm } from "./ActionForm.js";
 import { ActionAssigneeSelection } from "./ActionAssigneeSelection.js";
-import { actionApiPath, canEdit, isTerminal, type ActionTaken, type ActionListItem, type UserSummary } from "./types.js";
+import { actionApiPath, canEdit, isTerminal, type ActionTaken, type ActionListItem } from "./types.js";
 
 interface ActionRow extends ActionListItem { editable: boolean }
 const COLUMNS: IColumn<ActionRow>[] = [
@@ -32,7 +32,6 @@ export function ActionsTaken({ ticket, onChanged }: { ticket: Ticket; onChanged?
   const detailPath = (row: ActionListItem) => `${rolePath}/${encodeURIComponent(ticket.publicId)}/actions/${encodeURIComponent(row.publicId)}`;
   const [filters, setFilters] = useState<ActionFilterValues>(EMPTY_ACTION_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [references, setReferences] = useState<UserSummary[]>([]);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -46,29 +45,21 @@ export function ActionsTaken({ ticket, onChanged }: { ticket: Ticket; onChanged?
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
     const add = (key: keyof ActionFilterValues, label: string, clear: Partial<ActionFilterValues>) => chips.push({ key, label, onRemove: () => { setFilters((current) => ({ ...current, ...clear })); setPage(1); } });
     if (filters.status) add("status", `Status: ${filters.status}`, { status: "" });
-    if (filters.unassigned || filters.assignedToUserPublicId) add("assignedToUserPublicId", `Assigned To: ${filters.unassigned ? "Unassigned" : filters.assignedName || references.find((user) => user.publicId === filters.assignedToUserPublicId)?.name || "Selected User"}`, { assignedToUserPublicId: "", assignedName: "", unassigned: false });
-    if (filters.unknownPerformer || filters.performedByUserPublicId) add("performedByUserPublicId", `Performed By: ${filters.unknownPerformer ? "Unknown" : filters.performedName || references.find((user) => user.publicId === filters.performedByUserPublicId)?.name || "Selected User"}`, { performedByUserPublicId: "", performedName: "", unknownPerformer: false });
+    if (filters.unassigned || filters.assignedToUserPublicId) add("assignedToUserPublicId", `Assigned To: ${filters.unassigned ? "Unassigned" : filters.assignedName || "Selected User"}`, { assignedToUserPublicId: "", assignedName: "", unassigned: false });
+    if (filters.unknownPerformer || filters.performedByUserPublicId) add("performedByUserPublicId", `Performed By: ${filters.unknownPerformer ? "Unknown" : filters.performedName || "Selected User"}`, { performedByUserPublicId: "", performedName: "", unknownPerformer: false });
     if (filters.followUpRequired) add("followUpRequired", `Follow-Up Required: ${filters.followUpRequired === "true" ? "Yes" : "No"}`, { followUpRequired: "" });
     if (filters.createdDate) add("createdDate", `Created Date: ${filters.createdDate} UTC`, { createdDate: "" });
     return chips;
-  }, [filters, references]);
+  }, [filters]);
   const fetchData = useCallback(async (params: IFetchParams) => {
     const query = new URLSearchParams({ sort: `${params.sortBy ?? "createdAt"}:${params.sortDir ?? "desc"}`, pageNumber: String(params.page), pageSize: String(params.limit) });
     if (params.searchTerm.trim()) { query.set("search", params.searchTerm.trim()); query.set("searchFields", "description,result,followUpNote,attachmentNotes"); }
     const expressions = actionFilterExpressions(filters);
     if (expressions.length) query.set("filters", JSON.stringify(expressions));
     const result = await fetchCollection<ActionListItem>(request, `${actionApiPath(ticket.publicId, requester)}?${query}`);
-    setReferences((existing) => [...new Map([...existing, ...result.data.flatMap((row) => [row.assignedTo, row.performedBy ? { ...row.performedBy, email: "" } : null].filter((value): value is UserSummary => value !== null))].map((value) => [value.publicId, value])).values()]);
-    const data = await Promise.all(result.data.map(async (row): Promise<ActionRow> => {
-      let editable = false;
-      if (!requester && user && !isTerminal(row)) {
-        editable = [row.assignedTo?.publicId, ticket.owner?.publicId].includes(user.publicId);
-        if (!editable) {
-          // The frozen list omits creator; read detail only when creator eligibility is unknown.
-          try { editable = canEdit(await request<ActionTaken>(actionApiPath(ticket.publicId, false, row.publicId)), ticket, user); } catch { editable = false; }
-        }
-      }
-      return { ...row, editable };
+    const data = result.data.map((row): ActionRow => ({
+      ...row,
+      editable: Boolean(!requester && user && !isTerminal(row) && [row.creatorPublicId, row.assignedTo?.publicId, ticket.owner?.publicId].includes(user.publicId)),
     }));
     return { ...result, data };
   }, [request, ticket.publicId, ticket.owner?.publicId, requester, user?.publicId, filters]);
@@ -95,7 +86,7 @@ export function ActionsTaken({ ticket, onChanged }: { ticket: Ticket; onChanged?
     <DataTable cardTitle="Actions Taken" cardActions={createAllowed && <Button variant="primary" disabled={busy} onClick={() => setCreateOpen(true)}>Create Action</Button>}
       filterCount={activeChips.length} activeChips={activeChips} onOpenFilterDialog={() => setFilterOpen(true)}
       onClearFilters={() => { setFilters(EMPTY_ACTION_FILTERS); setSearch(""); setPage(1); }}
-      customFilterModal={filterOpen && <ActionFilters values={filters} references={references} requester={Boolean(requester)} onClose={() => setFilterOpen(false)} onApply={(values) => { setFilters(values); setPage(1); setFilterOpen(false); }} />}
+      customFilterModal={filterOpen && <ActionFilters values={filters} ticketPublicId={ticket.publicId} requester={Boolean(requester)} onClose={() => setFilterOpen(false)} onApply={(values) => { setFilters(values); setPage(1); setFilterOpen(false); }} />}
       pageNumber={page} onPageChange={setPage} searchValue={search} onSearchChange={(value) => { setSearch(value); setPage(1); }}
       sortOptions={[["createdAt:desc", "Newest"], ["createdAt:asc", "Oldest"], ["updatedAt:desc", "Recently updated"], ["status:asc", "Status"]]}
       columns={COLUMNS} fetchData={fetchData} itemKey="publicId" rowLink={detailPath} showEditAction={false} renderActions={rowActions}

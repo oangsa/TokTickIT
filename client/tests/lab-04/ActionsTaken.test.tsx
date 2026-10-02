@@ -68,3 +68,52 @@ it.each(["IT_STAFF", "ADMINISTRATOR", "REQUESTER"])("%s terminal Action rows exp
   expect(within(table).queryByRole("button", { name: /Edit|Assign|Reassign|Unassign|Start|Complete|Cancel/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Create Action" })).not.toBeInTheDocument();
 });
+
+it.each([1, 100])("Creator Edit visibility for %i rows comes from list identity without per-row detail requests", async (count) => {
+  const userEvent = (await import("@testing-library/user-event")).default;
+  const { waitFor } = await import("@testing-library/react");
+  auth.user = staff; request.mockReset();
+  const { creator: _creator, ...listItem } = action;
+  request.mockImplementation(async (path, init) => {
+    if (!path.includes("?")) throw new Error("Detail service unavailable");
+    const size = Number(new URL(path, "http://localhost").searchParams.get("pageSize"));
+    return paged(Array.from({ length: Math.min(count, size) }, (_, index) => ({ ...listItem, publicId: `30000000-0000-4000-8000-${String(index).padStart(12, "0")}`, description: `Inspect port ${index}`, creatorPublicId: staff.publicId, assignedTo: null })), init, count, 1, size);
+  });
+  render(<MemoryRouter><NavigationGuardProvider><ActionsTaken ticket={{ ...ticket, owner: null }} /></NavigationGuardProvider></MemoryRouter>);
+  const table = await screen.findByRole("table", { name: "Actions Taken" });
+  expect(within(table).getAllByRole("button", { name: /^Edit Inspect port/ })).toHaveLength(Math.min(count, 10));
+  if (count === 100) {
+    await userEvent.setup().selectOptions(screen.getByLabelText("Rows per page"), "100");
+    await waitFor(() => expect(within(screen.getByRole("table", { name: "Actions Taken" })).getAllByRole("button", { name: /^Edit Inspect port/ })).toHaveLength(100));
+  }
+  expect(request).toHaveBeenCalledTimes(count === 100 ? 2 : 1);
+});
+
+it.each(["REQUESTER", "IT_STAFF", "ADMINISTRATOR"])("%s can filter by historical Users outside loaded Action page", async (role) => {
+  const userEvent = (await import("@testing-library/user-event")).default;
+  const { waitFor } = await import("@testing-library/react");
+  auth.user = { ...staff, role }; request.mockReset();
+  const historical = { publicId: "10000000-0000-4000-8000-000000000003", name: "Former Staff", role: "REQUESTER" };
+  request.mockImplementation(async (path, init) => path.includes("/filter-users?") ? paged([historical], init) : paged([action], init));
+  const user = userEvent.setup();
+  render(<MemoryRouter><NavigationGuardProvider><ActionsTaken ticket={ticket} /></NavigationGuardProvider></MemoryRouter>);
+  await screen.findByRole("table", { name: "Actions Taken" });
+  await user.click(screen.getByRole("button", { name: /^Filters/ }));
+  const dialog = screen.getByRole("dialog", { name: "Filter Actions" });
+  for (const label of ["Assigned To", "Performed By"]) {
+    await user.click(within(dialog).getByRole("button", { name: `Lookup ${label}` }));
+    const lookup = screen.getByRole("dialog", { name: `Select ${label}` });
+    const table = await within(lookup).findByRole("table", { name: `Select ${label}` });
+    await user.click(await within(table).findByRole("button", { name: "Select Former Staff" }));
+    expect(within(dialog).getByLabelText(label)).toHaveValue("Former Staff");
+  }
+  await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+  await waitFor(() => expect(request.mock.calls.at(-1)![0]).toContain("filters="));
+  const filters = JSON.parse(new URL(request.mock.calls.at(-1)![0], "http://localhost").searchParams.get("filters")!);
+  expect(filters).toEqual(["assignedToUserPublicId", "performedByUserPublicId"].map((field) => ({ field, condition: "EQUAL", value: historical.publicId })));
+  const paths = request.mock.calls.map(([path]) => path);
+  expect(paths.some((path) => path.includes("/api/users/assignable"))).toBe(false);
+  for (const reference of ["assignedTo", "performedBy"]) {
+    expect(paths.some((path) => path.startsWith(`${role === "REQUESTER" ? "/api/users/me" : "/api"}/tickets/${ticket.publicId}/actions/filter-users?`) && new URL(path, "http://localhost").searchParams.get("reference") === reference)).toBe(true);
+  }
+});

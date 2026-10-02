@@ -3,7 +3,7 @@ import type { UserRole } from "../../auth/authTypes.js";
 export interface UserSummary { publicId: string; name: string; email: string; role: UserRole }
 export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export interface ActionListItem {
-  publicId: string; ticketPublicId: string; status: ActionStatus; description: string;
+  publicId: string; ticketPublicId: string; creatorPublicId: string; status: ActionStatus; description: string;
   assignedTo: UserSummary | null; performedBy: Pick<UserSummary, "publicId" | "name" | "role"> | null;
   followUpRequired: boolean; isMigrated: boolean; createdAt: string; updatedAt: string; version: number;
 }

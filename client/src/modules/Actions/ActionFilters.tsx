@@ -5,8 +5,7 @@ import { CommonForm } from "../../components/Common/Form/CommonForm.js";
 import { useManagedForm } from "../../forms/useManagedForm.js";
 import type { FormField, FormSection } from "../../forms/formTypes.js";
 import { useAuthenticatedApi } from "../../auth/useAuthenticatedApi.js";
-import { userLookup } from "../../lookups/index.js";
-import type { UserSummary } from "./types.js";
+import { actionUserLookup } from "../../lookups/actionUserLookup.js";
 
 export interface ActionFilterValues { status: string; assignedToUserPublicId: string; assignedName: string; performedByUserPublicId: string; performedName: string; unassigned: boolean; unknownPerformer: boolean; followUpRequired: string; createdDate: string }
 export const EMPTY_ACTION_FILTERS: ActionFilterValues = { status: "", assignedToUserPublicId: "", assignedName: "", performedByUserPublicId: "", performedName: "", unassigned: false, unknownPerformer: false, followUpRequired: "", createdDate: "" };
@@ -26,13 +25,11 @@ export function actionFilterExpressions(values: ActionFilterValues) {
   }
   return filters;
 }
-export function ActionFilters({ values, references, requester, onApply, onClose }: { values: ActionFilterValues; references: UserSummary[]; requester: boolean; onApply: (values: ActionFilterValues) => void; onClose: () => void }) {
+export function ActionFilters({ values, ticketPublicId, requester, onApply, onClose }: { values: ActionFilterValues; ticketPublicId: string; requester: boolean; onApply: (values: ActionFilterValues) => void; onClose: () => void }) {
   const request = useAuthenticatedApi();
-  const definition = useMemo(() => userLookup(request), [request]);
+  const definitions = useMemo(() => ({ assignedToUserPublicId: actionUserLookup(request, ticketPublicId, requester, "assignedTo"), performedByUserPublicId: actionUserLookup(request, ticketPublicId, requester, "performedBy") }), [request, ticketPublicId, requester]);
   const form = useManagedForm<ActionFilterValues>({ schema: filterSchema, defaultValues: values });
-  const userField = (name: "assignedToUserPublicId" | "performedByUserPublicId", label: string, displayName: "assignedName" | "performedName", disabled: boolean): FormField<ActionFilterValues> => requester
-    ? { key: name, name, label, type: "select", placeholder: "All", disabled, options: references.map((user) => ({ value: user.publicId, label: user.name })) }
-    : { key: name, name, label, type: "lookup", definition, displayName, clearable: true, disabled };
+  const userField = (name: "assignedToUserPublicId" | "performedByUserPublicId", label: string, displayName: "assignedName" | "performedName", disabled: boolean): FormField<ActionFilterValues> => ({ key: name, name, label, type: "lookup", definition: definitions[name], displayName, clearable: true, disabled });
   const sections: FormSection<ActionFilterValues>[] = [{ key: "action-filters", card: false, fields: [
     { key: "status", name: "status", label: "Status", type: "select", placeholder: "All", options: ["PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((value) => ({ value, label: value.replaceAll("_", " ") })) },
     userField("assignedToUserPublicId", "Assigned To", "assignedName", form.watch("unassigned")),
