@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Eye, Pencil, UserCheck, UserMinus } from "lucide-react";
 import type { Ticket } from "../../api.js";
@@ -24,7 +24,7 @@ const COLUMNS: IColumn<ActionRow>[] = [
   { key: "performedBy", label: "Performed By", sortable: false, render: (_value, row) => row.performedBy?.name ?? "Unknown" },
   { key: "createdAt", label: "Created At", render: (_value, row) => ticketDateTime(row.createdAt) },
 ];
-export function ActionsTaken({ ticket, onChanged }: { ticket: Ticket; onChanged?: () => void }) {
+export function ActionsTaken({ ticket, onChanged, refreshTrigger, onResolutionGate }: { ticket: Ticket; onChanged?: () => void; refreshTrigger?: number; onResolutionGate?: (allowed: boolean | null) => void }) {
   const { user } = useAuth();
   const request = useAuthenticatedApi();
   const requester = user?.role === "REQUESTER";
@@ -40,6 +40,8 @@ export function ActionsTaken({ ticket, onChanged }: { ticket: Ticket; onChanged?
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
+  const gateGeneration = useRef(0);
+  useEffect(() => () => { gateGeneration.current++; }, []);
   const createAllowed = !requester && ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticket.currentStatus);
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
@@ -52,17 +54,24 @@ export function ActionsTaken({ ticket, onChanged }: { ticket: Ticket; onChanged?
     return chips;
   }, [filters]);
   const fetchData = useCallback(async (params: IFetchParams) => {
+    const currentGateGeneration = ++gateGeneration.current;
     const query = new URLSearchParams({ sort: `${params.sortBy ?? "createdAt"}:${params.sortDir ?? "desc"}`, pageNumber: String(params.page), pageSize: String(params.limit) });
     if (params.searchTerm.trim()) { query.set("search", params.searchTerm.trim()); query.set("searchFields", "description,result,followUpNote,attachmentNotes"); }
     const expressions = actionFilterExpressions(filters);
     if (expressions.length) query.set("filters", JSON.stringify(expressions));
     const result = await fetchCollection<ActionListItem>(request, `${actionApiPath(ticket.publicId, requester)}?${query}`);
+    const unfiltered = !params.searchTerm.trim() && expressions.length === 0;
+    const open = result.data.some((row) => row.status === "PLANNED" || row.status === "IN_PROGRESS");
+    const completeSet = unfiltered && result.total === result.data.length;
+    if (currentGateGeneration === gateGeneration.current) {
+      onResolutionGate?.(open ? false : completeSet ? result.data.some((row) => row.status === "COMPLETED" && !row.isMigrated) : null);
+    }
     const data = result.data.map((row): ActionRow => ({
       ...row,
       editable: Boolean(!requester && user && !isTerminal(row) && [row.creatorPublicId, row.assignedTo?.publicId, ticket.owner?.publicId].includes(user.publicId)),
     }));
     return { ...result, data };
-  }, [request, ticket.publicId, ticket.owner?.publicId, requester, user?.publicId, filters]);
+  }, [request, ticket.publicId, ticket.owner?.publicId, requester, user?.publicId, filters, onResolutionGate]);
   async function open(row: ActionRow, mode: "edit" | "assign" | "unassign") {
     if (lock.current || requester || isTerminal(row)) return;
     lock.current = true; setBusy(true); setError("");
@@ -90,7 +99,7 @@ export function ActionsTaken({ ticket, onChanged }: { ticket: Ticket; onChanged?
       pageNumber={page} onPageChange={setPage} searchValue={search} onSearchChange={(value) => { setSearch(value); setPage(1); }}
       sortOptions={[["createdAt:desc", "Newest"], ["createdAt:asc", "Oldest"], ["updatedAt:desc", "Recently updated"], ["status:asc", "Status"]]}
       columns={COLUMNS} fetchData={fetchData} itemKey="publicId" rowLink={detailPath} showEditAction={false} renderActions={rowActions}
-      tableCaption="Actions Taken" tableTestId="actions-table" rowTestIdPrefix="action-row" refreshTrigger={refresh}
+      tableCaption="Actions Taken" tableTestId="actions-table" rowTestIdPrefix="action-row" refreshTrigger={refresh + (refreshTrigger ?? 0)}
       defaultSortKey="createdAt" defaultSortDir="desc" searchPlaceholder="Search actions" searchAriaLabel="Search actions" searchMaxLength={200}
       errorMessage="Actions could not be loaded. Please retry." itemName="actions"
       tableTopContent={error && <div role="alert"><p>{error}</p><Button onClick={() => setRefresh((value) => value + 1)}>Refresh</Button></div>}

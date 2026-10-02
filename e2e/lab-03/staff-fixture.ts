@@ -25,6 +25,12 @@ export async function createStaffFixture(count = 1) {
     prisma, staff, requester, admin, password, tickets, category,
     async dispose() {
       const ids = tickets.map((ticket) => ticket.id);
+      if (await prisma.ticketActivity.count({ where: { ticketId: { in: ids } } }) > 0) {
+        // Preserve append-only audit fixtures on the guarded disposable target.
+        await prisma.userSession.deleteMany({ where: { userId: { in: users.map((user) => user.id) } } });
+        await prisma.$disconnect();
+        return;
+      }
       await prisma.publicComment.deleteMany({ where: { ticketId: { in: ids }, parentCommentId: { not: null } } });
       await prisma.publicComment.deleteMany({ where: { ticketId: { in: ids } } });
       await prisma.internalNote.deleteMany({ where: { ticketId: { in: ids } } });

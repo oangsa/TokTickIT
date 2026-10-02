@@ -160,3 +160,29 @@ it.each(["REQUESTER", "IT_STAFF", "ADMINISTRATOR"])("%s historical-user Lookups 
     await user.click(within(lookup).getByRole("button", { name: "Cancel" }));
   }
 });
+it("UI-07 late Action page cannot overwrite newer resolution gate or report after unmount", async () => {
+  const { act, waitFor } = await import("@testing-library/react");
+  auth.user = staff; request.mockReset(); const gate = vi.fn();
+  let release!: () => void; let pending = true;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  request.mockImplementation(async (_path, init) => {
+    if (pending) { pending = false; await held; return paged([action], init); }
+    return paged([{ ...action, status: "COMPLETED", isMigrated: false }], init);
+  });
+  const view = (refreshTrigger: number) => <MemoryRouter><ActionsTaken ticket={ticket} refreshTrigger={refreshTrigger} onResolutionGate={gate} /></MemoryRouter>;
+  const rendered = render(view(0));
+  await waitFor(() => expect(request).toHaveBeenCalledOnce());
+  rendered.rerender(view(1));
+  await waitFor(() => expect(gate).toHaveBeenCalledWith(true));
+  await act(async () => { release(); await held; });
+  expect(gate.mock.calls).toEqual([[true]]);
+  pending = true;
+  let releaseUnmount!: () => void;
+  const unmountHeld = new Promise<void>((resolve) => { releaseUnmount = resolve; });
+  request.mockImplementation(async (_path, init) => { await unmountHeld; return paged([action], init); });
+  rendered.rerender(view(2));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+  rendered.unmount();
+  await act(async () => { releaseUnmount(); await unmountHeld; });
+  expect(gate.mock.calls).toEqual([[true]]);
+});

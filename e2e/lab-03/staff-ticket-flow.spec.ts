@@ -1,3 +1,4 @@
+import { ActionTakenService } from "../../server/src/services/actionTakenService.js";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createStaffFixture, loginStaffFixture } from "./staff-fixture.js";
@@ -16,6 +17,12 @@ test("E2E-04 Queue controls, Claim, owner workflow, confirmation and Close @issu
     await page.getByRole("button", { name: "Claim Ticket" }).click();
     await expect(page.getByRole("button", { name: "Start Work", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Start Work", exact: true }).click();
+    const actor = { userId: fixture.staff.id, userPublicId: fixture.staff.publicId, email: fixture.staff.email, role: fixture.staff.role };
+    const service = new ActionTakenService(fixture.prisma);
+    const action = (await service.create(actor, ticket.publicId, { description: "Real current work", assignedToUserPublicId: actor.userPublicId, followUpRequired: false, attachmentIds: [] }, randomUUID())).action;
+    await service.lifecycle(actor, ticket.publicId, action.publicId, "start", { expectedVersion: 1 }, randomUUID());
+    await service.lifecycle(actor, ticket.publicId, action.publicId, "complete", { expectedVersion: 2, result: "Verified", followUpRequired: false }, randomUUID());
+    await page.reload();
     await expect(page.getByRole("button", { name: "Mark Resolved", exact: true })).toBeEnabled();
     await page.getByLabel("IT Priority", { exact: true }).selectOption("LOW");
     await expect(page.getByLabel("IT Priority", { exact: true })).toHaveValue("LOW");
@@ -56,7 +63,7 @@ test("E2E-04 Request Information creates comment and transitions to WAITING, the
   } finally { await fixture.dispose(); }
 });
 
-test("E2E-04 Administrator non-owner becomes operational only after assignment @issue-5", async ({ page }) => {
+test("E2E-04 Administrator Claim grants owner-only workflow while parity permits Priority/Cancel @issue-5", async ({ page }) => {
   const fixture = await createStaffFixture();
   const ticket = fixture.tickets[0];
   try {
@@ -64,13 +71,13 @@ test("E2E-04 Administrator non-owner becomes operational only after assignment @
     await page.goto(`/admin/tickets/${ticket.publicId}`);
     await expect(page.getByRole("heading", { name: ticket.ticketNumber })).toBeVisible();
     await expect(page.getByRole("button", { name: "Change Owner" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Claim Ticket" })).toHaveCount(0);
-    await fixture.prisma.ticket.update({ where: { id: ticket.id }, data: { ownerUserId: fixture.admin.id, currentStatus: "OPEN" } });
-    await page.reload();
+    await expect(page.getByLabel("IT Priority", { exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Cancel Ticket" })).toBeVisible();
+    await page.getByRole("button", { name: "Claim Ticket" }).click();
     await page.getByRole("button", { name: "Start Work" }).click();
     await expect(page.getByText("IN PROGRESS", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Change Owner" }).click();
-    await expect(page.getByRole("option", { name: "Workflow Administrator (ADMINISTRATOR)" })).toHaveCount(1);
+    await expect(page.locator(`option[value="${fixture.admin.publicId}"]`)).toHaveCount(1);
     await page.getByLabel("Ticket Owner", { exact: true }).selectOption("");
     await page.getByRole("button", { name: "Apply Owner" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Unassign", exact: true }).click();

@@ -31,6 +31,7 @@ export interface StaffTicketDetailProps {
   communicationSlot?: (ticket: StaffTicket, reload: () => void) => ReactNode;
 }
 type PendingAction = StaffAction | "owner" | null;
+const RESOLUTION_HELP = "Complete or cancel all open Actions Taken and complete at least one real Action. Migrated historical Actions do not count as new work.";
 
 function getActionIcon(action: StaffAction) {
   switch (action) {
@@ -74,6 +75,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [actionRevision, setActionRevision] = useState(0);
+  const [resolutionAllowed, setResolutionAllowed] = useState<boolean | null>(null);
   const [reloadCount, setReloadCount] = useState(0);
   const [activeTab, setActiveTab] = useState<"comments" | "notes">("comments");
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
@@ -96,9 +98,26 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     void load();
     return () => { generation.current++; };
   }, [basePath, reloadCount, callApi, navigate, resetMessage]);
-  const operational = user?.role === "IT_STAFF" || (user?.role === "ADMINISTRATOR" && ticket?.owner?.publicId === user.publicId);
+  const operational = user?.role === "IT_STAFF" || user?.role === "ADMINISTRATOR";
+  const canChangeOwner = user?.role === "IT_STAFF" || (user?.role === "ADMINISTRATOR" && ticket?.owner?.publicId === user.publicId);
   const terminal = ticket?.currentStatus === "CLOSED" || ticket?.currentStatus === "CANCELLED";
+  function canMutate(action: StaffAction | "owner" | "it-priority") {
+    if (!ticket || !user) return false;
+    if (action === "owner") return canChangeOwner && !terminal;
+    if (action === "it-priority") return operational;
+    return availableStaffActions(ticket, user).includes(action) && (action !== "mark-resolved" || resolutionAllowed !== false);
+  }
   function reload() { setReloadCount((count) => count + 1); }
+  async function refreshTicket() {
+    const current = generation.current;
+    setBusy(true);
+    try {
+      const loaded = await callApi<StaffTicket>(basePath);
+      if (current !== generation.current) return;
+      setTicket(loaded); setConflict(false); setError(""); setResolutionAllowed(null); setActionRevision((value) => value + 1);
+    } catch { if (current === generation.current) setError("The Ticket could not be refreshed. Your entered data is preserved. Retry Refresh Ticket."); }
+    finally { if (current === generation.current) setBusy(false); }
+  }
   async function openLookup() {
     if (terminal) return;
     setLookupOpen(true); setLookupError(false); setOwnerPublicId(ticket?.owner?.publicId ?? "");
@@ -119,13 +138,20 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     } catch { if (current === generation.current) setLookupError(true); }
   }
   async function mutate(action: StaffAction | "owner" | "it-priority", body?: object) {
-    if (busy || conflict) return;
+    if (busy || conflict || !canMutate(action)) return;
     const current = generation.current;
     setBusy(true); setError(""); setSuccess("");
     try {
       const updated = await callApi<StaffTicket>(`${basePath}/${action}`, { method: action === "owner" || action === "it-priority" ? "PATCH" : "POST", ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
       if (current !== generation.current) return;
       setTicket(updated); setOwnerPublicId(updated.owner?.publicId ?? ""); setPendingAction(null); setLookupOpen(false); messageForm.reset(); setSuccess("Ticket updated.");
+      setResolutionAllowed(null); setActionRevision((value) => value + 1);
+      try {
+        const refreshed = await callApi<StaffTicket>(basePath);
+        if (current === generation.current) setTicket(refreshed);
+      } catch {
+        if (current === generation.current) { setConflict(true); setError("Ticket updated, but its current state could not be refreshed. Refresh Ticket before continuing."); }
+      }
     } catch (failure) {
       if (current !== generation.current) return;
       const needsReload = failure instanceof ApiResponseError && [403, 409].includes(failure.status);
@@ -133,7 +159,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
       setError(failure instanceof ApiResponseError && failure.code === "OWNERSHIP_CONFLICT"
         ? "Ticket ownership changed while you were viewing it. Reload the current Ticket before trying again."
         : failure instanceof ApiResponseError && failure.code === "INVALID_STATUS_TRANSITION"
-          ? "This action is no longer valid for the current Ticket status. Reload the Ticket."
+          ? action === "mark-resolved" ? `This Ticket cannot be marked resolved in its current state. ${RESOLUTION_HELP}` : "This action is no longer valid for the current Ticket status. Refresh the Ticket."
           : failure instanceof ApiResponseError && failure.status === 403 ? "Your permission to change this Ticket has changed. Reload the Ticket."
             : "The Ticket could not be updated. Your changes have not been confirmed. Try again.");
     } finally { if (current === generation.current) setBusy(false); }
@@ -148,9 +174,10 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
     if (ticket.owner) setPendingAction("owner");
     else void mutate("owner", { ownerPublicId: ownerPublicId || null, expectedOwnerPublicId: null });
   }
-  const errorView = error && <div className="alert alert-danger" role="alert"><p>{error}</p>{conflict && <Button onClick={reload}>Reload Ticket</Button>}</div>;
+  const errorView = error && <div className="alert alert-danger" role="alert"><p>{error}</p>{conflict && <Button disabled={busy} onClick={() => void refreshTicket()}>Refresh Ticket</Button>}</div>;
   if (!ticket || ticket.publicId.toLowerCase() !== publicId?.toLowerCase()) return <p role="status">Loading Ticket…</p>;
   const actionTitle = pendingAction === "owner" ? ownerPublicId ? "Reassign" : "Unassign" : pendingAction ? ACTION_LABELS[pendingAction] : "";
+  const pendingActionAllowed = pendingAction !== null && canMutate(pendingAction);
   return <div className="tt-staff-page">
     <PageHeader
       title={ticket.ticketNumber}
@@ -184,7 +211,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
             <span className="text-secondary small fw-medium d-block mb-1">Owner</span>
             <div className="tt-workflow-value d-flex align-items-center gap-2">
               <Chip variant="outline">{ticket.owner?.name ?? "Unassigned"}</Chip>
-              {operational && !terminal && (
+              {canChangeOwner && !terminal && (
                 <Button variant="secondary" disabled={busy || conflict} onClick={() => void openLookup()}>
                   <UserCheck size={14} className="me-1" aria-hidden="true" focusable="false" />
                   Change Owner
@@ -224,13 +251,14 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
             </div>
           </div>
         </div>
-        {!operational && <p className="text-secondary mb-3 small">Ticket operations are read-only unless you are the assigned owner.</p>}
+        {user?.role === "ADMINISTRATOR" && ticket.owner?.publicId !== user.publicId && <p className="text-secondary mb-3 small">Become Ticket Owner through Claim before using owner-only workflow actions.</p>}
+        {user && availableStaffActions(ticket, user).includes("mark-resolved") && resolutionAllowed === false && <p className="text-secondary small">{RESOLUTION_HELP}</p>}
         {user && availableStaffActions(ticket, user).length > 0 && (
           <div className="d-flex flex-wrap gap-2 pt-3 border-top">
             {availableStaffActions(ticket, user).map((action) => (
               <Button
                 key={action}
-                disabled={busy || conflict}
+                disabled={busy || conflict || !canMutate(action)}
                 busy={busy}
                 variant={action === "cancel" ? "destructive" : "secondary"}
                 onClick={() => selectAction(action)}
@@ -270,7 +298,7 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
           </ul>
         )}
       </Card>
-      <ActionsTaken key={ticket.publicId} ticket={ticket} onChanged={() => setActionRevision((value) => value + 1)} />
+      <ActionsTaken key={ticket.publicId} ticket={ticket} refreshTrigger={actionRevision} onResolutionGate={setResolutionAllowed} onChanged={() => setActionRevision((value) => value + 1)} />
       <Card title="Communication">
         {communicationSlot ? (
           communicationSlot(ticket, reload)
@@ -324,10 +352,11 @@ export default function StaffTicketDetail({ communicationSlot }: StaffTicketDeta
       {lookupError && <p role="alert">Assignable Users could not be loaded. Close and retry.</p>}
       <Select label="Ticket Owner" id="staff-owner" value={ownerPublicId} onChange={(event) => setOwnerPublicId(event.target.value)}><option value="">Unassigned</option>{owners.map((owner) => <option key={owner.publicId} value={owner.publicId}>{owner.name} ({statusLabel(owner.role)})</option>)}</Select>
     </Modal>
-    <Modal open={pendingAction !== null} title={pendingAction === "request-information" ? "Request information from Requester" : `${actionTitle} this Ticket?`} onClose={() => !busy && setPendingAction(null)} footer={pendingAction === "request-information" ? undefined : <><Button disabled={busy} onClick={() => setPendingAction(null)}>Cancel</Button><Button variant={pendingAction === "cancel" ? "destructive" : "primary"} busy={busy} disabled={conflict} onClick={() => {
+    <Modal open={pendingAction !== null} title={pendingAction === "request-information" ? "Request information from Requester" : `${actionTitle} this Ticket?`} onClose={() => !busy && setPendingAction(null)} footer={pendingAction === "request-information" ? undefined : <><Button disabled={busy} onClick={() => setPendingAction(null)}>Cancel</Button><Button variant={pendingAction === "cancel" ? "destructive" : "primary"} busy={busy} disabled={conflict || !pendingActionAllowed} onClick={() => {
       if (pendingAction) void mutate(pendingAction, pendingAction === "owner" ? { ownerPublicId: ownerPublicId || null, expectedOwnerPublicId: ticket.owner?.publicId ?? null } : undefined);
     }}>{actionTitle}</Button></>}>
-      {pendingAction === "request-information" ? <CommonForm form={messageForm} sections={REQUEST_INFORMATION_SECTIONS} onSubmit={(values) => mutate("request-information", values)} onCancel={() => setPendingAction(null)} submitLabel="Request Information" submitting={busy} cancelDisabled={busy} submitDisabled={conflict || [...content.trim()].length < 1 || [...content.trim()].length > 2000} /> : pendingAction === "owner" ? <><p>Current owner: {ticket.owner?.name ?? "Unassigned"}</p><p>New owner: {owners.find((owner) => owner.publicId === ownerPublicId)?.name ?? "Unassigned"}</p>{!ownerPublicId && <p>The Ticket will return to the queue without changing its current status.</p>}</> : <p>{pendingAction === "mark-resolved" ? "The Requester will be asked to confirm whether the problem appears resolved." : pendingAction === "close" ? "The Ticket will be closed after Requester confirmation." : "Cancellation is permanent. This Ticket cannot be reopened."}</p>}
+      {pendingAction === "request-information" ? <CommonForm form={messageForm} sections={REQUEST_INFORMATION_SECTIONS} onSubmit={(values) => mutate("request-information", values)} onCancel={() => setPendingAction(null)} submitLabel="Request Information" submitting={busy} cancelDisabled={busy} submitDisabled={conflict || !pendingActionAllowed || [...content.trim()].length < 1 || [...content.trim()].length > 2000} /> : pendingAction === "owner" ? <><p>Current owner: {ticket.owner?.name ?? "Unassigned"}</p><p>New owner: {owners.find((owner) => owner.publicId === ownerPublicId)?.name ?? "Unassigned"}</p>{!ownerPublicId && <p>The Ticket will return to the queue without changing its current status.</p>}</> : <p>{pendingAction === "mark-resolved" ? "The Requester will be asked to confirm whether the problem appears resolved." : pendingAction === "close" ? "The Ticket will be closed after Requester confirmation." : "Cancellation is permanent. This Ticket cannot be reopened."}</p>}
+      {pendingAction && !pendingActionAllowed && !conflict && <p role="status">{pendingAction === "mark-resolved" && resolutionAllowed === false ? RESOLUTION_HELP : "This action is no longer available for the current Ticket owner or status. Your entered data is preserved."}</p>}
       {errorView}
     </Modal>
   </div>;

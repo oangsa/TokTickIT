@@ -108,3 +108,13 @@ authentication, database tests use disposable synthetic targets, and no Lab 3
 feature belongs in this submission. This record uses only prompt history
 available in the repository/current session; no unavailable history or review
 outcome was reconstructed.
+
+## Lab 4 Issue #81 inherited fixture follow-up — 2026-10-02
+
+| Prompt | What I did with the result |
+|---|---|
+| Finish #81 Ticket workflow/resolution and evolve superseded earlier-lab tests without excluding them from CI. | Extended the shared Lab 2 transaction double with User recheck and Ticket Activity delegates so inherited Requester behavior remains covered under Lab 4 transactions. Lab 2 application behavior/contracts were not changed. Full cross-lab server/client regression and focused workflow validation are recorded in docs/lab-04/evidence/issue-81.md. No commit/push. |
+
+Only the current supplied prompt was recorded; earlier prompt history was not reconstructed.
+
+Publication authorization (2026-10-02): the owner requested commit, push and a PR to `lab4-staging` with `Closes #81`. The inherited Lab 2 fixture adjustment is included in that scoped publication. The full guarded server suite was rerun and passed 90 files / 1,431 tests; no Lab 2 application behavior was changed.

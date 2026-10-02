@@ -13,6 +13,8 @@ import { testUser } from "./authenticatedRequester.js";
  * atomicity.
  */
 export const tx = {
+  user: { findUnique: vi.fn() },
+  ticketActivity: { create: vi.fn() },
   category: { findFirst: vi.fn() },
   relatedSystem: { findFirst: vi.fn() },
   attachment: {
@@ -166,6 +168,7 @@ export function processingRecord(overrides: Record<string, unknown> = {}) {
  * thing it is testing.
  */
 export function arrangeHappyPath(): void {
+  tx.user.findUnique.mockResolvedValue(ALICE_AUTH);
   vi.clearAllMocks();
 
   prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);

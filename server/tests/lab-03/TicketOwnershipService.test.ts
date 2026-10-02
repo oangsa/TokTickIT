@@ -8,10 +8,11 @@ describe("UNIT-08 ownership @issue-5", () => {
     await mutateStaffTicket(prisma, actor(), TICKET_ID, "claim", {});
     expect(mock.ticket.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ ownerUserId: null, currentStatus: "NEW" }), data: { ownerUserId: STAFF.id, currentStatus: "OPEN", updatedBy: STAFF.email } }));
   });
-  it("rejects Administrator Claim before Ticket access", async () => {
+  it("permits Administrator Claim through normal ownership route", async () => {
     const { prisma, mock } = staffPrismaMock();
-    await expect(mutateStaffTicket(prisma, actor(ADMIN), TICKET_ID, "claim", {})).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(mock.ticket.findFirst).not.toHaveBeenCalled();
+    mock.user.findFirst.mockResolvedValue(ADMIN);
+    await mutateStaffTicket(prisma, actor(ADMIN), TICKET_ID, "claim", {});
+    expect(mock.ticket.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { ownerUserId: ADMIN.id, currentStatus: "OPEN", updatedBy: ADMIN.email } }));
   });
   it("rejects stale expected owner and ineligible targets", async () => {
     const { prisma, mock } = staffPrismaMock();
@@ -26,9 +27,9 @@ describe("UNIT-08 ownership @issue-5", () => {
     await mutateStaffTicket(prisma, actor(ADMIN), TICKET_ID, "owner", { ownerPublicId: null, expectedOwnerPublicId: ADMIN.publicId });
     expect(mock.ticket.updateMany.mock.calls[0][0].data).toEqual({ ownerUserId: null, updatedBy: ADMIN.email });
   });
-  it("rejects Administrator non-owner writes and maps serialization races to 409", async () => {
+  it("rejects Administrator non-owner assignment writes and maps serialization races to 409", async () => {
     const { prisma, mock } = staffPrismaMock();
-    await expect(mutateStaffTicket(prisma, actor(ADMIN), TICKET_ID, "it-priority", { itPriority: "HIGH" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(mutateStaffTicket(prisma, actor(ADMIN), TICKET_ID, "owner", { ownerPublicId: ADMIN.publicId, expectedOwnerPublicId: null })).rejects.toMatchObject({ code: "FORBIDDEN" });
     mock.$transaction.mockRejectedValue({ code: "P2034" });
     await expect(mutateStaffTicket(prisma, actor(), TICKET_ID, "claim", {})).rejects.toMatchObject({ code: "OWNERSHIP_CONFLICT" });
   });

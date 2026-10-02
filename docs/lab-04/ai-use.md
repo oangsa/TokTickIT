@@ -83,3 +83,18 @@ Only supplied prompts and observed work are recorded; prior records remain uncha
 | Approve commit/push and verification of the new CI artifact. | Authorized publication of the six reviewed evidence/tooling files on the existing #80 feature branch. Reused the completed local browser/build checks, reviewed staging scope and whitespace, and retained the separate new-head CI artifact verification gate. Earlier pending-publication wording records the pre-publication checkpoint; no merge, Issue closure or #83 acceptance authorized. |
 
 Only this supplied prompt and observed work were added; existing historical records remain intact.
+
+## Issue #81 Ticket workflow and resolution — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Finish #81 Ticket state machine/resolution against Actions Taken, exact Administrator parity, atomic typed Ticket Activity, UI recovery, complete PG-10 and migrated reopen/concurrency evidence on feature/81-ticket-workflow-resolution; use caveman and Karpathy guidelines. | Used approved local Lab 4 contracts and test seams; implemented gate/parent locking, transactional actor-role/ownership checks, typed Ticket events and Requester confirmation/reopen atomicity, Admin Claim/Priority/Cancel parity and workflow refresh/recovery. Evolved intentionally superseded Lab 3 assertions and transaction fixtures, retained all suites, and recorded actual migrated RESOLVED/CLOSED exclusion plus #83 handoff. Test-first gate/Admin/confirmation/role/UI/late-response failures were observed before their fixes; supplemental matrices verify preserved behavior. Final execution and truthful earlier failures are recorded in evidence/issue-81.md and tests.md. No schema/dependency/Dashboard change, commit, push, GitHub change, peer-review or release acceptance. |
+| Scrutinize changes against the supplied Issue #81 contract, then `fix`. | Review reproduced filtered open Actions losing gate feedback and stale modal submission after refresh. Added seven permanent UI regressions in three failing-first cycles, then reused current permissions/status/gate checks for controls and actual submission while preserving Request Information drafts. Focused 43 UI tests and full 429-test client suite passed; client TypeScript/Vite build passed; guarded E2E-02 plus affected Lab 3 Staff workflows passed 14 tests. Detailed evidence is recorded in evidence/issue-81.md. Existing work preserved; no commit or push. |
+
+Only prompts supplied in this session were recorded; earlier repository history remains intact. No unavailable prompt history was reconstructed.
+
+### Issue #81 publication authorization — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Commit, push and open a PR to Lab 4 staging with Issue #81 closing in the body. | Authorized publication of the reviewed #81 changes on feature/81-ticket-workflow-resolution and a PR targeting lab4-staging with `Closes #81`. Verified scope and the target branch, reran publication checks, and preserved the separate #83 integration and peer-review gates. Execution results are recorded in evidence/issue-81.md; earlier no-publication statements describe prior checkpoints. |
