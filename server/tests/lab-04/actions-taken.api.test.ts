@@ -216,6 +216,23 @@ it.each([undefined, "creator", ["assignedTo", "performedBy"]])("invalid filter-u
   expect(response.status).toBe(400); expect(response.body.details[0].field).toBe("reference");
   expect(mock.user.count).not.toHaveBeenCalled();
 });
+it.each(["/api", "/api/users/me"])("%s historical-user Role sorting accepts both directions with publicId ASC tie-break", async (prefix) => {
+  const user = prefix.endsWith("me") ? REQUESTER : ADMIN;
+  mock.user.count.mockResolvedValue(1);
+  mock.user.findMany.mockResolvedValue([STAFF]);
+  for (const reference of ["assignedTo", "performedBy"]) for (const direction of ["asc", "desc"]) {
+    const response = await request(app).get(`${prefix}/tickets/${TICKET_ID}/actions/filter-users`).query({ reference, sort: `role:${direction}` }).set("Authorization", bearerToken(tokens, user.id));
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([{ publicId: STAFF.publicId, name: STAFF.name, role: STAFF.role }]);
+    expect(mock.user.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ orderBy: [{ role: direction }, { publicId: "asc" }] }));
+  }
+});
+it("historical-user invalid sort explains only its approved name/role fields", async () => {
+  const response = await request(app).get(`/api/tickets/${TICKET_ID}/actions/filter-users`).query({ reference: "assignedTo", sort: "email:asc" }).set("Authorization", bearerToken(tokens, STAFF.id));
+  expect(response.status).toBe(400);
+  expect(response.body.details).toEqual([{ field: "sort", message: "sort must use an approved field (name, role) with asc or desc." }]);
+  expect(mock.user.count).not.toHaveBeenCalled();
+});
 it.each(["pageSize=101", "pageNumber=1.5", "searchFields=email", "sort=email:asc", "searchFields=role", "unknown=true", "filters=bad"])("historical-user query rejects %s", async (query) => {
   const response = await request(app).get(`/api/tickets/${TICKET_ID}/actions/filter-users?reference=assignedTo&${query}`).set("Authorization", bearerToken(tokens, STAFF.id));
   expect(response.status).toBe(400); expect(response.body.code).toBe("VALIDATION_ERROR");

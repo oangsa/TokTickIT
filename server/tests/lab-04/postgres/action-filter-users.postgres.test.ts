@@ -34,3 +34,32 @@ it("Ticket filter users include all distinct historical references across pages 
   await first.ticket.update({ where: { id: otherTicket.id }, data: { requesterId: staff.userId } });
   await expect(service.filterUsers(requester, otherTicket.publicId, { reference: "assignedTo" })).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
+it("historical-user Role sorts use PostgreSQL enum order and publicId ASC ties across pages", async () => {
+  const { first, service, staff, requester } = database;
+  const ticket = await database.ticket();
+  const referencedUsers = [];
+  for (let index = 0; index < 4; index++) {
+    const user = await first.user.create({ data: { name: `Role sort ${index}`, email: `role-sort-${randomUUID()}@example.test`, role: index === 3 ? "ADMINISTRATOR" : "IT_STAFF", passwordHash: "unusable-synthetic-fixture", createdBy: "test", updatedBy: "test" } });
+    referencedUsers.push(user);
+    const actor = { userId: user.id, userPublicId: user.publicId, email: user.email, role: user.role };
+    const created = (await database.create(ticket.publicId, user.publicId)).action;
+    await service.lifecycle(actor, ticket.publicId, created.publicId, "start", { expectedVersion: 1 }, randomUUID());
+    await service.lifecycle(actor, ticket.publicId, created.publicId, "complete", { expectedVersion: 2, result: "Role sort fixture", followUpRequired: false }, randomUUID());
+  }
+  // Historical demoted/deleted identities remain filterable but cannot be newly assigned.
+  await first.user.update({ where: { id: referencedUsers[0].id }, data: { role: "REQUESTER", isActive: false, deleted: true } });
+  const staffIds = [referencedUsers[1].publicId, referencedUsers[2].publicId].sort();
+  for (const actor of [staff, requester]) for (const reference of ["assignedTo", "performedBy"]) {
+    for (const [direction, expected] of [
+      ["asc", [referencedUsers[0].publicId, ...staffIds, referencedUsers[3].publicId]],
+      ["desc", [referencedUsers[3].publicId, ...staffIds, referencedUsers[0].publicId]],
+    ] as const) {
+      const input = { reference, sort: `role:${direction}`, pageSize: "2" };
+      const page1 = await service.filterUsers(actor, ticket.publicId, input);
+      const page2 = await service.filterUsers(actor, ticket.publicId, { ...input, pageNumber: "2" });
+      expect(page1.pagination.totalItems).toBe(4);
+      expect(page2.pagination.totalItems).toBe(4);
+      expect([...page1.items, ...page2.items].map((user) => user.publicId)).toEqual(expected);
+    }
+  }
+});

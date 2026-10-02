@@ -132,7 +132,7 @@ export function parseUserListQuery(input: unknown, sortFields: readonly string[]
       !sortFields.includes(parts[0]) ||
       !["asc", "desc"].includes(parts[1])
     ) {
-      invalidField("sort", "sort must be name:asc, name:desc, email:asc, or email:desc.");
+      invalidField("sort", `sort must use an approved field (${sortFields.join(", ")}) with asc or desc.`);
     }
     order.push(
       { field: parts[0], direction: parts[1] as "asc" | "desc" },

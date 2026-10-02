@@ -117,3 +117,46 @@ it.each(["REQUESTER", "IT_STAFF", "ADMINISTRATOR"])("%s can filter by historical
     expect(paths.some((path) => path.startsWith(`${role === "REQUESTER" ? "/api/users/me" : "/api"}/tickets/${ticket.publicId}/actions/filter-users?`) && new URL(path, "http://localhost").searchParams.get("reference") === reference)).toBe(true);
   }
 });
+
+it.each(["REQUESTER", "IT_STAFF", "ADMINISTRATOR"])("%s historical-user Lookups reorder rows when Role header is clicked twice", async (role) => {
+  const userEvent = (await import("@testing-library/user-event")).default;
+  const { waitFor } = await import("@testing-library/react");
+  auth.user = { ...staff, role }; request.mockReset();
+  const former = { publicId: "10000000-0000-4000-8000-000000000003", name: "Former Staff", role: "REQUESTER" };
+  const administrator = { publicId: "10000000-0000-4000-8000-000000000004", name: "Administrator", role: "ADMINISTRATOR" };
+  const secondStaff = { ...staff, publicId: "10000000-0000-4000-8000-000000000002", name: "Second Staff" };
+  request.mockImplementation(async (path, init) => {
+    if (!path.includes("/filter-users?")) return paged([action], init);
+    const sort = new URL(path, "http://localhost").searchParams.get("sort");
+    const rows = sort === "role:asc" ? [former, staff, secondStaff, administrator]
+      : sort === "role:desc" ? [administrator, staff, secondStaff, former]
+      : [administrator, staff, former, secondStaff];
+    return paged(rows, init);
+  });
+  const user = userEvent.setup();
+  render(<MemoryRouter><NavigationGuardProvider><ActionsTaken ticket={ticket} /></NavigationGuardProvider></MemoryRouter>);
+  await screen.findByRole("table", { name: "Actions Taken" });
+  await user.click(screen.getByRole("button", { name: /^Filters/ }));
+  const dialog = screen.getByRole("dialog", { name: "Filter Actions" });
+  for (const label of ["Assigned To", "Performed By"]) {
+    await user.click(within(dialog).getByRole("button", { name: `Lookup ${label}` }));
+    const lookup = screen.getByRole("dialog", { name: `Select ${label}` });
+    await within(lookup).findByRole("table", { name: `Select ${label}` });
+    for (const [direction, names] of [
+      ["asc", ["Select Former Staff", "Select Alex Staff", "Select Second Staff", "Select Administrator"]],
+      ["desc", ["Select Administrator", "Select Alex Staff", "Select Second Staff", "Select Former Staff"]],
+    ] as const) {
+      const table = within(lookup).getByRole("table", { name: `Select ${label}` });
+      await user.click(within(table).getByRole("columnheader", { name: "Role" }));
+      await waitFor(() => {
+        const latest = new URL(request.mock.calls.at(-1)![0], "http://localhost");
+        expect(latest.pathname).toBe(`${role === "REQUESTER" ? "/api/users/me" : "/api"}/tickets/${ticket.publicId}/actions/filter-users`);
+        expect(latest.searchParams.get("reference")).toBe(label === "Assigned To" ? "assignedTo" : "performedBy");
+        expect(latest.searchParams.get("sort")).toBe(`role:${direction}`);
+        expect(within(within(lookup).getByRole("table", { name: `Select ${label}` })).getAllByRole("button", { name: /^Select / }).map((button) => button.getAttribute("aria-label"))).toEqual(names);
+      });
+      expect(within(lookup).queryByRole("alert")).not.toBeInTheDocument();
+    }
+    await user.click(within(lookup).getByRole("button", { name: "Cancel" }));
+  }
+});

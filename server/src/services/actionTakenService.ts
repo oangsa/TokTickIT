@@ -125,9 +125,8 @@ export class ActionTakenService {
     if (!record(input)) invalidField("query");
     const { reference, ...parameters } = input;
     if (reference !== "assignedTo" && reference !== "performedBy") invalidField("reference");
-    const query = parseAssignableUserQuery(parameters);
+    const query = parseAssignableUserQuery(parameters, ["name", "role"]);
     if (parameters.searchFields !== undefined && parameters.searchFields !== "name") invalidField("searchFields");
-    if (query.order.some((order) => order.field === "email")) invalidField("sort");
     return this.prisma.$transaction(async (tx) => {
       const ticket = await this.ticket(tx, actor, ticketPublicId);
       const relation = reference === "assignedTo" ? "assignedActions" : "performedActions";
