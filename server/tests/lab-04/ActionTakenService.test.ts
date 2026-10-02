@@ -69,3 +69,25 @@ it("UNIT-10 identity canonicalizes paths/body and isolates concrete resources/ve
   const right = parseActionCreate({ ...createBody, attachmentIds: [TICKET_ID.toUpperCase(), ACTION_ID] });
   expect(hashIdempotencyRequest("POST", path, left)).toBe(hashIdempotencyRequest("POST", path, right));
 });
+
+import { mutateStaffTicket } from "../../src/services/ticketWorkflowService.js";
+import { staffTicketRow } from "../lab-03/support/staffFixture.js";
+describe("UNIT-04 Ticket resolution gate", () => {
+  it.each([
+    ["zero Actions", 0, 0, false], ["cancelled only", 0, 0, false],
+    ["migrated completed only", 0, 0, false], ["planned remains", 1, 1, false],
+    ["in progress remains", 1, 1, false], ["real completed", 1, 0, true],
+    ["real completed plus cancelled", 1, 0, true],
+  ])("%s", async (_name, completed, open, permitted) => {
+    const { prisma, mock } = actionPrismaMock();
+    mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus: "IN_PROGRESS", ownerUserId: STAFF.id, owner: STAFF }));
+    mock.actionTaken.count.mockImplementation(async ({ where }) => where.status === "COMPLETED" ? completed : open);
+    const result = mutateStaffTicket(prisma, actor(), TICKET_ID, "mark-resolved", {});
+    if (permitted) await expect(result).resolves.toBeDefined();
+    else {
+      await expect(result).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+      expect(mock.ticket.updateMany).not.toHaveBeenCalled();
+      expect(mock.ticketActivity.create).not.toHaveBeenCalled();
+    }
+  });
+});

@@ -346,10 +346,25 @@ export async function updateUser(
           (target.role === "IT_STAFF" || target.role === "ADMINISTRATOR");
 
         if (deactivated || demotedToRequester) {
-          await tx.ticket.updateMany({
+          const unassignedTickets = await tx.ticket.updateManyAndReturn({
             where: { ownerUserId: target.id },
             data: { ownerUserId: null, updatedBy: actor.email },
+            select: { id: true },
           });
+          for (const ticket of unassignedTickets) {
+            await tx.ticketActivity.create({
+              data: {
+                ticketId: ticket.id,
+                action: "TICKET_UNASSIGNED",
+                performedByUserId: actor.userId,
+                createdBy: actor.email,
+                updatedBy: actor.email,
+                assignment: {
+                  create: { previousAssignedToUserId: target.id, assignedToUserId: null },
+                },
+              },
+            });
+          }
         }
 
         return toUserDTO(updated);

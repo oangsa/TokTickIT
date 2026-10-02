@@ -144,3 +144,11 @@ prompt history is unavailable.
 | PR #75 review requesting fixes for committed JWT secret, missing Issue #65 browser scenarios, and stale release evidence. | Generated browser JWT signing secrets at runtime, added real Lab 3 Playwright cases for requester, Staff, and Administrator acceptance paths, reran guarded local verification (70 browser, 1,052 server, 365 client; both builds), and corrected PR #69/#75 review state in `reviewer.md` and `tests.md`. Recorded #72–#74 as lacking GitHub reviews and left final-head CI and peer disposition pending. |
 
 Only this session's prompt is available for this Issue 7 record. Earlier prompt history in this file was not independently reconstructed or reverified here.
+
+
+## User Administration E2E fixture isolation (2026-10-02)
+
+| Prompt | Use of result |
+|---|---|
+| Report E2E-05 strict-mode failure: exact Workflow Staff cell locator matched nine users. | Reproduced the failure with ten matching cells on guarded disposable PostgreSQL. Added an explicit duplicate-name fixture, retained name-search checks using collection assertions, isolated email/suffix searches to the current fixture, and scoped exact-name assertions by public ID. Preserved append-only audit fixtures and application behavior. Golden path passed after the fix; User Administration and Staff Ticket Flow passed 16 browser tests, then final User Administration rerun passed 4 tests. Client/server builds passed. Additional strict E2E type checking failed on six existing implicit-any diagnostics, reproduced against the committed fixture baseline. No commit or push. |
+| Commit the fix, merge into feature/81-ticket-workflow-resolution, and push that development branch before a later staging PR. | Authorized a scoped fix commit, integration into the named development branch, and its push to origin. Retained the recorded browser/build results and pre-existing strict E2E typing limitation; no additional application changes or staging merge requested. |

@@ -65,12 +65,12 @@ describe("API-22 and API-23 Ticket authorization matrix @issue-5", () => {
     // Read is permitted to Admin non-owner
     expect((await request(app).get(path).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(200);
 
-    // All mutations are forbidden to Admin non-owner
-    expect((await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(403);
+    // Lab 4 parity permits Priority/Cancel; assignment and lifecycle remain restricted.
+    expect((await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(409);
     expect((await request(app).patch(`${path}/owner`).set("Authorization", bearerToken(tokens, ADMIN.id)).send({ ownerPublicId: ADMIN.publicId, expectedOwnerPublicId: STAFF.publicId })).status).toBe(403);
-    expect((await request(app).patch(`${path}/it-priority`).set("Authorization", bearerToken(tokens, ADMIN.id)).send({ itPriority: "LOW" })).status).toBe(403);
+    expect((await request(app).patch(`${path}/it-priority`).set("Authorization", bearerToken(tokens, ADMIN.id)).send({ itPriority: "LOW" })).status).toBe(200);
 
-    for (const action of ["start-work", "request-information", "resume-work", "mark-resolved", "close", "cancel"] as const) {
+    for (const action of ["start-work", "request-information", "resume-work", "mark-resolved", "close"] as const) {
       const response = await request(app)
         .post(`${path}/${action}`)
         .set("Authorization", bearerToken(tokens, ADMIN.id))
@@ -78,13 +78,14 @@ describe("API-22 and API-23 Ticket authorization matrix @issue-5", () => {
       expect(response.status).toBe(403);
       expect(response.body.code).toBe("FORBIDDEN");
     }
-    expect(mock.ticket.updateMany).not.toHaveBeenCalled();
+    expect((await request(app).post(`${path}/cancel`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(200);
+    expect(mock.ticket.updateMany).toHaveBeenCalledTimes(2);
 
     // Phase 2: Administrator IS the explicit assigned owner
     mock.ticket.findFirst.mockResolvedValue(staffTicketRow({ currentStatus: "OPEN", ownerUserId: ADMIN.id, owner: ADMIN }));
 
-    // Claim remains forbidden to Administrator even when assigned
-    expect((await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(403);
+    // Claim conflicts for every actor when already assigned
+    expect((await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(409);
 
     // Reassign/unassign permitted
     expect((await request(app).patch(`${path}/owner`).set("Authorization", bearerToken(tokens, ADMIN.id)).send({ ownerPublicId: STAFF.publicId, expectedOwnerPublicId: ADMIN.publicId })).status).toBe(200);

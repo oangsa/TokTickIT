@@ -83,3 +83,39 @@ Only supplied prompts and observed work are recorded; prior records remain uncha
 | Approve commit/push and verification of the new CI artifact. | Authorized publication of the six reviewed evidence/tooling files on the existing #80 feature branch. Reused the completed local browser/build checks, reviewed staging scope and whitespace, and retained the separate new-head CI artifact verification gate. Earlier pending-publication wording records the pre-publication checkpoint; no merge, Issue closure or #83 acceptance authorized. |
 
 Only this supplied prompt and observed work were added; existing historical records remain intact.
+
+## Issue #81 Ticket workflow and resolution — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Finish #81 Ticket state machine/resolution against Actions Taken, exact Administrator parity, atomic typed Ticket Activity, UI recovery, complete PG-10 and migrated reopen/concurrency evidence on feature/81-ticket-workflow-resolution; use caveman and Karpathy guidelines. | Used approved local Lab 4 contracts and test seams; implemented gate/parent locking, transactional actor-role/ownership checks, typed Ticket events and Requester confirmation/reopen atomicity, Admin Claim/Priority/Cancel parity and workflow refresh/recovery. Evolved intentionally superseded Lab 3 assertions and transaction fixtures, retained all suites, and recorded actual migrated RESOLVED/CLOSED exclusion plus #83 handoff. Test-first gate/Admin/confirmation/role/UI/late-response failures were observed before their fixes; supplemental matrices verify preserved behavior. Final execution and truthful earlier failures are recorded in evidence/issue-81.md and tests.md. No schema/dependency/Dashboard change, commit, push, GitHub change, peer-review or release acceptance. |
+| Scrutinize changes against the supplied Issue #81 contract, then `fix`. | Review reproduced filtered open Actions losing gate feedback and stale modal submission after refresh. Added seven permanent UI regressions in three failing-first cycles, then reused current permissions/status/gate checks for controls and actual submission while preserving Request Information drafts. Focused 43 UI tests and full 429-test client suite passed; client TypeScript/Vite build passed; guarded E2E-02 plus affected Lab 3 Staff workflows passed 14 tests. Detailed evidence is recorded in evidence/issue-81.md. Existing work preserved; no commit or push. |
+
+Only prompts supplied in this session were recorded; earlier repository history remains intact. No unavailable prompt history was reconstructed.
+
+### Issue #81 publication authorization — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Commit, push and open a PR to Lab 4 staging with Issue #81 closing in the body. | Authorized publication of the reviewed #81 changes on feature/81-ticket-workflow-resolution and a PR targeting lab4-staging with `Closes #81`. Verified scope and the target branch, reran publication checks, and preserved the separate #83 integration and peer-review gates. Execution results are recorded in evidence/issue-81.md; earlier no-publication statements describe prior checkpoints. |
+
+### PR #88 final scrutiny follow-up — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Supplied PR #88 final scrutiny review: User Management removes Ticket Owners without typed Activity/rollback coverage; Issue #81 evidence is stale; publication count is 31 rather than 28. | Addressed the local audit gap with a failing-first PostgreSQL regression and minimal transactional returning-owner cleanup plus typed Activity. Extended deactivation/demotion, real second-append FK rollback, repeat safety and preserved Action-assignment coverage; adapted affected unit/API mocks and real race gates without weaker assertions. Corrected publication scope using read-only PR metadata and prepared a live-Issue update draft. Actual validation and initial fixture/mock failures are recorded in evidence/issue-81.md. No commit, push, GitHub edit, peer-review acceptance or #83-owned status promotion. |
+| Go ahead with the prepared Issue #81 update. | Verified the live body still matched the draft baseline, applied the authorized Scope/DoD/test-evidence update, and verified exact GitHub body read-back. Preserved the local/unpublished fix caveat and all #83-owned gates. Updated these records; no commit, push, merge or Issue closure. No application test rerun for this documentation/GitHub-only step. |
+
+Only the supplied prompt and observed work were added; existing historical records remain intact.
+
+### Audit-fix publication — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Commit and push. | Authorized committing and pushing the nine-file PR #88 owner-cleanup audit follow-up on `feature/81-ticket-workflow-resolution`. Reviewed the existing diff, preserved production code, and reran publication checks; results are recorded in `evidence/issue-81.md`. No new implementation Red cycle, merge, Issue closure, peer-review acceptance or #83 status promotion is claimed. |
+
+### Published-head evidence synchronization — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Supplied PR #88 scrutiny verdict: synchronize Issue #81 publication state and PR validation counts while preserving historical checkpoints and guarded local evidence wording. | Verified the published head and 36 paths; updated Issue #81 to distinguish historical 28/31-path checkpoints from the published audit follow-up, and PR #88 to recorded 1,433 server / 429 client / 22 browser results with both builds and whitespace checks. Verified unchanged bodies before editing and exact read-back afterward. Current GitHub metadata now reports successful server/client checks; their logs were not inspected or used for test-count claims. Preserved #83 ownership. Documentation-only task; no application rerun, commit, push, merge, closure or peer-review acceptance. |

@@ -39,7 +39,7 @@ describe("UNIT-15 UserService @issue-6", () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       ticket: {
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        updateManyAndReturn: vi.fn().mockResolvedValue([]),
       },
       $transaction: vi.fn((fn: any) => fn(mockPrisma)),
     };
@@ -129,7 +129,7 @@ describe("UNIT-15 UserService @issue-6", () => {
 
       expect(updated.name).toBe("Updated Staff");
       expect(mockPrisma.userSession.updateMany).not.toHaveBeenCalled();
-      expect(mockPrisma.ticket.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.ticket.updateManyAndReturn).not.toHaveBeenCalled();
     });
 
     it("email change revokes target sessions", async () => {
@@ -146,7 +146,7 @@ describe("UNIT-15 UserService @issue-6", () => {
         where: { userId: targetStaff.id, revokedAt: null },
         data: expect.objectContaining({ revokeReason: "EMAIL_CHANGED" }),
       });
-      expect(mockPrisma.ticket.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.ticket.updateManyAndReturn).not.toHaveBeenCalled();
     });
 
     it("demoting IT_STAFF to REQUESTER revokes sessions and unassigns owned tickets", async () => {
@@ -161,9 +161,10 @@ describe("UNIT-15 UserService @issue-6", () => {
         where: { userId: targetStaff.id, revokedAt: null },
         data: expect.objectContaining({ revokeReason: "ROLE_CHANGED" }),
       });
-      expect(mockPrisma.ticket.updateMany).toHaveBeenCalledWith({
+      expect(mockPrisma.ticket.updateManyAndReturn).toHaveBeenCalledWith({
         where: { ownerUserId: targetStaff.id },
         data: { ownerUserId: null, updatedBy: ADMIN.email },
+        select: { id: true },
       });
     });
 
@@ -179,9 +180,10 @@ describe("UNIT-15 UserService @issue-6", () => {
         where: { userId: targetStaff.id, revokedAt: null },
         data: expect.objectContaining({ revokeReason: "DEACTIVATED" }),
       });
-      expect(mockPrisma.ticket.updateMany).toHaveBeenCalledWith({
+      expect(mockPrisma.ticket.updateManyAndReturn).toHaveBeenCalledWith({
         where: { ownerUserId: targetStaff.id },
         data: { ownerUserId: null, updatedBy: ADMIN.email },
+        select: { id: true },
       });
     });
   });

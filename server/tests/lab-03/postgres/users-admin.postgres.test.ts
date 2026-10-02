@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import argon2 from "argon2";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { PrismaClient } from "../../../src/generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "../../../src/generated/prisma/client.js";
 import { ApiError } from "../../../src/http/errors.js";
 import { createUser, resetInitialPassword, updateUser } from "../../../src/services/userService.js";
 import { AuthService } from "../../../src/services/authService.js";
@@ -349,6 +349,24 @@ describe.sequential("PostgreSQL User Admin Integration PG-03, PG-12, PG-13 @issu
         },
       });
 
+      const unrelatedTicket = await first.ticket.create({
+        data: {
+          ...ticket1,
+          id: undefined,
+          publicId: randomUUID(),
+          ticketNumber: `TKT-20260917-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+          ownerUserId: adminActor.userId,
+        },
+      });
+      const assignedAction = await first.actionTaken.create({
+        data: {
+          ticketId: ticket1.id, description: "Retain Action assignment", status: "PLANNED",
+          assignedToUserId: staff.id, creatorUserId: adminActor.userId,
+          followUpRequired: false,
+          createdBy: "test", updatedBy: "test",
+        },
+      });
+
       // Deactivate staff user
       const updated = await updateUser(first, adminActor, staff.publicId, { isActive: false });
       expect(updated.isActive).toBe(false);
@@ -368,6 +386,26 @@ describe.sequential("PostgreSQL User Admin Integration PG-03, PG-12, PG-13 @issu
       const t2 = await first.ticket.findUniqueOrThrow({ where: { id: ticket2.id } });
       expect(t2.ownerUserId).toBeNull();
       expect(t2.currentStatus).toBe("IN_PROGRESS");
+
+      for (const ticket of [ticket1, ticket2]) {
+        const activities = await first.ticketActivity.findMany({
+          where: { ticketId: ticket.id },
+          include: { assignment: true, status: true },
+        });
+        expect(activities).toHaveLength(1);
+        expect(activities[0]).toMatchObject({
+          action: "TICKET_UNASSIGNED",
+          performedByUserId: adminActor.userId,
+          assignment: { previousAssignedToUserId: staff.id, assignedToUserId: null },
+          status: null,
+        });
+      }
+      expect(await first.ticket.findUniqueOrThrow({ where: { id: unrelatedTicket.id } })).toEqual(unrelatedTicket);
+      expect(await first.ticketActivity.count({ where: { ticketId: unrelatedTicket.id } })).toBe(0);
+      expect(await first.actionTaken.findUniqueOrThrow({ where: { id: assignedAction.id } })).toEqual(assignedAction);
+
+      await updateUser(first, adminActor, staff.publicId, { isActive: false });
+      expect(await first.ticketActivity.count({ where: { ticketId: { in: [ticket1.id, ticket2.id] } } })).toBe(2);
     });
 
     it("role demotion to REQUESTER unassigns owned tickets and revokes sessions with ROLE_CHANGED", async () => {
@@ -425,6 +463,65 @@ describe.sequential("PostgreSQL User Admin Integration PG-03, PG-12, PG-13 @issu
       const refreshedTicket = await first.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
       expect(refreshedTicket.ownerUserId).toBeNull();
       expect(refreshedTicket.currentStatus).toBe("IN_PROGRESS");
+      const activities = await first.ticketActivity.findMany({
+        where: { ticketId: ticket.id }, include: { assignment: true, status: true },
+      });
+      expect(activities).toHaveLength(1);
+      expect(activities[0]).toMatchObject({
+        action: "TICKET_UNASSIGNED", performedByUserId: adminActor.userId,
+        assignment: { previousAssignedToUserId: staff.id, assignedToUserId: null },
+        status: null,
+      });
+      await updateUser(first, adminActor, staff.publicId, { role: "REQUESTER" });
+      expect(await first.ticketActivity.count({ where: { ticketId: ticket.id } })).toBe(1);
     });
+
+    it.each([{ isActive: false }, { role: "REQUESTER" }] as const)(
+      "PG-10 Activity failure rolls back User edit %j, sessions, all owner removals and earlier Activity",
+      async (change) => {
+        const staff = await first.user.create({ data: {
+          name: "Rollback Staff", email: `rollback-${randomUUID()}@example.test`, role: "IT_STAFF",
+          passwordHash: "unusable-fixture-hash", mustChangePassword: false,
+          createdBy: "test", updatedBy: "test",
+        } });
+        const session = await first.userSession.create({ data: {
+          userId: staff.id, stage: "FULL", refreshTokenHash: randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", ""),
+          absoluteExpiresAt: new Date(Date.now() + 3600_000),
+        } });
+        const category = await first.category.findFirstOrThrow();
+        const system = await first.relatedSystem.findFirstOrThrow();
+        const tickets = [];
+        for (const currentStatus of ["OPEN", "IN_PROGRESS"] as const) {
+          tickets.push(await first.ticket.create({ data: {
+            publicId: randomUUID(),
+            ticketNumber: `TKT-20260917-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+            requesterId: adminActor.userId, ownerUserId: staff.id,
+            categoryId: category.id, relatedSystemId: system.id,
+            summary: "Rollback owner cleanup", description: "Synthetic rollback fixture",
+            requestedPriority: "MEDIUM", itPriority: "HIGH", currentStatus,
+            createdBy: "test", updatedBy: "test",
+          } }));
+        }
+        let appends = 0;
+        const failing = first.$extends({ query: { ticketActivity: {
+          async create({ args, query }) {
+            // Fail the second append with a real PostgreSQL FK violation after the first succeeds.
+            if (++appends === 2) (args.data as Prisma.TicketActivityUncheckedCreateInput).performedByUserId = -1;
+            return query(args);
+          },
+        } } });
+        await expect(updateUser(failing as unknown as PrismaClient, adminActor, staff.publicId, change))
+          .rejects.toMatchObject({ code: "P2003" });
+        expect(appends).toBe(2);
+        expect(await first.user.findUniqueOrThrow({ where: { id: staff.id } })).toEqual(staff);
+        expect(await first.userSession.findUniqueOrThrow({ where: { id: session.id } })).toEqual(session);
+        for (const ticket of tickets) {
+          expect(await first.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).toEqual(ticket);
+          expect(await first.ticketActivity.count({ where: { ticketId: ticket.id } })).toBe(0);
+        }
+        await updateUser(first, adminActor, staff.publicId, change);
+        expect(await first.ticketActivity.count({ where: { ticketId: { in: tickets.map((ticket) => ticket.id) } } })).toBe(2);
+      },
+    );
   });
 });

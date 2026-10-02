@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +8,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../../src/generated/prisma/client.js";
 import { assertLab3TargetEnvironment } from "../../../src/databaseTargetGuard.js";
+
+import { ActionTakenService } from "../../../src/services/actionTakenService.js";
+import { applyRequesterTicketAction } from "../../../src/services/ticketService.js";
+import { mutateStaffTicket } from "../../../src/services/ticketWorkflowService.js";
+import { createBody } from "../support/actionFixture.js";
 
 const migrationRoot = fileURLToPath(new URL("../../../prisma/migrations/", import.meta.url));
 const serverRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -71,7 +76,7 @@ describe("Lab 4 migration upgrade @issue-78", () => {
     const schema = quoteIdentifier(schemaName);
     const scopedUrl = new URL(assertLab3TargetEnvironment());
     scopedUrl.searchParams.set("schema", schemaName);
-    const scoped = new PrismaClient({ adapter: new PrismaPg({ connectionString: scopedUrl.toString() }) });
+    const scoped = new PrismaClient({ adapter: new PrismaPg({ connectionString: scopedUrl.toString(), options: `-c search_path=${schemaName},public` }, { schema: schemaName }) });
     let rehearsalRoot: string | undefined;
     const lab4Migration = migrations.at(-1)!;
     const approvedSql = readFileSync(`${migrationRoot}${lab4Migration}/migration.sql`, "utf8");
@@ -353,6 +358,26 @@ export default defineConfig({ schema: "schema.prisma", migrations: { path: "migr
         }]);
       });
       expect(await legacyRows(true)).toEqual(backupFixture);
+      // #81 runtime exclusion contribution: use the Actions produced by the actual migration.
+      const owner = await scoped.user.findUniqueOrThrow({ where: { id: 14 } });
+      const requester = await scoped.user.findUniqueOrThrow({ where: { id: 13 } });
+      const actor = { userId: owner.id, userPublicId: owner.publicId, email: owner.email, role: owner.role };
+      const service = new ActionTakenService(scoped);
+      for (const id of [21, 22]) {
+        const ticket = await scoped.ticket.findUniqueOrThrow({ where: { id } });
+        const history = await scoped.actionTaken.findMany({ where: { ticketId: id } });
+        expect(history).toHaveLength(1);
+        expect(history[0]).toMatchObject({ status: "COMPLETED", isMigrated: true, assignedToUserId: null, performedByUserId: null });
+        await applyRequesterTicketAction(scoped, requester.id, requester.email, ticket.publicId, "reopen");
+        await mutateStaffTicket(scoped, actor, ticket.publicId, "claim", {});
+        await expect(mutateStaffTicket(scoped, actor, ticket.publicId, "mark-resolved", {})).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+        const created = (await service.create(actor, ticket.publicId, { ...createBody, assignedToUserPublicId: owner.publicId }, randomUUID())).action;
+        await service.lifecycle(actor, ticket.publicId, created.publicId, "start", { expectedVersion: 1 }, randomUUID());
+        await service.lifecycle(actor, ticket.publicId, created.publicId, "complete", { expectedVersion: 2, result: "New work verified", followUpRequired: false }, randomUUID());
+        expect((await mutateStaffTicket(scoped, actor, ticket.publicId, "mark-resolved", {})).currentStatus).toBe("RESOLVED");
+        expect(await scoped.actionTaken.findUniqueOrThrow({ where: { id: history[0].id } })).toEqual(history[0]);
+      }
+
     } finally {
       try {
         await scoped.$disconnect();
