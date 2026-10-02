@@ -3,12 +3,16 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import StaffTicketDetail from "../../src/modules/Tickets/Staff/StaffTicketDetail.js";
+import { paged } from "../lab-04/fixtures.js";
+import type { ApiRequestInit } from "../../src/api.js";
 import { ApiResponseError } from "../../src/api.js";
 import { availableStaffActions, type StaffTicket } from "../../src/modules/Tickets/staffTickets.js";
 
 const { callApi, auth } = vi.hoisted(() => ({ callApi: vi.fn(), auth: { user: { publicId: "staff", role: "IT_STAFF" } } }));
-vi.mock("../../src/auth/useAuthenticatedApi.js", () => ({ useAuthenticatedApi: () => callApi, useAuthenticatedBlob: () => vi.fn() }));
+vi.mock("../../src/auth/useAuthenticatedApi.js", () => ({ useAuthenticatedApi: () => fixtureRequest, useAuthenticatedBlob: () => vi.fn() }));
 vi.mock("../../src/auth/AuthProvider.js", () => ({ useAuth: () => auth }));
+
+const fixtureRequest = (path: string, init?: ApiRequestInit) => path.includes("/actions") || path.includes("/activity") ? Promise.resolve(paged([], init)) : callApi(path, init);
 
 const ticket: StaffTicket = {
   publicId: "ticket", ticketNumber: "TKT-20260916-000000000011",
@@ -22,8 +26,9 @@ const ticket: StaffTicket = {
 
 beforeEach(() => {
   auth.user = { publicId: "staff", role: "IT_STAFF" };
-  callApi.mockImplementation(async (path: string) => {
-    if (path === "/api/users/assignable") return [{ publicId: "other", name: "Other Staff", role: "IT_STAFF" }];
+  callApi.mockImplementation(async (path: string, init?: ApiRequestInit) => {
+    if (path.startsWith("/api/users/assignable")) return paged([{ publicId: "other", name: "Other Staff", email: "other@example.test", role: "IT_STAFF" }], init);
+    if (path.includes("/actions") || path.includes("/activity")) return paged([], init);
     if (path.includes("/comments") || path.includes("/internal-notes")) {
       return { items: [], pagination: { pageNumber: 1, pageSize: 10, totalPages: 1, totalItems: 0 } };
     }
@@ -59,7 +64,7 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
 
   it("UI-15 enables operational controls for assigned Administrator owner", async () => {
     auth.user = { publicId: "admin", role: "ADMINISTRATOR" };
-    callApi.mockImplementation(async (path: string) => path === "/api/users/assignable" ? [] : { ...ticket, owner: { publicId: "admin", name: "Admin", role: "ADMINISTRATOR" } });
+    callApi.mockImplementation(async (path: string, init?: ApiRequestInit) => path.startsWith("/api/users/assignable") ? paged([], init) : { ...ticket, owner: { publicId: "admin", name: "Admin", role: "ADMINISTRATOR" } });
     renderDetail();
     await screen.findByRole("heading", { name: ticket.ticketNumber });
     expect(screen.getByRole("button", { name: "Change Owner" })).toBeInTheDocument();
@@ -268,7 +273,7 @@ describe("UI-21 Waiting Ticket after Requester comment @issue-6", () => {
       currentStatus: "WAITING_FOR_REQUESTER" as const,
     };
     callApi.mockImplementation(async (path: string) => {
-      if (path === "/api/users/assignable") return [];
+      if (path.startsWith("/api/users/assignable")) return [];
       if (path.includes("/comments")) {
         return [
           {
@@ -300,4 +305,19 @@ describe("UI-21 Waiting Ticket after Requester comment @issue-6", () => {
     // No automatic call to /resume occurred
     expect(callApi).not.toHaveBeenCalledWith(expect.stringContaining("/resume"), expect.anything());
   });
+});
+
+it("Ticket owner selection reaches eligible users beyond the bounded first page", async () => {
+  callApi.mockImplementation(async (path: string, init?: { onResponse?: (response: Response) => void }) => {
+    if (path.startsWith("/api/users/assignable")) {
+      const second = new URL(path, "http://localhost").searchParams.get("pageNumber") === "2";
+      init?.onResponse?.(new Response(null, { headers: { "X-Pagination": JSON.stringify({ pageNumber: second ? 2 : 1, pageSize: 100, totalItems: 101, totalPages: 2, hasPreviousPage: second, hasNextPage: !second }) } }));
+      return [{ publicId: second ? "last-page-user" : "first-page-user", name: second ? "Last Page Staff" : "First Page Staff", email: "staff@example.test", role: "IT_STAFF" }];
+    }
+    if (path.includes("/comments") || path.includes("/internal-notes")) return { items: [], pagination: { pageNumber: 1, pageSize: 10, totalItems: 0, totalPages: 0 } };
+    return ticket;
+  });
+  const user = userEvent.setup(); renderDetail();
+  await user.click(await screen.findByRole("button", { name: "Change Owner" }));
+  expect(await screen.findByRole("option", { name: "Last Page Staff (IT STAFF)" })).toBeInTheDocument();
 });

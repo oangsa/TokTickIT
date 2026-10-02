@@ -108,3 +108,7 @@ authentication, database tests use disposable synthetic targets, and no Lab 3
 feature belongs in this submission. This record uses only prompt history
 available in the repository/current session; no unavailable history or review
 outcome was reconstructed.
+
+## Lab 4 compatibility maintenance — 2026-10-01
+
+The supplied Actions Taken/global Lookup prompt required evolving earlier consumers/tests. Lab 2 `AttachmentSection.test.tsx` received only a bounded empty Actions read fixture so inherited Requester attachment behavior continues to be tested on Ticket Detail after the new section is added. Its original 48 tests remain valid and pass. No Lab 2 upload/runtime policy was changed. Full Lab 4 evidence is in `docs/lab-04/reviewer.md`; no commit/push is authorized.

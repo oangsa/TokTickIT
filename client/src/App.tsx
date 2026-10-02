@@ -13,6 +13,7 @@ import CreateTicket from "./modules/Tickets/Requester/CreateTicket.js";
 import MyTickets from "./modules/Tickets/Requester/MyTickets.js";
 import RequesterTicketDetail from "./modules/Tickets/Requester/RequesterTicketDetail.js";
 import StaffTicketQueue from "./modules/Tickets/Staff/StaffTicketQueue.js";
+import ActionDetail from "./modules/Actions/ActionDetail.js";
 import StaffTicketDetail from "./modules/Tickets/Staff/StaffTicketDetail.js";
 import UserManagement from "./modules/Users/UserManagement.js";
 import CreateUser from "./modules/Users/CreateUser.js";
@@ -62,10 +63,12 @@ export default function App({ enableHistoryBlocking = false }: { enableHistoryBl
       <Route element={<RoleGuard roles={["REQUESTER"]} />}><Route element={<AppShell />}>
         <Route path="/tickets" element={<MyTickets />} />
         <Route path="/tickets/new" element={<CreateTicket />} />
+        <Route path="/tickets/:ticketPublicId/actions/:actionPublicId" element={<ActionDetail />} />
         <Route path="/tickets/:publicId" element={<RequesterTicketDetail />} />
       </Route></Route>
       <Route element={<RoleGuard roles={["IT_STAFF"]} />}><Route element={<AppShell />}>
         <Route path="/staff/tickets" element={<StaffTicketQueue />} />
+        <Route path="/staff/tickets/:ticketPublicId/actions/:actionPublicId" element={<ActionDetail />} />
         <Route path="/staff/tickets/:publicId" element={<StaffTicketDetail />} />
       </Route></Route>
       <Route element={<RoleGuard roles={["ADMINISTRATOR"]} />}><Route element={<AppShell />}>
@@ -74,6 +77,7 @@ export default function App({ enableHistoryBlocking = false }: { enableHistoryBl
         <Route path="/admin/users/:publicId" element={<ViewUser />} />
         <Route path="/admin/users/:publicId/edit" element={<EditUser />} />
         <Route path="/admin/tickets" element={<StaffTicketQueue />} />
+        <Route path="/admin/tickets/:ticketPublicId/actions/:actionPublicId" element={<ActionDetail />} />
         <Route path="/admin/tickets/:publicId" element={<StaffTicketDetail />} />
       </Route></Route>
     </Route>

@@ -78,6 +78,8 @@ export interface IDataTableProps<T extends object = Record<string, unknown>> {
   createButtonTo?: string;
   createButtonAriaLabel?: string;
   cardClassName?: string;
+  cardTitle?: string;
+  cardActions?: React.ReactNode;
 
   // Fetch / Controlled Data
   fetchData?: (params: IFetchParams) => Promise<IFetchResult<T>>;
@@ -228,6 +230,8 @@ export function DataTable<T extends object>({
   createButtonTo,
   createButtonAriaLabel,
   cardClassName,
+  cardTitle,
+  cardActions,
 
   fetchData,
   data: externalData,
@@ -433,11 +437,11 @@ export function DataTable<T extends object>({
 
   // Sync external search prop
   useEffect(() => {
-    if (searchValue !== undefined && searchValue !== searchInput) {
+    if (searchValue !== undefined) {
       setSearchInput(searchValue);
       setAppliedSearch(searchValue);
     }
-  }, [searchValue, searchInput]);
+  }, [searchValue]);
 
   // Debounced search input sync
   useEffect(() => {
@@ -739,7 +743,7 @@ export function DataTable<T extends object>({
         />
       ) : null}
 
-      <Card className={cardClassName}>
+      <Card className={cardClassName} title={cardTitle} actions={cardActions}>
         {/* Unified Toolbar matching Tickets layout: row g-3 mb-3 align-items-end */}
         <div className="row g-3 mb-3 align-items-end">
           <div className="col-12 col-lg">

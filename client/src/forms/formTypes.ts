@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { FieldValues, Path } from "react-hook-form";
 
+import type { LookupDefinition } from "../components/Common/Lookup/types.js";
+
 export type FormMode = "create" | "edit" | "view";
 export type SemanticSpan = "full" | "half" | "third" | "quarter";
 export type FormFieldType =
@@ -101,8 +103,10 @@ export interface AttachmentFormField<TValues extends FieldValues> extends BaseFi
 
 export interface LookupFormField<TValues extends FieldValues> extends BaseField<TValues> {
   type: "lookup";
-  lookupLabel?: string;
-  onLookup?: (name: Path<TValues>) => void;
+  definition: LookupDefinition;
+  displayValue?: string;
+  displayName?: Path<TValues>;
+  clearable?: boolean;
 }
 
 export interface CustomFormField<TValues extends FieldValues> extends BaseField<TValues> {

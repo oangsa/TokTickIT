@@ -16,6 +16,7 @@ Keep shared UI grouped by responsibility under `client/src/components/`:
 |---|---|
 | `Common/` | General buttons, cards, chips, modal, and brand mark |
 | `Common/Form/` | CommonForm, field controls, counters, and field validation feedback |
+| `Common/Lookup/` | Definition-driven managed LookupField and DataTable-backed LookupModal |
 | `Common/Feedback/` | Loading, empty, error, and success states |
 | `Common/Collection/` | Reusable filter chips and pagination |
 | `Maintain/` | DataTable, ManagePage, and PageHeader page composition |
@@ -100,6 +101,8 @@ The page owns loading, API payload mapping, permissions, success navigation, dir
 
 Built-in types are `text`, `email`, `password`, `number`, `date`, `textarea`, `select`, `radio`, `checkbox`, `switch`, `readonly`, `attachment`, and `lookup`. Use `custom` only for a control or workflow the built-ins cannot express. Pass through its supplied `id`, `describedBy`, `invalid`, and `disabled`; update the value through the provided `setValue`. CommonForm already renders its label and feedback, so avoid duplicating them.
 
+Lookup fields supply a typed resource definition from `client/src/lookups/`, plus the managed ID and optional display mapping/clear. The global modal owns selection UI; definitions own columns, supported queries, fetch and labels. Keep explicit accessible Select row actions and safe Retry feedback. Do not expose resource-management actions or fake Unassigned rows. Disabled Lookup fields cannot open/select/clear. CommonForm generates instance-unique control and feedback IDs so underlying Ticket fields and modal fields retain correct labels.
+
 Distinguish view mode from the `readonly` field type: the latter currently renders an output with plaintext styling. The separate ReadOnlyField primitive renders a focusable read-only input/textarea. Use normal field types in view mode for matching create/edit/view shapes; preserve established ReadOnlyField uses when copyable read-only values are required.
 
 ### Grid and headings
@@ -133,6 +136,8 @@ Use [NavigationGuard](../../client/src/navigation/NavigationGuard.tsx) for dirty
 
 Use DataTable for User Management, My Tickets, and the Staff/Admin Ticket Queue. UserManagement demonstrates `fetchData` with `IFetchParams`/`IFetchResult`; MyTickets and StaffTicketQueue demonstrate controlled data and query props. Choose one ownership mode and do not duplicate fetching in both page and component. Preserve pagination metadata and API field mappings.
 
+Actions Taken and global Lookups also compose DataTable. An embedded collection may supply `cardTitle`/`cardActions` without a second page header or enclosing Card. Direct DTO-array collections require their `X-Pagination` header; do not silently treat a bounded first page as a complete list.
+
 `IColumn<T>` defines `key`, `label`, optional `align`, `sortable`, `render`, `className`, and `style`. Mark unsupported sorts false and map supported keys to the resource contract. Shared CSS vertically centers all DataTable column headers. Ticket Queue retains fixed widths, a 25% second column, and wrapping; shared alignment does not mean equal column widths. Automatic row actions are icon-only controls with an accessible name and tooltip; use `renderActions` when a resource needs a different action set.
 
 DataTable owns one neutral table shell: transparent headers, shared row padding, collapsed borders, and the final-row rule. Page-specific table classes may tune column widths and responsive projections only; they must not recreate the outer table frame or header treatment.
@@ -152,6 +157,8 @@ Use `lucide-react` (current library) or approved `react-icons`; no hand-drawn SV
 Use [Chip](../../client/src/components/Common/Chip.tsx) as the canonical pill surface. Its variants are `primary`, `secondary`, `subtle`, `outline`, and `destructive`; the visible label always remains present. [PriorityChip](../../client/src/modules/Tickets/components/PriorityChip.tsx) owns LOW/MEDIUM/HIGH mapping and the optional ordinal meter. [StatusChip](../../client/src/modules/Tickets/components/StatusChip.tsx) owns status-label formatting and status treatment. Ticket lists use semantic defaults so requester and staff/admin tables share the same priority meter and status treatment; pass `variant="outline"` only when a contextual neutral chip is explicitly required. New code must not repeat chip classes or domain mappings. `Badge.tsx` remains only as a compatibility adapter for older imports.
 
 Use Modal for confirmations, filters, and supported previews. Keep focus inside while open, return focus on close, and retain an explicit cancel/close action. Page state determines whether dismissal is allowed during a mutation. Destructive copy names the action and consequence; do not add confirmation dialogs to ordinary actions without a requirement.
+
+Modal uses Bootstrap's scrollable dialog to fit mobile viewports. Nested dialogs make covered dialogs inert and hidden to assistive technology; only the top dialog handles Escape/Tab. Closing the nested dialog restores focus to its invoking control in the parent.
 
 ## Attachments, communication, and state feedback
 

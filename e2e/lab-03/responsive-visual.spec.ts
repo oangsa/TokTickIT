@@ -215,7 +215,7 @@ async function stubStaffQueuePages(page: Page): Promise<void> {
       return;
     }
     if (url.pathname === "/api/users/assignable") {
-      await fulfillAuth(route, 200, [{ publicId: STAFF_USER.publicId, name: STAFF_USER.name, role: STAFF_USER.role }]);
+      await fulfillAuth(route, 200, [{ publicId: STAFF_USER.publicId, name: STAFF_USER.name, email: STAFF_USER.email, role: STAFF_USER.role }], { "X-Pagination": JSON.stringify({ pageNumber: 1, pageSize: 100, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false }) });
       return;
     }
     if (url.pathname === "/api/tickets" && request.method() === "GET") {
@@ -401,7 +401,7 @@ async function stubStaffDetailWithCommunication(page: Page): Promise<void> {
       return;
     }
     if (url.pathname === "/api/users/assignable") {
-      await fulfillAuth(route, 200, [{ publicId: STAFF_USER.publicId, name: STAFF_USER.name, role: STAFF_USER.role }]);
+      await fulfillAuth(route, 200, [{ publicId: STAFF_USER.publicId, name: STAFF_USER.name, email: STAFF_USER.email, role: STAFF_USER.role }], { "X-Pagination": JSON.stringify({ pageNumber: 1, pageSize: 100, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false }) });
       return;
     }
     if (url.pathname === `/api/tickets/${STAFF_TICKETS[0].publicId}`) {
