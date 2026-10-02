@@ -98,3 +98,18 @@ Only prompts supplied in this session were recorded; earlier repository history 
 | Prompt | Use of result |
 |---|---|
 | Commit, push and open a PR to Lab 4 staging with Issue #81 closing in the body. | Authorized publication of the reviewed #81 changes on feature/81-ticket-workflow-resolution and a PR targeting lab4-staging with `Closes #81`. Verified scope and the target branch, reran publication checks, and preserved the separate #83 integration and peer-review gates. Execution results are recorded in evidence/issue-81.md; earlier no-publication statements describe prior checkpoints. |
+
+### PR #88 final scrutiny follow-up — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Supplied PR #88 final scrutiny review: User Management removes Ticket Owners without typed Activity/rollback coverage; Issue #81 evidence is stale; publication count is 31 rather than 28. | Addressed the local audit gap with a failing-first PostgreSQL regression and minimal transactional returning-owner cleanup plus typed Activity. Extended deactivation/demotion, real second-append FK rollback, repeat safety and preserved Action-assignment coverage; adapted affected unit/API mocks and real race gates without weaker assertions. Corrected publication scope using read-only PR metadata and prepared a live-Issue update draft. Actual validation and initial fixture/mock failures are recorded in evidence/issue-81.md. No commit, push, GitHub edit, peer-review acceptance or #83-owned status promotion. |
+| Go ahead with the prepared Issue #81 update. | Verified the live body still matched the draft baseline, applied the authorized Scope/DoD/test-evidence update, and verified exact GitHub body read-back. Preserved the local/unpublished fix caveat and all #83-owned gates. Updated these records; no commit, push, merge or Issue closure. No application test rerun for this documentation/GitHub-only step. |
+
+Only the supplied prompt and observed work were added; existing historical records remain intact.
+
+### Audit-fix publication — 2026-10-02
+
+| Prompt | Use of result |
+|---|---|
+| Commit and push. | Authorized committing and pushing the nine-file PR #88 owner-cleanup audit follow-up on `feature/81-ticket-workflow-resolution`. Reviewed the existing diff, preserved production code, and reran publication checks; results are recorded in `evidence/issue-81.md`. No new implementation Red cycle, merge, Issue closure, peer-review acceptance or #83 status promotion is claimed. |

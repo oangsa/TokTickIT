@@ -53,7 +53,7 @@ it.each([{ role: "REQUESTER" }, { isActive: false }] as const)("PG-06 Action ass
       signalUser();
       return updated;
     } },
-    ticket: { updateMany: async ({ args, query }) => {
+    ticket: { updateManyAndReturn: async ({ args, query }) => {
       // Wait until Action actually waits on User, then close the real lock cycle.
       const deadline = Date.now() + 2_000;
       while (true) {
@@ -78,6 +78,14 @@ it.each([{ role: "REQUESTER" }, { isActive: false }] as const)("PG-06 Action ass
   expect(persisted).toMatchObject({ version: 1, assignedToUserId: null, status: "PLANNED" });
   expect(await first.ticketActivity.count({ where: { ticketId: ticket.id, action: "ACTION_ASSIGNED" } })).toBe(0);
   expect((await first.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).ownerUserId).toBeNull();
+  const unassignments = await first.ticketActivity.findMany({
+    where: { ticketId: ticket.id, action: "TICKET_UNASSIGNED" }, include: { assignment: true },
+  });
+  expect(unassignments).toHaveLength(1);
+  expect(unassignments[0]).toMatchObject({
+    performedByUserId: admin.userId,
+    assignment: { previousAssignedToUserId: user.id, assignedToUserId: null },
+  });
   expect(await first.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject(change);
 }, 15_000);
 it("PG-06 competing assignment changes have one winner, version increment, and Activity", async () => {

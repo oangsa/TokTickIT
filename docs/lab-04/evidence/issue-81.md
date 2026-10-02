@@ -90,7 +90,7 @@ This follow-up preserves the 28 pre-existing changed/new files and modifies only
 
 ## Publication gate — 2026-10-02
 
-The owner subsequently authorized commit, push and a PR to `lab4-staging` with `Closes #81`. The fetched base equals the branch's pre-publication HEAD. All 28 existing changed/new files belong to #81; production code was preserved during publication checks. Earlier no-publication statements above record prior checkpoints.
+The owner subsequently authorized commit, push and a PR to `lab4-staging` with `Closes #81`. The fetched base equals the branch's pre-publication HEAD. The historical implementation/publication checkpoint covered 28 changed/new files; production code was preserved during those checks. Published PR #88 at `762e11da115736008a8eaabe3b5dd7d1b1ec3058` contains 31 changed files: the 28-file checkpoint plus three additional paths from the later Lab 3 User-administration fixture/evidence follow-up. That follow-up changed four files, one already included in the checkpoint. Earlier no-publication statements and 28-file counts above record historical checkpoints, not the final published PR scope.
 
 Final publication checks executed on this source:
 
@@ -102,3 +102,39 @@ Final publication checks executed on this source:
 - `git diff --check`, staged whitespace check and scoped secret-pattern scan passed with no findings.
 
 Sanitized logs: `/tmp/81-publish-server.log`, `/tmp/81-publish-client.log`, `/tmp/81-publish-client-build.log`, `/tmp/81-publish-e2e.log`, `/tmp/81-publish-migration-status.log`. No new Red cycle is claimed for this publication-only task; implementation Red/Green evidence remains above. No peer-review, independent new-head CI or #83 acceptance is claimed. Commit identity and PR URL are reported after publication.
+
+## PR #88 owner-cleanup audit follow-up — 2026-10-02
+
+The supplied final scrutiny review identified User Management as another production Ticket Owner mutation path. `updateUser()` now uses Prisma `updateManyAndReturn` to clear ownership and retrieve only the Ticket IDs actually changed. It appends one `TICKET_UNASSIGNED` with a typed assignment child (previous owner = edited User, new owner = null) and the authenticated Administrator performer for each returned ID, inside the existing Serializable transaction. User edit, session revocation, owner cleanup and all Activity therefore commit or roll back together. No status, Action assignment, REST shape, schema, migration or dependency changes.
+
+Extended the retained Lab 3 PostgreSQL deactivation/demotion cases to verify exact event count/shape/actor, unchanged Ticket status, no events on repeat edits, preservation of another owner's Ticket and preservation of an Action assigned to the deactivated User. Two added PG-10 cases inject a real PostgreSQL foreign-key failure on the second Activity append and verify full equality of the original User, session and both Tickets, zero committed Activity, and successful retry. Existing User API/unit mocks were evolved to the returning Prisma operation. The retained PG-06 deadlock tests observe that same operation to preserve their real lock-cycle scheduling and unchanged loser assertions; they additionally verify the winning owner-cleanup event.
+
+Execution breadcrumbs:
+
+- Red: `cd server && npm test -- tests/lab-03/postgres/users-admin.postgres.test.ts -t 'commits user deactivation'` through the guarded runner failed with `expected [] to have a length of 1 but got +0` after the existing owner cleanup succeeded. The same focused regression passed after the minimal production change. Logs: `/tmp/88-unassignment-red.log`, `/tmp/88-unassignment-green.log`.
+- Supplemental test fixtures initially failed because required Action fields/public Ticket ID were missing and the synthetic session hash was too short. Fixtures were corrected to the actual schema; these failures are not behavior Red evidence.
+- `cd server && npm test -- tests/lab-03/postgres/users-admin.postgres.test.ts tests/lab-03/users-admin.api.test.ts tests/lab-04/postgres/action-lifecycle.postgres.test.ts` through the guarded runner passed 3 files / 36 tests. Log: `/tmp/88-owner-tests.log`.
+- The first full server run passed 1,428 tests and failed five: three stale User-service mocks and two race gates still observing `updateMany`. After adapting only the affected mocks/query observation, `cd server && npm test -- tests/lab-03/UserService.test.ts tests/lab-04/postgres/action-concurrency.postgres.test.ts` passed 2 files / 17 tests with both real deadlock orderings intact. Log: `/tmp/88-inherited-tests.log`.
+- `cd client && npm test` passed 35 files / 429 tests. Both `cd server && npm run build` and `cd client && npm run build` passed, including TypeScript checks; existing Vite bundle warnings remain. Neither package defines a lint script. Logs: `/tmp/88-client-final.log`, `/tmp/88-server-build.log`, `/tmp/88-client-build.log`.
+- Final `cd server && npm test` through the guarded runner passed 90 files / 1,433 tests, including all PostgreSQL suites (96.90s). Log: `/tmp/88-server-final.log`.
+- `npm run test:e2e -- e2e/lab-04/ticket-resolution.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/requester-regression.spec.ts` through the guarded runner passed 22 tests (1.2m), including both E2E-02 roles and affected User/Staff/Requester flows. Log: `/tmp/88-e2e-final.log`. These are local guarded results, not independent new-head CI.
+- Final `git diff --check` and changed-file credential-pattern inspection passed with no findings. Nine local files are modified; five add paths to the published PR's 31-file scope, yielding 36 paths if this follow-up is published against the same base. No unrelated or pre-existing local edits were present.
+
+Docker inspection reconfirmed a running disposable localhost:55433 PostgreSQL container with no mounts; read-only Prisma migration status reported the intended `toktickit_lab3_test` target and seven current migrations before writes. All database runs override TEST_DATABASE_URL, DATABASE_URL and DIRECT_URL together through the existing guarded private runner; no shared database writes. Log: `/tmp/88-migration-preflight.log`.
+
+Read-only GitHub inspection confirmed PR #88 still publishes `762e11da115736008a8eaabe3b5dd7d1b1ec3058` with 31 changed files and that Issue #81 still has stale Scope/DoD checks and test states. A proposed Issue body is prepared in `/tmp/88-issue81-proposed.md`; no GitHub write, commit, push, merge, peer-review approval or #83 acceptance is recorded. The audit fix remains additional local work; the 31-file published count does not include this follow-up. E2E-01 and complete AC-34–35 / PG-02 / PG-13 / DATA-02 retain #83 ownership and their existing states.
+
+Subsequent authorization: the owner instructed “go ahead” with the prepared Issue update. Verified the live body had not changed since preparation, applied `/tmp/88-issue81-proposed.md` to [Issue #81](https://github.com/oangsa/TokTickIT/issues/81), and verified exact body read-back. The six Scope checks, three DoD checks and eight owned test rows now reflect the local evidence; the body explicitly preserves the unpublished audit-fix caveat, no independent new-head CI/peer-review claim, and all #83-owned gates. Earlier stale/draft/no-GitHub-write wording records the pre-authorization checkpoint. No commit, push, merge or Issue closure was authorized or performed. This step changes documentation/GitHub evidence only; application tests were not rerun.
+
+## Audit-fix publication checks — 2026-10-02
+
+The owner subsequently authorized commit and push of this nine-file follow-up on `feature/81-ticket-workflow-resolution`. Existing production changes were preserved. Current publication checks passed:
+
+- Guarded `cd server && npm test`: 90 files / 1,433 tests, including PostgreSQL suites (109.81s).
+- `cd client && npm test`: 35 files / 429 tests.
+- `npm run build` in both application packages: TypeScript and builds passed; existing Vite chunk-size warning remains. Neither package defines a lint script.
+- Guarded `npm --prefix .. run test:e2e -- e2e/lab-04/ticket-resolution.spec.ts e2e/lab-03/user-administration.spec.ts e2e/lab-03/staff-ticket-flow.spec.ts e2e/lab-03/requester-regression.spec.ts` from `server/`: 22 passed (1.2m).
+- Read-only migration preflight confirmed seven current migrations on disposable `127.0.0.1:55433/toktickit_lab3_test`; Docker confirmed no mounts. The private runner overrides all three database URLs; no shared database writes.
+- Diff whitespace and credential-pattern checks found no issues. Remote feature HEAD matched local pre-commit `762e11d`.
+
+Logs: `/tmp/88-push-server.log`, `/tmp/88-push-client.log`, `/tmp/88-push-server-build.log`, `/tmp/88-push-client-build.log`, `/tmp/88-push-e2e.log`, `/tmp/88-push-migration-status.log`. Prior Red/Green evidence remains above; no new implementation cycle is claimed. Earlier unpublished/no-commit statements describe previous checkpoints. Commit/push outcome is reported after execution; no merge, live Issue edit, independent CI, peer-review approval or #83 acceptance is claimed.

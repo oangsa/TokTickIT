@@ -18,7 +18,7 @@ export function staffPrismaMock() {
   const mock = {
     ticketActivity: { create: vi.fn() },
     actionTaken: { count: vi.fn().mockImplementation(async ({ where }) => where.status === "COMPLETED" ? 1 : 0) },
-    ticket: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), updateMany: vi.fn() },
+    ticket: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), updateMany: vi.fn(), updateManyAndReturn: vi.fn().mockResolvedValue([]) },
     user: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn() },
     userSession: { findUnique: vi.fn(), updateMany: vi.fn() },
     attachment: { findFirst: vi.fn() },
