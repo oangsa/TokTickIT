@@ -832,6 +832,8 @@ The primary #77 -> #78 -> #79 -> #80 -> #81 -> #82 -> #83 dependency chain is un
 
 ## Issue #80 / PR #87 read-contract correction — 2026-10-02
 
+The repository owner explicitly accepted this amended review basis on 2026-10-02: “Accept amended read contract (recommended).” PR #87 is assessed against the amended #80/Lab 4 contract for only the read-side additions and limits below. This separate owner acceptance resolves the supplied review's contract-basis blocker; it does not record peer-review approval or final integrated acceptance.
+
 The supplied fix request authorizes a small #79 API follow-up for #80: additive creatorPublicId on Action list/detail DTOs and bounded Ticket-scoped distinct referenced-user filter collections (API §7.1.1). These remove per-row permission probes and provide all-page historical Assigned To/Performed By values for every permitted role. Assignment eligibility and authoritative mutation permissions remain unchanged. No schema/migration or #81 workflow behavior changes. Issue #80 owns feature evidence in evidence/issue-80.md; #83 retains final reviewer.md, UI-13 and integrated E2E-01 verification.
 
 This amendment is part of the frozen #80 review basis and supersedes the earlier frontend-only/frozen-Action-API wording for these read additions only:
