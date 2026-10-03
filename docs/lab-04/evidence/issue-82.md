@@ -110,3 +110,25 @@ The suite now calls the existing `resetTestSchema(assertLab3TestDatabase())` bef
 After the setup fix, the same four regression tests passed on the already contaminated target. Both `npm --prefix server run build` and `npm --prefix client run build` passed; existing client annotation/chunk warnings remain. Neither package defines a lint script. Broader validation results follow below.
 
 Final validation: guarded `npm test` from `server/` passed 94 files / 1,448 tests, including all PostgreSQL suites and PG-12 after preceding suites. `git diff --check` passed. Client/browser tests were not rerun for this test-setup-only change. No commit, push, GitHub edit, independent CI, peer-review or release acceptance is claimed.
+
+## Published Head / CI Verification — 2026-10-03
+
+Published PR #89 head: `5c193ad2a7d96f124f3fb7c69a019025b458dbcc` on `feature/82-role-dashboards`, targeting `lab4-staging`.
+
+[GitHub Actions run 37092458934](https://github.com/oangsa/TokTickIT/actions/runs/37092458934) completed successfully for this exact SHA. Both job statuses, their build/whitespace steps, and the test logs were inspected during this evidence synchronization:
+
+- Server: 94 files / 1,448 tests passed, including all four corrected PG-12 Dashboard PostgreSQL tests after preceding PostgreSQL suites.
+- Client: 38 files / 450 tests passed.
+- Browser: 102 discovered, 101 passed / 1 skipped. Lab 4 E2E-03 and the 18 Dashboard RESP-01–02 cases passed. The sole skip is `E2E-01 final integrated Ticket/Action workflow — #83 after #81 Activity integration`.
+- Server TypeScript build and client TypeScript/Vite build: passed.
+- Committed-diff whitespace: `git diff --check HEAD^ HEAD` passed.
+
+Completed #82-owned evidence: UNIT-05–06, API-17–18, API-23, PG-12, UI-08–11, UI-14–16, RESP-01–02, and E2E-03. Historical local Red/Green, zero/nonzero SQL comparisons, concurrent-write proof, drill-down and screenshot evidence above remain unchanged.
+
+This verifies #82-owned acceptance evidence; #83 retains final integrated workflow, whole-release regression/visual/accessibility acceptance, and release gates. CI success does not claim peer-review acceptance, merge, or Issue closure.
+
+This documentation-only follow-up records existing CI execution; application tests and builds were not rerun locally and no new Red/Green cycle was needed. No application, API, Prisma, database, dependency or deployment changes were made. The local evidence and AI-use updates remain uncommitted; no commit or push was authorized.
+
+Authorized GitHub synchronization completed: [Issue #82](https://github.com/oangsa/TokTickIT/issues/82) now has nine Scope and three supported Definition-of-Done checks complete and all 16 owned test rows marked Pass; [PR #89](https://github.com/oangsa/TokTickIT/pull/89) now records the exact published-head CI results above. Both bodies were confirmed unchanged before editing and verified by exact read-back afterward. Both remain open, the PR head remains the verified SHA, and no #83 record or release gate was modified.
+
+Subsequent `commit, push` authorization covers only these evidence and AI-use documents. The no-publication statements above describe the earlier synchronization checkpoint. CI results remain attributed to `5c193ad2a7d96f124f3fb7c69a019025b458dbcc`; they do not claim verification of the subsequent documentation commit. No application tests or builds were rerun for this documentation-only publication.
