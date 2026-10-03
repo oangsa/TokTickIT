@@ -1,10 +1,16 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import type { PrismaClient } from "../../../src/generated/prisma/client.js";
 import { requesterDashboard, staffDashboard } from "../../../src/services/dashboardService.js";
+import { resetTestSchema } from "../../lab-02/postgres/testDatabase.js";
+import { assertLab3TestDatabase } from "../../lab-03/postgres/testDatabase.js";
 import { actionDatabase, type ActionDatabase } from "../support/actionDatabase.js";
 let database: ActionDatabase;
 const sizes = { myActionsSize: 20, recentTicketsSize: 20, urgentTicketsSize: 20 };
-beforeAll(async () => { database = await actionDatabase(); }, 60_000);
+beforeAll(async () => {
+  // Global dashboard totals require isolation from earlier suites' fixtures.
+  await resetTestSchema(assertLab3TestDatabase());
+  database = await actionDatabase();
+}, 60_000);
 afterAll(async () => { await database?.close(); });
 it("PG-12 empty database yields zero Requester and operational snapshots", async () => {
   expect(await database.first.ticket.count()).toBe(0);

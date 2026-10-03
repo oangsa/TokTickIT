@@ -127,3 +127,10 @@ Only the supplied prompt and observed work were added; existing historical recor
 | Prompt | Use of result |
 |---|---|
 | Scrutinize Dashboard changes against Issue #82, then fix the finding. | Traced compact DataTable headers and reproduced their false sorting indication. Added Requester and Staff/Admin UI regressions before disabling sorting in the shared Dashboard compact-table wrapper. Three role checks failed on `aria-sort` before the fix; 32 focused tests and all 450 client tests passed afterward, with both builds. Existing work was preserved; no commit, push, PostgreSQL or browser rerun. See `evidence/issue-82.md` for this validation checkpoint. |
+
+### PG-12 CI failure fix — 2026-10-03
+
+| Prompt | Use of result |
+|---|---|
+| Supplied CI failures: PG-12 empty database contains one Ticket and Unassigned is five instead of four; use caveman and Karpathy guidelines. | Reproduced leftover-fixture contamination by running the unchanged four-test suite twice on an isolated disposable local PostgreSQL database: first run passed, repeat failed the same two assertions. Added existing guarded Lab 3 schema reset before Dashboard fixture setup without changing assertions or runtime behavior. Focused suite then passed four tests; full server suite passed 94 files / 1,448 tests, both builds and whitespace passed. Recorded evidence in evidence/issue-82.md; no client/browser rerun, commit, push or GitHub edit. |
+| Commit and push the PG-12 fixture isolation fix. | Authorized publication of the four reviewed fix/evidence files on feature/82-role-dashboards. Reused the completed 94-file / 1,448-test server pass and both successful builds; reviewed the full diff, staging scope, whitespace and secret exposure. Earlier no-publication wording records the pre-publication checkpoint. No new runtime changes, test rerun, merge, Issue closure or release acceptance. |

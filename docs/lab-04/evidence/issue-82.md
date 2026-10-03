@@ -98,3 +98,15 @@ Executed Green/final checks:
 - `git diff --check`: passed.
 
 No package defines a lint script. PostgreSQL, browser and screenshot suites were not rerun for this localized header change. Existing uncommitted work remains intact; no commit, push, GitHub mutation or release acceptance is claimed.
+
+## PG-12 fixture isolation fix — 2026-10-03
+
+The supplied CI output reported two failures: the empty database contained one Ticket and the operational Unassigned count was five instead of four. PG-12 uses global database counts, while `actionDatabase()` deploys migrations and adds fixtures without removing rows left by earlier suites. Randomized users isolate Requester counts but cannot isolate operational totals.
+
+Reproduction used a newly created disposable `toktickit_lab3_dashboard_debug_test` database in the local test container, with explicit `TEST_DATABASE_URL`, `DATABASE_URL`, `DIRECT_URL` overrides and distinct captured baseline targets. The unchanged focused suite passed all four tests on its first run. Repeating the exact command without clearing fixtures failed the same two assertions: 13 Tickets instead of zero and 10 Unassigned instead of four. This rules out a dashboard query defect and demonstrates dependence on prior database contents.
+
+The suite now calls the existing `resetTestSchema(assertLab3TestDatabase())` before `actionDatabase()`. The Lab 3 guard verifies test mode, explicit matching overrides, dedicated lab3/test database markers and a target distinct from both baselines before schema reset. The existing sequential server test script prevents file-level concurrency. The reset is confined to the guarded disposable target; production endpoints, dashboard calculations, Prisma schema and migrations are unchanged. All existing metric, independent SQL, ordering, bound, deduplication and concurrent snapshot assertions remain intact; no expectations were weakened and no new tests were needed.
+
+After the setup fix, the same four regression tests passed on the already contaminated target. Both `npm --prefix server run build` and `npm --prefix client run build` passed; existing client annotation/chunk warnings remain. Neither package defines a lint script. Broader validation results follow below.
+
+Final validation: guarded `npm test` from `server/` passed 94 files / 1,448 tests, including all PostgreSQL suites and PG-12 after preceding suites. `git diff --check` passed. Client/browser tests were not rerun for this test-setup-only change. No commit, push, GitHub edit, independent CI, peer-review or release acceptance is claimed.
