@@ -41,7 +41,8 @@ test("Action UI integrates with real frozen APIs: create, start, complete, Reque
       await requester.getByLabel("Email *", { exact: true }).fill(fixture.requester.email);
       await requester.getByLabel("Password *", { exact: true }).fill(fixture.password);
       await requester.getByRole("button", { name: "Sign in", exact: true }).click();
-      await expect(requester).toHaveURL(/\/tickets$/);
+      await expect(requester).toHaveURL(/\/dashboard$/);
+    await requester.goto("/tickets");
       await requester.goto(actionPath.replace("/staff/tickets/", "/tickets/"));
       await expect(requester.getByText("Synthetic completed result", { exact: true })).toBeVisible();
       await expect(requester.getByRole("button", { name: "Preview synthetic-evidence.txt" })).toBeVisible();

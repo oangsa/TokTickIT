@@ -10,6 +10,7 @@ import ErrorPage from "./modules/System/ErrorPage.js";
 import Login from "./modules/Auth/Login.js";
 import UnavailablePage from "./modules/System/UnavailablePage.js";
 import CreateTicket from "./modules/Tickets/Requester/CreateTicket.js";
+import Dashboard from "./modules/Dashboard/Dashboard.js";
 import MyTickets from "./modules/Tickets/Requester/MyTickets.js";
 import RequesterTicketDetail from "./modules/Tickets/Requester/RequesterTicketDetail.js";
 import StaffTicketQueue from "./modules/Tickets/Staff/StaffTicketQueue.js";
@@ -60,6 +61,7 @@ export default function App({ enableHistoryBlocking = false }: { enableHistoryBl
     <Route path="/change-password" element={<ChangePassword />} />
     <Route path="/error" element={<ErrorPage />} />
     <Route element={<AuthGuard />}>
+      <Route element={<RoleGuard roles={["REQUESTER", "IT_STAFF", "ADMINISTRATOR"]} />}><Route element={<AppShell />}><Route path="/dashboard" element={<Dashboard />} /></Route></Route>
       <Route element={<RoleGuard roles={["REQUESTER"]} />}><Route element={<AppShell />}>
         <Route path="/tickets" element={<MyTickets />} />
         <Route path="/tickets/new" element={<CreateTicket />} />

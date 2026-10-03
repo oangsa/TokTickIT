@@ -49,7 +49,7 @@ export async function loginStaffFixture(page: Page, fixture: Awaited<ReturnType<
   await page.getByLabel("Email *", { exact: true }).fill(administrator ? fixture.admin.email : fixture.staff.email);
   await page.getByLabel("Password *", { exact: true }).fill(fixture.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(administrator ? /\/admin\/users$/ : /\/staff\/tickets$/);
-  if (administrator) await page.goto("/admin/tickets");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto(administrator ? "/admin/tickets" : "/staff/tickets");
   await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
 }

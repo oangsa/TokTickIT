@@ -6,6 +6,12 @@ This is the canonical Lab 2 AI-use record. It curates ten important prompts
 from the prompt history available in the repository and current session; it is
 not a transcript.
 
+## Lab 4 inherited Lab 2 responsive CI follow-up (2026-10-03)
+
+| Prompt | What I did with the result |
+|---|---|
+| Investigate CI failure in `RESP-01/VIS-01 Create Ticket at 390x844`; user authorized a Docker test database. | Used the disposable Lab 3 tmpfs PostgreSQL target at `127.0.0.1:55433`. Prisma read-only status showed seven unapplied migrations before Playwright setup. The exact case passed 1/1, then 10/10 repeats; the full responsive spec passed 9/9, including the mobile case after desktop/tablet cases. Refreshed the two 390x844 Create Ticket screenshots. No application or test source changed; CI failure remains unexplained because its screenshot/trace artifacts were unavailable in the workspace. Compose recreated the existing Lab 3 tmpfs container; the Lab 2 orphan container was left untouched. |
+
 ## Lab 3 CI regression follow-up (2026-09-25)
 
 | Prompt | What I did with the result |
