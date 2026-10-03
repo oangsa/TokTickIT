@@ -111,7 +111,7 @@ After the setup fix, the same four regression tests passed on the already contam
 
 Final validation: guarded `npm test` from `server/` passed 94 files / 1,448 tests, including all PostgreSQL suites and PG-12 after preceding suites. `git diff --check` passed. Client/browser tests were not rerun for this test-setup-only change. No commit, push, GitHub edit, independent CI, peer-review or release acceptance is claimed.
 
-## Published Head / CI Verification — 2026-10-03
+## Historical Published Head / CI Verification — 2026-10-03
 
 Published PR #89 head: `5c193ad2a7d96f124f3fb7c69a019025b458dbcc` on `feature/82-role-dashboards`, targeting `lab4-staging`.
 
@@ -132,3 +132,22 @@ This documentation-only follow-up records existing CI execution; application tes
 Authorized GitHub synchronization completed: [Issue #82](https://github.com/oangsa/TokTickIT/issues/82) now has nine Scope and three supported Definition-of-Done checks complete and all 16 owned test rows marked Pass; [PR #89](https://github.com/oangsa/TokTickIT/pull/89) now records the exact published-head CI results above. Both bodies were confirmed unchanged before editing and verified by exact read-back afterward. Both remain open, the PR head remains the verified SHA, and no #83 record or release gate was modified.
 
 Subsequent `commit, push` authorization covers only these evidence and AI-use documents. The no-publication statements above describe the earlier synchronization checkpoint. CI results remain attributed to `5c193ad2a7d96f124f3fb7c69a019025b458dbcc`; they do not claim verification of the subsequent documentation commit. No application tests or builds were rerun for this documentation-only publication.
+
+
+## Current Published Head / CI Verification — 2026-10-03
+
+Current published PR #89 head: `6e855d0ae7be15bbc0578429a8f651f728812173` on `feature/82-role-dashboards`, targeting `lab4-staging`.
+
+[GitHub Actions run 37094396768](https://github.com/oangsa/TokTickIT/actions/runs/37094396768) completed successfully for this exact SHA, including the documentation publication. Both job statuses, build/whitespace steps, and test logs were inspected during this synchronization:
+
+- Server: 94 files / 1,448 tests passed, including all four PG-12 Dashboard PostgreSQL tests.
+- Client: 38 files / 450 tests passed.
+- Browser: 102 discovered, 101 passed / 1 skipped; Dashboard E2E-03 and 18 Dashboard RESP-01–02 cases passed. The sole skip remains `E2E-01 final integrated Ticket/Action workflow — #83 after #81 Activity integration`.
+- Server TypeScript and client TypeScript/Vite builds: passed.
+- Committed-diff whitespace: `git diff --check HEAD^ HEAD` passed.
+
+The preceding `5c193ad2a7d96f124f3fb7c69a019025b458dbcc` / run `37092458934` section remains a historical checkpoint. These results verify the current published SHA; they do not claim CI for a later evidence-only commit. #83 retains final integrated workflow and release gates; no peer-review acceptance, merge or Issue closure is claimed.
+
+This follow-up changes evidence and AI-use documentation only. No application tests or builds were rerun locally; no behavior changed and no new Red/Green cycle was needed. No commit or push was authorized for this follow-up. Authorized live synchronization completed: [PR #89](https://github.com/oangsa/TokTickIT/pull/89) and [Issue #82](https://github.com/oangsa/TokTickIT/issues/82) now attribute current-head CI to the SHA/run above. Both bodies were checked against their saved baselines before editing and verified by exact read-back afterward; the PR head remained unchanged. Existing scope/test checkmarks and #83 gates were preserved. Local `git diff --check` passed; only the evidence and AI-use documents remain modified and uncommitted.
+
+Subsequent `commit, push` authorization covers only these two evidence/AI-use documents. The current-head section records the verified published checkpoint at synchronization time; the earlier no-publication statements describe that checkpoint. Run `37094396768` remains attributed only to `6e855d0ae7be15bbc0578429a8f651f728812173`, not this subsequent documentation publication. No application tests or builds were rerun.
