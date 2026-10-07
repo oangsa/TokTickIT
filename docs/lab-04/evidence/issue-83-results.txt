@@ -1,0 +1,497 @@
+Issue #83 executed local candidate: 2026-10-07; integrated base 1ee0b17.
+Sanitized summaries only. DB targets omit credentials. No mocked PG claims.
+
+server / npm test
+> toktickit-server@1.0.0 test
+> vitest run --no-file-parallelism
+ ✓ tests/lab-02/postgres/transactions.postgres.test.ts (21 tests) 3098ms
+   ✓ Lab 2 Ticket-create transaction rollback > refuses to rebind an Attachment a competing writer took after the Pending read 514ms
+ ✓ tests/lab-04/actions-taken.api.test.ts (132 tests) 764ms
+ ✓ tests/lab-04/postgres/migration-upgrade.postgres.test.ts (2 tests) 13649ms
+   ✓ Lab 4 migration upgrade @issue-78 > preserves Lab 3 rows and backfills truthful snapshots and eligible Actions after transaction rollback 1241ms
+   ✓ Lab 4 migration upgrade @issue-78 > preserves Lab 3 rows and backfills truthful snapshots and eligible Actions after Prisma failed-migration recovery 12402ms
+ ✓ tests/lab-02/postgres/migration-upgrade.postgres.test.ts (5 tests) 10599ms
+   ✓ Lab 2 migration and seed PostgreSQL contract > seeds all reference data idempotently without audit churn 1558ms
+   ✓ Lab 2 migration and seed PostgreSQL contract > upgrades populated Lab 1 Categories in place and preserves original timestamps 3608ms
+   ✓ Lab 2 migration and seed PostgreSQL contract > rejects over-length Lab 1 Category names without changing the original table 1826ms
+   ✓ Lab 2 migration and seed PostgreSQL contract > rolls back earlier Category changes when a later migration statement fails 1800ms
+ ✓ tests/lab-02/attachments.api.test.ts (75 tests) 287ms
+ ✓ tests/lab-02/postgres/my-tickets.postgres.test.ts (16 tests) 2043ms
+ ✓ tests/lab-02/AttachmentService.test.ts (66 tests) 101ms
+ ✓ tests/lab-02/TicketQueryValidator.test.ts (141 tests) 36ms
+ ✓ tests/lab-03/auth.api.test.ts (13 tests) 562ms
+ ✓ tests/lab-02/postgres/idempotency.postgres.test.ts (13 tests) 2286ms
+ ✓ tests/lab-02/my-tickets.api.test.ts (42 tests) 169ms
+ ✓ tests/lab-03/postgres/users-admin.postgres.test.ts (10 tests) 2132ms
+ ✓ tests/lab-03/comments-notes.api.test.ts (24 tests) 103ms
+ ✓ tests/lab-04/postgres/action-lifecycle.postgres.test.ts (7 tests) 1893ms
+ ✓ tests/lab-04/postgres/ticket-activity.postgres.test.ts (21 tests) 2066ms
+ ✓ tests/lab-04/postgres/schema-contract.postgres.test.ts (1 test) 1412ms
+   ✓ Lab 4 PostgreSQL schema @issue-78 > persists typed Action/Activity relations and scopes idempotency by concrete resource 554ms
+ ✓ tests/lab-02/ticket-idempotency.api.test.ts (28 tests) 112ms
+ ✓ tests/lab-02/IdempotencyService.test.ts (36 tests) 18ms
+ ✓ tests/lab-03/PublicCommentService.test.ts (22 tests) 16ms
+ ✓ tests/lab-03/postgres/migration-upgrade.postgres.test.ts (1 test) 704ms
+   ✓ Lab 3 populated migration @issue-2 > PG-01 keeps numeric User/Ticket/Attachment/Idempotency ownership linked @issue-2 697ms
+ ✓ tests/lab-03/users-admin.api.test.ts (19 tests) 119ms
+ ✓ tests/lab-02/TicketService.test.ts (25 tests) 15ms
+ ✓ tests/lab-03/postgres/comments-notes.postgres.test.ts (6 tests) 2500ms
+   ✓ PostgreSQL Comments and Notes Integration PG-14, PG-15 @issue-6 > PG-14 Public Comment thread persistence and ordering > bounds preview hydration to the three oldest replies on a 20-reply mixed-depth thread 454ms
+ ✓ tests/lab-02/create-ticket.api.test.ts (58 tests) 165ms
+ ✓ tests/lab-03/postgres/auth-session.postgres.test.ts (3 tests) 3101ms
+ ✓ tests/lab-02/QueryBuilder.test.ts (28 tests) 7ms
+ ✓ tests/lab-02/transport-hardening.api.test.ts (17 tests) 69ms
+ ✓ tests/lab-02/postgres/maintenance.postgres.test.ts (8 tests) 4027ms
+ ✓ tests/lab-04/postgres/dashboards.postgres.test.ts (4 tests) 2408ms
+ ↓ tests/lab-04/postgres/performance-smoke.postgres.test.ts (4 tests | 4 skipped)
+ ✓ tests/lab-03/staff-ticket-detail.api.test.ts (62 tests) 300ms
+ ✓ tests/lab-03/UserService.test.ts (13 tests) 26ms
+ ✓ tests/lab-03/postgres/ticket-workflow.postgres.test.ts (6 tests) 4267ms
+ ✓ tests/lab-04/postgres/ticket-resolution.postgres.test.ts (13 tests) 2102ms
+ ✓ tests/lab-03/AuthService.test.ts (5 tests) 64ms
+ ✓ tests/lab-04/postgres/security-bypass.postgres.test.ts (1 test) 1588ms
+   ✓ direct API role/resource/Attachment/Activity bypass matrix uses real persisted sessions and data 599ms
+ ✓ tests/lab-02/ticket-detail.api.test.ts (12 tests) 64ms
+ ✓ tests/lab-03/postgres/ticket-ownership.postgres.test.ts (6 tests) 2105ms
+ ✓ tests/lab-04/ActionTakenService.test.ts (47 tests) 23ms
+ ✓ tests/lab-04/ticket-workflow.api.test.ts (50 tests) 171ms
+ ✓ tests/lab-03/staff-queue.api.test.ts (12 tests) 80ms
+ ✓ tests/lab-03/authorization.api.test.ts (6 tests) 85ms
+ ✓ tests/lab-04/postgres/action-idempotency.postgres.test.ts (4 tests) 1612ms
+   ✓ PG-08 concurrent same-key Create/Start/Complete/Cancel commit exactly once and replay before stale checks 370ms
+ ✓ tests/lab-02/postgres/attachment-concurrency.postgres.test.ts (3 tests) 1956ms
+ ✓ tests/lab-04/postgres/action-concurrency.postgres.test.ts (4 tests) 3325ms
+   ✓ PG-06 Action assignment racing User transition rolls back deadlock loser 0 1062ms
+   ✓ PG-06 Action assignment racing User transition rolls back deadlock loser 1 1045ms
+ ✓ tests/lab-02/postgres/ticket-detail.postgres.test.ts (5 tests) 1860ms
+ ✓ tests/lab-02/MaintenanceService.test.ts (9 tests) 6ms
+ ✓ tests/lab-02/error-contract.api.test.ts (10 tests) 50ms
+ ✓ tests/lab-02/reference-data.api.test.ts (10 tests) 43ms
+ ✓ tests/lab-03/RequesterRegressionService.test.ts (13 tests) 10ms
+ ✓ tests/lab-03/requester-regression.api.test.ts (5 tests) 50ms
+ ✓ tests/lab-02/postgres/testDatabase.test.ts (9 tests) 5ms
+ ✓ tests/lab-03/postgres/rate-limit.postgres.test.ts (1 test) 299ms
+ ✓ tests/lab-03/SessionService.test.ts (5 tests) 6ms
+ ✓ tests/lab-03/InternalNoteService.test.ts (17 tests) 11ms
+ ✓ tests/lab-04/postgres/action-filter-users.postgres.test.ts (2 tests) 1460ms
+ ✓ tests/lab-02/tickets.api.test.ts (7 tests) 48ms
+ ✓ tests/lab-04/ticket-activity.api.test.ts (6 tests) 70ms
+ ✓ tests/lab-03/UserQueryValidator.test.ts (13 tests) 7ms
+ ✓ tests/lab-04/staff-dashboard.api.test.ts (4 tests) 67ms
+ ✓ tests/lab-04/requester-dashboard.api.test.ts (5 tests) 83ms
+ ✓ tests/lab-02/cors.api.test.ts (10 tests) 37ms
+ ✓ tests/lab-04/assignable-users.api.test.ts (16 tests) 74ms
+ ✓ tests/lab-03/postgres/requester-regression.postgres.test.ts (2 tests) 1806ms
+ ✓ tests/lab-03/postgres/maintenance.postgres.test.ts (1 test) 164ms
+ ✓ tests/lab-03/requester-attachments.api.test.ts (4 tests) 48ms
+ ✓ tests/lab-04/action-attachments.api.test.ts (4 tests) 45ms
+ ✓ tests/lab-04/postgres/action-attachments.postgres.test.ts (1 test) 1239ms
+ ✓ tests/lab-04/postgres/seed-idempotency.postgres.test.ts (2 tests) 3099ms
+   ✓ Lab 4 seed @issue-78 > keeps seeded Users, Tickets, Actions, and Activity unchanged on second run 1716ms
+   ✓ Lab 4 seed @issue-78 > leaves SYSTEM and provisioned human credentials unchanged during password provisioning 541ms
+ ✓ tests/lab-03/TicketWorkflowService.test.ts (53 tests) 15ms
+ ✓ tests/lab-03/TicketOwnershipService.test.ts (6 tests) 11ms
+ ✓ tests/lab-03/auth-transport.api.test.ts (5 tests) 25ms
+ ✓ tests/lab-02/requester-context.api.test.ts (6 tests) 35ms
+ ✓ tests/lab-02/RelatedSystemService.test.ts (3 tests) 5ms
+ ✓ tests/lab-03/JwtService.test.ts (3 tests) 9ms
+ ✓ tests/lab-02/CategoryService.test.ts (3 tests) 6ms
+ ✓ tests/lab-04/ActionTakenQueryValidator.test.ts (25 tests) 6ms
+ ✓ tests/lab-03/StaffQueueQueryValidator.test.ts (31 tests) 10ms
+ ✓ tests/lab-03/AuthorizationService.test.ts (3 tests) 5ms
+ ✓ tests/lab-03/PasswordService.test.ts (5 tests) 67ms
+ ✓ tests/lab-04/ActivityRepresentation.test.ts (3 tests) 3ms
+ ✓ tests/lab-03/LoginRateLimitService.test.ts (3 tests) 4ms
+ ✓ tests/lab-04/AssignableUserQueryValidator.test.ts (25 tests) 7ms
+ ✓ tests/lab-01/categories.test.ts (1 test) 23ms
+ ✓ tests/lab-02/TicketNumber.test.ts (5 tests) 12ms
+ ✓ tests/lab-02/createTicketFlow.test.ts (1 test) 4ms
+ ✓ tests/lab-03/QueryBuilderRegression.test.ts (2 tests) 8ms
+ ✓ tests/lab-04/DashboardQueryValidator.test.ts (2 tests) 4ms
+ ✓ tests/lab-03/MaintenanceService.test.ts (1 test) 2ms
+ ✓ tests/lab-03/error-contract.api.test.ts (2 tests) 19ms
+ ✓ tests/lab-03/databaseTargetGuard.test.ts (3 tests) 4ms
+ ✓ tests/lab-03/postgres/schema-contract.postgres.test.ts (1 test) 106ms
+ ✓ tests/lab-04/error-contract.api.test.ts (5 tests) 26ms
+ ✓ tests/lab-04/staffTicketReadService.test.ts (1 test) 4ms
+ ✓ tests/lab-01/health.test.ts (1 test) 17ms
+ ✓ tests/lab-03/InitialPasswordGenerator.test.ts (1 test) 3ms
+ Test Files  95 passed | 1 skipped (96)
+      Tests  1449 passed | 4 skipped (1453)
+   Start at  22:03:23
+   Duration  104.82s (transform 851ms, setup 0ms, collect 9.46s, tests 83.26s, environment 15ms, prepare 3.81s)
+
+client / npm test
+> toktickit-client@1.0.0 test
+> vitest run
+ ✓ tests/lab-03/AuthProvider.test.tsx (8 tests) 610ms
+   ✓ Issue 3 AuthProvider > UI-01 holds protected routes during bootstrap and loads identity after refresh @issue-3 349ms
+ ✓ tests/lab-02/SharedComponents.test.tsx (53 tests) 1421ms
+ ✓ tests/lab-03/PublicComments.test.tsx (13 tests) 2550ms
+   ✓ PublicComments component @issue-6 > UI-23 Root composer and lazy root list > does not duplicate a page boundary when another user posts between page requests 313ms
+   ✓ PublicComments component @issue-6 > UI-23 Root composer and lazy root list > retains draft on submission error and displays error alert 331ms
+   ✓ PublicComments component @issue-6 > UI-24 & UI-37 Reply preview, depth-2 presentation, and safe plain text > fetches successive pages for threads with >50 replies and provides retry control on failure 785ms
+   ✓ PublicComments component @issue-6 > UI-24 & UI-37 Reply preview, depth-2 presentation, and safe plain text > opens inline reply composer and submits reply with target metadata 307ms
+ ✓ tests/lab-04/DashboardRefresh.test.tsx (17 tests) 2636ms
+   ✓ UI-10 timer/manual refresh is single-flight, skipped ticks never queue and requests never abort 383ms
+   ✓ UI-16 role round-trip rejects abandoned flight and fetches current scope without overlap 336ms
+ ✓ tests/lab-02/RequesterTicketDetail.test.tsx (18 tests) 2645ms
+   ✓ UI-23 read-only Ticket Detail > renders every required field with its value 534ms
+   ✓ UI-23 read-only Ticket Detail > exposes requester actions but no internal workflow controls 333ms
+ ✓ tests/lab-03/UserForm.test.tsx (14 tests) 4111ms
+   ✓ UserForm tests (CreateUser and EditUser) @issue-6 > UI-27 Create User CommonForm and one-time password view > submits valid user and presents one-time initial password panel with Copy button 819ms
+   ✓ UserForm tests (CreateUser and EditUser) @issue-6 > UI-27 Create User CommonForm and one-time password view > maps duplicate email error response to email field error 438ms
+   ✓ UserForm tests (CreateUser and EditUser) @issue-6 > UI-28 Edit User fields, self-safety, and session confirmations > confirms case-only self email change and logs out after saving 501ms
+   ✓ UserForm tests (CreateUser and EditUser) @issue-6 > UI-28 Edit User fields, self-safety, and session confirmations > prompts confirmation modal on email change before sending PATCH 347ms
+   ✓ UserForm tests (CreateUser and EditUser) @issue-6 > UI-31 Dirty Create/Edit User NavigationGuard > triggers discard confirmation modal when form is dirty, allows keep editing or discard 330ms
+ ✓ tests/lab-03/DataTable.test.tsx (11 tests) 1637ms
+   ✓ DataTable Component @issue-6 > renders table with title, columns, and data rows 318ms
+   ✓ DataTable Component @issue-6 > filters data using filter modal dialog and displays active chips 313ms
+ ✓ tests/lab-03/StaffTicketDetail.test.tsx (14 tests) 4870ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-15 groups Requester fields as read-only and restricts Admin non-owner controls 531ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > Finding 1 regression: hides Change Owner on CLOSED and CANCELLED for IT Staff and Admin owner 349ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-16 allows IT Staff to Claim unassigned Ticket without confirmation dialog 419ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-16 conflict preserves current state and requires Refresh Ticket 363ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-17 owner lookup confirms reassign and sends displayed expected owner 473ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-17 unassign confirms side effects and sends null owner 560ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-18 handles IT Priority edit, busy state, success alert, and error handling 382ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-20 Request Information validates message, submits to endpoint, and updates state 560ms
+   ✓ UI-15–20/22 Staff Detail @issue-5 > UI-22 Mark Resolved requires confirmation; Close is gated on Requester confirmation 484ms
+ ✓ tests/lab-03/InternalNotes.test.tsx (9 tests) 1129ms
+   ✓ InternalNotes component @issue-6 > UI-25 Role-based authoring and validation > allows IT Staff to compose and post internal note with 1-4000 char boundary 417ms
+ ✓ tests/lab-03/CommonForm.test.tsx (7 tests) 977ms
+   ✓ Issue 3 CommonForm > UI-33 validates with Zod, focuses first invalid field, then submits normalized values @issue-3 326ms
+ ✓ tests/lab-02/ApplicationShell.test.tsx (12 tests) 2853ms
+   ✓ authenticated application shell and navigation > shows the brand and authenticated requester navigation without a selector 532ms
+   ✓ authenticated shell drawer and accessibility > closes the drawer on Escape, navigation, and an outside route change 481ms
+   ✓ authenticated shell drawer and accessibility > closes on a desktop breakpoint and keeps open below it 305ms
+   ✓ dirty navigation protection > blocks browser history until the authenticated requester confirms discard 692ms
+ ✓ tests/lab-04/ActionDetail.test.tsx (10 tests) 4007ms
+   ✓ Requester sees migrated Completed Action read-only with unknown performer and no Activity request 343ms
+   ✓ Staff Start disabled when unassigned; assigned Start confirms and sends expectedVersion with stable retry key 381ms
+   ✓ Complete validates Result/Follow-Up and sends one atomic request as current Ticket Owner 828ms
+   ✓ Complete retains an oversized Follow-Up draft but submits without it when Follow-Up is disabled 570ms
+   ✓ Complete conflict retains inputs and reloads current Ticket ownership before another attempt 466ms
+   ✓ Lifecycle recovery after 403 keeps refreshed Ticket permissions after the modal closes 515ms
+   ✓ Lifecycle recovery after 409 keeps refreshed Ticket permissions after the modal closes 558ms
+ ✓ tests/lab-04/ActionsTaken.test.tsx (15 tests) 7176ms
+   ✓ Requester Actions use shared DataTable, business columns and View only, standard paged read endpoint 407ms
+   ✓ Staff filters/search/sort/paging remain server queries; draft Cancel does not apply, dates cover entire UTC day 1322ms
+   ✓ Creator Edit visibility for 100 rows comes from list identity without per-row detail requests 1501ms
+   ✓ REQUESTER can filter by historical Users outside loaded Action page 409ms
+   ✓ IT_STAFF can filter by historical Users outside loaded Action page 524ms
+   ✓ ADMINISTRATOR can filter by historical Users outside loaded Action page 534ms
+   ✓ REQUESTER historical-user Lookups reorder rows when Role header is clicked twice 622ms
+   ✓ IT_STAFF historical-user Lookups reorder rows when Role header is clicked twice 741ms
+   ✓ ADMINISTRATOR historical-user Lookups reorder rows when Role header is clicked twice 748ms
+ ✓ tests/lab-03/UserManagement.test.tsx (8 tests) 1424ms
+   ✓ UserManagement page @issue-6 > UI-26 User Management table, search, role filter, and pagination > renders table with required columns, user rows, and Edit and View actions 488ms
+   ✓ UserManagement page @issue-6 > UI-26 User Management table, search, role filter, and pagination > filters users by role via modal dropdown selection 331ms
+ ✓ tests/lab-02/MyTickets.test.tsx (53 tests) 9102ms
+   ✓ UI-15 My Tickets loading and stale-scope prevention > shows the table structure and a loading status before the rows arrive 329ms
+   ✓ UI-19 My Tickets filter draft, cancel, reset, and apply > offers all four filters as multi-select dropdowns 494ms
+   ✓ UI-19 My Tickets filter draft, cancel, reset, and apply > closes only the open filter menu on Escape, and the dialog on the next one 318ms
+   ✓ UI-19 My Tickets filter draft, cancel, reset, and apply > reports a selection in option order however it was ticked 423ms
+   ✓ UI-19 My Tickets filter draft, cancel, reset, and apply > discards draft changes on Cancel and fetches nothing 502ms
+   ✓ UI-19 My Tickets filter draft, cancel, reset, and apply > clears the draft on Reset without fetching 392ms
+   ✓ UI-19 My Tickets filter draft, cancel, reset, and apply > commits the draft on Apply, resets the page, and fetches once 489ms
+   ✓ UI-22 My Tickets pagination and list projection > requests the next page and the chosen page size 348ms
+   ✓ UI-32 and UI-37 My Tickets accessibility > opens Ticket Detail by row click and native link activation 410ms
+ ✓ tests/lab-03/RequesterRegression.test.tsx (5 tests) 2366ms
+   ✓ authenticated Requester regression > UI-09 @issue-4 keeps generated Ticket fields out of authenticated create payload 1310ms
+   ✓ authenticated Requester regression > UI-12 @issue-4 shows local reload recovery when a requester action conflicts 347ms
+ ✓ tests/lab-04/LookupModal.test.tsx (4 tests) 1022ms
+   ✓ User definition maps standard search/filter/sort/page and X-Pagination, exposes Select only 328ms
+   ✓ Lookup loading, safe failure/Retry, initial empty and no-results stay distinct; retries preserve query 311ms
+ ✓ tests/lab-04/ActionForm.test.tsx (8 tests) 4324ms
+   ✓ Create validates a retained Follow-Up Note only while Follow-Up is required 1075ms
+   ✓ Edit validates a retained Follow-Up Note only while Follow-Up is required 484ms
+   ✓ Create defaults current Staff, allows clear, validates conditional follow-up and posts eligible associations only 689ms
+   ✓ Edit sends expectedVersion separately from assignment, preserves draft on conflict and explicitly reloads canonical version 576ms
+   ✓ Attachment picker excludes pending, removed and cross-Ticket files; keeps notes separate and guards dirty close 555ms
+   ✓ Create preserves a rejected draft and refreshes Ticket eligibility before retrying 325ms
+   ✓ Create retains UUID across identical recoverable retries, changes key with input, and maps server fields 353ms
+ ✓ tests/lab-04/Accessibility.test.tsx (11 tests) 1045ms
+   ✓ Lookup required/server errors associate with owning control and focus it; disabled field cannot open 310ms
+ ✓ tests/lab-03/ChangePassword.test.tsx (6 tests) 2419ms
+   ✓ Issue 3 Change Password > updates requirement colors (red when validating, green when met) while typing (restricted=true) 600ms
+   ✓ Issue 3 Change Password > updates requirement colors (red when validating, green when met) while typing (restricted=false) 362ms
+   ✓ Issue 3 Change Password > UI-04 shows restricted fields, validates confirmation, and requires fresh login @issue-3 531ms
+   ✓ Issue 3 Change Password > UI-05 submits normal-session current/new passwords and returns to fresh login @issue-3 396ms
+   ✓ Issue 3 Change Password > keeps safe expiry feedback when the session ends during submission @issue-3 514ms
+ ✓ tests/lab-04/ActivityTimeline.test.tsx (3 tests) 511ms
+   ✓ Action history requests oldest-first ten, appends Load More; Ticket filter maps category and renders Requester advisory truthfully 401ms
+ ✓ tests/lab-03/StaffTicketQueue.test.tsx (6 tests) 5387ms
+   ✓ UI-13–14 Queue controls @issue-5 > UI-13 renders desktop table columns, loading state, explicit unassigned, and empty vs no-results 443ms
+   ✓ UI-13–14 Queue controls @issue-5 > pages populated results and resets paging when page size changes 308ms
+   ✓ UI-13–14 Queue controls @issue-5 > keeps draft Reset/Cancel separate from Apply 706ms
+   ✓ UI-13–14 Queue controls @issue-5 > debounces search across four fields and resets page for sort 579ms
+   ✓ UI-13–14 Queue controls @issue-5 > keeps invalid search on Queue and recovers with Reset Search 3217ms
+ ✓ tests/lab-03/ViewUser.test.tsx (3 tests) 361ms
+ ✓ tests/lab-03/ApplicationShellAuth.test.tsx (7 tests) 1065ms
+   ✓ Issue 3 authenticated shell > UI-06 shows identity, role-aware navigation, password action, and logout @issue-3 540ms
+ ✓ tests/lab-04/RequesterDashboard.test.tsx (2 tests) 930ms
+   ✓ UI-08 Dashboard home shows authoritative accessible cards, status drills and compact bounded recent list 729ms
+ ✓ tests/lab-04/ActionAssigneeSelection.test.tsx (2 tests) 751ms
+   ✓ Reassign selects global user then confirms persisted assignment with expectedVersion; Unassign separately confirms null 417ms
+   ✓ Invalid selection reloads eligibility; conflict preserves selection and retries only after latest version 330ms
+ ✓ tests/lab-01/App.test.tsx (5 tests) 401ms
+ ✓ tests/lab-02/ErrorPage.test.tsx (15 tests) 1387ms
+   ✓ UI-31 and UI-35 global error page > renders the safe generic error and ignores backend-supplied text 425ms
+ ✓ tests/lab-04/TicketWorkflow.test.tsx (14 tests) 6889ms
+   ✓ UI-07 Admin non-owner has Claim/Priority/Cancel but no owner-only lifecycle or reassignment 619ms
+   ✓ UI-07 filtered open PLANNED Actions still prevent resolution 584ms
+   ✓ UI-07 filtered open IN_PROGRESS Actions still prevent resolution 460ms
+   ✓ UI-07 stale gate gives explanatory Refresh without success, then retries and refreshes summary/Actions/Activity 348ms
+   ✓ UI-07 Request Information conflict refresh preserves entered message 863ms
+   ✓ UI-07 IT_STAFF Request Information refresh preserves draft but blocks retry after ownership changes 721ms
+   ✓ UI-07 ADMINISTRATOR Request Information refresh preserves draft but blocks retry after ownership changes 745ms
+   ✓ UI-07 IT_STAFF Request Information refresh preserves draft but blocks retry after status changes 802ms
+   ✓ UI-07 ADMINISTRATOR Request Information refresh preserves draft but blocks retry after status changes 796ms
+ ✓ tests/lab-04/LookupField.test.tsx (1 test) 419ms
+   ✓ global definition selects managed ID/display by explicit keyboard action and restores focus 415ms
+ ✓ tests/lab-03/Login.test.tsx (2 tests) 1021ms
+   ✓ Issue 3 Login > UI-02 submits documented credentials and Remember Me, then routes by identity @issue-3 732ms
+ ✓ tests/lab-01/api.test.tsx (1 test) 60ms
+ ✓ tests/lab-04/StaffDashboard.test.tsx (2 tests) 1272ms
+   ✓ UI-09 IT_STAFF shared Dashboard links use Queue JSON filters and role paths 882ms
+   ✓ UI-09 ADMINISTRATOR shared Dashboard links use Queue JSON filters and role paths 385ms
+ ✓ tests/lab-03/ErrorPageAuth.test.tsx (2 tests) 344ms
+ ✓ tests/lab-02/RequesterSelection.test.tsx (2 tests) 148ms
+ ✓ tests/lab-03/Accessibility.test.tsx (1 test) 140ms
+ ✓ tests/lab-02/AttachmentSection.test.tsx (48 tests) 14776ms
+   ✓ UI-25 per-file Attachment lifecycle on Create Ticket > takes a valid selection from Uploading to Pending 526ms
+   ✓ UI-25 per-file Attachment lifecycle on Create Ticket > blocks Submit while a file is unresolved and releases it once it is removed 323ms
+   ✓ UI-25 per-file Attachment lifecycle on Create Ticket > sends the prepared Pending IDs with the Ticket-create payload 1578ms
+   ✓ UI-10 Pending rows survive a Ticket-create 4xx > keeps the prepared rows and their IDs on the form after a rejected submit 1349ms
+   ✓ UI-11 compensation after an ambiguous Ticket-create 5xx > releases the prepared rows with an empty reason each and never invents one 1288ms
+   ✓ UI-11 compensation after an ambiguous Ticket-create 5xx > offers Retry Upload and drops the recovery record when the release is confirmed 1446ms
+   ✓ UI-11 compensation after an ambiguous Ticket-create 5xx > keeps the rows Pending and the recovery record when the release is refused 1261ms
+   ✓ UI-11 compensation after an ambiguous Ticket-create 5xx > keeps the non-file fields either way 1056ms
+   ✓ UI-29 a required reason per selected Attachment > asks for one reason per selected file 300ms
+   ✓ UI-29 a required reason per selected Attachment > focuses the first invalid reason on submit 365ms
+   ✓ UI-29 a required reason per selected Attachment > sends a trimmed reason for each selected file 394ms
+   ✓ UI-30 an all-or-nothing removal failure > leaves every selected row in its previous state 501ms
+ ✓ tests/lab-02/CreateTicket.test.tsx (43 tests) 19289ms
+   ✓ Create Ticket form > loads Category and Related System from the API rather than a hard-coded list 514ms
+   ✓ Create Ticket validation > rejects a two-character Summary 1337ms
+   ✓ Create Ticket validation > rejects a whitespace-only Summary 1253ms
+   ✓ Create Ticket validation > rejects a two-character astral Summary 1057ms
+   ✓ Create Ticket validation > rejects a Description under ten trimmed characters 1220ms
+   ✓ Create Ticket validation > counts trimmed characters against the Summary and Description limits 1114ms
+   ✓ Create Ticket submission > posts only the client-controlled fields with a UUID Idempotency-Key 989ms
+   ✓ Create Ticket submission > excludes every backend-managed field from the request body 884ms
+   ✓ Create Ticket submission > sends the trimmed Summary and Description 1136ms
+   ✓ Create Ticket submission > navigates to the owned Ticket Detail with the generated Ticket Number 968ms
+   ✓ Create Ticket submission > prevents a duplicate submission while one is in flight 947ms
+   ✓ Create Ticket submission > shows a spinner in the busy button while keeping its Submit Ticket text 903ms
+   ✓ Create Ticket failure behaviour > keeps the entered values and maps backend field errors on a 4xx 726ms
+   ✓ Create Ticket failure behaviour > never surfaces the backend message text 363ms
+   ✓ Create Ticket failure behaviour > stores no recovery record after a confirmed 4xx failure 360ms
+   ✓ Create Ticket failure behaviour > reuses the same key for an unchanged retry and mints a new one after a change 388ms
+   ✓ Create Ticket failure behaviour > persists only the approved recovery data after an ambiguous 5xx 326ms
+   ✓ Create Ticket failure behaviour > changes the primary action to Retry Again without adding a recovery button 367ms
+   ✓ Create Ticket failure behaviour > keeps the authenticated form on an ordinary 400 response 326ms
+   ✓ Cancel and discard > warns before an unload that would drop a dirty draft 359ms
+   ✓ Cancel and discard > confirms before discarding a dirty draft 336ms
+   ✓ Cancel and discard > uses the same discard confirmation for sidebar navigation 367ms
+   ✓ Cancel and discard > does not render a requester switch on the authenticated form 340ms
+   ✓ Cancel and discard > keeps the draft unchanged when the user keeps editing 357ms
+   ✓ Cancel and discard > clears the draft and the recovery record on a confirmed discard 365ms
+   ✓ Cancel and discard > ignores a successful Ticket response after confirmed discard 396ms
+   ✓ Cancel and discard > does not recreate recovery after a failed Ticket response following discard 398ms
+ Test Files  38 passed (38)
+      Tests  455 passed (455)
+   Start at  22:03:00
+   Duration  21.68s (transform 3.56s, setup 5.67s, collect 27.63s, tests 113.48s, environment 23.40s, prepare 4.19s)
+
+server / npm run build
+> toktickit-server@1.0.0 build
+> tsc
+
+client / npm run build
+> toktickit-client@1.0.0 build
+> tsc && vite build
+✓ 2050 modules transformed.
+✓ built in 2.24s
+
+root / npm run test:e2e
+> toktickit-e2e@1.0.0 test:e2e
+> playwright test
+  ✓    1 e2e/lab-02/create-ticket.spec.ts:77:1 › E2E-03 recovers an ambiguous Create Ticket submission across reload (4.6s)
+  ✓    2 e2e/lab-02/requester-ticket-flow.spec.ts:67:3 › Lab 2 Requester browser flows › E2E-01 completes the Requester golden path and Attachment lifecycle (2.9s)
+  ✓    3 e2e/lab-02/requester-ticket-flow.spec.ts:142:3 › Lab 2 Requester browser flows › E2E-02 isolates an Alice Ticket after switching to Bob (3.9s)
+  ✓    4 e2e/lab-02/responsive-visual.spec.ts:182:3 › RESP-01/VIS-01 Create Ticket at 1440x900 (1.6s)
+  ✓    5 e2e/lab-02/responsive-visual.spec.ts:234:3 › RESP-02/VIS-02 My Tickets at 1440x900 (2.4s)
+  ✓    6 e2e/lab-02/responsive-visual.spec.ts:326:3 › RESP-03/VIS-03 Ticket Detail and Attachments at 1440x900 (1.7s)
+  ✓    7 e2e/lab-02/responsive-visual.spec.ts:182:3 › RESP-01/VIS-01 Create Ticket at 820x1180 (1.6s)
+  ✓    8 e2e/lab-02/responsive-visual.spec.ts:234:3 › RESP-02/VIS-02 My Tickets at 820x1180 (1.7s)
+  ✓    9 e2e/lab-02/responsive-visual.spec.ts:326:3 › RESP-03/VIS-03 Ticket Detail and Attachments at 820x1180 (1.6s)
+  ✓   10 e2e/lab-02/responsive-visual.spec.ts:182:3 › RESP-01/VIS-01 Create Ticket at 390x844 (1.5s)
+  ✓   11 e2e/lab-02/responsive-visual.spec.ts:234:3 › RESP-02/VIS-02 My Tickets at 390x844 (1.6s)
+  ✓   12 e2e/lab-02/responsive-visual.spec.ts:326:3 › RESP-03/VIS-03 Ticket Detail and Attachments at 390x844 (1.6s)
+  ✓   13 e2e/lab-03/authentication.spec.ts:73:1 › E2E-01 initial-password login requires a fresh login and protects routes @issue-3 (2.3s)
+  ✓   14 e2e/lab-03/authentication.spec.ts:150:1 › E2E-02 Login sends only documented fields and shows safe auth failure @issue-3 (538ms)
+  ✓   15 e2e/lab-03/authentication.spec.ts:176:1 › E2E-02 rate limiting keeps login feedback safe @issue-3 (511ms)
+  ✓   16 e2e/lab-03/authentication.spec.ts:201:3 › E2E-02 unknown account uses indistinguishable safe feedback @issue-3 (493ms)
+  ✓   17 e2e/lab-03/authentication.spec.ts:201:3 › E2E-02 inactive account uses indistinguishable safe feedback @issue-3 (510ms)
+  ✓   18 e2e/lab-03/authentication.spec.ts:201:3 › E2E-02 incorrect password uses indistinguishable safe feedback @issue-3 (511ms)
+  ✓   19 e2e/lab-03/authentication.spec.ts:221:1 › E2E-02 restricted identity reaches Change Password without shell flash @issue-3 (461ms)
+  ✓   20 e2e/lab-03/authentication.spec.ts:231:1 › E2E-01 live Remember Me, refresh bootstrap, and logout-all revoke sessions @issue-3 (2.7s)
+  ✓   21 e2e/lab-03/requester-regression.spec.ts:22:1 › E2E-03 authenticated Requester create/detail/action and owner isolation @issue-4 (3.4s)
+  ✓   22 e2e/lab-03/requester-regression.spec.ts:134:1 › E2E-03 ambiguous Create Ticket response replays one Ticket after reload @issue-4 (2.5s)
+  ✓   23 e2e/lab-03/requester-regression.spec.ts:179:1 › E2E-03 Requester confirms resolution then reopens unassigned @issue-4 (1.8s)
+  ✓   24 e2e/lab-03/requester-regression.spec.ts:205:1 › E2E-03 My Tickets search, filter, sort and page use authenticated ownership @issue-4 (1.8s)
+  ✓   25 e2e/lab-03/responsive-visual.spec.ts:496:3 › RESP-03 Queue table/cards and filter controls 1440 @issue-5 (2.0s)
+  ✓   26 e2e/lab-03/responsive-visual.spec.ts:496:3 › RESP-03 Queue table/cards and filter controls 820 @issue-5 (2.0s)
+  ✓   27 e2e/lab-03/responsive-visual.spec.ts:496:3 › RESP-03 Queue table/cards and filter controls 390 @issue-5 (1.9s)
+  ✓   28 e2e/lab-03/responsive-visual.spec.ts:525:3 › RESP-02 Requester pages remain usable at 1440x900 @issue-4 (1.2s)
+  ✓   29 e2e/lab-03/responsive-visual.spec.ts:544:3 › RESP-01 Login remains readable at 1440x900 @issue-3 (474ms)
+  ✓   30 e2e/lab-03/responsive-visual.spec.ts:557:3 › RESP-01 Change Password remains readable at 1440x900 @issue-3 (478ms)
+  ✓   31 e2e/lab-03/responsive-visual.spec.ts:569:3 › RESP-01 safe 403 remains readable at 1440x900 @issue-3 (458ms)
+  ✓   32 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 REQUESTER shell stays usable at 1440x900 @issue-3 (537ms)
+  ✓   33 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 IT_STAFF shell stays usable at 1440x900 @issue-3 (507ms)
+  ✓   34 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 ADMINISTRATOR shell stays usable at 1440x900 @issue-3 (475ms)
+  ✓   35 e2e/lab-03/responsive-visual.spec.ts:525:3 › RESP-02 Requester pages remain usable at 820x1180 @issue-4 (1.2s)
+  ✓   36 e2e/lab-03/responsive-visual.spec.ts:544:3 › RESP-01 Login remains readable at 820x1180 @issue-3 (477ms)
+  ✓   37 e2e/lab-03/responsive-visual.spec.ts:557:3 › RESP-01 Change Password remains readable at 820x1180 @issue-3 (476ms)
+  ✓   38 e2e/lab-03/responsive-visual.spec.ts:569:3 › RESP-01 safe 403 remains readable at 820x1180 @issue-3 (476ms)
+  ✓   39 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 REQUESTER shell stays usable at 820x1180 @issue-3 (580ms)
+  ✓   40 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 IT_STAFF shell stays usable at 820x1180 @issue-3 (595ms)
+  ✓   41 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 ADMINISTRATOR shell stays usable at 820x1180 @issue-3 (558ms)
+  ✓   42 e2e/lab-03/responsive-visual.spec.ts:525:3 › RESP-02 Requester pages remain usable at 390x844 @issue-4 (1.1s)
+  ✓   43 e2e/lab-03/responsive-visual.spec.ts:544:3 › RESP-01 Login remains readable at 390x844 @issue-3 (453ms)
+  ✓   44 e2e/lab-03/responsive-visual.spec.ts:557:3 › RESP-01 Change Password remains readable at 390x844 @issue-3 (528ms)
+  ✓   45 e2e/lab-03/responsive-visual.spec.ts:569:3 › RESP-01 safe 403 remains readable at 390x844 @issue-3 (471ms)
+  ✓   46 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 REQUESTER shell stays usable at 390x844 @issue-3 (584ms)
+  ✓   47 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 IT_STAFF shell stays usable at 390x844 @issue-3 (638ms)
+  ✓   48 e2e/lab-03/responsive-visual.spec.ts:579:5 › RESP-06 ADMINISTRATOR shell stays usable at 390x844 @issue-3 (606ms)
+  ✓   49 e2e/lab-03/responsive-visual.spec.ts:613:3 › RESP-04 Staff Ticket Detail with comments and notes 1440 @issue-6 (824ms)
+  ✓   50 e2e/lab-03/responsive-visual.spec.ts:642:3 › RESP-05 User Management list, create, and edit 1440 @issue-6 (1.3s)
+  ✓   51 e2e/lab-03/responsive-visual.spec.ts:613:3 › RESP-04 Staff Ticket Detail with comments and notes 820 @issue-6 (796ms)
+  ✓   52 e2e/lab-03/responsive-visual.spec.ts:642:3 › RESP-05 User Management list, create, and edit 820 @issue-6 (1.2s)
+  ✓   53 e2e/lab-03/responsive-visual.spec.ts:613:3 › RESP-04 Staff Ticket Detail with comments and notes 390 @issue-6 (737ms)
+  ✓   54 e2e/lab-03/responsive-visual.spec.ts:642:3 › RESP-05 User Management list, create, and edit 390 @issue-6 (1.3s)
+  ✓   55 e2e/lab-03/staff-ticket-flow.spec.ts:6:1 › E2E-04 Queue controls, Claim, owner workflow, confirmation and Close @issue-5 (4.8s)
+  ✓   56 e2e/lab-03/staff-ticket-flow.spec.ts:44:1 › E2E-04 Request Information creates comment and transitions to WAITING, then Resumes @issue-5 (2.0s)
+  ✓   57 e2e/lab-03/staff-ticket-flow.spec.ts:66:1 › E2E-04 Administrator Claim grants owner-only workflow while parity permits Priority/Cancel @issue-5 (2.2s)
+  ✓   58 e2e/lab-03/staff-ticket-flow.spec.ts:89:1 › E2E-04 Queue default priority order and second page @issue-5 (2.2s)
+  ✓   59 e2e/lab-03/staff-ticket-flow.spec.ts:107:1 › E2E-04 simultaneous Claim leaves one owner and shows conflict @issue-5 (2.6s)
+  ✓   60 e2e/lab-03/staff-ticket-flow.spec.ts:130:1 › E2E-04 Administrator reassigns owner through Ticket Detail @issue-5 (2.2s)
+  ✓   61 e2e/lab-03/staff-ticket-flow.spec.ts:146:1 › E2E-04 Staff reads existing Requester Attachment @issue-5 (1.7s)
+  ✓   62 e2e/lab-03/staff-ticket-flow.spec.ts:166:1 › E2E-04 Requester reopen clears Staff ownership and returns Ticket to queue @issue-5 (3.4s)
+  ✓   63 e2e/lab-03/staff-ticket-flow.spec.ts:192:1 › E2E-06 Production Request Information creates Public Comment and transitions to WAITING @issue-6 (2.8s)
+  ✓   64 e2e/lab-03/staff-ticket-flow.spec.ts:214:1 › E2E-06 Requester sees Public Comments, can reply, and AC-28 waiting status does not resume @issue-6 (1.7s)
+  ✓   65 e2e/lab-03/staff-ticket-flow.spec.ts:261:1 › E2E-06 Staff Internal Notes has private warning banner and appends notes @issue-6 (4.3s)
+  ✓   66 e2e/lab-03/staff-ticket-flow.spec.ts:287:1 › E2E-06 Cross-Requester access returns safe 404 @issue-6 (1.2s)
+  ✓   67 e2e/lab-03/user-administration.spec.ts:5:1 › E2E-05 Administrator User Management golden path @issue-6 (9.1s)
+  ✓   68 e2e/lab-03/user-administration.spec.ts:173:1 › E2E-05 User list paginates and deactivation revokes owner session @issue-6 (3.8s)
+  ✓   69 e2e/lab-03/user-administration.spec.ts:211:1 › E2E-05 concurrent Administrator deactivation preserves last active Administrator @issue-6 (3.0s)
+  ✓   70 e2e/lab-03/user-administration.spec.ts:277:1 › E2E-06 Non-Administrator roles cannot access User Management @issue-6 (2.1s)
+  ✓   71 e2e/lab-04/actions-taken-flow.spec.ts:5:1 › E2E-01 integrated claim, assignee Lookup, start, edit, Attachment, complete, Activity and Requester read-only (5.5s)
+  ✓   72 e2e/lab-04/dashboards.spec.ts:20:1 › E2E-03 real role snapshots, filtered drills, Action links, URL sizes, refresh, remount, visibility and recoverable failure (11.3s)
+  ✓   73 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real REQUESTER 1440x900 screens, focus and reduced motion (1.7s)
+  ✓   74 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real IT_STAFF 1440x900 screens, focus and reduced motion (3.9s)
+  ✓   75 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real ADMINISTRATOR 1440x900 screens, focus and reduced motion (4.0s)
+  ✓   76 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real REQUESTER 820x1180 screens, focus and reduced motion (1.6s)
+  ✓   77 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real IT_STAFF 820x1180 screens, focus and reduced motion (3.8s)
+  ✓   78 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real ADMINISTRATOR 820x1180 screens, focus and reduced motion (3.8s)
+  ✓   79 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real REQUESTER 390x844 screens, focus and reduced motion (1.5s)
+  ✓   80 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real IT_STAFF 390x844 screens, focus and reduced motion (3.7s)
+  ✓   81 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real ADMINISTRATOR 390x844 screens, focus and reduced motion (3.8s)
+  ✓   82 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 IT_STAFF 1440x900: Actions, forms, Lookup, Detail, Activity (2.6s)
+  ✓   83 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 ADMINISTRATOR 1440x900: Actions, forms, Lookup, Detail, Activity (2.8s)
+  ✓   84 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 REQUESTER 1440x900: Actions, forms, Lookup, Detail, Activity (1.8s)
+  ✓   85 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 IT_STAFF 820x1180: Actions, forms, Lookup, Detail, Activity (2.7s)
+  ✓   86 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 ADMINISTRATOR 820x1180: Actions, forms, Lookup, Detail, Activity (2.6s)
+  ✓   87 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 REQUESTER 820x1180: Actions, forms, Lookup, Detail, Activity (1.7s)
+  ✓   88 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 IT_STAFF 390x844: Actions, forms, Lookup, Detail, Activity (2.3s)
+  ✓   89 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 ADMINISTRATOR 390x844: Actions, forms, Lookup, Detail, Activity (2.3s)
+  ✓   90 e2e/lab-04/responsive-visual.spec.ts:46:3 › RESP-03 REQUESTER 390x844: Actions, forms, Lookup, Detail, Activity (1.6s)
+  ✓   91 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-01 REQUESTER Dashboard loading 1440x900 (594ms)
+  ✓   92 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-01 REQUESTER Dashboard 1440x900 (1.5s)
+  ✓   93 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-02 IT_STAFF Dashboard loading 1440x900 (773ms)
+  ✓   94 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-02 IT_STAFF Dashboard 1440x900 (1.7s)
+  ✓   95 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-02 ADMINISTRATOR Dashboard loading 1440x900 (760ms)
+  ✓   96 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-02 ADMINISTRATOR Dashboard 1440x900 (1.7s)
+  ✓   97 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-01 REQUESTER Dashboard loading 820x1180 (595ms)
+  ✓   98 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-01 REQUESTER Dashboard 820x1180 (1.4s)
+  ✓   99 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-02 IT_STAFF Dashboard loading 820x1180 (708ms)
+  ✓  100 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-02 IT_STAFF Dashboard 820x1180 (1.8s)
+  ✓  101 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-02 ADMINISTRATOR Dashboard loading 820x1180 (764ms)
+  ✓  102 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-02 ADMINISTRATOR Dashboard 820x1180 (1.7s)
+  ✓  103 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-01 REQUESTER Dashboard loading 390x844 (557ms)
+  ✓  104 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-01 REQUESTER Dashboard 390x844 (1.4s)
+  ✓  105 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-02 IT_STAFF Dashboard loading 390x844 (644ms)
+  ✓  106 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-02 IT_STAFF Dashboard 390x844 (1.6s)
+  ✓  107 e2e/lab-04/responsive-visual.spec.ts:122:3 › RESP-02 ADMINISTRATOR Dashboard loading 390x844 (659ms)
+  ✓  108 e2e/lab-04/responsive-visual.spec.ts:154:3 › RESP-02 ADMINISTRATOR Dashboard 390x844 (1.6s)
+  ✓  109 e2e/lab-04/ticket-resolution.spec.ts:4:44 › E2E-02 Staff owner resolution gate, Requester advice, Close and Activity (8.0s)
+  ✓  110 e2e/lab-04/ticket-resolution.spec.ts:4:44 › E2E-02 Administrator owner resolution gate, Requester advice, Close and Activity (8.0s)
+  110 passed (3.8m)
+
+server / PERF01_RUN=1 npm test -- tests/lab-04/postgres/performance-smoke.postgres.test.ts
+PERF-01 environment {
+  node: 'v24.18.1',
+  ceilingMs: 2000,
+  target: '127.0.0.1:55483/toktickit_lab3_perf_test'
+}
+PERF-01 counts {
+  users: 1000,
+  tickets: 100000,
+  actions: 300000,
+  activities: 500000,
+  attachmentJoins: 1000
+}
+PERF-01 probe {
+  name: 'Requester Dashboard',
+  elapsedMs: 11,
+  ceilingMs: 2000,
+  reads: 5,
+  boundedReads: 1
+}
+PERF-01 probe {
+  name: 'Staff Dashboard',
+  elapsedMs: 96,
+  ceilingMs: 2000,
+  reads: 30,
+  boundedReads: 25
+}
+PERF-01 probe {
+  name: 'Action page',
+  elapsedMs: 10,
+  ceilingMs: 2000,
+  reads: 7,
+  boundedReads: 6
+}
+PERF-01 probe {
+  name: 'Activity page',
+  elapsedMs: 12,
+  ceilingMs: 2000,
+  reads: 14,
+  boundedReads: 13
+}
+> toktickit-server@1.0.0 test
+> vitest run --no-file-parallelism tests/lab-04/postgres/performance-smoke.postgres.test.ts
+ ✓ tests/lab-04/postgres/performance-smoke.postgres.test.ts (4 tests) 182681ms
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  22:09:58
+   Duration  183.14s (transform 184ms, setup 0ms, collect 286ms, tests 182.68s, environment 0ms, prepare 48ms)
+
+root / npm run test:e2e -- e2e/lab-04/release-quality.spec.ts
+> toktickit-e2e@1.0.0 test:e2e
+> playwright test e2e/lab-04/release-quality.spec.ts
+  ✓  1 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real REQUESTER 1440x900 screens, focus and reduced motion (2.3s)
+  ✓  2 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real IT_STAFF 1440x900 screens, focus and reduced motion (4.0s)
+  ✓  3 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real ADMINISTRATOR 1440x900 screens, focus and reduced motion (4.0s)
+  ✓  4 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real REQUESTER 820x1180 screens, focus and reduced motion (1.6s)
+  ✓  5 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real IT_STAFF 820x1180 screens, focus and reduced motion (3.8s)
+  ✓  6 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real ADMINISTRATOR 820x1180 screens, focus and reduced motion (3.7s)
+  ✓  7 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real REQUESTER 390x844 screens, focus and reduced motion (1.5s)
+  ✓  8 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real IT_STAFF 390x844 screens, focus and reduced motion (3.7s)
+  ✓  9 e2e/lab-04/release-quality.spec.ts:26:3 › VIS-01 real ADMINISTRATOR 390x844 screens, focus and reduced motion (3.8s)
+  9 passed (32.2s)
+
+Source/test/lock/config SHA-256 (sorted paths + NUL + bytes + NUL): 5abd6bca704a5bc736d7dd4f39d23ba9b0d6e022bf6395da474e7071c22abd5a
+No application source/schema/dependency edits. Outputs precede the evidence commit; final-head rerun is reported separately.

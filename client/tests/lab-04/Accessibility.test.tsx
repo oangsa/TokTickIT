@@ -9,6 +9,8 @@ import { useManagedForm } from "../../src/forms/useManagedForm.js";
 import { ApiResponseError } from "../../src/api.js";
 import { LookupField } from "../../src/components/Common/Lookup/LookupField.js";
 import { LookupModal } from "../../src/components/Common/Lookup/LookupModal.js";
+import { MetricCards } from "../../src/modules/Dashboard/DashboardShared.js";
+import { StatusChip } from "../../src/modules/Tickets/components/StatusChip.js";
 const definition = { title: "Choose User", columns: [{ key: "name", label: "Name" }], fetchData: async () => ({ data: [{ id: "one", name: "Alex" }], total: 1 }), getValue: (row: { id: string; name: string }) => row.id, getDisplayValue: (row: { id: string; name: string }) => row.name, searchPlaceholder: "Search users", emptyMessage: "None", noMatchMessage: "No matches" };
 function Harness({ disabled = false, serverError = false }: { disabled?: boolean; serverError?: boolean }) {
   const form = useManagedForm<{ owner: string }>({ schema: z.object({ owner: z.string().min(1, "Owner required.") }), defaultValues: { owner: "" } });
@@ -73,4 +75,23 @@ it("Disabled global field cannot clear; disabled modal Select cannot change sele
   render(<MemoryRouter><LookupModal open disabled definition={definition} onClose={vi.fn()} onSelect={selected} /></MemoryRouter>);
   const choose = (await screen.findAllByRole("button", { name: "Select Alex" }))[0];
   expect(choose).toBeDisabled(); await user.click(choose); expect(selected).not.toHaveBeenCalled();
+});
+
+it("UI-13 Dashboard card links expose metric/count/destination and support keyboard navigation", async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><MetricCards requester cards={[
+    { label: "Active Tickets", count: 3, to: "/tickets?status=OPEN" },
+    { label: "Waiting for Me", count: 1, to: "/tickets?status=WAITING_FOR_REQUESTER" },
+  ]} /></MemoryRouter>);
+  const active = screen.getByRole("link", { name: "Active Tickets: 3. View tickets" });
+  const waiting = screen.getByRole("link", { name: "Waiting for Me: 1. View tickets" });
+  expect(active).toHaveAttribute("href", "/tickets?status=OPEN");
+  expect(waiting).toHaveAttribute("href", "/tickets?status=WAITING_FOR_REQUESTER");
+  await user.tab(); expect(active).toHaveFocus();
+  await user.tab(); expect(waiting).toHaveFocus();
+});
+
+it.each(["PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const)("UI-13 %s status has readable non-color meaning", (status) => {
+  render(<StatusChip value={status} />);
+  expect(screen.getByText(status.replaceAll("_", " "), { exact: true })).toBeVisible();
 });

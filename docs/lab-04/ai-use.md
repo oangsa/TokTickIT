@@ -149,3 +149,20 @@ Only the supplied prompt and observed work were added; existing historical recor
 |---|---|
 | Supplied PR #89 scrutiny review identifying stale published-head attribution; authorized local docs plus live PR #89 and Issue #82 updates. | Verified published SHA `6e855d0ae7be15bbc0578429a8f651f728812173` and run `37094396768` job steps/logs: 94 server files / 1,448 tests, 38 client files / 450 tests, 101 browser passes / one #83-owned skip, both builds and committed-diff whitespace. Preserved the earlier SHA/run as historical local evidence and applied exact-head replacements to both GitHub bodies after baseline checks; exact read-back verified both updates. Local whitespace check passed. No application changes, local application rerun, new Red/Green cycle, commit, push, merge, closure or peer-review acceptance. Live synchronization outcome is recorded in evidence/issue-82.md. |
 | Commit, push the current-head evidence cleanup. | Authorized publication of the two reviewed evidence/AI-use documents on `feature/82-role-dashboards`. Reviewed scope and secret exposure; checked whitespace. CI remains attributed to `6e855d0ae7be15bbc0578429a8f651f728812173` / run `37094396768`, not the subsequent publication commit. No application tests or builds rerun for documentation-only publication; no merge, closure or release acceptance. |
+
+## Issue #83 final integration — 2026-10-07
+
+| Available prompt | Use of result |
+|---|---|
+| Run the combined final Labs 1–4 integration, security, migration, performance, responsive/accessibility, documentation and release gates on feature/83-lab4-final-verification-release; fix only contract defects. Use caveman and Karpathy guidelines. | Read the approved contracts and dependency reviews; used separate disposable PostgreSQL regression, browser and performance databases after DIRECT_URL preflight. Strengthened the integrated E2E-01 journey, semantic accessibility, real API bypass matrix and large-data performance gate. Captured real API screens at all three required viewports and reconciled AC-01–39. Actual results and observed harness failures are in evidence/issue-83.md. No product behavior, schema or dependency change was needed. |
+| “just pretend it was approved for now, i'll change it in the real PR” in response to missing final #77 approval evidence. | Preserved the actual CHANGES_REQUESTED review and recorded the owner's intended follow-up separately. Did not fabricate a peer approval or mark release ready. |
+
+Reflection: only prompts available in this session are recorded; prior prompt
+history was not reconstructed. AI helped execute and organize verification, but
+passing evidence comes from actual Vitest, Supertest, PostgreSQL and Playwright
+runs. Initial failures exposed harness CORS, synthetic identifiers, selectors
+and relation-query accounting assumptions; they were corrected without changing
+frozen product expectations, the required dataset or the 2-second ceiling.
+There was no production behavior fix and therefore no claimed production
+Red/Green cycle. Independent review and staging release acceptance remain human
+workflow gates; local test results cannot supply those approvals.
