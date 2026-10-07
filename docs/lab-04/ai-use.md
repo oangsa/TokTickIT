@@ -166,3 +166,13 @@ frozen product expectations, the required dataset or the 2-second ceiling.
 There was no production behavior fix and therefore no claimed production
 Red/Green cycle. Independent review and staging release acceptance remain human
 workflow gates; local test results cannot supply those approvals.
+
+### Issue #83 feature publication authorization — 2026-10-07
+
+| Available prompt | Use of result |
+|---|---|
+| Push and open PR to lab4-staging. | Authorized a normal feature-branch push of fully verified commit 1cce02a and creation of PR #90 to lab4-staging. Confirmed the unchanged staging target and absence of an existing PR; synchronized evidence and reviewer publication records. Full tests/builds/PERF remain attributed to the exact tested code commit, not the subsequent documentation-only follow-up. No merge, Issue closure, peer approval or staging-to-main release PR was authorized or claimed. |
+
+Only this available prompt was added. Documentation-only publication checks
+reuse the recorded exact-code-head execution; no new runtime test result is
+invented for these record changes.

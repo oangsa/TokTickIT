@@ -23,7 +23,8 @@ revision; it is not silently extended to subsequent commits.
 
 ## Final review and release gate
 
-#83 has no submitted feature PR or independent approval in this session. Its
+#83 is published in [PR #90](https://github.com/oangsa/TokTickIT/pull/90),
+opened on 2026-10-07 against `lab4-staging`. Independent approval is pending. Its
 required branch is `feature/83-lab4-final-verification-release`, based on staging
 merge `1ee0b17`. The review scope is integration tests, dedicated performance and
 security gates, committed visual evidence and release documentation; no product
@@ -31,8 +32,10 @@ endpoint, schema, role, permission or screen was added.
 
 Publication requires the feature PR to `lab4-staging`, actual peer review,
 resolution of the #77 approval record, and final staging-head verification.
-Only then may the staging-to-main release PR be opened. No Issue closure, merge,
-push or release approval is claimed here.
+Only then may the staging-to-main release PR be opened. The owner explicitly
+authorized the feature-branch push and PR creation. Full final-head verification
+is attributed to `1cce02a`; the publication-record follow-up changes documentation
+only. No Issue closure, merge or release approval is claimed here.
 
 Issue #80 feature validation is recorded separately in [issue-80.md](evidence/issue-80.md).
 

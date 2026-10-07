@@ -209,7 +209,8 @@ Changed-file/staged scope, whitespace, suspicious credential patterns and
 frontend secret/storage use are inspected before publication. README now gives
 actual setup/run/migrate/seed/test/demo commands; reviewer and selected AI prompt
 records describe actual evidence and pending approvals. No fabricated review,
-Issue closure, GitHub mutation, release PR or push is part of this execution.
+Issue closure, GitHub mutation, release PR or push was part of the initial
+verification checkpoint. Authorized feature publication is recorded below.
 
 ## AC-to-code-to-test-to-execution matrix
 
@@ -268,3 +269,30 @@ is separate.
 AC-37 documentation inspection passes for accurate available evidence, while
 release authorization is blocked by the pending review gates. Technical Pass
 rows never imply approval, Issue closure or a production performance promise.
+
+## Authorized feature publication — 2026-10-07
+
+The owner requested “Push and open PR to lab4-staging”. Published verified
+commit `1cce02aaf89e409d88fa8c57263bce3052770e56` with a normal fast-forward push
+and opened [PR #90](https://github.com/oangsa/TokTickIT/pull/90) against
+`lab4-staging`. The staging target remained `1ee0b17`; no direct staging write,
+force push, merge, Issue closure or release approval occurred.
+
+At that exact committed code head, full server again passed 1,449 tests
+(117.43 s), client 455 (24.40 s), all 110 browser cases with zero skips (3.7 min),
+both TypeScript/build commands and dedicated PERF-01 four cases (161.36 s
+including preparation). Full mandated counts were unchanged. Warmed probes were
+6 / 78 / 5 / 7 ms; SELECT counts 5 / 30 / 7 / 14 under the unchanged 2,000 ms
+ceiling. The sanitized exact-head output is retained locally at
+`artifacts/lab-04/issue-83-final-head-results.txt` (ignored execution artifact);
+its source/test/lock/config fingerprint matches the committed output record.
+Generated screenshot recaptures were restored to reviewed committed bytes and
+all 69 hashes verified. Task-owned PostgreSQL and private baseline exports were
+disposed after successful verification.
+
+This publication follow-up changes only the evidence/reviewer/AI-use records.
+No new application test execution or production Red/Green cycle is claimed for
+these documentation changes. Whitespace, scope, links and credential exposure
+are checked before publishing them. Independent #83 peer approval, actual #77
+final approval evidence and post-merge staging-head verification remain pending;
+PR #90 is a feature review, not the staging-to-main release PR.
