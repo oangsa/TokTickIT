@@ -124,3 +124,11 @@ outcome was reconstructed.
 Only the current supplied prompt was recorded; earlier prompt history was not reconstructed.
 
 Publication authorization (2026-10-02): the owner requested commit, push and a PR to `lab4-staging` with `Closes #81`. The inherited Lab 2 fixture adjustment is included in that scoped publication. The full guarded server suite was rerun and passed 90 files / 1,431 tests; no Lab 2 application behavior was changed.
+
+### Labs 1–4 integration regression — 2026-10-07
+
+| Available prompt | Use of result |
+|---|---|
+| Execute Issue #83 final Labs 1–4 hardening/release gates, preserving earlier-lab contracts and evidence. | Reran the complete server, client and browser suites, including Lab 2 Ticket-create idempotency, attachments and Requester regressions. Preserved historical committed screenshots after browser-generated recaptures. Current instructions and actual results are recorded in README and docs/lab-04/evidence/issue-83.md. No Lab 2 product behavior or historical review claim was changed. |
+
+Only this available prompt was added; no missing prompt history was invented.

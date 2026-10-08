@@ -145,6 +145,7 @@ server/tests/lab-04/
     ├── ticket-resolution.postgres.test.ts
     ├── dashboards.postgres.test.ts
     ├── seed-idempotency.postgres.test.ts
+    ├── security-bypass.postgres.test.ts
     └── performance-smoke.postgres.test.ts
 
 client/tests/lab-04/
@@ -165,7 +166,8 @@ e2e/lab-04/
 ├── actions-taken-flow.spec.ts
 ├── ticket-resolution.spec.ts
 ├── dashboards.spec.ts
-└── responsive-visual.spec.ts
+├── responsive-visual.spec.ts
+└── release-quality.spec.ts
 ```
 
 ## 5. Tooling and Test Boundaries
@@ -317,7 +319,7 @@ Manual/visual checklist supplements those assertions.
 | ID | Requirement / AC | What It Tests | Expected Result | File | Final |
 |---|---|---|---|---|---|
 | PG-01 | Data model; AC-01 | Real schema constraints/relations for ActionTaken and creator/assignee/performer. | Valid rows commit; invalid FK/status/check combinations fail safely. Typed child families match every Activity enum; TICKET_ASSIGNED requires assignment and permits only optional NEW -> OPEN status, while reassignment/unassignment remain assignment-only; required children cannot be omitted, deleted, or moved away; non-snapshot status/priority previous values cannot be null. Parent and children may be assembled in one transaction. | `schema-contract.postgres.test.ts` | Pass |
-| PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing Users, Tickets, Attachments, Public Comments, Internal Notes, and Idempotency records preserved; exactly one SYSTEM User, one snapshot per legacy Ticket, one synthetic `isMigrated=true` Completed Action per eligible legacy `RESOLVED`/`CLOSED` Ticket, none for ineligible Tickets; migrated Actions remain visible but do not count toward resolution. | `migration-upgrade.postgres.test.ts` | Blocked |
+| PG-02 | BR-121–130; AC-34–35 | Upgrade representative Lab 3 data through committed migration. | Existing Users, Tickets, Attachments, Public Comments, Internal Notes, and Idempotency records preserved; exactly one SYSTEM User, one snapshot per legacy Ticket, one synthetic `isMigrated=true` Completed Action per eligible legacy `RESOLVED`/`CLOSED` Ticket, none for ineligible Tickets; migrated Actions remain visible but do not count toward resolution. | `migration-upgrade.postgres.test.ts` | Pass |
 | PG-03 | BR-24–33; AC-08–11 | Real Action lifecycle timestamps/version/terminal behavior. | Committed DB state matches lifecycle contract. | `action-lifecycle.postgres.test.ts` | Pass |
 | PG-04 | BR-34–39; AC-06 | Assignment eligibility/version in real DB. | Valid assign/reassign/unassign commits; invalid target no state change. Real User demotion/deactivation preserves planned/terminal assignments and current/previous Activity references; lookup/new assignments exclude the ineligible User; Start authority remains consistent. | `action-lifecycle.postgres.test.ts` | Pass |
 | PG-05 | BR-53, BR-75–83; AC-12 | Two connections update same Action version concurrently. | At most one wins current version; loser cannot overwrite. | `action-concurrency.postgres.test.ts` | Pass |
@@ -328,7 +330,7 @@ Manual/visual checklist supplements those assertions.
 | PG-10 | BR-63–74; AC-19–20, AC-24 | Business mutation + Activity atomic commit/rollback, including Requester resolution confirmation. | Forced Activity failure rolls back confirmation timestamp update; successful `looks-resolved` creates exactly one `REQUESTER_RESOLUTION_CONFIRMED` Activity with authenticated Requester actor; other normal mutations create exactly expected Activity. | `ticket-activity.postgres.test.ts` | Pass |
 | PG-11 | BR-52–55; AC-21–23 | Resolution gate under real data and concurrent Action changes. | Only non-migrated Completed Actions satisfy the gate; no Ticket resolves from an inconsistent/open Action set. | `ticket-resolution.postgres.test.ts` | Pass |
 | PG-12 | BR-84–102; AC-26–30 | Dashboard counts/lists vs direct DB queries in one repeatable-read snapshot. | DTO metrics exactly match DB truth; concurrent writes do not mix snapshots. | `dashboards.postgres.test.ts` | Pass |
-| PG-13 | BR-121–130; AC-34–35 | Fail or interrupt migration/backfill on representative Lab 3 fixture, verify rollout stops, apply documented state recovery, then retry deployment/backfill; repeat completed deployment. | Schema-dependent rollout stops on failure; recovery completes; all representative legacy User, Ticket, Attachment, Public Comment, Internal Note, and Idempotency rows survive; exactly one SYSTEM User and one snapshot per legacy Ticket; exactly one synthetic `COMPLETED`, `isMigrated=true` Action per eligible legacy `RESOLVED`/`CLOSED` Ticket and none for ineligible Tickets; no retry duplicates; migrated Actions remain excluded from resolution gate. | `migration-upgrade.postgres.test.ts` | Blocked |
+| PG-13 | BR-121–130; AC-34–35 | Fail or interrupt migration/backfill on representative Lab 3 fixture, verify rollout stops, apply documented state recovery, then retry deployment/backfill; repeat completed deployment. | Schema-dependent rollout stops on failure; recovery completes; all representative legacy User, Ticket, Attachment, Public Comment, Internal Note, and Idempotency rows survive; exactly one SYSTEM User and one snapshot per legacy Ticket; exactly one synthetic `COMPLETED`, `isMigrated=true` Action per eligible legacy `RESOLVED`/`CLOSED` Ticket and none for ineligible Tickets; no retry duplicates; migrated Actions remain excluded from resolution gate. | `migration-upgrade.postgres.test.ts` | Pass |
 | PG-14 | BR-131; AC-35 | Seed run twice. | Second run does not duplicate logical seed Users/Tickets/Actions/Activity. | `seed-idempotency.postgres.test.ts` | Pass |
 | PG-15 | BR-52, BR-127; AC-38 | Legacy RESOLVED Ticket is migrated with one completed synthetic Action; Requester reopens; resolve is rejected; a real non-migrated Action is completed; resolve then succeeds. | Reopen succeeds; migrated-only resolve returns `INVALID_STATUS_TRANSITION`; resolve succeeds after non-migrated completion. | `ticket-resolution.postgres.test.ts` | Pass |
 | PG-16 | BR-76–83; AC-39 | Same actor/key/body against two Ticket paths and two Action paths. | Distinct concrete paths persist and replay only their own resource results. | `action-idempotency.postgres.test.ts` | Pass |
@@ -349,7 +351,7 @@ Manual/visual checklist supplements those assertions.
 | UI-10 | FR-42–44; BR-103–105; AC-32 | 30-second auto-refresh and manual Refresh single-flight. | Timer requests after 30 seconds; ticks/manual Refresh during pending request do not overlap or abort it; completion permits next future refresh without queued ticks. | `DashboardRefresh.test.tsx` | Pass |
 | UI-11 | BR-105–110; AC-32 | Initial vs background refresh failure, accepted success, and Last Updated. | Initial ErrorState/Retry; failed background refresh retains prior DTO with warning/Retry and unchanged time; success replaces visible DTO, clears warning, updates HH:mm:ss; no re-skeleton or persistent "Refreshing...". | `DashboardRefresh.test.tsx` | Pass |
 | UI-12 | FR-49; AC-33, AC-36 | Reusable Lookup open/close/selection, disabled field, field errors, keyboard/focus. | DataTable Select works by keyboard, selection updates managed value/display, close restores focus, disabled field prevents changes, errors associate with owning CommonForm control. | `LookupField.test.tsx`, `LookupModal.test.tsx`, `Accessibility.test.tsx` | Pass |
-| UI-13 | AC-36 | Modal focus, field error association, disabled semantics, accessible card links, non-color chips. | Semantic accessibility assertions pass. | `Accessibility.test.tsx` | Not Run |
+| UI-13 | AC-36 | Modal focus, field error association, disabled semantics, accessible card links, non-color chips. | Semantic accessibility assertions pass. | `Accessibility.test.tsx` | Pass |
 | UI-14 | FR-42–43; BR-103–104; AC-32 | Hidden/visible document scheduling. | Hidden pauses polling; visible triggers immediate refresh/revalidation and restarts 30-second schedule without overlapping an active request. | `DashboardRefresh.test.tsx` | Pass |
 | UI-15 | FR-46; BR-109, BR-111; AC-32 | Fresh/stale cache on remount with controlled clock. | <=30-second successful cache renders immediately including exact 30-second boundary; >30-second stale cache may render while immediate revalidation occurs; remount does not advance success timestamp. | `DashboardRefresh.test.tsx` | Pass |
 | UI-16 | FR-46–47; BR-107, BR-111–112; AC-32 | Cache isolation and storage boundaries. | Different authenticated User/role/URL-query scopes never reuse each other's DTO; late responses do not replace current context; no Dashboard localStorage/sessionStorage/service-worker/HTTP cache persistence. | `DashboardRefresh.test.tsx` | Pass |
@@ -363,13 +365,13 @@ Manual/visual checklist supplements those assertions.
 | RESP-01 | AC-36 | Requester Dashboard at 1440/820/390. | No overflow/clipping; mobile cards full-width; Quick Actions mobile only. | `responsive-visual.spec.ts` | Pass |
 | RESP-02 | AC-36 | Staff/Admin Dashboard and compact DataTables at all viewports. | Cards/tables remain usable with no page horizontal scroll. | `responsive-visual.spec.ts` | Pass |
 | RESP-03 | AC-36 | Ticket Actions, create/edit modal, Action Detail, assignee selection, Activity at all viewports. | Controls remain reachable/readable; modal/table/timeline layouts adapt. | `responsive-visual.spec.ts` | Pass |
-| VIS-01 | AC-36 | Zen Green consistency + desktop/tablet/mobile screenshot checklist. | Required screenshot directories populated; no accidental second visual system. | `artifacts/lab-04/screenshots/` | Not Run |
+| VIS-01 | AC-36 | Zen Green consistency + desktop/tablet/mobile screenshot checklist. | Required screenshot directories populated; no accidental second visual system. | `artifacts/lab-04/screenshots/` | Pass |
 
 ## 11. End-to-End Tests
 
 | ID | Requirement / AC | Flow | Expected Result | File | Final |
 |---|---|---|---|---|---|
-| E2E-01 | AC-01, AC-04, AC-06, AC-08–10, AC-17, AC-19–20 | Staff claims/open Ticket -> create Action -> select assignee -> assignee starts with confirm -> edit -> associate existing eligible Attachment and enter Attachment Notes -> complete -> inspect Action/Ticket Activity -> Requester views Action read-only. | Full integrated Action workflow succeeds with correct permissions/history; no upload is added. | `actions-taken-flow.spec.ts` | Not Run |
+| E2E-01 | AC-01, AC-04, AC-06, AC-08–10, AC-17, AC-19–20 | Staff claims/open Ticket -> create Action -> select assignee -> assignee starts with confirm -> edit -> associate existing eligible Attachment and enter Attachment Notes -> complete -> inspect Action/Ticket Activity -> Requester views Action read-only. | Full integrated Action workflow succeeds with correct permissions/history; no upload is added. | `actions-taken-flow.spec.ts` | Pass |
 | E2E-02 | AC-19, AC-21–25 | Open Action -> Mark Resolved rejected -> complete/cancel remaining work with >=1 non-migrated Completed Action -> Mark Resolved succeeds -> Requester Looks Resolved -> owner closes; Staff/Admin inspects Activity; exercise Administrator parity and owner-only rule. | Requester confirmation appears as `REQUESTER_RESOLUTION_CONFIRMED` with readable advisory narrative in Staff/Admin Activity; final Ticket lifecycle and gates work end-to-end; PG-15 covers migrated legacy reopen sequence. | `ticket-resolution.spec.ts` | Pass |
 | E2E-03 | AC-26–32 | Seed known role data -> Requester Dashboard counts/drill-down -> Staff Dashboard counts/My Actions/recent/urgent -> Administrator shared Dashboard -> size choices -> automatic 30-second refresh and manual Refresh -> remount/visibility revalidation -> recoverable refresh failure. | Cards/lists match seeded DB records and drill-down filters; refreshed DTO/time update, cache/visibility remain single-flight, and failure retains last good data. | `dashboards.spec.ts` | Pass |
 
@@ -378,9 +380,9 @@ Manual/visual checklist supplements those assertions.
 | ID | Requirement / AC | Evidence | Expected Result | Final |
 |---|---|---|---|---|
 | DATA-01 | AC-34–35 | Inspect committed Prisma migration SQL/schema diff. | In-place additive/evolutionary migration; no destructive reset; restrictive FKs/indexes/checks documented. | Pass |
-| DATA-02 | AC-34–35 | Rehearse documented failed/interrupted migration recovery on representative Lab 3 DB backup/fixture, including target preflight, failed-state inspection, correction or verified backup restore, and retry. | Legacy User/Ticket/Attachment/Public Comment/Internal Note/Idempotency rows preserved; exactly-once SYSTEM User, snapshot, and eligible synthetic Action counts explained; ineligible Tickets have none; `isMigrated=true` Actions remain excluded from resolution. | Blocked |
+| DATA-02 | AC-34–35 | Rehearse documented failed/interrupted migration recovery on representative Lab 3 DB backup/fixture, including target preflight, failed-state inspection, correction or verified backup restore, and retry. | Legacy User/Ticket/Attachment/Public Comment/Internal Note/Idempotency rows preserved; exactly-once SYSTEM User, snapshot, and eligible synthetic Action counts explained; ineligible Tickets have none; `isMigrated=true` Actions remain excluded from resolution. | Pass |
 | DATA-03 | AC-35 | Run seed twice and record logical counts. | Same logical seed state after second run. | Pass |
-| DATA-04 | AC-37 | Final release documentation inspection. | README plus completed `docs/lab-04/reviewer.md` and handout-required `docs/lab-04/ai-use.md` are accurate and contain no placeholder review results; owned by Final Hardening and Release. | Not Run |
+| DATA-04 | AC-37 | Final release documentation inspection. | README plus completed `docs/lab-04/reviewer.md` and handout-required `docs/lab-04/ai-use.md` are accurate and contain no placeholder review results; owned by Final Hardening and Release. | Pass |
 
 ## 13. Performance Smoke
 
@@ -408,7 +410,7 @@ The generator must be deterministic/repeatable and must not run during ordinary 
 
 | ID | Requirement / AC | What It Tests | Expected Result | File | Final |
 |---|---|---|---|---|---|
-| PERF-01 | AC-37 | Requester Dashboard, Staff Dashboard, one Action collection page, one Activity page on large seeded DB. | Each returns within a generous configured CI regression ceiling (default 2s per measured query/request after warmup where environment supports it), returns bounded row counts, honors pagination/size, and does not load an entire collection into application memory. | `postgres/performance-smoke.postgres.test.ts` | Not Run |
+| PERF-01 | AC-37 | Requester Dashboard, Staff Dashboard, one Action collection page, one Activity page on large seeded DB. | Each returns within a generous configured CI regression ceiling (default 2s per measured query/request after warmup where environment supports it), returns bounded row counts, honors pagination/size, and does not load an entire collection into application memory. | `postgres/performance-smoke.postgres.test.ts` | Pass |
 
 If the course CI environment cannot reliably sustain the dataset, PERF-01 runs as an explicit dedicated verification command rather than weakening the dataset or turning the threshold into a claimed SLA. A Blocked result must document environment limits; it must not be silently reported as Pass.
 
@@ -418,9 +420,9 @@ Lab 4 final verification runs complete earlier suites.
 
 | ID | Scope | Expected Result | Final |
 |---|---|---|---|
-| REG-01 | Full server Lab 1–4 suite | All approved server regression passes. | Not Run |
-| REG-02 | Full client Lab 1–4 suite | All approved UI/component regression passes. | Not Run |
-| REG-03 | Lab 1–4 E2E suite | Authentication, Requester, Staff, Admin, Actions, Dashboards, responsive flows pass. | Not Run |
+| REG-01 | Full server Lab 1–4 suite | All approved server regression passes. | Pass |
+| REG-02 | Full client Lab 1–4 suite | All approved UI/component regression passes. | Pass |
+| REG-03 | Lab 1–4 E2E suite | Authentication, Requester, Staff, Admin, Actions, Dashboards, responsive flows pass. | Pass |
 
 Tests whose premise was explicitly superseded by an approved later contract may be evolved, but equivalent-or-stronger coverage must remain. Do not delete a regression merely because it becomes inconvenient.
 
@@ -1173,3 +1175,20 @@ Scrutiny follow-up: UI-16 now covers independent URL/User/role round-trips durin
 Issue #82 compact-table sorting follow-up — 2026-10-03: UI-08/09 permanently verify passive headers for Requester and Staff/Admin, and Requester server row order after header interaction. Three role checks failed before the shared CompactTable fix; 32 focused Dashboard/DataTable tests and 450 full client tests passed afterward. Both builds and whitespace checks passed. PostgreSQL/browser evidence remains historical; no rerun or release acceptance is claimed. See [Issue #82 evidence](evidence/issue-82.md#compact-table-sorting-fix--2026-10-03).
 
 Issue #82 PG-12 fixture isolation follow-up — 2026-10-03: the unchanged focused suite passed on a fresh disposable database but failed its empty/global-total assertions when repeated with leftover fixtures. Setup now resets only the guarded Lab 3 test schema before creating fixtures, preserving every existing expectation. Focused Green passed 4 tests; complete guarded server run passed 94 files / 1,448 tests. Both builds and whitespace passed. No client/browser rerun, independent CI or release acceptance is claimed. See [PG-12 isolation evidence](evidence/issue-82.md#pg-12-fixture-isolation-fix--2026-10-03).
+
+## Issue #83 current integrated execution — 2026-10-07
+
+[Issue #83 evidence](evidence/issue-83.md) records the actual guarded local
+execution, complete AC-01–39 reconciliation, commands/output and committed
+visual manifest. Current Final cells above describe this candidate. Earlier
+Blocked/Not Run statements in chronological feature checkpoints remain historical
+and are superseded only where this final execution supplies their full frozen
+expectations. In particular, PG-02/PG-13/DATA-02 now include actual resolution
+exclusion after real successful/recovered migration, alongside #79 API-03 and
+#80 UI-04 visibility and #81 runtime acceptance. No frozen assertion was weakened.
+
+PERF-01 is opt-in only; its four cases are intentionally skipped in ordinary
+server runs and execute against a separate `_perf_test` target with the full
+mandated dataset. Full REG results and timings are in the sanitized output record.
+Technical Pass does not constitute peer review or release approval: #77's final
+approval record and #83 feature review/integration remain pending in reviewer.md.
