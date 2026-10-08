@@ -296,3 +296,49 @@ these documentation changes. Whitespace, scope, links and credential exposure
 are checked before publishing them. Independent #83 peer approval, actual #77
 final approval evidence and post-merge staging-head verification remain pending;
 PR #90 is a feature review, not the staging-to-main release PR.
+
+## PR #90 visual inspection follow-up — 2026-10-08
+
+Reviewed revision: `74161965341cf2c182f1384c3a9cd6672a1087a9`, confirmed
+against the open PR head. Codex inspected every one of the 69 committed PNGs
+individually against `ui-spec.md` §§22–23. This is a separate AI visual review
+pass, not a human peer approval or a staging-head release acceptance.
+
+| Screenshot group | Roles | Images inspected |
+|---|---|---|
+| Dashboard | Requester, IT Staff, Administrator | 9 |
+| Ticket Actions | Requester, IT Staff, Administrator | 9 |
+| Action Detail | Requester, IT Staff, Administrator | 9 |
+| Create Action | IT Staff, Administrator | 6 |
+| Edit Action | IT Staff, Administrator | 6 |
+| User Lookup | IT Staff, Administrator | 6 |
+| Complete Action | IT Staff, Administrator | 6 |
+| Cancel Action | IT Staff, Administrator | 6 |
+| Action Activity | IT Staff, Administrator | 6 |
+| Ticket Activity | IT Staff, Administrator | 6 |
+
+Each role/group was inspected at 1440×900, 820×1180 and 390×844. No confirmed
+visual blocker was found in the captured content: desktop tables/two-column
+Action Detail, tablet stacking, mobile cards, wrapped action buttons, labels,
+text, focus outlines and modal controls remain legible without visible overlap
+or unintended horizontal clipping. Create/Edit/Complete/Cancel dialogs fit in
+the captured viewport. Lookup result emails wrap; the long focused search value
+scrolls within its single-line input.
+
+All 69 PNG SHA-256 hashes and IHDR dimensions match the committed
+[manifest](../../../artifacts/lab-04/screenshots/final/manifest.md), and local
+PNG bytes match the reviewed Git revision. The manifest and screenshots were
+already uploaded in PR #90; no image regeneration or replacement was needed.
+
+Limitations: these are viewport captures, not full-page captures. Normal vertical
+scrolling omits lower Dashboard lists and portions of Ticket/Action Detail;
+Activity captures show separate lower sections. This pass does not establish
+visual correctness of content absent from the images, other UI states, live
+scroll behavior, or screen-reader behavior. No application tests, builds or
+browser sessions were rerun for this documentation follow-up.
+
+The inspection result was published in the PR description and exact read-back
+was verified on 2026-10-08. The reviewer can use it to assess the visual hold;
+actual independent peer approval remains pending. Splitting the large API security test remains a
+non-blocking suggestion. PR #84 review reconciliation and integrated
+`lab4-staging` head release gates remain required before final Lab 4 release.

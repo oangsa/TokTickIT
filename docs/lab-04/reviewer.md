@@ -44,3 +44,13 @@ Issue #81 feature validation and #83 runtime-exclusion/E2E-01 handoff are record
 Issue #82 Dashboard implementation and local test/screenshot evidence are recorded in [issue-82.md](evidence/issue-82.md). That evidence records feature validation, not independent peer review or #83 release acceptance.
 
 Issue #82 scrutiny follow-up fixes abandoned-flight round-trips and role-specific loading layout, with six failing-first UI regressions, 449 passing client tests, 18 passing mocked responsive cases and both builds. See the scrutiny-fixes section of [issue-82.md](evidence/issue-82.md); no PostgreSQL/real-API E2E rerun or final-release acceptance is claimed.
+
+## PR #90 visual evidence follow-up — 2026-10-08
+
+At reviewed head `74161965341cf2c182f1384c3a9cd6672a1087a9`, Codex inspected
+all 69 committed screenshots individually and verified every manifest hash,
+dimension and committed file byte. No confirmed visual blocker was found in
+captured content. Coverage and viewport-only limitations are recorded in
+[the visual inspection follow-up](evidence/issue-83.md#pr-90-visual-inspection-follow-up--2026-10-08).
+This AI review evidence does not replace `kittipichcha`'s pending approval.
+PR #84 reconciliation and integrated staging-head release gates remain pending.

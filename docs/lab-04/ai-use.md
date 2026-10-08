@@ -176,3 +176,10 @@ workflow gates; local test results cannot supply those approvals.
 Only this available prompt was added. Documentation-only publication checks
 reuse the recorded exact-code-head execution; no new runtime test result is
 invented for these record changes.
+
+### PR #90 visual review evidence follow-up — 2026-10-08
+
+| Available prompt | Use of result |
+|---|---|
+| Supplied PR #90 verification hold, requested continuation, then clarified that the requested evidence should be checked and fixed. | Read the actual GitHub review and confirmed PR head 7416196. Inspected all 69 committed screenshots individually; verified manifest hashes, PNG dimensions and committed bytes. Recorded coverage, no confirmed visual blockers in captured content, and viewport-only limitations; published the same evidence in the PR description and verified exact read-back. Preserved pending human approval, PR #84 reconciliation and staging-head release gates. Documentation-only work; no application changes, test/build/browser rerun, commit, push or merge. |
+| Commit and push. | Authorized publication of the three visual-evidence documents on feature/83-lab4-final-verification-release. Reviewed changed and staged scope, links, whitespace and credential exposure. No application tests/builds rerun for documentation-only publication; visual evidence remains attributed to reviewed head 7416196. No peer approval, merge, Issue closure or release acceptance. |
