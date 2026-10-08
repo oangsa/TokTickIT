@@ -68,11 +68,12 @@ export async function signInSeededRequester(
   await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
   let accessToken = await fillLogin(page, email, initialPassword);
 
-  await expect(page).toHaveURL(/\/(change-password|tickets)$/);
+  await expect(page).toHaveURL(/\/(change-password|dashboard)$/);
   const passwordChangeRequired = new URL(page.url()).pathname === "/change-password";
 
   if (!passwordChangeRequired) {
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
     return {
       initialPassword,
       currentPassword: initialPassword,
@@ -88,7 +89,8 @@ export async function signInSeededRequester(
   await expect(page).toHaveURL(/\/login$/);
 
   accessToken = await fillLogin(page, email, currentPassword);
-  await expect(page).toHaveURL(/\/tickets$/);
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/tickets");
 
   return { initialPassword, currentPassword, passwordWasChanged: true, accessToken };
 }

@@ -37,6 +37,9 @@ function ticketRow(overrides: Record<string, unknown> = {}) {
 
 describe("Requester Ticket action state machine", () => {
   const tx = {
+    $queryRaw: vi.fn(),
+    user: { findUnique: vi.fn().mockResolvedValue({ role: "REQUESTER", isActive: true, deleted: false, isSystem: false }) },
+    ticketActivity: { create: vi.fn() },
     ticket: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),

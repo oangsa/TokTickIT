@@ -151,6 +151,10 @@ function stubApi(options: StubOptions = {}) {
         },
       });
 
+      if (url.includes("/actions?")) {
+        return { ...ok([]), headers: new Headers({ "X-Pagination": JSON.stringify({ pageNumber: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false }) }) };
+      }
+
       if (url.includes("/api/categories") || url.includes("/api/related-systems")) {
         return ok(MASTER_DATA);
       }

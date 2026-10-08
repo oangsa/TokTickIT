@@ -4,6 +4,8 @@ import { createStaffFixture, loginStaffFixture } from "./staff-fixture.js";
 
 test("E2E-05 Administrator User Management golden path @issue-6", async ({ page, context }) => {
   const fixture = await createStaffFixture();
+  // Other workflow fixtures can retain users with identical names for audit history.
+  const duplicateNameFixture = await createStaffFixture(0);
   const suffix = randomUUID().slice(0, 8);
   const targetEmail = `target-${suffix}@example.test`;
   const duplicateEmail = targetEmail;
@@ -17,30 +19,42 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page,
 
     // 2. Search & filter controls
     const searchInput = page.getByPlaceholder("Search by name or email…");
+    // Name searches can return several users; email searches identify this fixture.
     await searchInput.fill("Workflow Staff");
-    await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toBeVisible();
+    await expect(page.getByTestId("user-table")).toContainText("Workflow Staff");
     await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toHaveCount(0);
-
-    // Search for Requester
     await searchInput.fill("Workflow Requester");
-    await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toBeVisible();
+    await expect(page.getByTestId("user-table")).toContainText("Workflow Requester");
     await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toHaveCount(0);
 
+    const staffCell = page.getByTestId(`user-row-${fixture.staff.publicId}`).getByRole("cell", { name: "Workflow Staff", exact: true });
+    const requesterCell = page.getByTestId(`user-row-${fixture.requester.publicId}`).getByRole("cell", { name: "Workflow Requester", exact: true });
+    await searchInput.fill(fixture.staff.email);
+    await expect(staffCell).toBeVisible();
+    await expect(requesterCell).toHaveCount(0);
+
+    // Search for Requester
+    await searchInput.fill(fixture.requester.email);
+    await expect(requesterCell).toBeVisible();
+    await expect(staffCell).toHaveCount(0);
+
     // Keep fixture users on the same page even when other test users exist.
-    await searchInput.fill("Workflow");
+    await searchInput.fill(fixture.suffix);
+    await expect(page.locator("table tbody tr")).toHaveCount(3);
+    await expect(page.getByTestId(`user-row-${duplicateNameFixture.staff.publicId}`)).toHaveCount(0);
 
     // Filter by role through the modal, then remove its active chip.
-    await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toBeVisible();
+    await expect(staffCell).toBeVisible();
     await page.getByRole("button", { name: "Filters", exact: true }).click();
     const filterDialog = page.getByRole("dialog", { name: "Filter User Management" });
     const roleSelect = page.getByLabel("Filter by role");
     await roleSelect.selectOption("IT_STAFF");
     await filterDialog.getByRole("button", { name: "Apply", exact: true }).click();
     await expect(filterDialog).not.toBeVisible();
-    await expect(page.getByRole("cell", { name: "Workflow Staff", exact: true })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toHaveCount(0);
+    await expect(staffCell).toBeVisible();
+    await expect(requesterCell).toHaveCount(0);
     await page.getByRole("button", { name: "Remove filter Role: IT Staff" }).click();
-    await expect(page.getByRole("cell", { name: "Workflow Requester", exact: true })).toBeVisible();
+    await expect(requesterCell).toBeVisible();
 
     // 3. Create User
     await page.getByRole("link", { name: "Create User", exact: true }).click();
@@ -145,11 +159,13 @@ test("E2E-05 Administrator User Management golden path @issue-6", async ({ page,
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
     // Requester role lands on /tickets
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
   } finally {
     // Clean up created target user
     await fixture.prisma.userSession.deleteMany({ where: { user: { email: targetEmail } } });
     await fixture.prisma.user.deleteMany({ where: { email: targetEmail } });
+    await duplicateNameFixture.dispose();
     await fixture.dispose();
   }
 });
@@ -211,7 +227,8 @@ test("E2E-05 concurrent Administrator deactivation preserves last active Adminis
     await otherPage.getByLabel("Email *").fill(secondAdmin.email);
     await otherPage.getByLabel("Password *").fill(fixture.password);
     await otherPage.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(otherPage).toHaveURL(/\/admin\/users$/);
+    await expect(otherPage).toHaveURL(/\/dashboard$/);
+    await otherPage.goto("/admin/users");
     await page.goto(`/admin/users/${secondAdmin.publicId}/edit`);
     await otherPage.goto(`/admin/users/${fixture.admin.publicId}/edit`);
     await expect(page.getByLabel("Active", { exact: true })).toBeChecked();
@@ -266,7 +283,8 @@ test("E2E-06 Non-Administrator roles cannot access User Management @issue-6", as
     await page.getByLabel("Email *").fill(fixture.requester.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
 
     await page.goto("/admin/users");
     await expect(page).toHaveURL(/\/error$/);
@@ -278,7 +296,8 @@ test("E2E-06 Non-Administrator roles cannot access User Management @issue-6", as
     await page.getByLabel("Email *").fill(fixture.staff.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/staff\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/staff/tickets");
 
     await page.goto("/admin/users");
     await expect(page).toHaveURL(/\/error$/);

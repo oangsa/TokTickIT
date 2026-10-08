@@ -5,10 +5,12 @@ import { requireFullSession, requireRole } from "./middleware/authentication.js"
 import { createCorsMiddleware } from "./middleware/cors.js";
 import { requestLog } from "./middleware/requestLog.js";
 import { transport } from "./middleware/transport.js";
+import { actionsTakenRouter } from "./routes/actionsTaken.js";
 import { authRouter } from "./routes/auth.js";
 import { attachmentsRouter } from "./routes/attachments.js";
 import { adminUsersRouter } from "./routes/adminUsers.js";
 import { commentsRouter } from "./routes/comments.js";
+import { dashboardsRouter } from "./routes/dashboards.js";
 import { internalNotesRouter } from "./routes/internalNotes.js";
 import { referenceDataRouter } from "./routes/referenceData.js";
 import { ticketsRouter } from "./routes/tickets.js";
@@ -45,7 +47,9 @@ app.use("/api", requireFullSession());
 // Reference data and authenticated Lab 2 requester routes.
 // ---------------------------------------------------------------------------
 app.use("/api", referenceDataRouter);
+app.use("/api", dashboardsRouter);
 app.use("/api", createStaffTicketsRouter(writePublicCommentForWorkflow));
+app.use("/api", actionsTakenRouter);
 app.use("/api", commentsRouter);
 app.use("/api", internalNotesRouter);
 app.use("/api/admin", adminUsersRouter);

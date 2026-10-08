@@ -1,5 +1,5 @@
 import { forwardRef, useState } from "react";
-import { KeyRound, LayoutList, LogOut, Plus, Ticket, UserRound, Users } from "lucide-react";
+import { KeyRound, LayoutDashboard, LayoutList, LogOut, Plus, Ticket, UserRound, Users } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider.js";
@@ -58,6 +58,8 @@ export const SidebarNav = forwardRef<HTMLElement, SidebarNavProps>(function Side
     : user.role === "IT_STAFF"
       ? [{ path: "/staff/tickets", label: "Ticket Queue", icon: LayoutList }]
       : [{ path: "/admin/users", label: "User Management", icon: Users }, { path: "/admin/tickets", label: "Tickets", icon: Ticket }];
+
+  links.unshift({ path: "/dashboard", label: "Dashboard", icon: LayoutDashboard });
 
   return <nav ref={ref} id={id} aria-label="Main" className={`tt-sidebar${open ? " tt-sidebar--open" : ""}`}>
     <span className="tt-brand tt-sidebar__brand h5 mb-0"><BrandMark />TokTickIT</span>

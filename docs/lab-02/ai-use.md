@@ -6,6 +6,12 @@ This is the canonical Lab 2 AI-use record. It curates ten important prompts
 from the prompt history available in the repository and current session; it is
 not a transcript.
 
+## Lab 4 inherited Lab 2 responsive CI follow-up (2026-10-03)
+
+| Prompt | What I did with the result |
+|---|---|
+| Investigate CI failure in `RESP-01/VIS-01 Create Ticket at 390x844`; user authorized a Docker test database. | Used the disposable Lab 3 tmpfs PostgreSQL target at `127.0.0.1:55433`. Prisma read-only status showed seven unapplied migrations before Playwright setup. The exact case passed 1/1, then 10/10 repeats; the full responsive spec passed 9/9, including the mobile case after desktop/tablet cases. Refreshed the two 390x844 Create Ticket screenshots. No application or test source changed; CI failure remains unexplained because its screenshot/trace artifacts were unavailable in the workspace. Compose recreated the existing Lab 3 tmpfs container; the Lab 2 orphan container was left untouched. |
+
 ## Lab 3 CI regression follow-up (2026-09-25)
 
 | Prompt | What I did with the result |
@@ -108,3 +114,21 @@ authentication, database tests use disposable synthetic targets, and no Lab 3
 feature belongs in this submission. This record uses only prompt history
 available in the repository/current session; no unavailable history or review
 outcome was reconstructed.
+
+## Lab 4 Issue #81 inherited fixture follow-up — 2026-10-02
+
+| Prompt | What I did with the result |
+|---|---|
+| Finish #81 Ticket workflow/resolution and evolve superseded earlier-lab tests without excluding them from CI. | Extended the shared Lab 2 transaction double with User recheck and Ticket Activity delegates so inherited Requester behavior remains covered under Lab 4 transactions. Lab 2 application behavior/contracts were not changed. Full cross-lab server/client regression and focused workflow validation are recorded in docs/lab-04/evidence/issue-81.md. No commit/push. |
+
+Only the current supplied prompt was recorded; earlier prompt history was not reconstructed.
+
+Publication authorization (2026-10-02): the owner requested commit, push and a PR to `lab4-staging` with `Closes #81`. The inherited Lab 2 fixture adjustment is included in that scoped publication. The full guarded server suite was rerun and passed 90 files / 1,431 tests; no Lab 2 application behavior was changed.
+
+### Labs 1–4 integration regression — 2026-10-07
+
+| Available prompt | Use of result |
+|---|---|
+| Execute Issue #83 final Labs 1–4 hardening/release gates, preserving earlier-lab contracts and evidence. | Reran the complete server, client and browser suites, including Lab 2 Ticket-create idempotency, attachments and Requester regressions. Preserved historical committed screenshots after browser-generated recaptures. Current instructions and actual results are recorded in README and docs/lab-04/evidence/issue-83.md. No Lab 2 product behavior or historical review claim was changed. |
+
+Only this available prompt was added; no missing prompt history was invented.

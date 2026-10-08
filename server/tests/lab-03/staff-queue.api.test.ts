@@ -12,7 +12,8 @@ beforeEach(async () => {
   tokens = await configureRequesterAuth(mock, [STAFF, ADMIN, REQUESTER]);
   mock.ticket.count.mockResolvedValue(1);
   mock.ticket.findMany.mockResolvedValue([staffListRow()]);
-  mock.user.findMany.mockResolvedValue([{ publicId: STAFF.publicId, name: STAFF.name, role: STAFF.role }]);
+  mock.user.count.mockResolvedValue(1);
+  mock.user.findMany.mockResolvedValue([{ publicId: STAFF.publicId, name: STAFF.name, email: STAFF.email, role: STAFF.role }]);
 });
 
 describe("API-40–45 Queue and assignable Users @issue-5", () => {
@@ -112,11 +113,11 @@ describe("API-40–45 Queue and assignable Users @issue-5", () => {
     expect(mock.ticket.count).not.toHaveBeenCalled();
     expect(mock.ticket.findMany).not.toHaveBeenCalled();
   });
-  it("lookup selects only eligible Users, includes zero-Ticket Users, and exposes no account details", async () => {
+  it("lookup selects only eligible Users, includes zero-Ticket Users, and exposes only approved lookup fields", async () => {
     const response = await request(app).get("/api/users/assignable").set("Authorization", bearerToken(tokens, STAFF.id));
     expect(response.status).toBe(200);
-    expect(response.body).toEqual([{ publicId: STAFF.publicId, name: STAFF.name, role: STAFF.role }]);
-    expect(mock.user.findMany).toHaveBeenCalledWith({ where: { isActive: true, deleted: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } }, select: { publicId: true, name: true, role: true }, orderBy: [{ name: "asc" }, { publicId: "asc" }] });
+    expect(response.body).toEqual([{ publicId: STAFF.publicId, name: STAFF.name, email: STAFF.email, role: STAFF.role }]);
+    expect(mock.user.findMany).toHaveBeenCalledWith({ where: { AND: [{ isActive: true, deleted: false, isSystem: false, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } }] }, select: { publicId: true, name: true, role: true, email: true }, orderBy: [{ name: "asc" }, { publicId: "asc" }], skip: 0, take: 10 });
     expect(mock.ticket.findMany).not.toHaveBeenCalled();
   });
 });

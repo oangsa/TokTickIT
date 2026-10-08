@@ -31,7 +31,7 @@ describe("API-46–API-53 Administrator User APIs @issue-6", () => {
     mock.user.findMany.mockResolvedValue([STAFF]);
     mock.user.count.mockResolvedValue(1);
     mock.userSession.updateMany.mockResolvedValue({ count: 1 });
-    mock.ticket.updateMany.mockResolvedValue({ count: 1 });
+    mock.ticket.updateManyAndReturn.mockResolvedValue([{ id: 31 }]);
   });
 
   describe("API-46 User collection queries and validation @issue-6", () => {
@@ -195,7 +195,7 @@ describe("API-46–API-53 Administrator User APIs @issue-6", () => {
       expect(response.status).toBe(200);
       expect(response.body.name).toBe("New Name");
       expect(mock.userSession.updateMany).not.toHaveBeenCalled();
-      expect(mock.ticket.updateMany).not.toHaveBeenCalled();
+      expect(mock.ticket.updateManyAndReturn).not.toHaveBeenCalled();
     });
 
     it("email change revokes target sessions", async () => {
@@ -233,7 +233,7 @@ describe("API-46–API-53 Administrator User APIs @issue-6", () => {
       } else {
         expect(mock.userSession.updateMany).not.toHaveBeenCalled();
       }
-      expect(mock.ticket.updateMany).not.toHaveBeenCalled();
+      expect(mock.ticket.updateManyAndReturn).not.toHaveBeenCalled();
     });
 
     it("role change to REQUESTER revokes sessions and unassigns tickets", async () => {
@@ -250,10 +250,16 @@ describe("API-46–API-53 Administrator User APIs @issue-6", () => {
         where: { userId: STAFF.id, revokedAt: null },
         data: expect.objectContaining({ revokeReason: "ROLE_CHANGED" }),
       });
-      expect(mock.ticket.updateMany).toHaveBeenCalledWith({
+      expect(mock.ticket.updateManyAndReturn).toHaveBeenCalledWith({
         where: { ownerUserId: STAFF.id },
         data: { ownerUserId: null, updatedBy: ADMIN.email },
+        select: { id: true },
       });
+      expect(mock.ticketActivity.create).toHaveBeenCalledWith({ data: {
+        ticketId: 31, action: "TICKET_UNASSIGNED", performedByUserId: ADMIN.id,
+        createdBy: ADMIN.email, updatedBy: ADMIN.email,
+        assignment: { create: { previousAssignedToUserId: STAFF.id, assignedToUserId: null } },
+      } });
     });
 
     it("deactivation revokes sessions and unassigns tickets", async () => {
@@ -270,10 +276,16 @@ describe("API-46–API-53 Administrator User APIs @issue-6", () => {
         where: { userId: STAFF.id, revokedAt: null },
         data: expect.objectContaining({ revokeReason: "DEACTIVATED" }),
       });
-      expect(mock.ticket.updateMany).toHaveBeenCalledWith({
+      expect(mock.ticket.updateManyAndReturn).toHaveBeenCalledWith({
         where: { ownerUserId: STAFF.id },
         data: { ownerUserId: null, updatedBy: ADMIN.email },
+        select: { id: true },
       });
+      expect(mock.ticketActivity.create).toHaveBeenCalledWith({ data: {
+        ticketId: 31, action: "TICKET_UNASSIGNED", performedByUserId: ADMIN.id,
+        createdBy: ADMIN.email, updatedBy: ADMIN.email,
+        assignment: { create: { previousAssignedToUserId: STAFF.id, assignedToUserId: null } },
+      } });
     });
   });
 

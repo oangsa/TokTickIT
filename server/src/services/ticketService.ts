@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { isTransactionConflict } from "./transactionConflict.js";
+import { lockTicketActor } from "./ticketWorkflowService.js";
 
 import { ApiError } from "../http/errors.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
@@ -29,7 +31,10 @@ export async function applyRequesterTicketAction(
     return null;
   }
 
-  return prisma.$transaction(async (tx) => {
+  try { return await prisma.$transaction(async (tx) => {
+    await lockTicketActor(tx, requesterId, "REQUESTER");
+    // Serialize confirmation/reopen with workflow and Action parent locks.
+    await tx.$queryRaw`SELECT id FROM ticket WHERE public_id = ${publicId.toLowerCase()}::uuid AND requester_id = ${requesterId} AND deleted = false FOR UPDATE`;
     const ticket = await tx.ticket.findFirst({
       where: { publicId, requesterId, deleted: false },
       select: { id: true, currentStatus: true, requesterResolutionConfirmedAt: true },
@@ -70,9 +75,18 @@ export async function applyRequesterTicketAction(
 
     if (result.count !== 1) throw new ApiError("INVALID_STATUS_TRANSITION");
 
+    await tx.ticketActivity.create({ data: {
+      ticketId: ticket.id, performedByUserId: requesterId, createdBy: actor, updatedBy: actor,
+      action: action === "looks-resolved" ? "REQUESTER_RESOLUTION_CONFIRMED" : action === "cancel" ? "TICKET_CANCELLED" : "TICKET_REOPENED",
+      ...(action !== "looks-resolved" ? { status: { create: { previousStatus: ticket.currentStatus, status: action === "cancel" ? "CANCELLED" : "REOPENED" } } } : {}),
+    } });
+
     const updated = await tx.ticket.findUnique({ where: { id: ticket.id }, include: TICKET_DTO_INCLUDE });
     return updated === null ? null : toTicketDTO(updated);
-  });
+  }); } catch (error) {
+    if (isTransactionConflict(error)) throw new ApiError("INVALID_STATUS_TRANSITION");
+    throw error;
+  }
 }
 
 /*
@@ -189,7 +203,9 @@ export class TicketService {
   async create(input: CreateTicketInput): Promise<TicketDTO> {
     const ticketId = await this.prisma.$transaction(async (tx) => {
       const owns = await this.idempotency.lockAndVerify(tx, {
-        requesterId: input.requesterId,
+        userId: input.requesterId,
+        method: "POST",
+        resourcePath: "/api/users/me/tickets",
         key: input.key,
         requestHash: input.requestHash,
         processingStartedAt: input.processingStartedAt,
@@ -229,7 +245,7 @@ export class TicketService {
 
       await this.idempotency.complete(tx, {
         recordId: input.recordId,
-        ticketId: ticket.id,
+        result: { ticketId: ticket.id },
         now: input.now,
         actor: input.actor,
       });

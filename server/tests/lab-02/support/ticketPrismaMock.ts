@@ -13,6 +13,8 @@ import { testUser } from "./authenticatedRequester.js";
  * atomicity.
  */
 export const tx = {
+  user: { findUnique: vi.fn() },
+  ticketActivity: { create: vi.fn() },
   category: { findFirst: vi.fn() },
   relatedSystem: { findFirst: vi.fn() },
   attachment: {
@@ -145,12 +147,15 @@ export function attachmentRow(overrides: Record<string, unknown> = {}) {
 export function processingRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: 7,
-    requesterId: 3,
+    userId: 3,
+    method: "POST",
+    resourcePath: "/api/users/me/tickets",
     key: KEY,
     requestHash: "",
     status: "PROCESSING",
     processingStartedAt: new Date(),
     ticketId: null,
+    actionTakenId: null,
     completedAt: null,
     expiresAt: null,
     ...overrides,
@@ -163,6 +168,7 @@ export function processingRecord(overrides: Record<string, unknown> = {}) {
  * thing it is testing.
  */
 export function arrangeHappyPath(): void {
+  tx.user.findUnique.mockResolvedValue(ALICE_AUTH);
   vi.clearAllMocks();
 
   prismaMock.developmentRequester.findMany.mockResolvedValue([ALICE]);

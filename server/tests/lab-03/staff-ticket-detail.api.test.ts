@@ -46,8 +46,8 @@ describe("API-18–29/32/55 Staff detail and actions @issue-5", () => {
     expect((await request(app).get(path).set("Authorization", bearerToken(tokens, REQUESTER.id))).status).toBe(403);
     expect((await request(app).get("/api/tickets/bad").set("Authorization", bearerToken(tokens, STAFF.id))).status).toBe(404);
   });
-  it("Claim is Staff-only and stale expected-owner writes conflict", async () => {
-    expect((await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(403);
+  it("Claim permits Staff/Admin and stale expected-owner writes conflict", async () => {
+    expect((await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, ADMIN.id))).status).toBe(200);
     expect((await request(app).post(`${path}/claim`).set("Authorization", bearerToken(tokens, STAFF.id))).status).toBe(200);
     const stale = await request(app).patch(`${path}/owner`).set("Authorization", bearerToken(tokens, STAFF.id)).send({ ownerPublicId: null, expectedOwnerPublicId: STAFF.publicId });
     expect(stale.status).toBe(409); expect(stale.body.code).toBe("OWNERSHIP_CONFLICT");

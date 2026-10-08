@@ -68,12 +68,12 @@ describe.sequential("PG-07–09 real ownership concurrency and Queue @issue-5", 
     const zero = await createUser({});
     const inactive = await createUser({ isActive: false });
     const deleted = await createUser({ deleted: true });
-    const rows = await listAssignableUsers(first);
+    const { items: rows } = await listAssignableUsers(first);
     expect(rows.some((row) => row.publicId === zero.publicId)).toBe(true);
     expect(rows.some((row) => [inactive.publicId, deleted.publicId].includes(row.publicId))).toBe(false);
     expect(rows.every((row) => row.role !== ("REQUESTER" as string))).toBe(true);
     expect(rows.map((row) => row.publicId)).toEqual(rows.map((row) => row.publicId).sort());
-    for (const row of rows) expect(Object.keys(row).sort()).toEqual(["name", "publicId", "role"]);
+    for (const row of rows) expect(Object.keys(row).sort()).toEqual(["email", "name", "publicId", "role"]);
     for (const publicId of [inactive.publicId, deleted.publicId]) {
       const row = await ticket();
       await expect(mutateStaffTicket(first, staff, row.publicId, "owner", { ownerPublicId: publicId, expectedOwnerPublicId: null })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });

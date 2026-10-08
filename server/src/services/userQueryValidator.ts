@@ -23,7 +23,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   "pageSize",
 ]);
 
-export function parseUserListQuery(input: unknown): UserListQuery {
+export function parseUserListQuery(input: unknown, sortFields: readonly string[] = USER_SORT_FIELDS): UserListQuery {
   if (!record(input)) {
     invalidField("query");
   }
@@ -129,10 +129,10 @@ export function parseUserListQuery(input: unknown): UserListQuery {
     const parts = (input.sort as string).split(":");
     if (
       parts.length !== 2 ||
-      !USER_SORT_FIELDS.includes(parts[0] as typeof USER_SORT_FIELDS[number]) ||
+      !sortFields.includes(parts[0]) ||
       !["asc", "desc"].includes(parts[1])
     ) {
-      invalidField("sort", "sort must be name:asc, name:desc, email:asc, or email:desc.");
+      invalidField("sort", `sort must use an approved field (${sortFields.join(", ")}) with asc or desc.`);
     }
     order.push(
       { field: parts[0], direction: parts[1] as "asc" | "desc" },

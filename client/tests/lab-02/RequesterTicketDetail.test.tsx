@@ -352,7 +352,7 @@ describe("UI-24 Ticket Detail page-level failures", () => {
     /* Section 27: standalone, and never carrying backend text. */
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByText(/Backend detail/)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/dashboard");
   });
 
   it("treats a transport failure as the generic 500 page", async () => {
@@ -366,7 +366,7 @@ describe("UI-24 Ticket Detail page-level failures", () => {
     renderDetail();
 
     expect(await screen.findByText("Something went wrong.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/tickets");
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/dashboard");
   });
 });
 

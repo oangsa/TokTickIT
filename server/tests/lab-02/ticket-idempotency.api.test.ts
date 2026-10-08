@@ -22,7 +22,7 @@ import {
 } from "./support/ticketPrismaMock.js";
 import { bearerToken, configureRequesterAuth, type RequesterTokens } from "./support/authenticatedRequester.js";
 import { app } from "../../src/app.js";
-import { hashCreateTicketPayload } from "../../src/services/ticketCreateRequest.js";
+import { hashCreateTicketPayload, hashLegacyCreateTicketPayload } from "../../src/services/ticketCreateRequest.js";
 
 let tokens: RequesterTokens;
 
@@ -128,6 +128,25 @@ describe("completed same-key replay", () => {
     expect(tx.ticket.create).not.toHaveBeenCalled();
   });
 
+  it("replays a migrated Lab 2 body-only claim", async () => {
+    prismaMock.idempotencyRecord.findUnique.mockResolvedValue(
+      processingRecord({
+        status: "COMPLETED",
+        requestHash: "9bb94f65a373c130fa9f8137256557120961dcf714c23788230353ef76397480",
+        ticketId: 42,
+        completedAt: NOW(),
+        expiresAt: new Date(Date.now() + 3_600_000),
+      }),
+    );
+
+    const res = await post(VALID_BODY);
+
+    expect(res.status).toBe(200);
+    expect(res.body.publicId).toBe("05a214b4-b957-4ed7-a58e-73f4392b35ec");
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(tx.ticket.create).not.toHaveBeenCalled();
+  });
+
   it("reconstructs the current TicketDTO, so later Attachment changes appear", async () => {
     prismaMock.idempotencyRecord.findUnique.mockResolvedValue(
       processingRecord({
@@ -218,7 +237,7 @@ describe("key scope", () => {
 
     expect(res.status).toBe(201);
     expect(prismaMock.idempotencyRecord.findUnique).toHaveBeenCalledWith({
-      where: { requesterId_key: { requesterId: 4, key: KEY } },
+      where: { userId_method_resourcePath_key: { userId: 4, method: "POST", resourcePath: "/api/users/me/tickets", key: KEY } },
     });
   });
 });
@@ -317,7 +336,9 @@ describe("controlled failure", () => {
     expect(tx.idempotencyRecord.update).not.toHaveBeenCalled();
     expect(prismaMock.idempotencyRecord.deleteMany).toHaveBeenCalledWith({
       where: {
-        requesterId: 3,
+        userId: 3,
+        method: "POST",
+        resourcePath: "/api/users/me/tickets",
         key: KEY,
         status: "PROCESSING",
         processingStartedAt: expect.any(Date),
@@ -358,9 +379,11 @@ describe("IDEMPOTENCY-FENCING-A", () => {
     const [strings, ...values] = tx.$queryRaw.mock.calls[0];
     expect(strings.join("?")).toContain("FOR UPDATE");
     expect(values[0]).toBe(3);
-    expect(values[1]).toBe(KEY);
-    expect(values[2]).toBe(hashOf());
-    expect(values[3]).toBeInstanceOf(Date);
+    expect(values[1]).toBe("POST");
+    expect(values[2]).toBe("/api/users/me/tickets");
+    expect(values[3]).toBe(KEY);
+    expect(values[4]).toBe(hashOf());
+    expect(values[5]).toBeInstanceOf(Date);
     expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.category.findFirst.mock.invocationCallOrder[0],
     );
@@ -442,7 +465,20 @@ describe("PROCESSING lease and reclaim", () => {
     expect(res.status).toBe(201);
     expect(prismaMock.idempotencyRecord.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: "PROCESSING", requestHash: hashOf() }),
+        where: expect.objectContaining({
+          status: "PROCESSING",
+          requestHash: {
+            in: [hashOf(), hashLegacyCreateTicketPayload({
+              categoryId: 4,
+              relatedSystemId: 5,
+              summary: VALID_BODY.summary,
+              requestedPriority: "HIGH",
+              description: VALID_BODY.description,
+              attachmentIds: [],
+            })],
+          },
+        }),
+        data: expect.objectContaining({ requestHash: hashOf() }),
       }),
     );
     /* Reclaimed in place, never deleted. */

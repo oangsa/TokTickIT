@@ -1,6 +1,6 @@
 # TokTickIT
 
-CPE334 Software Engineering — Lab 2 final delivery record.
+CPE334 Software Engineering — Labs 1–4 application and Lab 4 release candidate.
 
 | Area | Stack |
 |---|---|
@@ -9,9 +9,99 @@ CPE334 Software Engineering — Lab 2 final delivery record.
 | Database | PostgreSQL + Prisma (`server/prisma/`) |
 | Testing | Vitest + Supertest; pinned Playwright for approved E2E |
 
+## Current Lab 4 run, verification and demo
+
+The authenticated client opens `/dashboard` for Requester, IT Staff and
+Administrator roles. Requesters use `/tickets`; Staff use `/staff/tickets`;
+Administrators use `/admin/tickets` and `/admin/users`. Actions Taken and
+Staff/Admin Activity live under Ticket Detail. Staff/Admin associate existing
+same-Ticket Attachments; only the preserved Requester upload flow uploads files.
+The historical Lab 2 sections below describe earlier delivery checkpoints.
+
+Install with `npm ci` in the root, `server/` and `client/`. Run the server and
+client development scripts in separate terminals. A guarded seed writes random
+synthetic initial passwords to ignored `server/.local/lab3-seed-credentials.json`
+with owner-only permissions; do not copy credentials into logs or screenshots.
+Complete first-login password change before demonstrating workflows.
+
+For disposable integration verification, capture the existing database
+baselines privately before overriding either URL:
+
+```bash
+# Run from server/ after loading your normal environment without printing it.
+export LAB3_BASELINE_DATABASE_URL="$DATABASE_URL"
+export LAB3_BASELINE_DIRECT_URL="$DIRECT_URL"
+export NODE_ENV=test
+export TEST_DATABASE_URL='<DISPOSABLE_POSTGRES_URL_WITH_lab3_AND_test_IN_DATABASE_NAME>'
+export DATABASE_URL="$TEST_DATABASE_URL"
+export DIRECT_URL="$TEST_DATABASE_URL"
+npx --no-install prisma migrate status
+# Verify the reported host/database/schema before any write.
+npx --no-install prisma migrate deploy
+npm run prisma:seed
+npm run prisma:seed
+export CORS_ALLOWED_ORIGINS=http://localhost:5173
+npm test
+npm run build
+```
+
+`DIRECT_URL` takes precedence for Prisma CLI connections. `TEST_DATABASE_URL`
+alone does not retarget Prisma. Use a disposable PostgreSQL database, never the
+shared development database. On failed migration, stop rollout, inspect
+`_prisma_migrations` and actual effects, then follow the verified non-destructive
+recovery procedure in [specification.md](docs/lab-04/specification.md#512-migration-system-user-and-seed).
+Never mark incomplete effects applied or reset preserved data.
+
+```bash
+# client/
+npm test
+npm run build
+# repository root, retaining the guarded database environment above
+npm run test:e2e
+npm run test:e2e -- e2e/lab-04
+npm run test:e2e -- e2e/lab-04/release-quality.spec.ts
+```
+
+Run server seed-dependent suites and browser setup sequentially: they share an
+ignored local seed credential file. Use a fresh disposable browser database
+after a server reset so its initial hashes match that file.
+
+Playwright supplies its API server with the exact `127.0.0.1:5173` CORS origin.
+Install the pinned browser once with `npx --no-install playwright install chromium`.
+No package defines a lint script; builds include TypeScript checking.
+
+PERF-01 is a separate explicit job. Point **all three database variables** to a
+separate disposable database whose name ends in `_perf_test` and contains
+`lab3`; retain distinct captured baselines. Preflight it with Prisma status,
+then run from `server/`:
+
+```bash
+PERF01_RUN=1 npm test -- tests/lab-04/postgres/performance-smoke.postgres.test.ts
+```
+
+This opt-in command replaces the disposable performance schema and seeds 1,000
+synthetic humans, 100,000 Tickets, 300,000 Actions, 500,000 Activities and 1,000
+small Attachment joins. Ordinary tests never generate this dataset. Four warmed
+service probes assert bounded SQL/pagination and a default 2,000 ms ceiling;
+`PERF01_CEILING_MS` configures the environment's regression ceiling, not an SLA.
+Keep the full dataset when documenting an environment limitation.
+
+Demo: Requester creates a Ticket with optional Attachment; Staff claims it,
+starts work, creates an Action, selects an assignee through Lookup, starts/edits
+the Action, associates eligible evidence, then completes with a Result. Inspect
+Action and Ticket Activity; Requester reads Action history without Activity.
+Mark Resolved requires real completed work and no Planned/In-Progress Actions;
+Requester's confirmation remains advisory before the owner closes. Show all
+three role Dashboards, drill-downs, Refresh and retained data after refresh failure.
+
+Final executed results, AC traceability, screenshots and remaining peer-review
+gates: [Issue #83 evidence](docs/lab-04/evidence/issue-83.md) and
+[reviewer record](docs/lab-04/reviewer.md). No release acceptance is implied by
+historical feature results.
+
 ## Prerequisites
 
-- Node.js 20+ and npm
+- Node.js 22 or 24 and npm (this local verification used Node.js 24.18.1)
 - A running PostgreSQL instance
 - Docker, for the disposable PostgreSQL integration/E2E target
 

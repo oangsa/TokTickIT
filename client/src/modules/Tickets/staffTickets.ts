@@ -22,7 +22,7 @@ export function availableStaffActions(ticket: StaffTicket, user: { publicId: str
   const owner = ticket.owner?.publicId === user.publicId;
   const staff = user.role === "IT_STAFF";
   if (!staff && user.role !== "ADMINISTRATOR") return actions;
-  if (staff && !ticket.owner && !["CLOSED", "CANCELLED"].includes(ticket.currentStatus)) actions.push("claim");
+  if (!ticket.owner && !["CLOSED", "CANCELLED"].includes(ticket.currentStatus)) actions.push("claim");
   if (owner) {
     if (["OPEN", "REOPENED"].includes(ticket.currentStatus)) actions.push("start-work");
     if (["OPEN", "IN_PROGRESS", "REOPENED"].includes(ticket.currentStatus)) actions.push("request-information");
@@ -30,6 +30,6 @@ export function availableStaffActions(ticket: StaffTicket, user: { publicId: str
     if (["IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticket.currentStatus)) actions.push("mark-resolved");
     if (ticket.currentStatus === "RESOLVED" && ticket.requesterResolutionConfirmedAt) actions.push("close");
   }
-  if ((staff || owner) && ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticket.currentStatus)) actions.push("cancel");
+  if (["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticket.currentStatus)) actions.push("cancel");
   return actions;
 }

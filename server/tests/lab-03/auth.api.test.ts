@@ -14,11 +14,13 @@ const prisma = vi.hoisted(() => ({
   user: {
     findUnique: async ({ where }: { where: Record<string, unknown> }) => {
       if (where.id !== undefined) {
-        return state.users.find((user) => user.id === where.id) ?? null;
+        const user = state.users.find((candidate) => candidate.id === where.id) ?? null;
+        return user && (where.isSystem === undefined || user.isSystem === where.isSystem) ? user : null;
       }
       if (where.email !== undefined) {
         const email = String(where.email).toLowerCase();
-        return state.users.find((user) => String(user.email).toLowerCase() === email) ?? null;
+        const user = state.users.find((candidate) => String(candidate.email).toLowerCase() === email) ?? null;
+        return user && (where.isSystem === undefined || user.isSystem === where.isSystem) ? user : null;
       }
       return null;
     },
@@ -119,6 +121,7 @@ function configureUser(overrides: Record<string, unknown> = {}): void {
     name: "Alice Johnson",
     email: "alice@example.com",
     role: "REQUESTER",
+    isSystem: false,
     passwordHash: state.passwordHash,
     mustChangePassword: false,
     isActive: true,
@@ -181,6 +184,7 @@ describe("Auth API @issue-2", () => {
   it("API-02 unknown, inactive, deleted, and wrong-password login failures are identical @issue-2", async () => {
     const cases: Array<() => void> = [
       () => { state.users = []; },
+      () => { configureUser({ isSystem: true }); },
       () => { configureUser({ isActive: false }); },
       () => { configureUser({ deleted: true }); },
       () => { configureUser({ passwordHash: state.passwordHash + "x" }); },
@@ -193,8 +197,9 @@ describe("Auth API @issue-2", () => {
       responses.push(await loginRequest({ password: testPassword }));
     }
 
-    expect(responses.map((response) => response.status)).toEqual([401, 401, 401, 401]);
+    expect(responses.map((response) => response.status)).toEqual([401, 401, 401, 401, 401]);
     expect(responses.map((response) => response.body)).toEqual([
+      responses[0]!.body,
       responses[0]!.body,
       responses[0]!.body,
       responses[0]!.body,

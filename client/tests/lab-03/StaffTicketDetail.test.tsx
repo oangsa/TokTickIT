@@ -3,12 +3,16 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import StaffTicketDetail from "../../src/modules/Tickets/Staff/StaffTicketDetail.js";
+import { action, paged } from "../lab-04/fixtures.js";
+import type { ApiRequestInit } from "../../src/api.js";
 import { ApiResponseError } from "../../src/api.js";
 import { availableStaffActions, type StaffTicket } from "../../src/modules/Tickets/staffTickets.js";
 
 const { callApi, auth } = vi.hoisted(() => ({ callApi: vi.fn(), auth: { user: { publicId: "staff", role: "IT_STAFF" } } }));
-vi.mock("../../src/auth/useAuthenticatedApi.js", () => ({ useAuthenticatedApi: () => callApi, useAuthenticatedBlob: () => vi.fn() }));
+vi.mock("../../src/auth/useAuthenticatedApi.js", () => ({ useAuthenticatedApi: () => fixtureRequest, useAuthenticatedBlob: () => vi.fn() }));
 vi.mock("../../src/auth/AuthProvider.js", () => ({ useAuth: () => auth }));
+
+const fixtureRequest = (path: string, init?: ApiRequestInit) => path.includes("/actions") ? Promise.resolve(paged([{ ...action, status: "COMPLETED" }], init)) : path.includes("/activity") ? Promise.resolve(paged([], init)) : callApi(path, init);
 
 const ticket: StaffTicket = {
   publicId: "ticket", ticketNumber: "TKT-20260916-000000000011",
@@ -22,8 +26,9 @@ const ticket: StaffTicket = {
 
 beforeEach(() => {
   auth.user = { publicId: "staff", role: "IT_STAFF" };
-  callApi.mockImplementation(async (path: string) => {
-    if (path === "/api/users/assignable") return [{ publicId: "other", name: "Other Staff", role: "IT_STAFF" }];
+  callApi.mockImplementation(async (path: string, init?: ApiRequestInit) => {
+    if (path.startsWith("/api/users/assignable")) return paged([{ publicId: "other", name: "Other Staff", email: "other@example.test", role: "IT_STAFF" }], init);
+    if (path.includes("/actions") || path.includes("/activity")) return paged([], init);
     if (path.includes("/comments") || path.includes("/internal-notes")) {
       return { items: [], pagination: { pageNumber: 1, pageSize: 10, totalPages: 1, totalItems: 0 } };
     }
@@ -50,16 +55,17 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     expect(screen.getByLabelText("Requester Name")).toBeDisabled();
     expect(screen.getByLabelText("Requested Priority")).toHaveValue("HIGH");
     expect(screen.getByLabelText("Requested Priority")).toBeDisabled();
-    expect(screen.getByText("Ticket operations are read-only unless you are the assigned owner.")).toBeInTheDocument();
+    expect(screen.getByText(/Become Ticket Owner through Claim/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Change Owner" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("IT Priority")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("IT Priority")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Cancel Ticket" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start Work" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Claim Ticket" })).not.toBeInTheDocument();
   });
 
   it("UI-15 enables operational controls for assigned Administrator owner", async () => {
     auth.user = { publicId: "admin", role: "ADMINISTRATOR" };
-    callApi.mockImplementation(async (path: string) => path === "/api/users/assignable" ? [] : { ...ticket, owner: { publicId: "admin", name: "Admin", role: "ADMINISTRATOR" } });
+    callApi.mockImplementation(async (path: string, init?: ApiRequestInit) => path.startsWith("/api/users/assignable") ? paged([], init) : { ...ticket, owner: { publicId: "admin", name: "Admin", role: "ADMINISTRATOR" } });
     renderDetail();
     await screen.findByRole("heading", { name: ticket.ticketNumber });
     expect(screen.getByRole("button", { name: "Change Owner" })).toBeInTheDocument();
@@ -87,9 +93,10 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
   });
 
   it("UI-16 allows IT Staff to Claim unassigned Ticket without confirmation dialog", async () => {
+    let claimed = false;
     callApi.mockImplementation(async (path: string) => {
-      if (path.endsWith("/claim")) return { ...ticket, owner: { publicId: "staff", name: "Staff", role: "IT_STAFF" } };
-      return { ...ticket, owner: null };
+      if (path.endsWith("/claim")) claimed = true;
+      return { ...ticket, owner: claimed ? ticket.owner : null };
     });
     renderDetail();
     await screen.findByRole("heading", { name: ticket.ticketNumber });
@@ -100,7 +107,7 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "Claim Ticket" })).not.toBeInTheDocument());
   });
 
-  it("UI-16 conflict preserves current state and requires Reload Ticket", async () => {
+  it("UI-16 conflict preserves current state and requires Refresh Ticket", async () => {
     callApi.mockImplementation(async (path: string) => {
       if (path.endsWith("/start-work")) throw new ApiResponseError(409, "OWNERSHIP_CONFLICT", []);
       return ticket;
@@ -110,7 +117,7 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     await userEvent.click(screen.getByRole("button", { name: "Start Work" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Ticket ownership changed");
     expect(screen.getByRole("button", { name: "Start Work" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "Reload Ticket" }));
+    await userEvent.click(screen.getByRole("button", { name: "Refresh Ticket" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Start Work" })).toBeEnabled());
   });
 
@@ -173,7 +180,7 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     expect(select).toBeDisabled();
     resolveMutation!({ ...ticket, itPriority: "LOW" });
     expect(await screen.findByText("Ticket updated.")).toBeInTheDocument();
-    expect(select).toBeEnabled();
+    await waitFor(() => expect(select).toBeEnabled());
 
     // Error path
     callApi.mockImplementation(async (path: string) => {
@@ -182,7 +189,7 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
     });
     await user.selectOptions(select, "MEDIUM");
     expect(await screen.findByRole("alert")).toHaveTextContent("This action is no longer valid");
-    expect(screen.getByRole("button", { name: "Reload Ticket" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh Ticket" })).toBeInTheDocument();
   });
 
   it("UI-19 displays only permitted semantic action controls without generic status select", async () => {
@@ -199,9 +206,10 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
   });
 
   it("UI-20 Request Information validates message, submits to endpoint, and updates state", async () => {
+    let waiting = false;
     callApi.mockImplementation(async (path: string) => {
-      if (path.endsWith("/request-information")) return { ...ticket, currentStatus: "WAITING_FOR_REQUESTER" };
-      return ticket;
+      if (path.endsWith("/request-information")) waiting = true;
+      return { ...ticket, currentStatus: waiting ? "WAITING_FOR_REQUESTER" : "OPEN" };
     });
     renderDetail();
     await screen.findByRole("heading", { name: ticket.ticketNumber });
@@ -221,10 +229,11 @@ describe("UI-15–20/22 Staff Detail @issue-5", () => {
   });
 
   it("UI-22 Mark Resolved requires confirmation; Close is gated on Requester confirmation", async () => {
+    let currentStatus: StaffTicket["currentStatus"] = "IN_PROGRESS";
     callApi.mockImplementation(async (path: string) => {
-      if (path.endsWith("/mark-resolved")) return { ...ticket, currentStatus: "RESOLVED", requesterResolutionConfirmedAt: null };
-      if (path.endsWith("/close")) return { ...ticket, currentStatus: "CLOSED" };
-      return { ...ticket, currentStatus: "IN_PROGRESS" };
+      if (path.endsWith("/mark-resolved")) currentStatus = "RESOLVED";
+      if (path.endsWith("/close")) currentStatus = "CLOSED";
+      return { ...ticket, currentStatus, requesterResolutionConfirmedAt: null };
     });
     renderDetail();
     await screen.findByRole("heading", { name: ticket.ticketNumber });
@@ -268,7 +277,7 @@ describe("UI-21 Waiting Ticket after Requester comment @issue-6", () => {
       currentStatus: "WAITING_FOR_REQUESTER" as const,
     };
     callApi.mockImplementation(async (path: string) => {
-      if (path === "/api/users/assignable") return [];
+      if (path.startsWith("/api/users/assignable")) return [];
       if (path.includes("/comments")) {
         return [
           {
@@ -300,4 +309,19 @@ describe("UI-21 Waiting Ticket after Requester comment @issue-6", () => {
     // No automatic call to /resume occurred
     expect(callApi).not.toHaveBeenCalledWith(expect.stringContaining("/resume"), expect.anything());
   });
+});
+
+it("Ticket owner selection reaches eligible users beyond the bounded first page", async () => {
+  callApi.mockImplementation(async (path: string, init?: { onResponse?: (response: Response) => void }) => {
+    if (path.startsWith("/api/users/assignable")) {
+      const second = new URL(path, "http://localhost").searchParams.get("pageNumber") === "2";
+      init?.onResponse?.(new Response(null, { headers: { "X-Pagination": JSON.stringify({ pageNumber: second ? 2 : 1, pageSize: 100, totalItems: 101, totalPages: 2, hasPreviousPage: second, hasNextPage: !second }) } }));
+      return [{ publicId: second ? "last-page-user" : "first-page-user", name: second ? "Last Page Staff" : "First Page Staff", email: "staff@example.test", role: "IT_STAFF" }];
+    }
+    if (path.includes("/comments") || path.includes("/internal-notes")) return { items: [], pagination: { pageNumber: 1, pageSize: 10, totalItems: 0, totalPages: 0 } };
+    return ticket;
+  });
+  const user = userEvent.setup(); renderDetail();
+  await user.click(await screen.findByRole("button", { name: "Change Owner" }));
+  expect(await screen.findByRole("option", { name: "Last Page Staff (IT STAFF)" })).toBeInTheDocument();
 });

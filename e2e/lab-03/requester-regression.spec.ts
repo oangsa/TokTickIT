@@ -185,7 +185,8 @@ test("E2E-03 Requester confirms resolution then reopens unassigned @issue-4", as
     await page.getByLabel("Email *").fill(fixture.requester.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
     await page.goto(`/tickets/${ticket.publicId}`);
     await page.getByRole("button", { name: "Problem appears resolved" }).click();
     await expect(page.getByRole("button", { name: "Resolution confirmed" })).toBeDisabled();
@@ -208,7 +209,8 @@ test("E2E-03 My Tickets search, filter, sort and page use authenticated ownershi
     await page.getByLabel("Email *").fill(fixture.requester.email);
     await page.getByLabel("Password *").fill(fixture.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
     await page.getByPlaceholder("Search by ticket number, summary, or description…").fill("Support request");
     await page.getByLabel("Sort by", { exact: true }).selectOption("summary:desc");
     await page.getByRole("button", { name: "Filters", exact: true }).click();

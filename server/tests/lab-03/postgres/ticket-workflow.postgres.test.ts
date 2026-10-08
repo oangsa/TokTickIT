@@ -157,6 +157,11 @@ describe.sequential("PG-10 Request Information transaction seam @issue-5", () =>
   it("requires confirmation to close and consumes the Requester reopen seam", async () => {
     const row = await ticket();
     await mutateStaffTicket(prisma, staff, row.publicId, "start-work", {});
+    const { ActionTakenService } = await import("../../../src/services/actionTakenService.js");
+    const service = new ActionTakenService(prisma);
+    const action = (await service.create(staff, row.publicId, { description: "Verified current work", assignedToUserPublicId: staff.userPublicId, followUpRequired: false, attachmentIds: [] }, randomUUID())).action;
+    await service.lifecycle(staff, row.publicId, action.publicId, "start", { expectedVersion: 1 }, randomUUID());
+    await service.lifecycle(staff, row.publicId, action.publicId, "complete", { expectedVersion: 2, result: "Work verified", followUpRequired: false }, randomUUID());
     await mutateStaffTicket(prisma, staff, row.publicId, "mark-resolved", {});
     await expect(mutateStaffTicket(prisma, staff, row.publicId, "close", {})).rejects.toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
     await applyRequesterTicketAction(prisma, requesterId, "workflow.requester@example.test", row.publicId, "looks-resolved");

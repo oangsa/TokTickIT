@@ -77,7 +77,7 @@ describe.sequential("Lab 3 PostgreSQL auth sessions @issue-2", () => {
   afterAll(async () => prisma?.$disconnect());
 
   it("PG-04 persists Argon2id and refresh hashes without plaintext columns @issue-2", async () => {
-    const user = await prisma.user.findFirst({ where: { deleted: false } });
+    const user = await prisma.user.findFirst({ where: { deleted: false, isActive: true, isSystem: false } });
     if (!user) throw new Error("Seeded User required for PostgreSQL auth test");
 
     const sessionService = new SessionService(prisma);
@@ -104,7 +104,7 @@ describe.sequential("Lab 3 PostgreSQL auth sessions @issue-2", () => {
   });
 
   it("PG-05 persists rotation, exact deadlines, previous-token rescue, logout, and all-session revocation @issue-2", async () => {
-    const user = await prisma.user.findFirst({ where: { deleted: false } });
+    const user = await prisma.user.findFirst({ where: { deleted: false, isActive: true, isSystem: false } });
     if (!user) throw new Error("Seeded User required for PostgreSQL session test");
 
     const sessionService = new SessionService(prisma);

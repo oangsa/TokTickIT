@@ -49,6 +49,37 @@ enum IdempotencyStatus {
   COMPLETED
 }
 
+enum ActionTakenStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TicketActivityType {
+  MIGRATED_TICKET_SNAPSHOT
+  TICKET_ASSIGNED
+  TICKET_REASSIGNED
+  TICKET_UNASSIGNED
+  IT_PRIORITY_CHANGED
+  TICKET_STARTED_WORK
+  INFORMATION_REQUESTED
+  TICKET_RESUMED
+  TICKET_MARKED_RESOLVED
+  REQUESTER_RESOLUTION_CONFIRMED
+  TICKET_CLOSED
+  TICKET_CANCELLED
+  TICKET_REOPENED
+  ACTION_CREATED
+  ACTION_UPDATED
+  ACTION_ASSIGNED
+  ACTION_REASSIGNED
+  ACTION_UNASSIGNED
+  ACTION_STARTED
+  ACTION_COMPLETED
+  ACTION_CANCELLED
+}
+
 enum LoginRateLimitScope {
   EMAIL_IP
   IP
@@ -63,6 +94,7 @@ model User {
   passwordHash       String   @map("password_hash") @db.VarChar(255)
   mustChangePassword Boolean  @default(true) @map("must_change_password")
   isActive           Boolean  @default(true) @map("is_active")
+  isSystem           Boolean  @default(false) @map("is_system")
   deleted            Boolean  @default(false) @map("deleted")
   createdBy          String   @map("created_by") @db.VarChar(255)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -72,10 +104,18 @@ model User {
   requesterTickets   Ticket[]            @relation("RequesterTickets")
   ownedTickets       Ticket[]            @relation("TicketOwners")
   attachments        Attachment[]        @relation("AttachmentUploader")
-  idempotencyRecords IdempotencyRecord[] @relation("RequesterIdempotencyRecords")
+  idempotencyRecords IdempotencyRecord[] @relation("UserIdempotencyRecords")
   sessions           UserSession[]       @relation("UserSessions")
   publicComments     PublicComment[]     @relation("PublicCommentAuthors")
   internalNotes      InternalNote[]      @relation("InternalNoteAuthors")
+  createdActions     ActionTaken[]       @relation("ActionCreators")
+  assignedActions    ActionTaken[]       @relation("ActionAssignees")
+  performedActions   ActionTaken[]       @relation("ActionPerformers")
+  ticketActivities   TicketActivity[]    @relation("TicketActivityActors")
+  previousTicketOwners TicketAssignmentActivity[] @relation("PreviousTicketAssignment")
+  assignedTickets    TicketAssignmentActivity[] @relation("AssignedTicketOwner")
+  previousActionAssignees ActionTakenActivity[] @relation("PreviousActionAssignee")
+  assignedActionsInActivity ActionTakenActivity[] @relation("ActionActivityAssignee")
 
   @@index([role, isActive, deleted], map: "user_role_active_deleted_idx")
   @@map("user")
@@ -177,6 +217,8 @@ model Ticket {
   idempotencyRecords IdempotencyRecord[] @relation("TicketIdempotencyRecords")
   publicComments     PublicComment[]     @relation("TicketPublicComments")
   internalNotes      InternalNote[]      @relation("TicketInternalNotes")
+  actionsTaken       ActionTaken[]
+  activities         TicketActivity[]
 
   @@index([ownerUserId, currentStatus, createdAt], map: "ticket_owner_status_created_idx")
   @@index([categoryId], map: "ticket_category_id_idx")
@@ -184,6 +226,8 @@ model Ticket {
   @@index([requestedPriority], map: "ticket_requested_priority_idx")
   @@index([itPriority], map: "ticket_it_priority_idx")
   @@index([currentStatus], map: "ticket_current_status_idx")
+  @@index([currentStatus, itPriority], map: "ticket_dashboard_status_priority_idx")
+  @@index([updatedAt(sort: Desc), id(sort: Desc)], map: "ticket_updated_recent_idx")
   @@index([ticketNumber(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_ticket_number_trgm_idx")
   @@index([summary(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_summary_trgm_idx")
   @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "ticket_description_trgm_idx")
@@ -209,6 +253,7 @@ model Attachment {
 
   ticket              Ticket? @relation("TicketAttachments", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   uploadedByRequester User    @relation("AttachmentUploader", fields: [uploadedByRequesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actionAssociations ActionTakenAttachment[]
 
   @@index([ticketId], map: "attachment_ticket_id_idx")
   @@index([uploadedByRequesterId, ticketId], map: "attachment_uploader_ticket_idx")
@@ -217,12 +262,15 @@ model Attachment {
 
 model IdempotencyRecord {
   id                  Int               @id @default(autoincrement()) @map("id")
-  requesterId         Int               @map("requester_id")
+  userId              Int               @map("user_id")
   key                 String            @map("key") @db.Uuid
+  method              String            @map("method") @db.VarChar(10)
+  resourcePath        String            @map("resource_path") @db.VarChar(512)
   requestHash         String            @map("request_hash") @db.VarChar(128)
   status              IdempotencyStatus @map("status")
   processingStartedAt DateTime          @map("processing_started_at") @db.Timestamptz(3)
   ticketId            Int?              @map("ticket_id")
+  actionTakenId       Int?              @map("action_taken_id")
   completedAt         DateTime?         @map("completed_at") @db.Timestamptz(3)
   expiresAt           DateTime?         @map("expires_at") @db.Timestamptz(3)
   createdBy           String            @map("created_by") @db.VarChar(255)
@@ -230,12 +278,137 @@ model IdempotencyRecord {
   updatedBy           String            @map("updated_by") @db.VarChar(255)
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  requester User    @relation("RequesterIdempotencyRecords", fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  ticket    Ticket? @relation("TicketIdempotencyRecords", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user        User         @relation("UserIdempotencyRecords", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  ticket      Ticket?      @relation("TicketIdempotencyRecords", fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actionTaken ActionTaken? @relation("ActionIdempotencyRecords", fields: [actionTakenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
-  @@unique([requesterId, key], map: "idempotency_record_requester_key_key")
+  @@unique([userId, method, resourcePath, key], map: "idempotency_record_user_method_path_key_key")
   @@index([expiresAt, id], map: "idempotency_record_expires_at_id_idx")
   @@map("idempotency_record")
+}
+
+model ActionTaken {
+  id                 Int               @id @default(autoincrement()) @map("id")
+  publicId           String            @unique(map: "action_taken_public_id_key") @default(uuid()) @map("public_id") @db.Uuid
+  ticketId           Int               @map("ticket_id")
+  creatorUserId      Int               @map("creator_user_id")
+  assignedToUserId   Int?              @map("assigned_to_user_id")
+  performedByUserId  Int?              @map("performed_by_user_id")
+  status             ActionTakenStatus @map("status")
+  description        String            @map("description") @db.VarChar(2000)
+  result             String?           @map("result") @db.VarChar(2000)
+  followUpRequired   Boolean           @map("follow_up_required")
+  followUpNote       String?           @map("follow_up_note") @db.VarChar(2000)
+  attachmentNotes    String?           @map("attachment_notes") @db.VarChar(2000)
+  cancellationReason String?           @map("cancellation_reason") @db.VarChar(500)
+  isMigrated         Boolean           @default(false) @map("is_migrated")
+  version            Int               @default(1) @map("version")
+  startedAt          DateTime?         @map("started_at") @db.Timestamptz(3)
+  completedAt        DateTime?         @map("completed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  createdBy          String            @map("created_by") @db.VarChar(255)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy          String            @map("updated_by") @db.VarChar(255)
+  updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  ticket             Ticket                  @relation(fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  creator            User                    @relation("ActionCreators", fields: [creatorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assignedTo         User?                   @relation("ActionAssignees", fields: [assignedToUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  performedBy        User?                   @relation("ActionPerformers", fields: [performedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  attachments        ActionTakenAttachment[]
+  activities         ActionTakenActivity[]
+  idempotencyRecords IdempotencyRecord[]     @relation("ActionIdempotencyRecords")
+
+  @@index([ticketId, createdAt(sort: Desc), id(sort: Desc)], map: "action_taken_ticket_created_idx")
+  @@index([assignedToUserId, status], map: "action_taken_assignee_status_idx")
+  @@index([performedByUserId, completedAt], map: "action_taken_performer_completed_idx")
+  @@index([status, ticketId], map: "action_taken_status_ticket_idx")
+  @@map("action_taken")
+}
+
+model ActionTakenAttachment {
+  actionTakenId Int      @map("action_taken_id")
+  attachmentId  Int      @map("attachment_id")
+  createdBy     String   @map("created_by") @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy     String   @map("updated_by") @db.VarChar(255)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  actionTaken ActionTaken @relation(fields: [actionTakenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  attachment  Attachment  @relation(fields: [attachmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([actionTakenId, attachmentId], map: "action_taken_attachment_pkey")
+  @@index([attachmentId], map: "action_taken_attachment_attachment_idx")
+  @@map("action_taken_attachment")
+}
+
+model TicketActivity {
+  id                Int                @id @default(autoincrement()) @map("id")
+  publicId          String             @unique(map: "ticket_activity_public_id_key") @default(uuid()) @map("public_id") @db.Uuid
+  ticketId          Int                @map("ticket_id")
+  performedByUserId Int                @map("performed_by_user_id")
+  action            TicketActivityType @map("action")
+  createdBy         String             @map("created_by") @db.VarChar(255)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy         String             @map("updated_by") @db.VarChar(255)
+  updatedAt         DateTime           @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  ticket      Ticket                    @relation(fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  performedBy User                      @relation("TicketActivityActors", fields: [performedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assignment  TicketAssignmentActivity?
+  status      TicketStatusActivity?
+  priority    TicketPriorityActivity?
+  actionTaken ActionTakenActivity?
+
+  @@index([ticketId, createdAt(sort: Desc), id(sort: Desc)], map: "ticket_activity_ticket_created_idx")
+  @@map("ticket_activity")
+}
+
+model TicketAssignmentActivity {
+  ticketActivityId        Int  @id @map("ticket_activity_id")
+  previousAssignedToUserId Int? @map("previous_assigned_to_user_id")
+  assignedToUserId         Int? @map("assigned_to_user_id")
+
+  activity      TicketActivity @relation(fields: [ticketActivityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  previousOwner User?          @relation("PreviousTicketAssignment", fields: [previousAssignedToUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assignedOwner User?          @relation("AssignedTicketOwner", fields: [assignedToUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("ticket_assignment_activity")
+}
+
+model TicketStatusActivity {
+  ticketActivityId Int          @id @map("ticket_activity_id")
+  previousStatus   TicketStatus? @map("previous_status")
+  status           TicketStatus  @map("status")
+
+  activity TicketActivity @relation(fields: [ticketActivityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("ticket_status_activity")
+}
+
+model TicketPriorityActivity {
+  ticketActivityId Int            @id @map("ticket_activity_id")
+  previousPriority TicketPriority? @map("previous_priority")
+  priority         TicketPriority  @map("priority")
+
+  activity TicketActivity @relation(fields: [ticketActivityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("ticket_priority_activity")
+}
+
+model ActionTakenActivity {
+  ticketActivityId        Int  @id @map("ticket_activity_id")
+  actionTakenId           Int  @map("action_taken_id")
+  previousAssignedToUserId Int? @map("previous_assigned_to_user_id")
+  assignedToUserId         Int? @map("assigned_to_user_id")
+
+  activity         TicketActivity @relation(fields: [ticketActivityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actionTaken      ActionTaken    @relation(fields: [actionTakenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  previousAssignee User?          @relation("PreviousActionAssignee", fields: [previousAssignedToUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assignedAssignee User?          @relation("ActionActivityAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([actionTakenId], map: "action_taken_activity_action_idx")
+  @@map("action_taken_activity")
 }
 
 model PublicComment {

@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useNavigationType, useParams } from "react-ro
 
 import { ApiResponseError, Ticket } from "../../../api.js";
 import { useAuthenticatedApi } from "../../../auth/useAuthenticatedApi.js";
+import { ActionsTaken } from "../../Actions/ActionsTaken.js";
 import { AttachmentSection } from "../attachments/AttachmentSection.js";
 import { Card } from "../../../components/Common/Card.js";
 import { Button } from "../../../components/Common/Button.js";
@@ -319,18 +320,6 @@ export default function RequesterTicketDetail({ communicationSlot }: RequesterTi
             </Card>
           ) : null}
 
-          {communicationSlot ? (
-            communicationSlot(ticket, () => setReloadCount((count) => count + 1))
-          ) : (
-            <Card title="Comments">
-              <PublicComments
-                key={`${ticket.publicId}-${ticket.updatedAt}-${ticket.currentStatus}`}
-                ticketPublicId={ticket.publicId}
-                onCommentAdded={() => setReloadCount((count) => count + 1)}
-              />
-            </Card>
-          )}
-
           {/*
             Attachment behavior is shared with Create
             Ticket. A successful add or removal re-reads the Ticket rather than
@@ -342,6 +331,21 @@ export default function RequesterTicketDetail({ communicationSlot }: RequesterTi
             attachments={ticket.attachments}
             onChanged={() => setReloadCount((count) => count + 1)}
           />
+          <ActionsTaken key={ticket.publicId} ticket={ticket} />
+
+          {communicationSlot ? (
+            communicationSlot(ticket, () => setReloadCount((count) => count + 1))
+          ) : (
+            <Card title="Public Comments">
+              <PublicComments
+                key={`${ticket.publicId}-${ticket.updatedAt}-${ticket.currentStatus}`}
+                ticketPublicId={ticket.publicId}
+                onCommentAdded={() => setReloadCount((count) => count + 1)}
+              />
+            </Card>
+          )}
+
+
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { z } from "zod";
 
 import { CommonForm } from "../../src/components/Common/Form/CommonForm.js";
@@ -58,11 +59,11 @@ function AllFieldsHarness() {
     { key: "selected", name: "selected", label: "Selected", type: "select", options: [{ value: "one", label: "One" }] },
     { key: "enabled", name: "enabled", label: "Enabled", type: "switch" },
     { key: "file", name: "file", label: "Attachment", type: "attachment" },
-    { key: "owner", name: "owner", label: "Owner", type: "lookup", lookupLabel: "Lookup Owner" },
+    { key: "owner", name: "owner", label: "Owner", type: "lookup", definition: { title: "Select Owner", columns: [], fetchData: async () => ({ data: [], total: 0 }), getValue: () => "", getDisplayValue: () => "", searchPlaceholder: "Search owners", emptyMessage: "No owners", noMatchMessage: "No matching owners" } },
     { key: "custom", name: "custom", label: "Custom", type: "custom", render: ({ id }) => <output id={id} data-testid="custom-control">Custom control</output> },
     { key: "readonly", name: "readonly", label: "Readonly", type: "readonly", value: "Static value" },
   ] }];
-  return <CommonForm form={form} sections={sections} onSubmit={() => undefined} showCancelButton={false} />;
+  return <MemoryRouter><CommonForm form={form} sections={sections} onSubmit={() => undefined} showCancelButton={false} /></MemoryRouter>;
 }
 
 function NumericSelectHarness({ onSubmit }: { onSubmit: (values: NumericSelectValues) => void }) {

@@ -56,6 +56,9 @@ async function stubRefreshAndIdentity(
 }
 
 async function stubRequesterList(page: Page): Promise<void> {
+  await page.route("**/api/users/me/dashboard?**", async (route) => {
+    await fulfillAuth(route, 200, { metrics: { activeTickets: 0, waitingForRequester: 0, resolvedTickets: 0, closedTickets: 0 }, recentTickets: [] });
+  });
   await page.route("**/api/categories", async (route) => {
     await fulfillAuth(route, 200, []);
   });
@@ -121,7 +124,8 @@ test("E2E-01 initial-password login requires a fresh login and protects routes @
   await page.getByLabel("Email *").fill(FULL_USER.email);
   await page.getByLabel("Password *").fill("NewPassword1!");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/tickets$/);
+  await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
   await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
   expect(loginBodies).toEqual([
     { email: FULL_USER.email, password: "InitialPass1!", rememberMe: false },
@@ -239,7 +243,8 @@ test("E2E-01 live Remember Me, refresh bootstrap, and logout-all revoke sessions
     const loginResponse = page.waitForResponse((response) => response.url().endsWith("/api/auth/login") && response.request().method() === "POST");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     const { accessToken } = await (await loginResponse).json() as { accessToken: string };
-    await expect(page).toHaveURL(/\/tickets$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/tickets");
 
     const cookie = (await page.context().cookies("http://127.0.0.1:3000/api/auth/refresh")).find((item) => item.name === "toktickit_refresh");
     expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Strict" });
@@ -255,7 +260,8 @@ test("E2E-01 live Remember Me, refresh bootstrap, and logout-all revoke sessions
     await secondPage.getByLabel("Email *").fill(fixture.requester.email);
     await secondPage.getByLabel("Password *").fill(fixture.password);
     await secondPage.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(secondPage).toHaveURL(/\/tickets$/);
+    await expect(secondPage).toHaveURL(/\/dashboard$/);
+    await secondPage.goto("/tickets");
 
     const logoutStatus = await page.evaluate(async (token) => {
       const response = await fetch("http://127.0.0.1:3000/api/auth/logout-all", {

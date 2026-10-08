@@ -22,9 +22,15 @@ export async function createStaffFixture(count = 1) {
     tickets.push(await prisma.ticket.create({ data: { publicId: randomUUID(), ticketNumber: `TKT-20260916-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`, requesterId: requester.id, categoryId: category.id, relatedSystemId: system.id, summary: index === 0 ? "VPN disconnects after login" : `Support request ${index + 1}`, description: "Synthetic workflow fixture for Staff Queue verification.", requestedPriority: "MEDIUM", itPriority: index % 2 ? "MEDIUM" : "HIGH", currentStatus: "NEW", createdBy: "issue5-e2e", updatedBy: "issue5-e2e" } }));
   }
   return {
-    prisma, staff, requester, admin, password, tickets, category,
+    prisma, staff, requester, admin, password, tickets, category, suffix,
     async dispose() {
       const ids = tickets.map((ticket) => ticket.id);
+      if (await prisma.ticketActivity.count({ where: { ticketId: { in: ids } } }) > 0) {
+        // Preserve append-only audit fixtures on the guarded disposable target.
+        await prisma.userSession.deleteMany({ where: { userId: { in: users.map((user) => user.id) } } });
+        await prisma.$disconnect();
+        return;
+      }
       await prisma.publicComment.deleteMany({ where: { ticketId: { in: ids }, parentCommentId: { not: null } } });
       await prisma.publicComment.deleteMany({ where: { ticketId: { in: ids } } });
       await prisma.internalNote.deleteMany({ where: { ticketId: { in: ids } } });
@@ -43,7 +49,7 @@ export async function loginStaffFixture(page: Page, fixture: Awaited<ReturnType<
   await page.getByLabel("Email *", { exact: true }).fill(administrator ? fixture.admin.email : fixture.staff.email);
   await page.getByLabel("Password *", { exact: true }).fill(fixture.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(administrator ? /\/admin\/users$/ : /\/staff\/tickets$/);
-  if (administrator) await page.goto("/admin/tickets");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto(administrator ? "/admin/tickets" : "/staff/tickets");
   await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
 }

@@ -46,6 +46,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check committed diff whitespace
+        run: git diff --check HEAD^ HEAD
+        working-directory: .
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -148,7 +154,7 @@ jobs:
       - name: Generate browser test signing secret
         run: echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
-      - name: Run all Lab 3 Playwright suites
+      - name: Run all Lab 2 through Lab 4 Playwright suites
         env:
           NODE_ENV: test
           TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
@@ -165,6 +171,17 @@ jobs:
             artifacts/lab-03/playwright
           if-no-files-found: ignore
 
+      - name: Publish Issue 80 Lab 4 browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab4-issue80-browser-evidence
+          path: |
+            artifacts/lab-03/playwright-report
+            artifacts/lab-04/screenshots
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Run full server regression suite from Lab 1 through Lab 3
         env:
           NODE_ENV: test
@@ -177,6 +194,16 @@ jobs:
 
       - name: Build server
         run: npm run build
+
+      - name: Verify final guarded migration status
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.LAB3_TEST_DATABASE_URL }}
+          LAB3_BASELINE_DATABASE_URL: ${{ env.LAB3_BASELINE_DATABASE_URL }}
+          LAB3_BASELINE_DIRECT_URL: ${{ env.LAB3_BASELINE_DIRECT_URL }}
+        run: npx --no-install prisma migrate status
 
   client:
     runs-on: ubuntu-latest

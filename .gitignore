@@ -11,6 +11,13 @@ dist/
 build/
 # generated test evidence
 artifacts/
+!/artifacts/
+/artifacts/*
+!artifacts/lab-04/
+artifacts/lab-04/*
+!artifacts/lab-04/screenshots/
+artifacts/lab-04/screenshots/*
+!artifacts/lab-04/screenshots/final/
 # local handout; not submission evidence
 ignore/Lab_02_labsheet.pdf
 # prisma

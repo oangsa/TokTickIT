@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { ApiError, ErrorDetail } from "../http/errors.js";
+import { hashIdempotencyRequest } from "./idempotencyRequest.js";
 
 export const REQUESTED_PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
 
@@ -126,14 +127,16 @@ function readAttachmentIds(value: unknown, details: ErrorDetail[]): string[] | u
 }
 
 /*
- * api-spec Section 8.2. The canonical form is built by writing the properties
- * out in a fixed order, so it does not depend on the key order of the incoming
- * JSON. `JSON.stringify` on an object literal preserves insertion order for
- * string keys, which is what makes this stable.
- *
- * Result: exactly 64 lowercase hexadecimal characters.
+ * Includes the canonical Ticket-create method/path with the normalized body.
+ * The shared helper sorts object keys, so input property order cannot change
+ * the request identity. Result: 64 lowercase hexadecimal characters.
  */
 export function hashCreateTicketPayload(payload: CreateTicketPayload): string {
+  return hashIdempotencyRequest("POST", "/api/users/me/tickets", payload);
+}
+
+/* Preserves the body-only claim hash used by Lab 2 Ticket-create records. */
+export function hashLegacyCreateTicketPayload(payload: CreateTicketPayload): string {
   const canonical = JSON.stringify({
     attachmentIds: payload.attachmentIds,
     categoryId: payload.categoryId,
