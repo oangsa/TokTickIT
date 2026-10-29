@@ -24,6 +24,37 @@ synthetic initial passwords to ignored `server/.local/lab3-seed-credentials.json
 with owner-only permissions; do not copy credentials into logs or screenshots.
 Complete first-login password change before demonstrating workflows.
 
+Before starting Lab 4 against an existing database, run the read-only migration
+check from `server/`:
+
+```bash
+npx --no-install prisma migrate status
+```
+
+Lab 4 code requires all seven committed migrations. In particular, login reads
+`user.is_system`, added by `20260930000000_lab4_data_foundation`. A database still
+on Lab 3 can therefore return `500 INTERNAL_SERVER_ERROR` on login with Prisma
+`P2022` (`column user.is_system does not exist`). Generating Prisma Client alone
+does not update the database.
+
+If migrations are pending, confirm the reported host/database/schema and obtain
+explicit owner approval before changing a shared database. For an approved
+deployment, run the existing migrations from `server/`, then verify status:
+
+```bash
+npx --no-install prisma migrate deploy
+npx --no-install prisma migrate status
+```
+
+`DIRECT_URL` takes precedence over `DATABASE_URL` for these commands. Keep the
+API stopped during the upgrade; restart it only after deployment succeeds and
+status reports the schema is up to date. Do not reset, reseed, rewrite applied
+migrations, or remove the SYSTEM User filter to repair this mismatch. Retry
+login afterward. A separate `401 SESSION_INVALID` on refresh can still occur
+when the browser has no valid session; it does not by itself establish a login
+failure. The disposable test setup below remains separate from an approved
+shared-database deployment.
+
 For disposable integration verification, capture the existing database
 baselines privately before overriding either URL:
 
