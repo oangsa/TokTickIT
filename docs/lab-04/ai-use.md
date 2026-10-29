@@ -207,3 +207,22 @@ contract changed. Main CI remains historical evidence, not a new passing run.
 | Available prompt | Use of result |
 |---|---|
 | Commit and push. | Inspected all six changed files, including staged and unstaged AGENTS.md changes; authorized publication on the existing feature branch. Reran My Tickets tests (54 passed) and client build (passed). Prior Red/Green evidence remains recorded above; no new behavior implemented in this publication task. |
+
+
+### Login schema mismatch recovery — 2026-10-29
+
+| Available prompt | Use of result |
+|---|---|
+| Create a proper branch to fix login Prisma errors, then open a PR to lab4-staging. | Created feature/fix-login-prisma-error from current origin/lab4-staging with a clean working tree. Read-only diagnostics reproduced Prisma P2022: user.is_system was missing. Migration status identified all three committed Lab 4 migrations as pending; rate-limit/session reads and the login advisory lock passed. Updated README startup and recovery instructions. No application logic, API contract, schema definition, or migration source changed. |
+| Yes, deploy existing migrations. | Explicitly authorized shared Supabase deployment. Applied 20260930000000_lab4_data_foundation, 20261001000000_lab4_activity_detail_constraints, and 20261001010000_lab4_claim_activity_details using npx --no-install prisma migrate deploy. Follow-up status reported seven migrations and an up-to-date schema. Previously failing User-column read, full login User query, full Session query, rate-limit read and advisory-lock probe all passed without printing records. No reset or seed ran. |
+
+Validation: `npm test -- tests/lab-03/auth.api.test.ts tests/lab-03/auth-transport.api.test.ts`
+passed 18 tests across two files with mocked persistence. Initial sandbox run
+could not bind Supertest sockets; rerun with socket access passed. No tests were
+added or changed. This was an existing-migration deployment and documentation
+correction, not an application behavior change; no new TDD cycle or build was
+required. The direct database probe failed before deployment and passed after.
+No automated suite targeted the shared database. Real credential login and
+browser E2E remain unverified. No credentials or User records were logged.
+Only prompts available in this session are recorded; no peer approval or merge
+is claimed. Publication is recorded by the resulting PR and commit.
