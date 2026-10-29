@@ -191,3 +191,19 @@ invented for these record changes.
 |---|---|
 | Copy exactly the reviews received and replies for PRs #84–#90, plus reviews given on partner PRs #58–#63; use Lab 1/2 reviewer records only as references. | Retrieved all 13 PR discussions, metadata and inline threads; independently compared every body with paginated GitHub REST responses. Copied all 26 review submissions and four partner conversation comments verbatim into reviewer.md, linked source records and reviewed SHAs, and identified empty bodies and absent author replies. Recorded current #84/#90 approvals and preserved prior local verification notes as historical. Documentation-only work; no application tests/builds, commit, push or GitHub mutation. |
 | Commit and push. | Authorized publication of the two peer-review documentation files on feature/83-lab4-final-verification-release. Rechecked all 30 source bodies and scoped credential patterns; retained six original trailing-whitespace lines to satisfy exact copying. No application tests/builds rerun for documentation-only publication; no merge, Issue closure or release acceptance. |
+
+### CI whitespace gate and TDD scope — 2026-10-29
+
+| Available prompt | Use of result |
+|---|---|
+| Fix whitespace CI failure, remove non-behavior checks of this kind, inspect main CI, and clarify TDD scope in AGENTS.md. | Removed the sole committed-diff whitespace CI gate and its extra checkout history; preserved verbatim review transcripts and application/database tests. Scoped TDD and validation commands to affected application behavior. Inspected main run 37807266010 and its browser trace: a queued search overwrote a newly applied Category filter. Added a deterministic regression that failed before the fix, then changed My Tickets to merge the search into the latest committed query. Preserved pre-existing staged/unstaged AGENTS.md edits. No commit or push. |
+
+Only this session's available prompt is recorded. Validation: focused My Tickets
+suite passed 54 tests after the fix; full client suite passed 456 tests across
+38 files. Client TypeScript/Vite build and workflow YAML parsing passed.
+Browser E2E and backend suites were not rerun; no REST or Prisma
+contract changed. Main CI remains historical evidence, not a new passing run.
+
+| Available prompt | Use of result |
+|---|---|
+| Commit and push. | Inspected all six changed files, including staged and unstaged AGENTS.md changes; authorized publication on the existing feature branch. Reran My Tickets tests (54 passed) and client build (passed). Prior Red/Green evidence remains recorded above; no new behavior implemented in this publication task. |

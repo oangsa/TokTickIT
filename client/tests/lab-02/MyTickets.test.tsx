@@ -420,6 +420,31 @@ describe("UI-18 My Tickets search debounce and query mapping", () => {
     expect(query.get("pageNumber")).toBe("1");
   });
 
+  it("preserves an applied filter while a pending search commits", async () => {
+    const { calls } = stubApi();
+    renderMyTickets();
+    await advance(0);
+
+    typeSearch("vpn");
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    const dialog = screen.getByRole("dialog", { name: "Filters" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Category/ }));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Network" }));
+    await advance(SEARCH_DEBOUNCE_MS - 1);
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+      // The queued debounce may run before React flushes the new URL effects.
+      vi.advanceTimersByTime(1);
+    });
+    await advance(SEARCH_DEBOUNCE_MS);
+
+    expect(lastListQuery(calls).get("search")).toBe("vpn");
+    expect(JSON.parse(lastListQuery(calls).get("filters") ?? "[]")).toEqual([
+      { field: "categoryId", condition: "IN", value: ["1"] },
+    ]);
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
+  });
+
   it("restarts the window when typing resumes before the boundary", async () => {
     const { calls } = stubApi();
 

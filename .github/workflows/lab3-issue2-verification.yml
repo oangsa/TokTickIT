@@ -46,12 +46,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Check committed diff whitespace
-        run: git diff --check HEAD^ HEAD
-        working-directory: .
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
