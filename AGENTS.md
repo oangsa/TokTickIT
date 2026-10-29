@@ -1,6 +1,6 @@
 ## 1. Project constraints
 
-**Default engineering workflow: TDD. For behavior changes, write or update the failing test first, implement the minimum change required to pass it, then refactor while keeping the tests green.**
+**Use TDD for application behavior changes. Documentation, formatting, configuration-only changes, and test maintenance do not require a failing test first; validate those with the relevant tools or existing tests.**
 
 This project has a fixed technology stack. Do not substitute frameworks,
 libraries, databases, ORMs, or architectural styles unless the assignment
@@ -825,9 +825,28 @@ implemented.
 
 ### TDD / Testing Workflow
 
-Use TDD by default for implementation work: new features, business rules, API
-behavior, validation, state transitions, permissions, and edge cases. Complete
-one small Red → Green → Refactor cycle before starting the next behavior.
+Use TDD for new or changed application behavior: business rules, API responses,
+validation, state transitions, permissions, and user interactions. Complete one
+small Red → Green → Refactor cycle before starting the next behavior.
+
+Choose validation by the change, not by the fact that a file changed:
+
+- Documentation, review transcripts, Markdown whitespace, formatting, and prose
+  changes: review the diff and rendered content where relevant. No new tests or
+  Red/Green cycle.
+- Configuration-only, CI workflow, dependency metadata, and test maintenance
+  changes: use the relevant parser, build, tool, or existing focused suite. Do
+  not add tests that merely assert configuration text or workflow step names.
+  If a configuration change alters application behavior, test that behavior.
+- Behavior-preserving refactors: run existing relevant coverage before and after;
+  add coverage only for a meaningful gap, without manufacturing a failure.
+- Application behavior changes and bugs: use the test-first cycle below.
+
+Keep CI gates focused on application correctness, builds, and database safety.
+Do not add blocking documentation-whitespace or exact-prose checks. Formatting
+checks, when useful, belong in optional local tooling rather than product tests.
+Do not test source spelling, file contents, or implementation structure when an
+observable behavior test can verify the same contract.
 
 1. Identify the specification-backed behavior and public interface under test
    (for example, a REST endpoint, user interaction, or exported domain function).
@@ -846,7 +865,8 @@ add tests merely to confirm existing code. If strict test-first development is
 genuinely impractical, document why in the work summary; this does not excuse
 leaving reasonably testable behavior untested.
 
-For bug fixes, first create or update a regression test that reproduces the bug.
+For application behavior bug fixes, first create or update a regression test
+that reproduces the bug.
 Confirm it fails before the fix and passes afterward. Keep it permanently unless
 there is a strong documented reason to remove it.
 
@@ -867,7 +887,8 @@ Preserve the existing test stack and database safety rules.
 
 ### Test coverage
 
-Features and bug fixes are incomplete without appropriate automated coverage.
+Application behavior features and bug fixes require appropriate automated
+coverage.
 Cover applicable happy paths, validation failures, authorization/ownership rules,
 boundary conditions, state transitions, duplicate/idempotent requests, error
 handling, regressions, and important specification edge cases.
@@ -909,9 +930,13 @@ Use the commands defined by the repository's actual `package.json` files.
 
 Do not assume script names without inspecting them.
 
-During Red/Green, run the specific test file or smallest useful test set. Once
-implementation is stable, run the broader affected suite. Before completing
-implementation work, run the repository's required applicable commands for:
+For behavior changes, run the smallest useful test set during Red/Green, then
+broader affected coverage once stable. Select final checks by affected paths:
+client changes need relevant client tests/build; server changes need relevant
+server tests/build; shared changes need both. Documentation-only changes do not
+require application tests or builds. Workflow-only changes need syntax review
+and validation of affected commands where feasible. Do not invent lint scripts
+or rerun unrelated suites solely to satisfy a checklist. Available checks include:
 
 ```text
 type checking

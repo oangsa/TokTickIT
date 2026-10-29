@@ -132,3 +132,19 @@ Publication authorization (2026-10-02): the owner requested commit, push and a P
 | Execute Issue #83 final Labs 1–4 hardening/release gates, preserving earlier-lab contracts and evidence. | Reran the complete server, client and browser suites, including Lab 2 Ticket-create idempotency, attachments and Requester regressions. Preserved historical committed screenshots after browser-generated recaptures. Current instructions and actual results are recorded in README and docs/lab-04/evidence/issue-83.md. No Lab 2 product behavior or historical review claim was changed. |
 
 Only this available prompt was added; no missing prompt history was invented.
+
+### CI whitespace gate and TDD scope — 2026-10-29
+
+| Available prompt | Use of result |
+|---|---|
+| Fix whitespace CI failure, remove non-behavior checks of this kind, inspect main CI, and clarify TDD scope in AGENTS.md. | Removed the sole committed-diff whitespace CI gate and its extra checkout history; preserved verbatim review transcripts and application/database tests. Scoped TDD and validation commands to affected application behavior. Inspected main run 37807266010 and its browser trace: a queued search overwrote a newly applied Category filter. Added a deterministic regression that failed before the fix, then changed My Tickets to merge the search into the latest committed query. Preserved pre-existing staged/unstaged AGENTS.md edits. No commit or push. |
+
+Only this session's available prompt is recorded. Validation: focused My Tickets
+suite passed 54 tests after the fix; full client suite passed 456 tests across
+38 files. Client TypeScript/Vite build and workflow YAML parsing passed.
+Browser E2E and backend suites were not rerun; no REST or Prisma
+contract changed. Main CI remains historical evidence, not a new passing run.
+
+| Available prompt | Use of result |
+|---|---|
+| Commit and push. | Inspected all six changed files, including staged and unstaged AGENTS.md changes; authorized publication on the existing feature branch. Reran My Tickets tests (54 passed) and client build (passed). Prior Red/Green evidence remains recorded above; no new behavior implemented in this publication task. |
