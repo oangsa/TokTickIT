@@ -103,8 +103,13 @@ export default function MyTickets() {
    * pushes, or the entry it replaced would be the unsearched list itself and
    * Back would leave the screen rather than clear the search.
    */
+  // A queued search callback can run before URL effects observe a filter commit.
+  const latestQuery = useRef(query);
+  latestQuery.current = query;
+
   const commitQuery = useCallback(
     (next: TicketQuery, replace = false) => {
+      latestQuery.current = next;
       setParams(writeTicketQuery(next), { replace });
     },
     [setParams],
@@ -173,7 +178,7 @@ export default function MyTickets() {
 
     const timer = setTimeout(() => {
       committedSearch.current = searchInput.trim();
-      commitQuery({ ...query, search: searchInput.trim(), pageNumber: 1 }, query.search !== "");
+      commitQuery({ ...latestQuery.current, search: searchInput.trim(), pageNumber: 1 }, latestQuery.current.search !== "");
     }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
